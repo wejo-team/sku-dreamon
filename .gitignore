@@ -1,0 +1,26 @@
+# Local environment values
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Frontend and generated reports
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+
+# Local files
+.DS_Store
+Thumbs.db
+*.log
