@@ -1,6 +1,6 @@
 # 테스트·CI 기준
 
-문서 링크·Wiki 변환 검사는 문서 workflow에서 실행합니다. 아래 앱 검사는 스캐폴딩에서 구현할 기준이며, 아직 앱 CI나 테스트가 실행되고 있다는 의미는 아닙니다.
+문서 링크·Wiki 변환 검사는 `docs-wiki.yml`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. 현재 실행 기반에 대한 검사가 있으며 도메인 기능과 E2E 검사는 기능이 생길 때 추가합니다. 실행 명령은 [로컬 실행](local-development.md)에서 확인합니다.
 
 ## 의미 있는 테스트
 
@@ -15,14 +15,15 @@
 
 ## 단계별 CI
 
-하나의 `ci.yml`에 프론트·백엔드 job을 두고 병렬 실행하는 구성을 기본으로 합니다. 최초 문서 전용 단계에는 존재하지 않는 앱을 빌드하는 workflow를 만들지 않습니다.
+`ci.yml`의 프론트·백엔드 job을 병렬 실행합니다. backend job은 전용 PostgreSQL 17.11 서비스에 연결하고, `DATABASE_URL`과 `TEST_DATABASE_URL`을 같은 테스트 DB로 지정해 DB 검사가 생략되지 않도록 합니다.
 
 | 단계 | 검사 |
 | --- | --- |
 | 프론트 실행 기반 | `npm ci`, ESLint, Prettier check, TypeScript check, production build |
-| 프론트 기능·클라이언트 로직 | 의미 있는 테스트를 추가한 시점부터 Vitest를 CI에서 실행 |
+| 프론트 기능·클라이언트 로직 | 현재 HTTP 성공·오류·취소와 연결 화면의 상태·재시도를 Vitest로 검증 |
 | 백엔드 실행 기반 | `uv sync --locked`, Ruff lint·format check, mypy, pytest |
-| DB 모델 도입 | 임시 PostgreSQL에서 `alembic upgrade head`, `alembic check`, DB 통합 테스트 |
+| 비동기 DB 기반 | PostgreSQL에서 `alembic upgrade head`, `alembic check`, 연결 검사, 세션 분리·commit·rollback·종료 정리 통합 테스트 |
+| DB 모델 도입 | 위 검사에 실제 모델의 migration 적용·조회 테스트 추가 |
 | 핵심 사용자 흐름 완성 | 선택한 Playwright 흐름을 CI에서 실행 |
 
 - 프론트 검사 명령은 package.json scripts, Python 도구 설정은 pyproject.toml에 모읍니다. README·로컬 실행·CI가 같은 명령을 사용하도록 맞춥니다.
