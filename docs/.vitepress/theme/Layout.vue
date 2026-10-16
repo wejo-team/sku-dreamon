@@ -4,8 +4,23 @@ import DefaultTheme from "vitepress/theme";
 import { useData, withBase } from "vitepress";
 
 const { page, theme } = useData();
-const isIndex = computed(() => page.value.relativePath === "index.md");
 const revision = computed(() => theme.value.sourceRevision);
+const breadcrumbs = computed(() => {
+  const parts = (page.value.filePath ?? "").split("/").filter(Boolean);
+  return [
+    { text: "docs", link: "/" },
+    ...parts.map((text, index) => ({
+      text,
+      link:
+        index < parts.length - 1
+          ? `/${parts
+              .slice(0, index + 1)
+              .map(encodeURIComponent)
+              .join("/")}/`
+          : undefined,
+    })),
+  ];
+});
 const sourceUrl = computed(
   () =>
     `${theme.value.repositoryUrl}/blob/${revision.value ?? "main"}/docs/${page.value.filePath}`,
@@ -15,41 +30,18 @@ const sourceUrl = computed(
 <template>
   <DefaultTheme.Layout>
     <template #doc-before>
-      <section
-        v-if="isIndex"
-        class="wejo-intro"
-        aria-label="WEJO 팀 문서 시작하기"
-      >
-        <div class="wejo-intro-copy">
-          <p class="wejo-eyebrow">WEJO / TEAM HANDBOOK</p>
-          <p class="wejo-intro-title">함께 만들고,<br />같은 기준으로.</p>
-          <p class="wejo-intro-description">
-            기능의 약속부터 개발의 기준까지.<br />지금 필요한 문서에서
-            시작하세요.
-          </p>
-          <a
-            class="wejo-start"
-            :href="withBase('/development/local-development.html')"
-          >
-            로컬에서 시작하기 <span aria-hidden="true">↗</span>
-          </a>
-        </div>
-        <div class="wejo-intro-art" aria-hidden="true">
-          <div class="wejo-orbit"></div>
-          <div class="wejo-paper wejo-paper-back"></div>
-          <div class="wejo-paper wejo-paper-front">
-            <span class="wejo-paper-mark">w.</span>
-            <span class="wejo-paper-line"></span>
-            <span class="wejo-paper-line wejo-paper-line-short"></span>
-            <span class="wejo-paper-check">✓</span>
-          </div>
-          <span class="wejo-art-caption">BUILD TOGETHER</span>
-        </div>
-      </section>
+      <nav v-if="page.filePath" class="wejo-breadcrumbs" aria-label="문서 위치">
+        <ol>
+          <li v-for="item in breadcrumbs" :key="item.text">
+            <a v-if="item.link" :href="withBase(item.link)">{{ item.text }}</a>
+            <span v-else aria-current="page">{{ item.text }}</span>
+          </li>
+        </ol>
+      </nav>
     </template>
     <template #doc-footer-before>
-      <div class="wejo-source">
-        <span class="wejo-source-label">문서 원본</span>
+      <div v-if="page.filePath" class="wejo-source">
+        <span>원본</span>
         <a :href="sourceUrl" target="_blank" rel="noreferrer"
           >docs/{{ page.filePath }}</a
         >
@@ -71,7 +63,7 @@ const sourceUrl = computed(
         target="_blank"
         rel="noreferrer"
       >
-        GitHub Wiki에서도 보기 <span aria-hidden="true">↗</span>
+        GitHub Wiki에서 보기 <span aria-hidden="true">↗</span>
       </a>
     </template>
   </DefaultTheme.Layout>
