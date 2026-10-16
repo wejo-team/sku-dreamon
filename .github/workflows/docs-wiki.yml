@@ -1,4 +1,4 @@
-name: Docs and Wiki
+name: Docs, Pages and Wiki
 
 on:
   pull_request:
@@ -9,30 +9,84 @@ on:
 permissions:
   contents: read
 
-# A newer main run cancels the earlier publication; PRs have separate groups.
+# Cancel obsolete PR checks, but let an active main publication finish.
 concurrency:
   group: docs-wiki-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
     name: Validate docs
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
-      - name: Test Wiki exporter
+      - name: Test documentation tooling
         run: python -m unittest discover -s scripts/tests -v
       - name: Validate links and export Wiki pages
         env:
           REPOSITORY: ${{ github.repository }}
           SOURCE_REF: ${{ github.sha }}
         run: python scripts/export_wiki.py --repository "$REPOSITORY" --ref "$SOURCE_REF"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - run: npm install --global npm@9.2.0
+      - run: npm ci
+      - name: Build documentation site
+        run: npm run docs:build
+      - name: Check rendered links, anchors and assets
+        run: python scripts/check_docs_site.py
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: docs/.vitepress/dist
+          retention-days: 1
+
+  pages:
+    name: Publish Pages
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    steps:
+      - name: Skip reruns of commits superseded on main
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_REF: ${{ github.sha }}
+        run: |
+          latest_ref=$(gh api "repos/$REPOSITORY/commits/main" --jq .sha)
+          if [ "$latest_ref" = "$SOURCE_REF" ]; then
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'A newer main commit exists; leave Pages unchanged.'
+          fi
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        if: steps.current.outputs.publish == 'true'
+      - name: Deploy documentation site
+        id: deployment
+        if: steps.current.outputs.publish == 'true'
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
   publish:
     name: Publish Wiki
