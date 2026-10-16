@@ -11,10 +11,11 @@
 | 스프린트 범위·전체 시연 | [스프린트 1](sprint-1.md) | 검증할 기능의 완료 조건을 [전체 흐름 검증](sprint-1.md#end-to-end)에서 선택 |
 | 가입·교내 인증·시연 인증 | [인증](authentication.md) | 인증 정보 공개를 바꾸면 [프로필 공개 범위](profile.md#visibility) |
 | 프로필 입력·공개·포트폴리오 | [프로필](profile.md) | 선택지를 바꾸면 [공통 선택지](profile-options.md#choices), 학사 입력이면 [학사 선택 흐름](academic-structure.md#selection-flow) |
-| 분야·역할·역량·시간 선택지 | [프로필 선택지](profile-options.md) | 필수 여부를 바꾸면 [프로필 입력 항목](profile.md#fields) |
+| 분야·역할·역량·시간 선택지 | [프로필 선택지](profile-options.md) | 필수 여부를 바꾸면 [프로필 입력 항목](profile.md#fields), 의미·관련도를 바꾸면 [추천 계산](matching.md#processing) |
 | 대학·학부·전공 목록 정비 | [학사 구조](academic-structure.md) | 코드 추가·통합·폐지 시 [공통 데이터 관리](profile-options.md#catalog-management) |
-| 공고 등록·요약·공개·마감 | [공고](contests.md) | 실제 팀 지원에 영향을 주면 [지원 가능 정책](teams.md#application-rules) |
-| 팀 생성·지원·선발·팀 공간 | [팀](teams.md) | 공고 조건은 [참가 자격](contests.md#eligibility)·[마감](contests.md#deadlines), 지원자 열람은 [프로필 공개 범위](profile.md#visibility) |
+| 공고 등록·요약·공개·마감 | [공고](contests.md) | 실제 팀 지원에 영향을 주면 [지원 가능 정책](teams.md#application-rules), 개인화 순위를 바꾸면 [공모전 추천](matching.md#contest-scoring) |
+| 팀 생성·지원·선발·팀 공간 | [팀](teams.md) | 공고 조건은 [참가 자격](contests.md#eligibility)·[마감](contests.md#deadlines), 지원자 열람은 [프로필 공개 범위](profile.md#visibility), 순위는 [팀·지원자 추천](matching.md#team-scoring) |
+| 추천 계산·설명·갱신 | [추천](matching.md) | 입력 정의를 바꾸면 [선택지](profile-options.md#choices)·[시간 구간](profile-options.md#time-slots), 업무 조건을 바꾸면 [공고 자격](contests.md#eligibility)·[팀 지원](teams.md#application-rules) |
 
 ## 작성과 검토 안내
 

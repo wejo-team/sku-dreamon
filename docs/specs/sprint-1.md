@@ -14,7 +14,7 @@
 2. [프로필](profile.md)을 작성하고 공개 범위를 확인합니다.
 3. [공모전 공고](contests.md)를 탐색하고 자격·마감·공식 원문을 확인합니다.
 4. 공모전을 선택해 [팀을 생성하거나 모집 중인 팀에 지원](teams.md)합니다.
-5. 조건에 맞는 공모전·팀·지원자 후보와 실제 데이터에 근거한 추천 이유를 확인합니다.
+5. [추천](matching.md)에서 조건에 맞는 공모전·팀·지원자 후보와 실제 데이터에 근거한 추천 이유를 확인합니다.
 6. 팀장은 지원자를 검토·선발하고 지원자는 자신의 결과를 확인합니다. 팀원 확정 시점은 팀 명세에서 검토합니다.
 
 <a id="scope"></a>
@@ -42,15 +42,15 @@
 | --- | --- | --- |
 | 로그인·교내 인증 | 가입, 인증 상태 표시 | [인증](authentication.md) |
 | 프로필 설정 | 정보 입력·수정, 공개 범위 설정 | [프로필](profile.md) |
-| 홈·공모전 목록 | 모집 중 공고와 추천 공모전 확인 | [공고](contests.md) |
+| 홈·공모전 목록 | 모집 중 공고와 추천 공모전 확인 | [공고](contests.md), [공모전 추천](matching.md#contest-scoring) |
 | 공모전 상세 | 참가 자격·마감·제출물·공식 링크 확인 | [공고](contests.md) |
 | 팀 목록·상세 | 모집 조건 확인과 지원 | [팀](teams.md) |
 | 팀 생성·모집글 작성 | 공모전·역할·인원·마감 설정 | [팀](teams.md) |
 | 내 지원 현황 | 지원 상태와 결과 확인 | [팀](teams.md) |
-| 팀장 관리 | 지원자·추천 후보 확인, 선발 처리 | [팀](teams.md) |
+| 팀장 관리 | 지원자·추천 후보 확인, 선발 처리 | [팀](teams.md), [지원자 추천](matching.md#team-scoring) |
 | 팀 공간 | 확정 팀원·공모전·모집 및 매칭 상태 확인 | [팀](teams.md) |
 
-추천 계산의 세부 기준은 후속 추천 명세에서 연결합니다. 화면 목록은 별도의 UI·API 설계가 아니며, 각 기능 명세의 정책을 대체하지 않습니다.
+추천 계산의 세부 기준은 [추천 명세](matching.md)에서 관리합니다. 화면 목록은 별도의 UI·API 설계가 아니며, 각 기능 명세의 정책을 대체하지 않습니다.
 
 <a id="demo"></a>
 
@@ -69,7 +69,7 @@
 
 ## 전체 흐름 검증
 
-기능별 완료 조건은 [인증](authentication.md#acceptance-criteria), [프로필](profile.md#acceptance-criteria), [공고](contests.md#acceptance-criteria), [팀](teams.md#acceptance-criteria)에서 확인합니다. 이 문서에는 조건의 사본이나 별도 구현 체크를 만들지 않습니다.
+기능별 완료 조건은 [인증](authentication.md#acceptance-criteria), [프로필](profile.md#acceptance-criteria), [공고](contests.md#acceptance-criteria), [팀](teams.md#acceptance-criteria), [추천](matching.md#acceptance-criteria)에서 확인합니다. 선택지 구현을 검증할 때는 [공통 선택지](profile-options.md#acceptance-criteria)·[학사 구조](academic-structure.md#acceptance-criteria)의 조건도 확인합니다. 이 문서에는 조건의 사본이나 별도 구현 체크를 만들지 않습니다.
 
 시연에서는 인증 → 프로필 → 공고 → 팀 모집·지원 → 추천·선발 결과 확인 흐름을 연결해 검증합니다. 실제 인증·AI 연동 여부와 시연 데이터 범위를 함께 기록합니다. 명세 이관·합의만으로 구현 완료나 배포 완료를 표시하지 않습니다.
 
@@ -88,6 +88,7 @@
 - 실제 인증과 시연 인증의 선택·시연 계정 및 데이터 범위를 정합니다. 인증 동작은 [인증의 미정 사항](authentication.md#open-questions)에서 검토합니다.
 - 공고 요약의 입력 형식과 실제 AI API 연동 여부를 정합니다. 처리 범위는 [공고의 미정 사항](contests.md#open-questions)에서 검토합니다.
 - 팀 확정 시점과 지원 상태 전이는 [팀의 미정 사항](teams.md#open-questions)에서 검토합니다.
+- 추천 수식의 입력·동점·미입력 처리에서 남은 결정은 [추천의 미정 사항](matching.md#open-questions)에서 검토합니다.
 
 <a id="sources"></a>
 
