@@ -10,19 +10,23 @@
 
 문서의 `한다/하지 않는다`는 기본 규칙이고, `권장/필요하면`은 상황에 따라 선택하는 가이드입니다. 실제 formatter와 linter 설정을 추가하면 세부 포맷의 실행 기준은 그 설정입니다. 문서와 설정이 다르면 같은 변경에서 정리합니다. 문서만으로 CI나 GitHub 병합 제한이 활성화되지는 않습니다.
 
-## 읽는 순서
+## 작업별 선택
+
+모든 문서를 순서대로 읽지 않습니다. 현재 변경에 해당하는 행만 선택하고, 관련 기능 명세가 있으면 함께 확인합니다.
 
 | 문서 | 다루는 내용 |
 | --- | --- |
-| [architecture.md](architecture.md) | 폴더 책임, 의존 방향, 초기 스캐폴딩 범위 |
+| [workflow.md](workflow.md) | 명세·개발 계획·구현·리뷰를 진행할 때 |
+| [architecture.md](architecture.md) | 폴더 책임·의존 방향·실행 기반을 변경할 때 |
 | [conventions.md](conventions.md) | 이름·포맷·주석·브랜치·커밋·PR |
 | [frontend.md](frontend.md) | 모바일 UI, API 호출, 캐시, 폼·상태 관리 |
 | [backend.md](backend.md) | 비동기 DB, 트랜잭션, API·설정·마이그레이션 |
 | [testing.md](testing.md) | 테스트 범위, CI 단계, 완료 기준 |
+| [documentation.md](documentation.md) | 문서·인덱스·Wiki 게시를 변경할 때 |
 
 ## 현재 결정
 
-- 저장소: `wejo-team/wejo-app`. 임시 이름이며 초기 공개 범위는 private입니다.
+- 저장소: `wejo-team/wejo-app`. 임시 이름이며 공개 저장소입니다.
 - 구조: `frontend/`, `backend/`가 있는 모노레포. 공통 패키지나 별도 모노레포 실행 도구는 필요가 생길 때 추가합니다.
 - 프론트: React + TypeScript + Vite + React Router, Tailwind + shadcn/ui, TanStack Query + fetch, React Hook Form + Zod. 패키지 관리자는 npm입니다.
 - 백엔드: FastAPI + uv + Pydantic + SQLAlchemy 2 비동기 API + asyncpg + PostgreSQL + Alembic입니다. 앞서 검토했던 동기 DB 접근안은 이 결정으로 대체합니다.
