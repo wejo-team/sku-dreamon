@@ -1,6 +1,6 @@
-# 구조와 스캐폴딩 계획
+# 구조와 초기 실행 기반
 
-아래 구조는 **구현 목표**입니다. 현재 저장소에 실행 가능한 앱이 있다는 뜻은 아닙니다. 파일이 필요한 시점에 폴더를 만들고, 빈 기능 폴더를 미리 늘리지 않습니다.
+현재 React 개발 연결 화면, FastAPI health API, 비동기 PostgreSQL 연결·Alembic과 CI가 있습니다. 아래는 폴더의 책임 지도이며, `models/`, `services/`, `e2e/` 등은 해당 코드가 필요할 때 추가합니다. 빈 기능 폴더를 미리 늘리지 않습니다.
 
 ```text
 frontend/
@@ -33,8 +33,9 @@ backend/
   .python-version
   pyproject.toml
   uv.lock
-docs/development/
-.github/workflows/ci.yml
+docs/                    # 작업별 인덱스·명세·개발 및 에이전트 가이드
+scripts/                 # 문서 검증·Wiki 게시 변환
+.github/workflows/        # 앱 CI와 문서·Wiki workflow
 compose.yaml             # 개발용 PostgreSQL
 ```
 
@@ -54,13 +55,13 @@ compose.yaml             # 개발용 PostgreSQL
 - 환경변수 예시는 프론트·백엔드 각각 제공합니다. Compose의 개발 DB 설정과 백엔드 DATABASE_URL의 일치 여부를 실행 검증에 포함합니다.
 - Node와 Python은 버전 파일로, npm 패키지와 Python 의존성은 각 lockfile로 고정합니다.
 
-## 초기 작업 순서
+## 실행 기반의 구성
 
 1. 실행 기반: 런타임 버전·의존성·환경변수 예시·PostgreSQL Compose.
 2. 백엔드: 앱 생성, 설정 로딩, async DB 세션, Alembic 환경, health API.
 3. 프론트: router·provider·모바일 레이아웃·공통 HTTP 클라이언트·백엔드 연결 확인.
 4. 검사: formatter·linter·타입 검사와 실제 코드에 대한 테스트, GitHub Actions 연결.
-5. README: 깨끗한 설치부터 실행·검사·마이그레이션까지 검증한 명령 기록.
+5. 문서: [로컬 실행](local-development.md)에 설치·실행·검사·마이그레이션 명령 기록.
 
 초기 health 응답은 `/api/v1/health`에서 `{"status":"ok"}`로 고정합니다. DB 연결 가능 여부는 별도 연결 검사로 확인하며, health 응답만으로 DB 정상 여부를 주장하지 않습니다.
 

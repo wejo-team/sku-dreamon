@@ -7,6 +7,7 @@
 | 하려는 일 | 먼저 읽을 문서 | 추가로 읽을 때 |
 | --- | --- | --- |
 | 에이전트 작업 시작 | [에이전트 안내](agent-guide.md) | 아래 표에서 작업에 맞는 문서만 선택 |
+| 로컬 앱 실행·검사 | [로컬 실행](development/local-development.md) | 변경할 때 해당 영역의 가이드 |
 | 기능 명세 작성·검토 | [기능 명세 인덱스](specs/README.md), [팀 작업 흐름](development/workflow.md) | 새 명세 작성 시 명세 템플릿 |
 | 구현 계획·코드 변경 | [개발 인덱스](development/README.md) | 해당 기능 명세와 변경 영역의 가이드 |
 | 문서 작성·Wiki 게시 | [문서 관리](development/documentation.md) | 내용이 바뀌는 영역의 문서 |
