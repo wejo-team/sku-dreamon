@@ -8,15 +8,15 @@
 | TS 함수·변수·커스텀 훅 | camelCase, 훅은 use 접두사 | `submitApplication`, `useRecruitments` |
 | 일반 TS 파일·폴더 | kebab-case, 단순 역할 이름 허용 | `query-client.ts`, `api.ts`, `queries.ts` |
 | 기능 폴더 | 리소스 중심 복수형 | `features/recruitments/` |
-| Python 모듈·함수·변수 | snake_case | `create_recruitment`, `session.py` |
+| Python 모듈·함수·변수·모델 필드 | snake_case | `create_recruitment`, `created_at`, `session.py` |
 | Python 클래스 | PascalCase | `RecruitmentCreate` |
 | 환경변수 | UPPER_SNAKE_CASE | `DATABASE_URL` |
 | DB 테이블·컬럼 | snake_case, 테이블은 복수형 | `recruitments`, `created_at` |
-| API JSON 필드 | snake_case | `created_at` |
+| API JSON 요청·응답 필드 | camelCase | `createdAt` |
 
 shadcn/ui가 생성하는 `components/ui/button.tsx` 같은 파일은 도구의 기본 파일명을 유지합니다. 위 PascalCase 파일명 규칙은 직접 작성하는 컴포넌트에 적용합니다.
 
-API 응답 타입은 서버 필드명을 유지합니다. 화면에서 camelCase 모델이 필요하면 기능 경계에서 명시적으로 변환합니다. 모든 응답에 재귀적인 키 변환을 자동 적용하지 않습니다.
+백엔드 내부와 전송 JSON의 이름을 연결하는 범위와 적용 상태는 아래 「API JSON 필드명」 절을 따릅니다.
 
 - 파일은 UTF-8, LF, 마지막 개행을 사용합니다.
 - TypeScript·JSON은 2칸, Python은 4칸 들여쓰기를 기본으로 합니다.
@@ -24,6 +24,19 @@ API 응답 타입은 서버 필드명을 유지합니다. 화면에서 camelCase
 - TypeScript strict 모드를 사용합니다.
 - Python의 외부에서 사용하는 함수와 서비스 경계에는 타입을 명시합니다.
 - 테스트는 TS의 경우 대상 옆 `*.test.ts(x)`, Python은 `tests/**/test_*.py`에 둡니다.
+
+## API JSON 필드명
+
+Python 모델 필드·ORM 속성·DB 컬럼은 snake_case, API JSON의 요청·응답 필드는 camelCase로 통일합니다. 예를 들어 내부의 `created_at`은 JSON에서 `createdAt`으로 전송합니다. 프론트의 API 타입·전송용 Zod schema·UI는 전송 이름인 `createdAt`을 그대로 사용합니다.
+
+- 이름의 연결은 백엔드 API DTO의 Pydantic alias로 처리합니다. 요청은 camelCase로 검증한 뒤 내부에서 snake_case 속성으로 접근하고, 응답은 내부 snake_case 데이터를 camelCase로 직렬화합니다. Python 내부 속성명을 두 형태로 작성하지 않습니다.
+- 외부 요청에서 DTO 필드의 snake_case 이름과 camelCase·snake_case 혼용은 거부합니다. 선택 필드의 잘못된 이름을 조용히 무시하지 않으며, 중첩 DTO와 목록 안의 DTO에도 같은 규칙을 적용합니다.
+- 변환 대상은 DTO에 선언한 필드 이름입니다. 임의 dictionary·map의 키, 사용자가 정한 키, enum·문자열 값, 외부 서비스 payload를 재귀적으로 바꾸지 않습니다. 외부 payload를 서비스 DTO로 옮길 때는 해당 연동 경계에서 명시적으로 매핑합니다.
+- URL 경로·path parameter·query parameter·header는 JSON 필드와 별도로 명세에 이름을 정합니다. JSON alias가 이 이름까지 자동 변환한다고 가정하지 않습니다. 환경변수는 기존 UPPER_SNAKE_CASE를 유지합니다.
+- 프론트 공통 HTTP 클라이언트에는 자동 키 변환기를 넣지 않습니다. 날짜 문자열을 화면용 Date로 바꾸는 등 값의 의미가 달라지는 변환은 응답 검증 뒤 명시적으로 수행합니다.
+- 이미 공개한 JSON 필드명을 바꿀 때는 기존 소비자에 대한 영향을 확인하고 명세·관련 테스트·배포 순서를 함께 검토합니다.
+
+**적용 상태:** 이 절은 새 API를 구현할 때 적용할 작성 규칙입니다. 현재 health 응답의 `status`는 두 표기법에서 같아 변경이 없습니다. 공통 alias 설정과 다단어 필드의 snake_case·혼용 요청 거부는 아직 구현하지 않았습니다. 첫 해당 DTO 구현에서 실제 요청·응답 테스트와 함께 적용합니다.
 
 ## 주석과 검사 예외
 
