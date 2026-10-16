@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitepress";
 import { siteLink } from "./links.mjs";
+import { createSidebar } from "./navigation.mjs";
 
 const repositoryUrl = "https://github.com/wejo-team/wejo-app";
 const base = "/wejo-app/";
@@ -54,48 +56,8 @@ export default defineConfig({
   themeConfig: {
     logo: { src: "/wejo-mark.svg", alt: "" },
     siteTitle: "WEJO Docs",
-    nav: [
-      { text: "시작하기", link: "/", activeMatch: "^/(?:index)?$" },
-      {
-        text: "개발 가이드",
-        link: "/development/",
-        activeMatch: "^/development/",
-      },
-      { text: "기능 명세", link: "/specs/", activeMatch: "^/specs/" },
-      { text: "템플릿", link: "/templates/", activeMatch: "^/templates/" },
-    ],
-    sidebar: [
-      {
-        text: "먼저 읽기",
-        items: [
-          { text: "문서 인덱스", link: "/" },
-          { text: "로컬 실행", link: "/development/local-development" },
-          { text: "팀 작업 흐름", link: "/development/workflow" },
-          { text: "에이전트 안내", link: "/agent-guide" },
-        ],
-      },
-      {
-        text: "개발 가이드",
-        collapsed: false,
-        items: [
-          { text: "개발 인덱스", link: "/development/" },
-          { text: "구조와 스캐폴딩", link: "/development/architecture" },
-          { text: "작성·Git 컨벤션", link: "/development/conventions" },
-          { text: "프론트엔드", link: "/development/frontend" },
-          { text: "백엔드·비동기 DB", link: "/development/backend" },
-          { text: "테스트·CI", link: "/development/testing" },
-          { text: "문서 관리", link: "/development/documentation" },
-        ],
-      },
-      {
-        text: "명세와 템플릿",
-        items: [
-          { text: "기능 명세 인덱스", link: "/specs/" },
-          { text: "템플릿 인덱스", link: "/templates/" },
-          { text: "기능 명세 템플릿", link: "/templates/spec" },
-        ],
-      },
-    ],
+    nav: [{ text: "문서 인덱스", link: "/", activeMatch: "^/(?:index)?$" }],
+    sidebar: createSidebar(fileURLToPath(new URL("../", import.meta.url))),
     socialLinks: [
       { icon: "github", link: repositoryUrl, ariaLabel: "WEJO GitHub 저장소" },
     ],
