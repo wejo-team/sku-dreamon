@@ -1,6 +1,6 @@
 # WEJO 문서
 
-사람과 에이전트가 함께 사용하는 문서 인덱스입니다. 모든 문서를 한 번에 읽지 않고, **현재 작업에 필요한 문서만 선택해서 읽습니다.** 문서의 원본은 이 저장소의 `docs/`이며, [GitHub Wiki](https://github.com/wejo-team/wejo-app/wiki)는 `main`에 병합된 문서의 열람용 게시본입니다.
+사람과 에이전트가 함께 사용하는 문서 인덱스입니다. 모든 문서를 한 번에 읽지 않고, **현재 작업에 필요한 문서만 선택해서 읽습니다.** 원본은 이 저장소의 `docs/`입니다. [문서 사이트](https://wejo-team.github.io/wejo-app/)와 [GitHub Wiki](https://github.com/wejo-team/wejo-app/wiki)는 `main` 병합 후 배포되는 열람용 게시본입니다.
 
 ## 작업별 시작점
 
@@ -10,7 +10,7 @@
 | 로컬 앱 실행·검사 | [로컬 실행](development/local-development.md) | 변경할 때 해당 영역의 가이드 |
 | 기능 명세 작성·검토 | [기능 명세 인덱스](specs/README.md), [팀 작업 흐름](development/workflow.md) | 새 명세 작성 시 명세 템플릿 |
 | 구현 계획·코드 변경 | [개발 인덱스](development/README.md) | 해당 기능 명세와 변경 영역의 가이드 |
-| 문서 작성·Wiki 게시 | [문서 관리](development/documentation.md) | 내용이 바뀌는 영역의 문서 |
+| 문서 작성·사이트·Wiki 게시 | [문서 관리](development/documentation.md) | 내용이 바뀌는 영역의 문서 |
 | PR 작성·검토 | [팀 작업 흐름](development/workflow.md) | 코드 검증은 테스트·CI 가이드 |
 
 ## 문서의 역할
@@ -27,4 +27,4 @@
 3. 연결된 문서를 모두 재귀적으로 읽지 않습니다. 작업 범위가 넓어지거나 모르는 계약이 나올 때만 추가로 읽습니다.
 4. 문서가 실제 파일·설정과 다르면 차이를 확인하고 해당 변경에서 함께 정리합니다.
 
-검토 중인 변경은 PR에서 확인합니다. Wiki에 게시된 명세라도 구현·배포까지 끝났다는 뜻은 아닙니다.
+검토 중인 변경은 PR에서 확인합니다. 사이트나 Wiki에 게시된 명세라도 해당 기능의 구현·배포까지 끝났다는 뜻은 아닙니다.

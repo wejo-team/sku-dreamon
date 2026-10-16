@@ -7,7 +7,7 @@
 - Node 버전은 `frontend/.nvmrc`의 22.22.1, npm은 9.2.0입니다. Node 버전 관리자로 해당 버전을 선택한 뒤 `npm install --global npm@9.2.0`을 실행합니다.
 - Python은 `backend/.python-version`의 3.13.14, uv는 0.11.30입니다. uv가 필요한 Python을 설치하도록 할 수 있습니다.
 - Docker Engine 또는 Docker Desktop과 Compose가 필요합니다. WSL에서 Docker Desktop을 쓰면 WSL 연동과 엔진 실행 상태를 확인합니다.
-- 의존성은 `frontend/package-lock.json`, `backend/uv.lock`으로 고정합니다. 설치 중 lockfile을 임의로 갱신하지 않습니다.
+- 앱 의존성은 `frontend/package-lock.json`, `backend/uv.lock`으로 고정합니다. 루트 `package-lock.json`은 문서 사이트 전용이며 [문서 관리](documentation.md)의 명령으로 따로 설치합니다. 설치 중 lockfile을 임의로 갱신하지 않습니다.
 
 ## PostgreSQL
 
