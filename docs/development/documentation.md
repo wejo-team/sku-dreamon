@@ -5,7 +5,7 @@
 - 사람과 에이전트에게 전달하는 작업 지침·명세·개발 정보는 `docs/`에서 관리합니다. 루트 `AGENTS.md`는 문서 인덱스로 들어오는 링크만 유지합니다.
 - `docs/README.md`와 하위 폴더의 `README.md`는 짧은 인덱스입니다. 문서의 목적과 언제 읽을지를 안내하고 본문 내용을 반복하지 않습니다.
 - 새 문서를 만들면 관련 인덱스에 연결합니다. 작업에 필요한 문서만 읽을 수 있도록 한 문서에 모든 영역의 규칙을 합치지 않습니다.
-- [VitePress 문서 사이트](https://wejo-team.github.io/wejo-app/)를 기본 읽기 화면으로 사용하고, [GitHub Wiki](https://github.com/wejo-team/wejo-app/wiki)에도 같은 원본을 게시합니다. 두 게시본 모두 수정은 저장소 PR로 제안합니다. Wiki를 직접 고치면 다음 게시에서 덮어쓸 수 있습니다.
+- [VitePress 문서 사이트](https://wejo-team.github.io/wejo-app/)를 기본 읽기 화면으로 사용합니다. 수정은 저장소 PR로 제안합니다.
 - PR 템플릿은 변경·검증 정보를 수집하는 양식이며, 실제 작업 규칙은 [팀 작업 흐름](workflow.md)을 참조합니다.
 
 ## 문서 이름과 책임
@@ -13,7 +13,7 @@
 - 폴더는 독자의 직무보다 보관하는 정보의 역할로 구분합니다. `collaboration/`은 문서 협업 방법, `specs/`는 실제 기능 명세, `templates/`는 작성 양식, `development/`는 개발 기준·기술 운영 가이드입니다.
 - 파일명은 폴더와 함께 읽었을 때 작업·대상을 알 수 있게 짓습니다. 예를 들어 `collaboration/editing-docs.md`는 문서 편집, `collaboration/review-and-publish-docs.md`는 문서 리뷰와 게시 확인을 안내합니다. 같은 폴더에서 다룰 수 있는 여러 대상 중 무엇을 뜻하는지 모호하면 대상을 이름에 포함합니다.
 - 각 폴더 인덱스에 책임과 다른 폴더와의 경계를 적습니다. 작업 방법, 실제 명세, 작성 양식, 공통 규칙은 각각의 원본으로 연결하고 규칙을 중복 정의하지 않습니다.
-- 기존 이름을 바꿀 때는 내부 링크뿐 아니라 공개된 사이트·Wiki 주소와 다른 PR의 참조도 확인합니다. 아직 게시하지 않은 새 문서는 병합 전에 이름을 정리하고, 이미 공유된 문서는 이름 개선의 이점과 이전 주소를 유지할 방법을 함께 검토합니다.
+- 기존 이름을 바꿀 때는 내부 링크뿐 아니라 공개된 사이트 주소와 다른 PR의 참조도 확인합니다. 아직 게시하지 않은 새 문서는 병합 전에 이름을 정리하고, 이미 공유된 문서는 이름 개선의 이점과 이전 주소를 유지할 방법을 함께 검토합니다.
 
 ## 문서 사이트
 
@@ -32,20 +32,19 @@
 - 내부 파일과 일반 Markdown 제목 앵커를 검사합니다. 외부 URL의 접속 가능 여부는 검사하지 않습니다. 로컬 HTML 링크 대신 Markdown 링크를 사용합니다.
 - 코드 예시는 fenced code block 안에 둡니다. 설명의 파일명과 명령은 실제 파일·설정에 맞춥니다.
 - `README.md` 인덱스는 사이트에서 각 폴더의 `index.html`로 변환합니다. 원본의 상대 `.md` 링크는 유지하고, 빌드 설정이 사이트 URL로 변환합니다. `docs/` 밖의 파일 링크는 GitHub 원본으로 연결합니다.
-- `docs/README.md`는 Wiki의 `Home`이 되고, 나머지 페이지는 전체 상대 경로를 이용한 고유 이름을 가집니다. `_Sidebar`와 원본 링크는 자동 생성합니다.
-- `.wiki-build/`, `docs/.vitepress/dist/`, `docs/.vitepress/cache/`는 생성 결과이며 커밋하지 않습니다. 문서를 두 위치에서 수동으로 수정하지 않습니다.
-- 공개 저장소의 문서 사이트와 Wiki도 공개됩니다. 실제 비밀값·팀원의 개인정보·내부 계정 정보는 문서에 넣지 않습니다.
+- `docs/.vitepress/dist/`와 `docs/.vitepress/cache/`는 생성 결과이며 커밋하지 않습니다. 문서는 `docs/` 원본에서만 수정합니다.
+- 공개 저장소의 문서 사이트도 공개됩니다. 실제 비밀값·팀원의 개인정보·내부 계정 정보는 문서에 넣지 않습니다.
 
 ## 자동화
 
-1. PR에서 `docs-wiki.yml`의 `Validate docs`가 원본 링크·Wiki 변환 테스트와 VitePress 빌드, 생성된 HTML의 내부 링크·앵커·자산을 검사합니다. PR에서는 게시하지 않습니다.
+1. PR에서 `docs.yml`의 `Validate docs`가 문서 검증 스크립트 테스트·원본 링크·VitePress 빌드, 생성된 HTML의 내부 링크·앵커·자산을 검사합니다. PR에서는 게시하지 않습니다.
 2. 필수 검사와 [팀 작업 흐름](workflow.md)의 병합 기준을 충족해 `main`에 병합되면 같은 검사를 다시 실행하고 Pages 아티팩트를 만듭니다. 코드만 바뀐 경우에도 최신 원본 커밋을 일치시킵니다.
-3. `Publish Pages`는 GitHub Pages에 정적 사이트를 배포하고, `Publish Wiki`는 `wejo-app.wiki.git`에 변환 문서를 반영합니다. `main`만 게시하며 이전 커밋의 수동 재실행은 최신 커밋 확인 후 게시를 건너뜁니다.
-4. 사이트·Wiki의 원본 커밋 링크로 게시 버전을 확인합니다. 게시 실패는 Actions에서 확인하고 원인 수정 후 최신 `main` 실행을 재시도합니다. Pages와 Wiki의 게시 성공 여부는 각각 확인합니다.
+3. `Publish Pages`는 GitHub Pages에 정적 사이트를 배포합니다. `main`만 게시하며 이전 커밋의 수동 재실행은 최신 커밋 확인 후 게시를 건너뜁니다.
+4. 사이트의 원본 커밋 링크로 게시 버전을 확인합니다. 게시 실패는 Actions에서 확인하고 원인 수정 후 최신 `main` 실행을 재시도합니다.
 
 GitHub의 Settings → Pages → Source는 **GitHub Actions**로 설정합니다. 배포 환경 `github-pages`는 `main`만 허용합니다. 문서 변경 PR도 기본적으로 작성자 외 1명의 승인이 필요하며, 프로젝트 리더의 PR 검토 예외는 [팀 작업 흐름](workflow.md)을 따릅니다. 최초 사이트 URL은 첫 배포가 성공한 뒤 사용할 수 있습니다.
 
-공개 저장소·표준 GitHub 호스팅 러너·기본 `github.io` 주소를 사용합니다. 별도 서버·유료 검색·도메인을 구입하지 않으며, Pages 아티팩트는 1일만 보관합니다. 작은 문서 사이트를 무료 저장량 한도 안에서 운영하는 구성입니다. Wiki 최초 페이지는 GitHub UI에서 한 번 생성해야 Git 저장소가 초기화됩니다.
+공개 저장소·표준 GitHub 호스팅 러너·기본 `github.io` 주소를 사용합니다. 별도 서버·유료 검색·도메인을 구입하지 않으며, Pages 아티팩트는 1일만 보관합니다. 작은 문서 사이트를 무료 저장량 한도 안에서 운영하는 구성입니다.
 
 ## 로컬 검사
 
@@ -54,13 +53,13 @@ GitHub의 Settings → Pages → Source는 **GitHub Actions**로 설정합니다
 ```bash
 npm ci
 python3 -m unittest discover -s scripts/tests -v
-python3 scripts/export_wiki.py --repository wejo-team/wejo-app --ref HEAD
+python3 scripts/check_docs.py
 npm run docs:build
 python3 scripts/check_docs_site.py
 npm run docs:preview
 ```
 
-미리보기 주소는 `http://localhost:4173/wejo-app/`입니다. 문서를 수정하며 보려면 `npm run docs:dev`를 실행하고 터미널에 표시된 `/wejo-app/` 주소로 접속합니다. 문서 설정·테마 변경 시 검색, 내부 링크, 좁은 화면의 메뉴도 확인합니다. Wiki 생성 결과는 `.wiki-build/`에서 확인합니다.
+미리보기 주소는 `http://localhost:4173/wejo-app/`입니다. 문서를 수정하며 보려면 `npm run docs:dev`를 실행하고 터미널에 표시된 `/wejo-app/` 주소로 접속합니다. 문서 설정·테마 변경 시 검색, 내부 링크, 좁은 화면의 메뉴도 확인합니다.
 
 VitePress는 안정 버전 1.6.4를 고정합니다. 해당 버전의 Vite·esbuild 개발 서버 의존성에는 알려진 보안 권고가 남아 있습니다. 개발 서버를 외부에 공개하지 않고 로컬에서 사용하며, 운영에는 빌드된 정적 파일만 배포합니다. 의존성 갱신 시 `npm audit` 결과와 공식 지원 범위·빌드·검색·링크 호환성을 함께 검토합니다.
 

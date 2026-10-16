@@ -1,6 +1,6 @@
 # 테스트·CI 기준
 
-문서 링크·Wiki 변환·VitePress 빌드·생성 HTML의 링크와 자산 검사는 `docs-wiki.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. 현재 실행 기반에 대한 검사가 있으며 도메인 기능과 E2E 검사는 기능이 생길 때 추가합니다. 앱 실행 명령은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다.
+문서 링크·VitePress 빌드·생성 HTML의 링크와 자산 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. 현재 실행 기반에 대한 검사가 있으며 도메인 기능과 E2E 검사는 기능이 생길 때 추가합니다. 앱 실행 명령은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다.
 
 ## 의미 있는 테스트
 

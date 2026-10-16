@@ -1,4 +1,4 @@
-name: Docs, Pages and Wiki
+name: Docs and Pages
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
 
 # Cancel obsolete PR checks, but let an active main publication finish.
 concurrency:
-  group: docs-wiki-${{ github.event.pull_request.number || github.ref }}
+  group: docs-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -29,11 +29,8 @@ jobs:
           python-version: "3.13"
       - name: Test documentation tooling
         run: python -m unittest discover -s scripts/tests -v
-      - name: Validate links and export Wiki pages
-        env:
-          REPOSITORY: ${{ github.repository }}
-          SOURCE_REF: ${{ github.sha }}
-        run: python scripts/export_wiki.py --repository "$REPOSITORY" --ref "$SOURCE_REF"
+      - name: Validate source documentation links
+        run: python scripts/check_docs.py
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
@@ -88,47 +85,3 @@ jobs:
         if: steps.current.outputs.publish == 'true'
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
-  publish:
-    name: Publish Wiki
-    needs: validate
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.13"
-      - name: Skip reruns of commits superseded on main
-        id: current
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          SOURCE_REF: ${{ github.sha }}
-        run: |
-          latest_ref=$(gh api "repos/$REPOSITORY/commits/main" --jq .sha)
-          if [ "$latest_ref" = "$SOURCE_REF" ]; then
-            echo 'publish=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'A newer main commit exists; leave the Wiki unchanged.'
-          fi
-      - name: Export Wiki pages from the validated commit
-        if: steps.current.outputs.publish == 'true'
-        env:
-          REPOSITORY: ${{ github.repository }}
-          SOURCE_REF: ${{ github.sha }}
-        run: python scripts/export_wiki.py --repository "$REPOSITORY" --ref "$SOURCE_REF"
-      - name: Publish pages to this repository's Wiki
-        if: steps.current.outputs.publish == 'true'
-        uses: Andrew-Chen-Wang/github-wiki-action@1bbb4280446f9630e8e21a18012cbacf3b0f992e # v5
-        with:
-          token: ${{ github.token }}
-          path: .wiki-build
-          direction: push
-          strategy: clone
-          preprocess: "false"
-          disable-empty-commits: "true"

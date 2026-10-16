@@ -35,7 +35,7 @@ PR에는 **Checks** 또는 하단 검사 목록이 표시됩니다. 자동 검�
 
 | 검사 이름 | 확인하는 것 |
 | --- | --- |
-| Validate docs | 문서 링크, 문서 사이트 빌드, Wiki 변환 |
+| Validate docs | 원본 문서 링크, 문서 사이트 빌드, 생성된 HTML의 링크·앵커·자산 |
 | PR conventions | PR 제목이 `docs: 설명` 같은 형식인지 |
 | Frontend · Backend | 앱의 포맷·타입·테스트·빌드 등 개발 검사 |
 
@@ -47,13 +47,13 @@ PR에는 **Checks** 또는 하단 검사 목록이 표시됩니다. 자동 검�
 
 **Approve**는 리뷰 결과, **Merged**는 실제 반영 완료입니다. `Closed`만 표시되고 `Merged`가 없다면 변경이 반영되지 않은 상태입니다.
 
-## 사이트와 Wiki에서 확인하기
+## 사이트에서 확인하기
 
 1. PR이 **Merged**인지 확인합니다. 열려 있는 PR의 내용은 GitHub의 변경 파일에서 확인합니다. 별도 PR 미리보기 사이트는 없습니다.
-2. 병합 후 [Actions의 Docs, Pages and Wiki](https://github.com/wejo-team/wejo-app/actions/workflows/docs-wiki.yml)에서 해당 `main` 실행을 확인합니다. **Publish Pages**와 **Publish Wiki**는 각각 성공해야 각 게시본이 갱신됩니다.
-3. [문서 사이트](https://wejo-team.github.io/wejo-app/) 또는 [Wiki](https://github.com/wejo-team/wejo-app/wiki)에서 문서를 다시 열어 내용과 링크를 확인합니다. 바로 안 보이면 게시 완료를 기다린 뒤 새로고침하고, 페이지의 원본 커밋 링크로 버전을 확인합니다.
+2. 병합 후 [Actions의 Docs and Pages](https://github.com/wejo-team/wejo-app/actions/workflows/docs.yml)에서 해당 `main` 실행을 확인합니다. **Publish Pages**가 성공하면 사이트가 갱신됩니다.
+3. [문서 사이트](https://wejo-team.github.io/wejo-app/)에서 문서를 다시 열어 내용과 링크를 확인합니다. 바로 안 보이면 게시 완료를 기다린 뒤 새로고침하고, 페이지의 원본 커밋 링크로 버전을 확인합니다.
 
-사이트와 Wiki는 `docs/` 원본을 자동 게시합니다. Wiki를 직접 수정하면 다음 게시에서 덮어쓸 수 있으므로 수정은 다시 문서 PR로 진행합니다.
+사이트는 `docs/` 원본을 자동 게시합니다. 수정은 다시 문서 PR로 진행합니다.
 
 ## 막혔을 때
 

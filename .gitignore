@@ -19,7 +19,6 @@ dist/
 coverage/
 playwright-report/
 test-results/
-.wiki-build/
 docs/.vitepress/cache/
 
 # Local files
