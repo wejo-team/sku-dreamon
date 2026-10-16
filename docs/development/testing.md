@@ -28,7 +28,7 @@
 | 핵심 사용자 흐름 완성 | 선택한 Playwright 흐름을 CI에서 실행 |
 
 - 프론트 검사 명령은 package.json scripts, Python 도구 설정은 pyproject.toml에 모읍니다. README·로컬 실행·CI가 같은 명령을 사용하도록 맞춥니다.
-- API 타입 생성은 런타임 응답 검증을 대신하지 않습니다. Zod 출력과 생성 타입의 양방향 비교는 TypeScript 검사로, 실제 잘못된 응답과 exporter·생성기 검사는 pytest·Vitest로 확인합니다. 최신성 검사와 의미상 호환성 리뷰의 차이는 [API 계약](api-contracts.md)을 따릅니다.
+- API 타입 생성은 런타임 응답 검증을 대신하지 않습니다. 화면용 변환 전 전송용 Zod 출력과 생성 타입의 양방향 비교는 TypeScript 검사로, 실제 잘못된 응답과 exporter·생성기 검사는 pytest·Vitest로 확인합니다. 첫 다단어 DTO 구현에는 camelCase 요청·응답, snake_case·혼용 요청 거부, 중첩 DTO·임의 map 키 보존, 실제 JSON과 OpenAPI 이름 일치 검사를 추가합니다. 이 이름 정책의 구현 상태와 최신성·호환성 검사의 차이는 [API 계약](api-contracts.md)을 따릅니다.
 - DB 통합 테스트의 데이터베이스는 운영 환경과 분리합니다. Alembic 적용 후 모델을 실제로 조회할 수 있는지 확인합니다.
 - 런타임·도구 버전을 고정하고 lockfile 기반으로 설치합니다. CI에서 의존성을 임의 갱신하지 않습니다.
 - 초기에는 모든 PR에서 필요한 job을 실행합니다. 경로 필터 때문에 필수 검사가 영구 대기하는 구성을 피합니다.

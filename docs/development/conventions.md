@@ -12,11 +12,11 @@
 | Python 클래스 | PascalCase | `RecruitmentCreate` |
 | 환경변수 | UPPER_SNAKE_CASE | `DATABASE_URL` |
 | DB 테이블·컬럼 | snake_case, 테이블은 복수형 | `recruitments`, `created_at` |
-| API JSON 필드 | snake_case | `created_at` |
+| API JSON 요청·응답 필드 | camelCase | `createdAt` |
 
 shadcn/ui가 생성하는 `components/ui/button.tsx` 같은 파일은 도구의 기본 파일명을 유지합니다. 위 PascalCase 파일명 규칙은 직접 작성하는 컴포넌트에 적용합니다.
 
-API 응답 타입은 서버 필드명을 유지합니다. 화면에서 camelCase 모델이 필요하면 기능 경계에서 명시적으로 변환합니다. 모든 응답에 재귀적인 키 변환을 자동 적용하지 않습니다.
+Python·ORM·DB 내부의 snake_case 필드는 API DTO의 alias로 camelCase JSON에 대응하도록 합니다. OpenAPI·생성 TypeScript 타입·전송용 Zod·UI도 같은 camelCase 이름을 사용합니다. 새 DTO에 적용할 정책·변환 범위와 현재 구현 상태는 [API 계약](api-contracts.md)을 따릅니다.
 
 - 파일은 UTF-8, LF, 마지막 개행을 사용합니다.
 - TypeScript·JSON은 2칸, Python은 4칸 들여쓰기를 기본으로 합니다.
