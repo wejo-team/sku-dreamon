@@ -26,13 +26,16 @@ backend/
     models/              # SQLAlchemy 테이블 모델
     schemas/             # Pydantic 요청·응답
     services/            # 실제 업무 규칙과 쓰기 트랜잭션
-    main.py              # 앱 생성·lifespan·라우터 연결
+    factory.py           # 앱 생성·lifespan·라우터 연결
+    main.py              # 런타임 설정으로 app을 만드는 ASGI 진입점
   alembic/versions/      # DB 변경 이력
+  scripts/              # OpenAPI snapshot 생성·최신성 검사
   tests/                 # unit·api·integration, 필요할 때 분리
   .env.example
   .python-version
   pyproject.toml
   uv.lock
+contracts/openapi.json   # 서버에서 생성한 API 계약 snapshot
 docs/                    # 작업별 인덱스·명세·개발 및 에이전트 가이드
   .vitepress/            # 문서 사이트 설정·테마
 scripts/                 # 문서·사이트 검증·Wiki 게시 변환
@@ -50,6 +53,7 @@ compose.yaml             # 개발용 PostgreSQL
 - 백엔드 라우터는 HTTP 처리, 서비스는 업무 규칙을 담당합니다. ORM 모델과 요청·응답 스키마를 분리합니다.
 - 반복되거나 복잡한 DB 쿼리가 생기면 `repositories/`를 추가합니다. 모든 기능에 Repository·Factory·interface를 의무화하지 않습니다.
 - 프론트와 백엔드는 HTTP API를 통해 연결합니다. 백엔드 DB 구조를 그대로 프론트의 내부 상태 구조로 강제하지 않습니다.
+- API 전송 계약은 Pydantic·route에서 OpenAPI snapshot을 거쳐 `frontend/src/lib/api-schema.generated.d.ts`로 전달합니다. 생성 타입과 사람이 유지하는 기능 Zod의 책임은 [API 계약](api-contracts.md)을 따릅니다.
 
 ## 개발 환경
 

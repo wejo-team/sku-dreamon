@@ -6,7 +6,7 @@ from httpx import ASGITransport, AsyncClient
 from pydantic import PostgresDsn
 
 from app.core.config import Settings
-from app.main import create_app
+from app.factory import create_app
 
 
 @pytest_asyncio.fixture

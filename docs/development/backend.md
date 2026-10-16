@@ -6,6 +6,7 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 
 - API는 `/api/v1` 아래에 리소스 중심 경로로 제공합니다. HTTP 상태 코드를 사용하고 실패를 200 응답으로 감추지 않습니다.
 - 요청·응답은 Pydantic schema로 명시합니다. FastAPI의 기본 validation error 형식과 호환되는 처리를 우선하고, 도메인 오류 계약이 필요하면 프론트와 함께 문서화합니다.
+- 경로·요청·응답·오류를 바꾸면 [API 계약](api-contracts.md)에 따라 OpenAPI snapshot과 프론트 타입을 재생성하고 관련 Zod·테스트를 맞춥니다.
 - 환경설정은 `core/config.py`에서 검증합니다. 모듈 import만으로 DB 쿼리·외부 API 호출·테이블 생성이 실행되지 않게 합니다.
 - async DB나 비동기 외부 I/O를 호출하는 경로는 `async def`와 `await`로 연결합니다. 비동기 경로에서 동기 DB·HTTP 호출로 이벤트 루프를 막지 않습니다.
 

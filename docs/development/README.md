@@ -22,6 +22,7 @@
 | [conventions.md](conventions.md) | 이름·포맷·주석·브랜치·커밋·PR |
 | [frontend.md](frontend.md) | 모바일 UI, API 호출, 캐시, 폼·상태 관리 |
 | [backend.md](backend.md) | 비동기 DB, 트랜잭션, API·설정·마이그레이션 |
+| [api-contracts.md](api-contracts.md) | API 요청·응답·오류, OpenAPI·생성 타입·런타임 검증 |
 | [testing.md](testing.md) | 테스트 범위, CI 단계, 완료 기준 |
 | [documentation.md](documentation.md) | 문서·인덱스·VitePress 사이트·Wiki 게시를 변경할 때 |
 

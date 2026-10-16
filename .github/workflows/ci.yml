@@ -30,6 +30,7 @@ jobs:
           package-manager-cache: false
       - run: npm install --global npm@9.2.0
       - run: npm ci
+      - run: npm run api:check
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
@@ -72,6 +73,7 @@ jobs:
           version: "0.11.30"
           enable-cache: false
       - run: uv sync --locked
+      - run: uv run python -m scripts.export_openapi --check
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy

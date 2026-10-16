@@ -37,7 +37,7 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 python_version = "3.13"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "tests", "alembic/env.py"]
+files = ["app", "tests", "scripts", "alembic/env.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

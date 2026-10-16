@@ -58,6 +58,7 @@ npm run dev
 프론트 폴더에서:
 
 ```bash
+npm run api:check
 npm run lint
 npm run format:check
 npm run typecheck
@@ -68,12 +69,15 @@ npm run build
 백엔드 폴더에서:
 
 ```bash
+uv run python -m scripts.export_openapi --check
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy
 uv run pytest
 uv run alembic check
 ```
+
+API 모델이나 route를 변경했다면 먼저 `backend/`에서 `uv run python -m scripts.export_openapi`, 이어 `frontend/`에서 `npm run api:generate`를 실행합니다. API 서버·DB 기동 없이 생성할 수 있습니다. 생성 파일의 역할과 검토 순서는 [API 계약](api-contracts.md)을 따릅니다.
 
 `pytest`는 `TEST_DATABASE_URL`이 없으면 DB 통합 테스트를 건너뜁니다. 전체 DB 검증에는 전용 테스트 DB를 만듭니다. 아래 생성 명령은 저장소 루트에서 한 번만 실행합니다.
 
