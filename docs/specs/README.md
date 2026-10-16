@@ -6,6 +6,8 @@
 
 | 작업 | 문서 |
 | --- | --- |
+| 기획 관점에서 내용 정리 | [기능 명세 작성하기](../planning/writing-specs.md) |
+| GitHub 웹에서 작성·수정 | [웹 수정과 PR 안내](../planning/github-workflow.md) |
 | 새 명세 작성 | [명세 템플릿](../templates/spec.md) |
 | 명세 검토와 개발 시작 | [팀 작업 흐름](../development/workflow.md) |
 | 초기 실행 기반의 범위 | [구조와 스캐폴딩](../development/architecture.md) |
