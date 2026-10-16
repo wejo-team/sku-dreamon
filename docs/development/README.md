@@ -23,7 +23,7 @@
 | [frontend.md](frontend.md) | 모바일 UI, API 호출, 캐시, 폼·상태 관리 |
 | [backend.md](backend.md) | 비동기 DB, 트랜잭션, API·설정·마이그레이션 |
 | [testing.md](testing.md) | 테스트 범위, CI 단계, 완료 기준 |
-| [documentation.md](documentation.md) | 문서 원본·인덱스 관리 규칙과 VitePress·Wiki 자동 게시 운영 |
+| [documentation.md](documentation.md) | 문서 원본·인덱스 관리 규칙과 VitePress 자동 게시 운영 |
 
 ## 현재 결정
 
@@ -32,7 +32,7 @@
 - 프론트: React + TypeScript + Vite + React Router, Tailwind + shadcn/ui, TanStack Query + fetch, React Hook Form + Zod. 패키지 관리자는 npm입니다.
 - 백엔드: FastAPI + uv + Pydantic + SQLAlchemy 2 비동기 API + asyncpg + PostgreSQL + Alembic입니다. 앞서 검토했던 동기 DB 접근안은 이 결정으로 대체합니다.
 - CI: GitHub Actions. 프론트는 ESLint·Prettier·TypeScript, 백엔드는 Ruff·mypy를 사용합니다.
-- 문서: `docs/`를 원본으로 VitePress + GitHub Pages에서 읽고, 기존 GitHub Wiki에도 같은 내용을 게시합니다. 명세·계획·구현의 사람 검토 절차는 그대로 유지합니다.
+- 문서: `docs/`를 원본으로 VitePress + GitHub Pages에서 읽습니다. 명세·계획·구현의 사람 검토 절차는 그대로 유지합니다.
 - 처음에는 한국어 개발 문서와 영어 코드 식별자를 사용합니다.
 
 ## 아직 결정하지 않은 것
