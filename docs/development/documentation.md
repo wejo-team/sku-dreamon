@@ -8,6 +8,13 @@
 - [VitePress 문서 사이트](https://wejo-team.github.io/wejo-app/)를 기본 읽기 화면으로 사용하고, [GitHub Wiki](https://github.com/wejo-team/wejo-app/wiki)에도 같은 원본을 게시합니다. 두 게시본 모두 수정은 저장소 PR로 제안합니다. Wiki를 직접 고치면 다음 게시에서 덮어쓸 수 있습니다.
 - PR 템플릿은 변경·검증 정보를 수집하는 양식이며, 실제 작업 규칙은 [팀 작업 흐름](workflow.md)을 참조합니다.
 
+## 문서 이름과 책임
+
+- 폴더는 독자의 직무보다 보관하는 정보의 역할로 구분합니다. `collaboration/`은 문서 협업 방법, `specs/`는 실제 기능 명세, `templates/`는 작성 양식, `development/`는 개발 기준·기술 운영 가이드입니다.
+- 파일명은 폴더와 함께 읽었을 때 작업·대상을 알 수 있게 짓습니다. 예를 들어 `collaboration/editing-docs.md`는 문서 편집, `collaboration/review-and-publish-docs.md`는 문서 리뷰와 게시 확인을 안내합니다. 같은 폴더에서 다룰 수 있는 여러 대상 중 무엇을 뜻하는지 모호하면 대상을 이름에 포함합니다.
+- 각 폴더 인덱스에 책임과 다른 폴더와의 경계를 적습니다. 작업 방법, 실제 명세, 작성 양식, 공통 규칙은 각각의 원본으로 연결하고 규칙을 중복 정의하지 않습니다.
+- 기존 이름을 바꿀 때는 내부 링크뿐 아니라 공개된 사이트·Wiki 주소와 다른 PR의 참조도 확인합니다. 아직 게시하지 않은 새 문서는 병합 전에 이름을 정리하고, 이미 공유된 문서는 이름 개선의 이점과 이전 주소를 유지할 방법을 함께 검토합니다.
+
 ## 문서 사이트
 
 - VitePress 설정과 테마는 `docs/.vitepress/`, 문서 도구의 의존성은 루트 `package.json`과 `package-lock.json`에서 관리합니다. 서비스 프론트인 `frontend/`와는 별도로 설치합니다.
