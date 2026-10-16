@@ -182,24 +182,8 @@ body {
   font-family: var(--vp-font-family-mono);
 }
 
-.wejo-wiki-link {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 16px;
-  margin-top: 8px;
-  border-top: 1px solid var(--vp-c-divider);
-  font-size: 12px;
-  color: var(--vp-c-text-2);
-}
-
-.wejo-wiki-link:hover {
-  color: var(--vp-c-brand-1);
-}
-
 .wejo-breadcrumbs a:focus-visible,
-.wejo-source a:focus-visible,
-.wejo-wiki-link:focus-visible {
+.wejo-source a:focus-visible {
   outline: 2px solid var(--vp-c-brand-1);
   outline-offset: 3px;
   border-radius: 2px;

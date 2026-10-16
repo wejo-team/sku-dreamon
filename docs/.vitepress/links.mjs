@@ -1,6 +1,6 @@
 import path from "node:path";
 
-/** Keep Markdown links usable in GitHub, Wiki, and the generated site. */
+/** Keep Markdown links usable in GitHub and the generated site. */
 export function siteLink(href, sourcePath, repositoryUrl, revision) {
   if (!href || /^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(href)) return href;
 

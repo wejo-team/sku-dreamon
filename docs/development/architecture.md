@@ -35,8 +35,8 @@ backend/
   uv.lock
 docs/                    # 작업별 인덱스·명세·개발 및 에이전트 가이드
   .vitepress/            # 문서 사이트 설정·테마
-scripts/                 # 문서·사이트 검증·Wiki 게시 변환
-.github/workflows/        # 앱 CI와 문서·Pages·Wiki workflow
+scripts/                 # 문서·사이트 검증
+.github/workflows/        # 앱 CI와 문서·Pages workflow
 package.json             # VitePress 문서 도구 전용
 package-lock.json
 compose.yaml             # 개발용 PostgreSQL

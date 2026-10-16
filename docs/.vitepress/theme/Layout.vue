@@ -56,15 +56,5 @@ const sourceUrl = computed(
         >
       </div>
     </template>
-    <template #sidebar-nav-after>
-      <a
-        class="wejo-wiki-link"
-        :href="`${theme.repositoryUrl}/wiki`"
-        target="_blank"
-        rel="noreferrer"
-      >
-        GitHub Wiki에서 보기 <span aria-hidden="true">↗</span>
-      </a>
-    </template>
   </DefaultTheme.Layout>
 </template>
