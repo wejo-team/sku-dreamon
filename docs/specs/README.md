@@ -8,7 +8,7 @@
 
 | 작업 | 시작 문서 | 추가로 읽는 조건 |
 | --- | --- | --- |
-| 스프린트 범위·전체 시연 | [스프린트 1](sprint-1.md) | 검증할 기능의 완료 조건을 [전체 흐름 검증](sprint-1.md#end-to-end)에서 선택 |
+| 제품 개요(PRD)·스프린트 범위·전체 시연 | [스프린트 1](sprint-1.md) | 제품 가치는 [성과 검토](sprint-1.md#product-validation), 기능별 완료 조건은 [전체 흐름 검증](sprint-1.md#end-to-end)에서 선택 |
 | 가입·교내 인증·시연 인증 | [인증](authentication.md) | 인증 정보 공개를 바꾸면 [프로필 공개 범위](profile.md#visibility) |
 | 프로필 입력·공개·포트폴리오 | [프로필](profile.md) | 선택지를 바꾸면 [공통 선택지](profile-options.md#choices), 학사 입력이면 [학사 선택 흐름](academic-structure.md#selection-flow) |
 | 분야·역할·역량·시간 선택지 | [프로필 선택지](profile-options.md) | 필수 여부를 바꾸면 [프로필 입력 항목](profile.md#fields) |
