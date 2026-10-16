@@ -29,7 +29,8 @@ API 응답 타입은 서버 필드명을 유지합니다. 화면에서 camelCase
 ## Git과 PR
 
 - 기본 브랜치는 `main`입니다. 일반 개발은 작업 브랜치와 PR로 진행합니다.
-- 사람의 작업 브랜치는 `feat/`, `fix/`, `docs/`, `chore/` 등의 접두사를, 에이전트는 `codex/` 접두사를 사용합니다.
+- 사람과 에이전트 모두 `<type>/<작업-내용>` 형식을 사용합니다. type은 `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci` 중 작업 목적에 맞게 고르고, 작업 내용은 소문자 영문·숫자·하이픈으로 적습니다. 예: `feat/recruitment-form`, `fix/login-redirect`, `docs/branch-naming`.
+- 에이전트·도구 이름을 나타내는 접두사(`codex/`, `claude/`, `agent/` 등)는 붙이지 않습니다. 도구가 브랜치 이름을 자동 제안해도 같은 규칙을 적용합니다.
 - 커밋과 PR 제목은 `type(scope): 설명`을 기본으로 합니다. 예: `feat(frontend): 모집글 작성 폼 추가`, `docs: 개발 가이드 정리`.
 - 타입은 `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`를 사용합니다. 별도 강제 도구는 필요가 생길 때 추가합니다.
 - 하나의 PR은 설명할 수 있는 한 목적을 갖습니다. PR에는 문제·변경 결과·검증 방법을 적습니다.
