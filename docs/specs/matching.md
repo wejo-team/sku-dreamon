@@ -1,7 +1,7 @@
 # 공모전·팀·지원자 추천
 
 - 구현 상태: 예정
-- 명세 검토: 이 문서를 추가한 PR에서 검토 중
+- 명세 검토: [PR #16](https://github.com/wejo-team/wejo-app/pull/16)
 - 구현 작업: 미등록
 
 이 문서는 추천 후보에 조건을 적용하는 순서, 점수 계산, 갱신과 표시를 관리합니다. 참가 자격·마감은 [공고의 참가 자격](contests.md#eligibility)·[마감](contests.md#deadlines), 지원 가능 여부·모집 상태는 [팀](teams.md#application-rules), 열람 권한은 [프로필](profile.md#visibility)이 원본입니다.
