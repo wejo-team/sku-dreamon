@@ -1,6 +1,6 @@
 # 개발 계획 템플릿
 
-> 작성 양식입니다. 구현 Draft PR의 계획 절 또는 연결된 Issue에 복사하고 해당 없는 항목을 정리합니다. 긴 계획만 `docs/plans/`에 문서로 보관하고 관련 인덱스와 PR에서 연결합니다. 절차는 [팀 작업 흐름](../development/workflow.md)을 따릅니다.
+> 작성 양식입니다. 구현 Draft PR의 계획 절 또는 연결된 Issue에 복사하고 해당 없는 항목을 정리합니다. 긴 계획만 `docs/development-plans/`에 문서로 보관하고 관련 인덱스와 PR에서 연결합니다. 절차는 [팀 작업 흐름](../development/workflow.md)을 따릅니다.
 
 ## 기준과 범위
 

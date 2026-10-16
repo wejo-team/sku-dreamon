@@ -17,13 +17,13 @@
 | 문서 | 다루는 내용 |
 | --- | --- |
 | [local-development.md](local-development.md) | 처음 설치·실행하거나 검사 명령이 필요할 때 |
-| [workflow.md](workflow.md) | 명세·개발 계획·구현·리뷰를 진행할 때 |
+| [workflow.md](workflow.md) | 팀 공통 명세·개발 계획·구현·리뷰 절차와 병합 기준 |
 | [architecture.md](architecture.md) | 폴더 책임·의존 방향·실행 기반을 변경할 때 |
 | [conventions.md](conventions.md) | 이름·포맷·주석·브랜치·커밋·PR |
 | [frontend.md](frontend.md) | 모바일 UI, API 호출, 캐시, 폼·상태 관리 |
 | [backend.md](backend.md) | 비동기 DB, 트랜잭션, API·설정·마이그레이션 |
 | [testing.md](testing.md) | 테스트 범위, CI 단계, 완료 기준 |
-| [documentation.md](documentation.md) | 문서·인덱스·VitePress 사이트·Wiki 게시를 변경할 때 |
+| [documentation.md](documentation.md) | 문서 원본·인덱스 관리 규칙과 VitePress·Wiki 자동 게시 운영 |
 
 ## 현재 결정
 
