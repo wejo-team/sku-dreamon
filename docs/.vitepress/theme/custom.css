@@ -33,6 +33,11 @@
   --vp-code-block-bg: #101914;
 }
 
+/* Keep narrow viewports within the content width beside classic scrollbars. */
+body {
+  min-width: 0;
+}
+
 .VPNavBarTitle .title {
   gap: 10px;
   font-weight: 750;
