@@ -32,9 +32,11 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 | 팀 생성·모집 | 공모전·팀 목표·필요 역할·모집 인원 등록, 팀 탐색과 모집 조건 확인 | [팀 모집과 지원](team-recruitment.md) |
 | 지원·선발 | 지원·취소·현황 확인, 팀장의 지원자 검토·선발, 지원자의 결과 확인 | [팀 모집과 지원](team-recruitment.md) |
 | 추천 | 공모전·팀·실제 지원자의 조건 기반 후보 목록과 근거 표시 | [추천 매칭](matching.md) |
-| 팀 공간 | 공모전 정보, 팀원, 모집·매칭 상태를 보여 주는 최소 공간 | [팀 모집과 지원](team-recruitment.md) |
+| 팀 공간 | 팀장과 현재 확정 팀원에게 공모전 정보, 팀원, 모집·매칭 상태를 보여 주는 최소 공간 | [팀 모집과 지원](team-recruitment.md#team-workspace-access) |
 
-팀장이 선발하면 해당 지원자가 즉시 확정 팀원이 되며 별도 수락은 없습니다. 팀장 포함 정원과 선발 시 차감은 [팀원 확정과 정원 정책](team-recruitment.md#membership-capacity)을 따릅니다. 팀 전체 모집 상태 전이·종료와 팀 공간 접근 권한은 [팀 명세의 미정 사항](team-recruitment.md#open-questions)에서 별도로 결정합니다.
+팀장이 선발하면 해당 지원자가 즉시 확정 팀원이 되며 별도 수락은 없습니다. 팀장 포함 정원과 선발 시 차감은 [팀원 확정과 정원 정책](team-recruitment.md#membership-capacity)을 따릅니다. [지원자 검토를 시작해도 현재 접수 조건을 충족하면 신규 지원을 받으며](team-recruitment.md#recruitment-review), 나머지 팀 전체 모집 상태 전이·종료는 [팀 명세의 미정 사항](team-recruitment.md#open-questions)에서 별도로 결정합니다.
+
+팀 생성·선발에는 팀장을 포함한 [공모전별 한 팀 소속 제한](team-recruitment.md#membership-limit)을 적용합니다. 지원자는 선발·확정 후에도 [지원을 취소해 팀에서 빠지고 한 자리를 반환](team-recruitment.md#application-cancellation)할 수 있으며, 현재 모집 조건을 충족하면 [즉시 재지원](team-recruitment.md#reapplication)할 수 있습니다. 동시 지원·다른 지원의 자동 취소·미선발 후 재지원·팀장 탈퇴와 위임은 이번 결정에 포함하지 않습니다.
 
 ## 제외 범위와 후속 검토
 
@@ -133,7 +135,7 @@ PDF에는 일정의 연도가 명시되어 있지 않습니다. 이 표는 원�
 - [ ] AC-05: 사용자가 모집글에 지원하고 팀장은 해당 지원자 목록을 확인할 수 있다.
 - [ ] AC-06: 시스템이 조건에 맞는 팀 또는 실제 지원자 후보를 근거와 함께 보여 준다.
 - [ ] AC-07: 팀장이 지원자를 선발하고 지원자는 본인의 결과를 확인할 수 있다.
-- [ ] AC-08: 팀 공간에서 공모전 정보·팀원·모집 및 매칭 상태를 확인할 수 있다. 확정 팀원은 [선발 즉시 확정 정책](team-recruitment.md#membership-capacity)을 따르며 접근 대상·시점은 팀 명세의 TEAM-08 결정 후 검증한다.
+- [ ] AC-08: 팀장과 현재 확정 팀원만 팀 공간에서 공모전 정보·팀원·모집 및 매칭 상태를 확인할 수 있다. [팀 공간 접근 정책](team-recruitment.md#team-workspace-access)에 따라 팀장은 생성 시, 팀원은 선발·확정 즉시 접근하며, 지원 취소로 팀에서 이탈하면 접근이 종료된다. 공개 모집글·상세 열람과 구분하며 프로필의 비공개·별도 동의 정책을 유지한다.
 - [ ] AC-09: 스마트폰 브라우저에서 주요 흐름을 설치 없이 이용하고, 데스크톱에서도 화면과 주요 동작을 사용할 수 있다.
 - [ ] AC-11: 사용자가 학교 이메일·소셜 계정 없이 자체 아이디·비밀번호로 가입·로그인·로그아웃하고, 교내 미인증 상태를 확인할 수 있다. 상세 조건은 [인증 AC-04~09](authentication.md#acceptance-criteria)를 따른다.
 - [ ] AC-12: 시연에서 자체 로그인 제공·학교 인증 미제공·시연 계정 여부와 실제 AI API 연동 여부가 사실에 맞게 표시된다.
@@ -147,7 +149,7 @@ PDF에는 일정의 연도가 명시되어 있지 않습니다. 이 표는 원�
 | 팀 결성 완료 기준 | 개별 팀원은 [선발 즉시 확정](team-recruitment.md#membership-capacity). 팀 전체 모집 상태 전이·종료는 [TEAM-02](team-recruitment.md#open-questions)에서 별도 결정 |
 | 공고 등록·관리 및 AI 요약 | [최초 공개 조건](contests.md#publication-policy)은 정의됨. 수집·DB 적재·갱신·권한·관리 화면·재확인 방식, 실제 AI 사용·실패 처리는 [공고 미정 사항](contests.md#open-questions) |
 | 매칭 기준 | [현재 결정](matching.md#policy-decisions)은 역할 강제 필터·시간 점수 제외와 분야 합집합 비교. 팀·지원자 최종 가중치·산식·동점 등 세부는 [추천 미정 사항](matching.md#open-questions) |
-| 프로필 공개 범위 | 부록의 대상별 최소 공개를 반영. 설정 기본값·적용 관계 등은 [프로필 미정 사항](profile.md#open-questions) |
+| 프로필 공개 범위 | [공개 설정 변경](profile.md#visibility-changes)은 기존 지원에도 즉시 적용. [취소·미선발 후 팀장 열람](profile.md#former-applicant-visibility)은 현재 공개 설정을 따름. 기본값·미정 관계와 기록 보존 등은 [프로필 미정 사항](profile.md#open-questions) |
 | 로그인·AI·시연 데이터 | 가입 경로는 [자체 로그인 결정](authentication.md#login-decision) 적용. 접근 권한·실패·복구는 [인증 미정 사항](authentication.md#open-questions), AI는 공고 명세, 시연 데이터 상호작용 범위는 [이슈 #53](https://github.com/wejo-team/wejo-app/issues/53)에서 결정 |
 | 웹 구현 범위 | 위 주요 화면과 모바일 웹 기준을 적용. 시연 URL·대상 브라우저 버전·기기 목록은 미정 |
 
