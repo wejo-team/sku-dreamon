@@ -35,7 +35,7 @@ backend/
   uv.lock
 docs/                    # 작업별 인덱스·명세·개발 및 에이전트 가이드
   .vitepress/            # 문서 사이트 설정·테마
-scripts/                 # 문서·사이트 검증
+scripts/                 # CI 영향 범위·필수 결과 판별, 문서·사이트 검증
 .github/workflows/        # 앱 CI와 문서·Pages workflow
 package.json             # VitePress 문서 도구 전용
 package-lock.json
