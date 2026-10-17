@@ -28,7 +28,7 @@ class Document(HTMLParser):
             self.references.append(href)
 
 
-def check_site(directory: Path, base: str = "/wejo-app/") -> list[str]:
+def check_site(directory: Path, base: str = "/sku-dreamon/") -> list[str]:
     """Return errors for references that would break in the deployed subpath."""
     if not base.startswith("/") or not base.endswith("/") or ".." in base.split("/"):
         raise ValueError("base must be an absolute URL path ending with '/'")
@@ -85,7 +85,7 @@ def check_site(directory: Path, base: str = "/wejo-app/") -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", type=Path, default=Path("docs/.vitepress/dist"))
-    parser.add_argument("--base", default="/wejo-app/")
+    parser.add_argument("--base", default="/sku-dreamon/")
     args = parser.parse_args()
     errors = check_site(args.directory, args.base)
     if errors:

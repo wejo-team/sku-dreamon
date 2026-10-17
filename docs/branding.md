@@ -19,6 +19,6 @@
 
 서경드림온은 붙여 쓰고, 영문 표기는 `SKU DreamOn`의 띄어쓰기와 대소문자를 유지합니다. 개발 팀의 이름은 **WEJO**입니다.
 
-## 기존 저장소와 실행 식별자
+## 저장소와 실행 식별자
 
-GitHub 저장소는 `wejo-team/wejo-app`, 문서 사이트는 [기존 Pages 주소](https://wejo-team.github.io/wejo-app/)를 사용합니다. 저장소 경로와 Pages의 `/wejo-app/` 경로, 기존 DB·Docker Compose 식별자는 서비스 표시 이름과 구분하여 유지합니다. 저장소 주소를 변경할 때는 [문서 관리의 저장소 이름 변경 안내](development/documentation.md)를 함께 적용합니다.
+GitHub 저장소는 `wejo-team/sku-dreamon`, 문서 사이트는 [서경드림온 문서](https://wejo-team.github.io/sku-dreamon/)를 사용합니다. 저장소와 Pages 경로는 기술 식별자 `sku-dreamon`에 맞춥니다. 기존 DB·Docker Compose의 `wejo` 식별자는 유지합니다. 저장소 주소를 변경할 때는 [문서 관리의 저장소 이름 변경 안내](development/documentation.md)를 함께 적용합니다.

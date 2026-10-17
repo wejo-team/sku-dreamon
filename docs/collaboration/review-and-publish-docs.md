@@ -50,8 +50,8 @@ PR에는 **Checks** 또는 하단 검사 목록이 표시됩니다. 자동 검�
 ## 사이트에서 확인하기
 
 1. PR이 **Merged**인지 확인합니다. 열려 있는 PR의 내용은 GitHub의 변경 파일에서 확인합니다. 별도 PR 미리보기 사이트는 없습니다.
-2. 병합 후 [Actions의 Docs and Pages](https://github.com/wejo-team/wejo-app/actions/workflows/docs.yml)에서 해당 `main` 실행을 확인합니다. **Publish Pages**가 성공하면 사이트가 갱신됩니다.
-3. [문서 사이트](https://wejo-team.github.io/wejo-app/)에서 문서를 다시 열어 내용과 링크를 확인합니다. 바로 안 보이면 게시 완료를 기다린 뒤 새로고침하고, 페이지의 원본 커밋 링크로 버전을 확인합니다.
+2. 병합 후 [Actions의 Docs and Pages](https://github.com/wejo-team/sku-dreamon/actions/workflows/docs.yml)에서 해당 `main` 실행을 확인합니다. **Publish Pages**가 성공하면 사이트가 갱신됩니다.
+3. [문서 사이트](https://wejo-team.github.io/sku-dreamon/)에서 문서를 다시 열어 내용과 링크를 확인합니다. 바로 안 보이면 게시 완료를 기다린 뒤 새로고침하고, 페이지의 원본 커밋 링크로 버전을 확인합니다.
 
 사이트는 `docs/` 원본을 자동 게시합니다. 수정은 다시 문서 PR로 진행합니다.
 

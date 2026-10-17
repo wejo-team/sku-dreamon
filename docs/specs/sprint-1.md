@@ -1,7 +1,7 @@
 # 스프린트 1 범위와 완료 기준
 
 - 구현 상태: 예정
-- 명세 검토: [PR #17](https://github.com/wejo-team/wejo-app/pull/17)
+- 명세 검토: [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17)
 - 구현 작업: 미등록
 
 `스프린트1_기능정의_및_개발범위_정책확정본.pdf`의 전체 범위, 화면, 일정과 시연 기준을 관리합니다. 기능별 정책은 아래 담당 명세에서 정의합니다. 이 문서의 일정과 완료 조건은 계획이며, 구현·검증·배포 완료 기록이 아닙니다.
@@ -18,7 +18,7 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 - 닉네임 우선 표시는 실명 입력·표시로, 포트폴리오 파일 업로드 가능성은 외부 URL만 제공하는 정책으로 정리합니다. 본문의 시간 입력 ‘필수 권장’은 부록의 ‘권장’을 적용합니다.
 - 본문의 팀 매칭 가중치는 예시입니다. 현재는 [추천 정책 결정](matching.md#policy-decisions)에 따라 모집 역할 강제 필터와 시간 점수를 사용하지 않으며, 팀·지원자 최종 가중치·산식은 후속 정의합니다. 공모전 추천의 부록 가중치는 유지합니다.
 - 원문에서 정하지 않은 동작을 이관 과정에서 확정하지 않습니다. 기능별 미정 사항은 해당 명세에 남깁니다. 기존 `추가 리스트 최종.md`와의 선택지 차이는 [선택지 차이](profile-options.md#source-differences)에서 관리합니다.
-- 원문 이관 이후 [이슈 #20](https://github.com/wejo-team/wejo-app/issues/20)에서 변경한 가입 경로는 [자체 로그인 결정](authentication.md#login-decision)을 적용합니다. 원문의 학교 이메일 필수·실제/시연 인증 선택은 이번 범위에서 대체합니다.
+- 원문 이관 이후 [이슈 #20](https://github.com/wejo-team/sku-dreamon/issues/20)에서 변경한 가입 경로는 [자체 로그인 결정](authentication.md#login-decision)을 적용합니다. 원문의 학교 이메일 필수·실제/시연 인증 선택은 이번 범위에서 대체합니다.
 
 <a id="scope"></a>
 
@@ -152,7 +152,7 @@ PDF에는 일정의 연도가 명시되어 있지 않습니다. 이 표는 원�
 | 공고 등록·관리 및 AI 요약 | [최초 공개 조건](contests.md#publication-policy)은 정의됨. 수집·DB 적재·갱신·권한·관리 화면·재확인 방식, 실제 AI 사용·실패 처리는 [공고 미정 사항](contests.md#open-questions) |
 | 매칭 기준 | [현재 결정](matching.md#policy-decisions)은 역할 강제 필터·시간 점수 제외와 분야 합집합 비교. 팀·지원자 최종 가중치·산식·동점 등 세부는 [추천 미정 사항](matching.md#open-questions) |
 | 프로필 공개 범위 | [공개 설정 변경](profile.md#visibility-changes)은 기존 지원에도 즉시 적용. [취소·미선발 후 팀장 열람](profile.md#former-applicant-visibility)은 현재 공개 설정을 따름. 기본값·미정 관계와 기록 보존 등은 [프로필 미정 사항](profile.md#open-questions) |
-| 로그인·지원 진입·AI·시연 데이터 | [공개 탐색과 로그인 필요 행동](authentication.md#access-policy), [지원 직전 필수 정보 점검](profile.md#before-application)은 정의됨. 자격 확인 필요의 접수는 #33에 따라 TBD. 로그인 실패·복구는 [인증 미정 사항](authentication.md#open-questions), AI는 공고 명세, 시연 데이터 상호작용은 [이슈 #53](https://github.com/wejo-team/wejo-app/issues/53)에서 결정 |
+| 로그인·지원 진입·AI·시연 데이터 | [공개 탐색과 로그인 필요 행동](authentication.md#access-policy), [지원 직전 필수 정보 점검](profile.md#before-application)은 정의됨. 자격 확인 필요의 접수는 #33에 따라 TBD. 로그인 실패·복구는 [인증 미정 사항](authentication.md#open-questions), AI는 공고 명세, 시연 데이터 상호작용은 [이슈 #53](https://github.com/wejo-team/sku-dreamon/issues/53)에서 결정 |
 | 웹 구현 범위 | 위 주요 화면과 모바일 웹 기준을 적용. 시연 URL·대상 브라우저 버전·기기 목록은 미정 |
 
 <a id="source-coverage"></a>

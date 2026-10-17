@@ -10,7 +10,7 @@ GitHub를 처음 사용하는 팀원을 위한 문서 협업 안내입니다. �
 
 | 하고 싶은 일 | 시작할 곳 |
 | --- | --- |
-| 팀 문서 읽기 | [문서 사이트](https://wejo-team.github.io/wejo-app/)에서 검색하거나 폴더 메뉴 선택 |
+| 팀 문서 읽기 | [문서 사이트](https://wejo-team.github.io/sku-dreamon/)에서 검색하거나 폴더 메뉴 선택 |
 | 기존 문서 수정, 새 문서 추가, PR 만들기 | [GitHub 웹에서 문서 수정하기](editing-docs.md) |
 | 기능의 동작과 정책 정리하기 | [기능 명세 작성하기](writing-specs.md) |
 | 다른 사람의 문서 검토, 수정 요청에 답하기 | [문서 리뷰와 게시 확인하기](review-and-publish-docs.md) |
@@ -21,8 +21,8 @@ GitHub를 처음 사용하는 팀원을 위한 문서 협업 안내입니다. �
 ## 처음 한 번 준비하기
 
 1. 초대받은 GitHub 계정으로 로그인하고 `wejo-team` 조직 초대를 수락합니다.
-2. [팀 저장소](https://github.com/wejo-team/wejo-app)를 엽니다. 현재 팀원은 조직 Member, `developers` 팀을 통한 저장소 Write 권한으로 참여합니다. 팀 이름과 관계없이 기획 팀원도 문서 작성에 같은 권한을 사용합니다.
-3. 수정할 문서와 관련된 [열린 PR](https://github.com/wejo-team/wejo-app/pulls)이 있는지 확인합니다. 같은 문서를 함께 고친다면 먼저 담당 범위를 맞춥니다.
+2. [팀 저장소](https://github.com/wejo-team/sku-dreamon)를 엽니다. 현재 팀원은 조직 Member, `developers` 팀을 통한 저장소 Write 권한으로 참여합니다. 팀 이름과 관계없이 기획 팀원도 문서 작성에 같은 권한을 사용합니다.
+3. 수정할 문서와 관련된 [열린 PR](https://github.com/wejo-team/sku-dreamon/pulls)이 있는지 확인합니다. 같은 문서를 함께 고친다면 먼저 담당 범위를 맞춥니다.
 
 저장소는 공개되어 있어 초대 수락 전에도 읽을 수 있습니다. **읽을 수 있는 것과 수정 권한이 있는 것은 다릅니다.** 브랜치를 만들 수 없거나 개인 저장소로 복사하는 Fork 화면이 나오면 리더에게 계정과 권한을 확인해 달라고 요청합니다.
 

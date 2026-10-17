@@ -5,7 +5,7 @@
 - 사람과 에이전트에게 전달하는 작업 지침·명세·개발 정보는 `docs/`에서 관리합니다. 루트 `AGENTS.md`는 문서 인덱스로 들어오는 링크만 유지합니다.
 - `docs/README.md`와 하위 폴더의 `README.md`는 짧은 인덱스입니다. 문서의 목적과 언제 읽을지를 안내하고 본문 내용을 반복하지 않습니다.
 - 새 문서를 만들면 관련 인덱스에 연결합니다. 작업에 필요한 문서만 읽을 수 있도록 한 문서에 모든 영역의 규칙을 합치지 않습니다.
-- [VitePress 문서 사이트](https://wejo-team.github.io/wejo-app/)를 기본 읽기 화면으로 사용합니다. 수정은 저장소 PR로 제안합니다.
+- [VitePress 문서 사이트](https://wejo-team.github.io/sku-dreamon/)를 기본 읽기 화면으로 사용합니다. 수정은 저장소 PR로 제안합니다.
 - PR 템플릿은 변경·검증 정보를 수집하는 양식이며, 실제 작업 규칙은 [팀 작업 흐름](workflow.md)을 참조합니다.
 
 ## 문서 이름과 책임
@@ -59,13 +59,21 @@ python3 scripts/check_docs_site.py
 npm run docs:preview
 ```
 
-미리보기 주소는 `http://localhost:4173/wejo-app/`입니다. 문서를 수정하며 보려면 `npm run docs:dev`를 실행하고 터미널에 표시된 `/wejo-app/` 주소로 접속합니다. 문서 설정·테마 변경 시 검색, 내부 링크, 좁은 화면의 메뉴도 확인합니다.
+미리보기 주소는 `http://localhost:4173/sku-dreamon/`입니다. 문서를 수정하며 보려면 `npm run docs:dev`를 실행하고 터미널에 표시된 `/sku-dreamon/` 주소로 접속합니다. 문서 설정·테마 변경 시 검색, 내부 링크, 좁은 화면의 메뉴도 확인합니다.
 
 VitePress는 안정 버전 1.6.4를 고정합니다. 해당 버전의 Vite·esbuild 개발 서버 의존성에는 알려진 보안 권고가 남아 있습니다. 개발 서버를 외부에 공개하지 않고 로컬에서 사용하며, 운영에는 빌드된 정적 파일만 배포합니다. 의존성 갱신 시 `npm audit` 결과와 공식 지원 범위·빌드·검색·링크 호환성을 함께 검토합니다.
 
 ## 저장소 이름을 변경할 때
 
-`docs/.vitepress/`의 GitHub 저장소 주소와 Pages `base`, 이 문서와 인덱스의 사이트 주소, HTML 검사의 기본 `--base`를 함께 변경합니다. 루트 `package.json`의 도구 이름도 맞춥니다. 새 주소에서 자산·하위 문서·검색·편집 링크를 다시 확인합니다.
+`docs/.vitepress/`의 GitHub 저장소 주소와 Pages `base`, 문서·템플릿의 저장소·사이트 주소, HTML 검사의 기본 `--base`와 관련 테스트를 함께 변경합니다. 패키지 이름은 저장소 이름과 별개로 관리하며, 현재 `sku-dreamon` 기반 이름은 그대로 사용합니다.
+
+기존 로컬 저장소에서는 `origin`을 새 주소로 갱신합니다. 로컬 폴더 이름은 그대로 사용해도 됩니다.
+
+```bash
+git remote set-url origin https://github.com/wejo-team/sku-dreamon.git
+```
+
+주소·설정 변경 PR을 `main`에 병합하고 `Publish Pages` 배포가 성공한 뒤, [새 문서 사이트](https://wejo-team.github.io/sku-dreamon/)에서 자산·하위 문서·검색·편집 링크를 확인합니다. GitHub 저장소 이름 변경만으로 Pages 게시 확인을 대신하지 않습니다.
 
 ## 근거
 

@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         한 이슈에서 한 가지 결정을 다룹니다. 추천안은 합의 전까지 검토용입니다.
-        [작성 안내](https://github.com/wejo-team/wejo-app/blob/main/docs/templates/planning-decision.md)
+        [작성 안내](https://github.com/wejo-team/sku-dreamon/blob/main/docs/templates/planning-decision.md)
   - type: textarea
     id: decision
     attributes:
