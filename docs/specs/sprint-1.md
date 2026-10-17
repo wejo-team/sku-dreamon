@@ -8,7 +8,7 @@
 
 ## 목적과 사용자
 
-AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다. 사용자는 자체 로그인과 프로필 작성을 마치고 공모전을 탐색해 팀을 만들거나 기존 팀에 지원합니다. 이번 범위에서는 교내 구성원 여부를 검증하지 않습니다. 팀장은 실제 지원자를 검토·선발하고, 사용자는 추천과 자신의 지원 결과를 확인합니다. 공고는 [최초 공개 조건](contests.md#publication-policy)을 따르며 수집·적재·관리 방식은 TBD입니다.
+AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다. 사용자는 로그인 없이 공개 공고·팀 모집 정보를 탐색하고, 자체 로그인 후 팀을 만들거나 기존 팀에 지원합니다. 모든 지원의 제출 직전에 누락된 필수 정보를 보완하며, 이번 범위에서는 교내 구성원 여부를 검증하지 않습니다. 팀장은 실제 지원자를 검토·선발하고, 사용자는 추천과 자신의 지원 결과를 확인합니다. 공고는 [최초 공개 조건](contests.md#publication-policy)을 따르며 수집·적재·관리 방식은 TBD입니다.
 
 <a id="source-priority"></a>
 
@@ -150,7 +150,7 @@ PDF에는 일정의 연도가 명시되어 있지 않습니다. 이 표는 원�
 | 공고 등록·관리 및 AI 요약 | [최초 공개 조건](contests.md#publication-policy)은 정의됨. 수집·DB 적재·갱신·권한·관리 화면·재확인 방식, 실제 AI 사용·실패 처리는 [공고 미정 사항](contests.md#open-questions) |
 | 매칭 기준 | [현재 결정](matching.md#policy-decisions)은 역할 강제 필터·시간 점수 제외와 분야 합집합 비교. 팀·지원자 최종 가중치·산식·동점 등 세부는 [추천 미정 사항](matching.md#open-questions) |
 | 프로필 공개 범위 | [공개 설정 변경](profile.md#visibility-changes)은 기존 지원에도 즉시 적용. [취소·미선발 후 팀장 열람](profile.md#former-applicant-visibility)은 현재 공개 설정을 따름. 기본값·미정 관계와 기록 보존 등은 [프로필 미정 사항](profile.md#open-questions) |
-| 로그인·AI·시연 데이터 | 가입 경로는 [자체 로그인 결정](authentication.md#login-decision) 적용. 접근 권한·실패·복구는 [인증 미정 사항](authentication.md#open-questions), AI는 공고 명세, 시연 데이터 상호작용 범위는 [이슈 #53](https://github.com/wejo-team/wejo-app/issues/53)에서 결정 |
+| 로그인·지원 진입·AI·시연 데이터 | [공개 탐색과 로그인 필요 행동](authentication.md#access-policy), [지원 직전 필수 정보 점검](profile.md#before-application)은 정의됨. 자격 확인 필요의 접수는 #33에 따라 TBD. 로그인 실패·복구는 [인증 미정 사항](authentication.md#open-questions), AI는 공고 명세, 시연 데이터 상호작용은 [이슈 #53](https://github.com/wejo-team/wejo-app/issues/53)에서 결정 |
 | 웹 구현 범위 | 위 주요 화면과 모바일 웹 기준을 적용. 시연 URL·대상 브라우저 버전·기기 목록은 미정 |
 
 <a id="source-coverage"></a>
