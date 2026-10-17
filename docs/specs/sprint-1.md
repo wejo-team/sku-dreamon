@@ -36,6 +36,8 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 
 팀장이 선발하면 해당 지원자가 즉시 확정 팀원이 되며 별도 수락은 없습니다. 팀장 포함 정원과 선발 시 차감은 [팀원 확정과 정원 정책](team-recruitment.md#membership-capacity)을 따릅니다. 팀 전체 모집 상태 전이·종료와 팀 공간 접근 권한은 [팀 명세의 미정 사항](team-recruitment.md#open-questions)에서 별도로 결정합니다.
 
+팀 생성·선발에는 팀장을 포함한 [공모전별 한 팀 소속 제한](team-recruitment.md#membership-limit)을 적용합니다. 지원자는 선발·확정 후에도 [지원을 취소해 팀에서 빠지고 한 자리를 반환](team-recruitment.md#application-cancellation)할 수 있으며, 현재 모집 조건을 충족하면 [즉시 재지원](team-recruitment.md#reapplication)할 수 있습니다. 동시 지원·다른 지원의 자동 취소·미선발 후 재지원·팀장 탈퇴와 위임은 이번 결정에 포함하지 않습니다.
+
 ## 제외 범위와 후속 검토
 
 | 항목 | 처리 |
