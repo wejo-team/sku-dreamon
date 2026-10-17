@@ -15,7 +15,7 @@ export function HealthPage() {
     <main className="mx-auto flex min-h-svh w-full max-w-lg flex-col px-5 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] sm:justify-center">
       <header className="mb-8">
         <p className="mb-3 text-sm font-medium text-muted-foreground">
-          WEJO · 개발 환경
+          서경드림온 · 개발 환경
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">연결 상태</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
