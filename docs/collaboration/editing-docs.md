@@ -4,7 +4,7 @@
 
 ## 1. 내 작업 브랜치 만들기
 
-1. [팀 저장소](https://github.com/wejo-team/wejo-app)의 **Code** 탭을 엽니다.
+1. [팀 저장소](https://github.com/wejo-team/sku-dreamon)의 **Code** 탭을 엽니다.
 2. 파일 목록 위의 브랜치 선택 메뉴에서 `main`을 선택합니다. 새 작업은 항상 최신 `main`에서 시작합니다.
 3. 같은 메뉴의 검색창에 새 이름을 입력합니다. 문서 작업은 `docs/수정-주제` 형태이며, 주제는 소문자 영문·숫자·하이픈으로 적습니다. 예: `docs/recruitment-spec`.
 4. **Create branch**를 누르고, 현재 브랜치 이름이 입력한 이름으로 바뀌었는지 확인합니다. 같은 이름이 이미 있으면 다른 이름을 사용합니다.
@@ -17,7 +17,7 @@
 
 **새 기능 명세를 만든다면:** [명세 작성 안내](writing-specs.md)로 내용을 준비하고 다음과 같이 파일을 만듭니다. 아래 `recruitment`는 작성 방법을 설명하는 예시 이름입니다.
 
-1. [명세 템플릿 원본](https://github.com/wejo-team/wejo-app/blob/main/docs/templates/spec.md)을 별도 탭에서 엽니다. **Code** 또는 **Raw** 보기로 Markdown 원문을 복사합니다.
+1. [명세 템플릿 원본](https://github.com/wejo-team/sku-dreamon/blob/main/docs/templates/spec.md)을 별도 탭에서 엽니다. **Code** 또는 **Raw** 보기로 Markdown 원문을 복사합니다.
 2. 내 작업 브랜치의 `docs/specs/` 폴더로 돌아와 **Add file → Create new file**을 선택합니다.
 3. 파일 이름에 `recruitment.md`처럼 소문자 영문·하이픈 이름과 `.md` 확장자를 입력합니다. 이미 `docs/specs/` 안이므로 전체 폴더 경로를 다시 입력하지 않습니다.
 4. 복사한 양식을 붙여 넣고 제목과 내용을 바꿉니다. 템플릿 자체는 수정하지 않습니다. **Preview**로 확인합니다.
@@ -59,7 +59,7 @@ PR 설명에는 다음 정도가 있으면 검토하기 쉽습니다. 실제 입
 
 ## 4. 수정하거나 나중에 이어서 하기
 
-- 내 PR은 [열린 PR 목록](https://github.com/wejo-team/wejo-app/pulls)에서 찾습니다. 제목 아래의 작업 브랜치 이름을 누르거나 Code 탭의 브랜치 메뉴에서 선택합니다.
+- 내 PR은 [열린 PR 목록](https://github.com/wejo-team/sku-dreamon/pulls)에서 찾습니다. 제목 아래의 작업 브랜치 이름을 누르거나 Code 탭의 브랜치 메뉴에서 선택합니다.
 - 해당 브랜치의 문서를 편집하고 커밋하면 **기존 PR이 갱신**됩니다. 리뷰 반영 때마다 브랜치나 PR을 새로 만들지 않습니다.
 - 병합된 뒤 다른 작업을 시작할 때는 `main`에서 새 브랜치를 만듭니다. 이전 PR의 브랜치를 재사용하지 않습니다.
 

@@ -28,7 +28,7 @@
 ## 현재 결정
 
 - 서비스명: **서경드림온**. 약칭은 **드림온**, 영문 표기는 **SKU DreamOn**, 기술 식별자의 기본형은 `sku-dreamon`입니다. 의미와 사용 기준은 [이름과 표기](../branding.md)를 따릅니다.
-- 저장소: `wejo-team/wejo-app`. 공개 저장소이며 서비스명과 별도로 기존 주소를 유지합니다.
+- 저장소: `wejo-team/sku-dreamon`. 공개 저장소이며 이름은 서비스의 기술 식별자에 맞춥니다.
 - 구조: `frontend/`, `backend/`가 있는 모노레포. 공통 패키지나 별도 모노레포 실행 도구는 필요가 생길 때 추가합니다.
 - 프론트: React + TypeScript + Vite + React Router, Tailwind + shadcn/ui, TanStack Query + fetch, React Hook Form + Zod. 패키지 관리자는 npm입니다.
 - 백엔드: FastAPI + uv + Pydantic + SQLAlchemy 2 비동기 API + asyncpg + PostgreSQL + Alembic입니다. 앞서 검토했던 동기 DB 접근안은 이 결정으로 대체합니다.

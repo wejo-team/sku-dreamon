@@ -10,7 +10,7 @@ class DocsSiteTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
-        self.write("index.html", '<a href="/wejo-app/development/">개발</a>')
+        self.write("index.html", '<a href="/sku-dreamon/development/">개발</a>')
         self.write("development/index.html", '<h1 id="개발-안내">개발 안내</h1>')
 
     def write(self, path, text):
@@ -48,20 +48,20 @@ class DocsSiteTests(unittest.TestCase):
         self.write(
             "index.html",
             '<a href="/development/">잘못된 기본 경로</a>'
-            '<a href="/wejo-app/%2e%2e/other.html">범위 밖</a>',
+            '<a href="/sku-dreamon/%2e%2e/other.html">범위 밖</a>',
         )
         errors = check_site(self.root)
         self.assertEqual(len(errors), 2)
         self.assertTrue(
-            all("outside site base /wejo-app/" in error for error in errors)
+            all("outside site base /sku-dreamon/" in error for error in errors)
         )
 
     def test_missing_scripts_styles_and_images_are_reported(self):
         self.write(
             "index.html",
-            '<script src="/wejo-app/assets/app.js"></script>'
-            '<link rel="stylesheet" href="/wejo-app/assets/theme.css">'
-            '<img src="/wejo-app/logo.svg">',
+            '<script src="/sku-dreamon/assets/app.js"></script>'
+            '<link rel="stylesheet" href="/sku-dreamon/assets/theme.css">'
+            '<img src="/sku-dreamon/logo.svg">',
         )
         self.write("assets/app.js", "console.log('loaded');")
         errors = check_site(self.root)
@@ -72,7 +72,7 @@ class DocsSiteTests(unittest.TestCase):
     def test_external_and_embedded_resources_are_not_fetched(self):
         self.write(
             "index.html",
-            '<a href="https://github.com/wejo-team/wejo-app/blob/main/README.md">소스</a>'
+            '<a href="https://github.com/wejo-team/sku-dreamon/blob/main/README.md">소스</a>'
             '<a href="//example.com/guide#unknown">외부</a>'
             '<a href="mailto:team@example.com">메일</a>'
             '<img src="data:image/svg+xml;base64,PHN2Zy8+">',

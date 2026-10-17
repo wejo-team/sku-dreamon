@@ -4,8 +4,8 @@ import { defineConfig } from "vitepress";
 import { siteLink } from "./links.mjs";
 import { createSidebar } from "./navigation.mjs";
 
-const repositoryUrl = "https://github.com/wejo-team/wejo-app";
-const base = "/wejo-app/";
+const repositoryUrl = "https://github.com/wejo-team/sku-dreamon";
+const base = "/sku-dreamon/";
 
 function sourceRevision() {
   const sha = process.env.GITHUB_SHA;
