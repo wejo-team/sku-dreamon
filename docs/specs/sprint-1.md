@@ -16,7 +16,7 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 
 - PDF 1~6쪽은 기능 정의 본문, 7~9쪽은 정책 확정 부록입니다. 같은 항목이 달라진 경우 부록의 구체화된 기준을 적용합니다.
 - 닉네임 우선 표시는 실명 입력·표시로, 포트폴리오 파일 업로드 가능성은 외부 URL만 제공하는 정책으로 정리합니다. 본문의 시간 입력 ‘필수 권장’은 부록의 ‘권장’을 적용합니다.
-- 본문 팀 매칭 가중치는 예시이며, 실제 기준은 [추천 매칭](matching.md)의 부록 기반 확정 가중치입니다.
+- 본문의 팀 매칭 가중치는 예시입니다. 현재는 [추천 정책 결정](matching.md#policy-decisions)에 따라 모집 역할 강제 필터와 시간 점수를 사용하지 않으며, 팀·지원자 최종 가중치·산식은 후속 정의합니다. 공모전 추천의 부록 가중치는 유지합니다.
 - 원문에서 정하지 않은 동작을 이관 과정에서 확정하지 않습니다. 기능별 미정 사항은 해당 명세에 남깁니다. 기존 `추가 리스트 최종.md`와의 선택지 차이는 [선택지 차이](profile-options.md#source-differences)에서 관리합니다.
 - 원문 이관 이후 [이슈 #20](https://github.com/wejo-team/wejo-app/issues/20)에서 변경한 가입 경로는 [자체 로그인 결정](authentication.md#login-decision)을 적용합니다. 원문의 학교 이메일 필수·실제/시연 인증 선택은 이번 범위에서 대체합니다.
 
@@ -146,7 +146,7 @@ PDF에는 일정의 연도가 명시되어 있지 않습니다. 이 표는 원�
 | --- | --- |
 | 팀 결성 완료 기준 | 개별 팀원은 [선발 즉시 확정](team-recruitment.md#membership-capacity). 팀 전체 모집 상태 전이·종료는 [TEAM-02](team-recruitment.md#open-questions)에서 별도 결정 |
 | 공고 등록·관리 및 AI 요약 | [최초 공개 조건](contests.md#publication-policy)은 정의됨. 수집·DB 적재·갱신·권한·관리 화면·재확인 방식, 실제 AI 사용·실패 처리는 [공고 미정 사항](contests.md#open-questions) |
-| 매칭 기준 | 부록의 필수 조건·가중치·근거 표시를 이관. 미입력·동점 등 원문이 정하지 않은 세부 동작은 [추천 미정 사항](matching.md#open-questions) |
+| 매칭 기준 | [현재 결정](matching.md#policy-decisions)은 역할 강제 필터·시간 점수 제외와 분야 합집합 비교. 팀·지원자 최종 가중치·산식·동점 등 세부는 [추천 미정 사항](matching.md#open-questions) |
 | 프로필 공개 범위 | 부록의 대상별 최소 공개를 반영. 설정 기본값·적용 관계 등은 [프로필 미정 사항](profile.md#open-questions) |
 | 로그인·AI·시연 데이터 | 가입 경로는 [자체 로그인 결정](authentication.md#login-decision) 적용. 접근 권한·실패·복구는 [인증 미정 사항](authentication.md#open-questions), AI는 공고 명세, 시연 데이터 상호작용 범위는 [이슈 #53](https://github.com/wejo-team/wejo-app/issues/53)에서 결정 |
 | 웹 구현 범위 | 위 주요 화면과 모바일 웹 기준을 적용. 시연 URL·대상 브라우저 버전·기기 목록은 미정 |
