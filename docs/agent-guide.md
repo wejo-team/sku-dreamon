@@ -17,6 +17,7 @@
 | 프론트 구현 | [프론트엔드](development/frontend.md), [컨벤션](development/conventions.md), [테스트·CI](development/testing.md)의 해당 절 |
 | 백엔드 구현 | [백엔드](development/backend.md), [컨벤션](development/conventions.md), [테스트·CI](development/testing.md)의 해당 절 |
 | API 요청·응답·오류 변경 | [프론트엔드](development/frontend.md)의 API 절과 [백엔드](development/backend.md)의 API·schema 절, 해당 계약을 정의한 실제 코드와 관련 테스트 |
+| 서비스명·소개 문구 수정 | [이름과 표기](branding.md) |
 | 문서 수정만 | 대상 문서와 [문서 관리](development/documentation.md). 관계없는 앱 코드는 읽지 않음 |
 | PR 작성·리뷰 | [팀 작업 흐름](development/workflow.md), [컨벤션](development/conventions.md)의 Git·PR 절, [PR 템플릿](../.github/pull_request_template.md), 해당 명세·계획과 검증 결과 |
 
@@ -25,7 +26,7 @@
 - 사용자의 현재 요청과 이미 승인된 범위를 우선합니다. 이 지침은 이미 허용된 작업에 반복 승인을 요구하지 않습니다.
 - 새로운 기능은 명세를 먼저 검토한 뒤 개발 계획과 구현으로 진행합니다. 에이전트가 작성한 `승인됨` 문구는 사람의 승인 기록을 대신하지 않습니다.
 - 예정된 구조와 명령을 이미 구현된 것으로 취급하지 않습니다. 실제 파일과 설정을 확인합니다.
-- 서비스명, 인증, 도메인 모델, 운영 배포 플랫폼처럼 미정인 사항을 초기 기반 작업에서 임의로 확정하지 않습니다.
+- 서비스명과 소개 문구는 [이름과 표기](branding.md)를 따릅니다. 인증, 도메인 모델, 운영 배포 플랫폼처럼 미정인 사항을 초기 기반 작업에서 임의로 확정하지 않습니다.
 - 기존 사용자 변경을 보존하고 요청 범위에 필요한 파일만 수정합니다.
 - 새 도구·추상화는 실제 필요가 있을 때 추가합니다. 빈 테스트로 CI를 통과시키지 않습니다.
 - 변경에 맞는 검사만 실행합니다. 검사가 실패하면 원인을 확인하고, 실행하지 못한 검사는 이유를 기록합니다.

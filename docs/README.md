@@ -1,4 +1,4 @@
-# WEJO 문서
+# 서경드림온 문서
 
 사람과 에이전트가 함께 사용하는 문서입니다. **현재 작업에 필요한 문서만 선택해서 읽습니다.**
 
@@ -12,10 +12,12 @@
 | [development/](development/README.md) | 설치·실행, 기술 규칙, 개발·리뷰·검증 방법 |
 | [specs/](specs/README.md) | 팀이 검토하는 기능 동작·정책·예외·완료 조건 |
 | [templates/](templates/README.md) | 새 문서를 작성할 때 복사하는 양식 |
+| [branding.md](branding.md) | 서경드림온의 의미와 이름·기술 식별자 표기 기준 |
 | [agent-guide.md](agent-guide.md) | 에이전트의 문서 선택과 작업·보고 원칙 |
 
 ## 자주 찾는 문서
 
+- 서비스명을 쓰거나 소개 문구를 작성할 때: [이름과 표기](branding.md)
 - 기획 팀원 등 GitHub가 처음인 팀원이 참여할 때: [문서 협업 시작하기](collaboration/README.md)
 - 처음 실행할 때: [로컬 실행](development/local-development.md)
 - 명세·계획·PR을 검토할 때: [팀 작업 흐름](development/workflow.md)

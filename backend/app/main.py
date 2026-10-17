@@ -20,7 +20,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await database.engine.dispose()
 
-    app = FastAPI(title="WEJO API", lifespan=lifespan)
+    app = FastAPI(title="서경드림온 API", lifespan=lifespan)
     app.include_router(health_router, prefix="/api/v1")
     return app
 

@@ -23,17 +23,13 @@ const revision = sourceRevision();
 
 export default defineConfig({
   lang: "ko-KR",
-  title: "WEJO Docs",
+  title: "서경드림온 문서",
   description:
-    "WEJO 팀의 기능 명세와 개발 가이드. 필요한 문서부터, 같은 기준으로 함께 만듭니다.",
+    "공모전으로 학생들의 꿈과 잠재력을 밝히고 도전을 이어가는 서경드림온의 기능 명세와 개발 가이드입니다.",
   base,
   cleanUrls: false,
   lastUpdated: true,
   head: [
-    [
-      "link",
-      { rel: "icon", type: "image/svg+xml", href: `${base}wejo-mark.svg` },
-    ],
     ["meta", { name: "theme-color", content: "#087f72" }],
   ],
   rewrites: (file) => file.replace(/(^|\/)README\.md$/, "$1index.md"),
@@ -54,12 +50,11 @@ export default defineConfig({
     },
   },
   themeConfig: {
-    logo: { src: "/wejo-mark.svg", alt: "" },
-    siteTitle: "WEJO Docs",
+    siteTitle: "서경드림온 문서",
     nav: [{ text: "문서 인덱스", link: "/", activeMatch: "^/(?:index)?$" }],
     sidebar: createSidebar(fileURLToPath(new URL("../", import.meta.url))),
     socialLinks: [
-      { icon: "github", link: repositoryUrl, ariaLabel: "WEJO GitHub 저장소" },
+      { icon: "github", link: repositoryUrl, ariaLabel: "서경드림온 GitHub 저장소" },
     ],
     search: {
       provider: "local",

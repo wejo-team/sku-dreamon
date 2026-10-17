@@ -1,7 +1,7 @@
 [project]
-name = "wejo-backend"
+name = "sku-dreamon-backend"
 version = "0.1.0"
-description = "WEJO FastAPI service"
+description = "SKU DreamOn API for student contests and ongoing challenges"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "alembic>=1.18,<2",
