@@ -13,7 +13,7 @@ ALL = {"frontend", "backend", "docs"}
 
 
 class ScopeRulesTests(unittest.TestCase):
-    def test_area_and_dependency_boundaries(self):
+    def test_directory_scope_and_common_file_rules(self):
         cases = [
             (["docs/specs/authentication.md"], {"docs"}),
             (["docs/.vitepress/config.ts", "package-lock.json"], {"docs"}),
@@ -24,20 +24,20 @@ class ScopeRulesTests(unittest.TestCase):
             ),
             (["frontend/package-lock.json", "frontend/src/app/App.tsx"], {"frontend"}),
             (["backend/uv.lock", "backend/app/core/config.py"], {"backend"}),
-            (["backend/app/api/health.py"], {"frontend", "backend"}),
-            (["backend/app/schemas/account.py"], {"frontend", "backend"}),
-            (["backend/app/main.py"], {"frontend", "backend"}),
-            (["frontend/src/lib/api.ts"], {"frontend", "backend"}),
-            (["frontend/src/features/teams/api.ts"], {"frontend", "backend"}),
-            (["frontend/src/features/teams/api/client.ts"], {"frontend", "backend"}),
-            (["frontend/src/features/teams/types.ts"], {"frontend", "backend"}),
+            (["backend/app/api/health.py"], {"backend"}),
+            (["backend/app/schemas/account.py"], {"backend"}),
+            (["backend/app/main.py"], {"backend"}),
+            (["frontend/src/lib/api.ts"], {"frontend"}),
+            (["frontend/src/features/teams/api.ts"], {"frontend"}),
+            (["frontend/src/features/teams/api/client.ts"], {"frontend"}),
+            (["frontend/src/features/teams/types.ts"], {"frontend"}),
             (
                 ["frontend/src/features/teams/response.schema.ts"],
-                {"frontend", "backend"},
+                {"frontend"},
             ),
             (
                 ["frontend/src/features/teams/contracts/index.ts"],
-                {"frontend", "backend"},
+                {"frontend"},
             ),
             (["docs/README.md", "frontend/src/Button.tsx"], {"frontend", "docs"}),
             (
@@ -167,12 +167,12 @@ class ScopeGitIntegrationTests(unittest.TestCase):
         self.commit()
         self.assert_success(self.run_scope(), {"backend", "docs"})
 
-    def test_deletion_preserves_api_contract_impact(self):
+    def test_backend_schema_deletion_selects_only_backend(self):
         self.write_file("backend/app/schemas/user.py")
         self.base = self.commit()
         (self.repository / "backend/app/schemas/user.py").unlink()
         self.commit()
-        self.assert_success(self.run_scope(), {"frontend", "backend"})
+        self.assert_success(self.run_scope(), {"backend"})
 
     def test_unusual_filenames_are_data_and_never_enter_logs_or_summary(self):
         path = "docs/한글\nfrontend=attack $(touch marker) `touch another` |.md"

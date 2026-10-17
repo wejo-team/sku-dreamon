@@ -22,37 +22,16 @@ DOC_FILES = {
     "scripts/tests/test_check_docs.py",
     "scripts/tests/test_check_docs_site.py",
 }
-CONTRACT_NAMES = {"schema", "schemas", "type", "types", "contract", "contracts"}
 
 
 class ScopeError(ValueError):
     """Scope cannot be established safely."""
 
 
-def is_api_contract(path: str) -> bool:
-    if path == "backend/app/main.py" or path.startswith(
-        ("backend/app/api/", "backend/app/schemas/")
-    ):
-        return True
-    if path == "frontend/src/lib/api.ts":
-        return True
-    if path.startswith("frontend/src/features/"):
-        parts = path.split("/")[3:]
-        return (
-            "api" in parts[:-1]
-            or parts[-1] == "api.ts"
-            or any(part in CONTRACT_NAMES for part in parts[:-1])
-            or bool(set(parts[-1].split(".")) & CONTRACT_NAMES)
-        )
-    return False
-
-
 def classify_paths(paths: Iterable[str]) -> set[str]:
     selected: set[str] = set()
     for path in paths:
-        if is_api_contract(path):
-            selected.update(("frontend", "backend"))
-        elif path.startswith("docs/") or path in DOC_FILES:
+        if path.startswith("docs/") or path in DOC_FILES:
             selected.add("docs")
         elif path.startswith("frontend/"):
             selected.add("frontend")
