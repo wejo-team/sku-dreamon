@@ -149,7 +149,7 @@ PDF에는 일정의 연도가 명시되어 있지 않습니다. 이 표는 원�
 | 팀 결성 완료 기준 | 개별 팀원은 [선발 즉시 확정](team-recruitment.md#membership-capacity). 팀 전체 모집 상태 전이·종료는 [TEAM-02](team-recruitment.md#open-questions)에서 별도 결정 |
 | 공고 등록·관리 및 AI 요약 | [최초 공개 조건](contests.md#publication-policy)은 정의됨. 수집·DB 적재·갱신·권한·관리 화면·재확인 방식, 실제 AI 사용·실패 처리는 [공고 미정 사항](contests.md#open-questions) |
 | 매칭 기준 | [현재 결정](matching.md#policy-decisions)은 역할 강제 필터·시간 점수 제외와 분야 합집합 비교. 팀·지원자 최종 가중치·산식·동점 등 세부는 [추천 미정 사항](matching.md#open-questions) |
-| 프로필 공개 범위 | 부록의 대상별 최소 공개를 반영. 설정 기본값·적용 관계 등은 [프로필 미정 사항](profile.md#open-questions) |
+| 프로필 공개 범위 | [공개 설정 변경](profile.md#visibility-changes)은 기존 지원에도 즉시 적용. [취소·미선발 후 팀장 열람](profile.md#former-applicant-visibility)은 현재 공개 설정을 따름. 기본값·미정 관계와 기록 보존 등은 [프로필 미정 사항](profile.md#open-questions) |
 | 로그인·AI·시연 데이터 | 가입 경로는 [자체 로그인 결정](authentication.md#login-decision) 적용. 접근 권한·실패·복구는 [인증 미정 사항](authentication.md#open-questions), AI는 공고 명세, 시연 데이터 상호작용 범위는 [이슈 #53](https://github.com/wejo-team/wejo-app/issues/53)에서 결정 |
 | 웹 구현 범위 | 위 주요 화면과 모바일 웹 기준을 적용. 시연 URL·대상 브라우저 버전·기기 목록은 미정 |
 
