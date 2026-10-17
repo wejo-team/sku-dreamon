@@ -29,12 +29,14 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 | 가입·로그인 | 자체 아이디·비밀번호로 가입·로그인·로그아웃하고 교내 미인증 상태 확인 | [가입과 로그인](authentication.md) |
 | 프로필 | 필수 정보 작성·수정, 공개 범위 설정, 선택적인 외부 포트폴리오 등록 | [프로필](profile.md), [공통 선택지](profile-options.md), [학사 구조](academic-structure.md) |
 | 공모전 공고 | 최초 공개 전 필수 정보 확인, 사용자 목록·상세 탐색과 공식 원문 확인; 수집·적재·관리 방식은 TBD | [공고](contests.md) |
-| 팀 생성·모집 | 공모전·팀 목표·필요 역할·모집 인원 등록, 팀 탐색과 모집 조건 확인 | [팀 모집과 지원](team-recruitment.md) |
+| 팀 생성·모집 | 공모전·팀 목표·필요 역할·모집 인원 등록, 팀 탐색과 모집 조건 확인; 개인 전용 공고의 준비 팀과 공동 출전 팀 구분 | [팀 모집과 지원](team-recruitment.md), [참가 방식 정책](contests.md#participation-policy) |
 | 지원·선발 | 지원·취소·현황 확인, 팀장의 지원자 검토·선발, 지원자의 결과 확인 | [팀 모집과 지원](team-recruitment.md) |
 | 추천 | 공모전·팀·실제 지원자의 조건 기반 후보 목록과 근거 표시 | [추천 매칭](matching.md) |
 | 팀 공간 | 팀장과 현재 확정 팀원에게 공모전 정보, 팀원, 모집·매칭 상태를 보여 주는 최소 공간 | [팀 모집과 지원](team-recruitment.md#team-workspace-access) |
 
 팀장이 선발하면 해당 지원자가 즉시 확정 팀원이 되며 별도 수락은 없습니다. 팀장 포함 정원과 선발 시 차감은 [팀원 확정과 정원 정책](team-recruitment.md#membership-capacity)을 따릅니다. [지원자 검토를 시작해도 현재 접수 조건을 충족하면 신규 지원을 받으며](team-recruitment.md#recruitment-review), 나머지 팀 전체 모집 상태 전이·종료는 [팀 명세의 미정 사항](team-recruitment.md#open-questions)에서 별도로 결정합니다.
+
+개인 참가 전용 공고에서도 [함께 준비하는 팀](contests.md#participation-policy)을 만들 수 있으며 공식 공동 출전 팀과 구분해 안내합니다. 공동 출전 팀의 목표 총 정원은 [확인된 공식 팀 인원 범위](team-recruitment.md#official-capacity) 안에서만 저장합니다. 날짜만 있는 마감일의 기본 시각·시간대는 [TBD](contests.md#deadline-policy)로 두고 일정 처리 구체화 때 결정합니다.
 
 팀 생성·선발에는 팀장을 포함한 [공모전별 한 팀 소속 제한](team-recruitment.md#membership-limit)을 적용합니다. 지원자는 선발·확정 후에도 [지원을 취소해 팀에서 빠지고 한 자리를 반환](team-recruitment.md#application-cancellation)할 수 있으며, 현재 모집 조건을 충족하면 [즉시 재지원](team-recruitment.md#reapplication)할 수 있습니다. 동시 지원·다른 지원의 자동 취소·미선발 후 재지원·팀장 탈퇴와 위임은 이번 결정에 포함하지 않습니다.
 
