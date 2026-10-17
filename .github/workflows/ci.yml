@@ -2,6 +2,7 @@ name: Application CI
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, edited]
   push:
     branches: [main]
 
@@ -9,12 +10,33 @@ permissions:
   contents: read
 
 concurrency:
-  group: app-ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: app-ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  frontend:
-    name: Frontend
+  changes:
+    name: Detect app changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      frontend: ${{ steps.scope.outputs.frontend }}
+      backend: ${{ steps.scope.outputs.backend }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Select affected areas
+        id: scope
+        run: python scripts/ci_scope.py
+
+  frontend_checks:
+    name: Frontend tests
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -36,8 +58,10 @@ jobs:
       - run: npm test
       - run: npm run build
 
-  backend:
-    name: Backend
+  backend_checks:
+    name: Backend tests
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -79,3 +103,44 @@ jobs:
       - run: uv run alembic check
       - run: uv run python -m app.db.check
       - run: uv run pytest
+
+  # Preserve required check names even when an area's expensive tests are skipped.
+  frontend:
+    name: Frontend
+    needs: [changes, frontend_checks]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Verify required frontend result
+        env:
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          CHECK_REQUIRED: ${{ needs.changes.outputs.frontend }}
+          CHECK_RESULT: ${{ needs.frontend_checks.result }}
+        run: python scripts/check_ci_job.py
+
+  backend:
+    name: Backend
+    needs: [changes, backend_checks]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Verify required backend result
+        env:
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          CHECK_REQUIRED: ${{ needs.changes.outputs.backend }}
+          CHECK_RESULT: ${{ needs.backend_checks.result }}
+        run: python scripts/check_ci_job.py
