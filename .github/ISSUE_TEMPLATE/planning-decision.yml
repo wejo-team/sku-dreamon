@@ -1,0 +1,85 @@
+name: 기획 결정
+description: 기획의 숨은 전제·미정 사항을 한 가지 질문으로 논의합니다.
+title: "[기획 결정] "
+labels: [question, documentation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        한 이슈에서 한 가지 결정을 다룹니다. 추천안은 합의 전까지 검토용입니다.
+        [작성 안내](https://github.com/wejo-team/wejo-app/blob/main/docs/templates/planning-decision.md)
+  - type: textarea
+    id: decision
+    attributes:
+      label: 🎯 결정할 질문
+      description: 이번 이슈에서 답할 질문을 한 문장으로 적어주세요.
+      placeholder: 선발된 지원자는 언제 팀원이 되는가?
+    validations:
+      required: true
+  - type: dropdown
+    id: status
+    attributes:
+      label: 논의 상태
+      options:
+        - 결정 대기 — 지금 논의 가능
+        - 선행 결정 대기 — 아래 연결 이슈부터 논의
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 📖 문서 근거와 빈칸
+      value: |
+        | 구분 | 내용 |
+        | --- | --- |
+        | 확인된 사실 | |
+        | 명시적 미정 또는 숨은 전제 | |
+        | 근거 문서·절·미정 ID | |
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 🔎 문제가 드러나는 상황
+      description: 가상의 사용자 행동과 결과가 갈리는 지점. 분기가 복잡하면 짧은 Mermaid 그림을 추가합니다.
+      placeholder: 사용자 A가 지원 → 팀장이 선발 → A의 수락 없이 팀 공간이 열리는가?
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: ⚖️ 선택지
+      value: |
+        | 선택 | 사용자에게 달라지는 점 | 장점·비용 |
+        | --- | --- | --- |
+        | A | | |
+        | B | | |
+    validations:
+      required: true
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: 💡 추천안 · 미확정
+      description: 추천하는 선택, 이유, 감수할 단점. 확정 정책과 구분합니다.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: 🔗 선행 결정과 범위
+      value: |
+        - 선행 결정: 없음 / #이슈번호
+        - 이 결정 뒤에 논의할 질문:
+        - 이번 이슈의 범위 밖:
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: ✅ 결정 완료 조건
+      value: |
+        - [ ] 선택한 안과 이유를 이슈에 기록한다.
+        - [ ] 담당 명세에 정책과 정상·경계 사례의 완료 조건을 반영한다.
+        - [ ] 명세 PR의 사람 검토·반영 근거를 연결한다.
+    validations:
+      required: true
