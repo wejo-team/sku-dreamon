@@ -1,7 +1,7 @@
 # 프로필 선택지와 공통 코드
 
 - 구현 상태: 예정
-- 명세 검토: [PR #14](https://github.com/wejo-team/wejo-app/pull/14)
+- 명세 검토: [PR #14](https://github.com/wejo-team/wejo-app/pull/14), PDF 대조·명세 연결 보완 [PR #17](https://github.com/wejo-team/wejo-app/pull/17)
 - 구현 작업: 미등록
 
 공통 선택지와 코드 관리 원칙을 옮긴 초안입니다. 필드의 필수 여부·단일/복수 입력은 [프로필 입력 항목](profile.md#fields), 대학·학부·전공 관계는 [학사 분류](academic-structure.md)에서 정의합니다.

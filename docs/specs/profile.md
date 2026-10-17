@@ -1,7 +1,7 @@
 # 프로필과 공개 범위
 
 - 구현 상태: 예정
-- 명세 검토: [PR #14](https://github.com/wejo-team/wejo-app/pull/14)
+- 명세 검토: [PR #14](https://github.com/wejo-team/wejo-app/pull/14), PDF 대조·명세 연결 보완 [PR #17](https://github.com/wejo-team/wejo-app/pull/17)
 - 구현 작업: 미등록
 
 기획 문서의 프로필 정책을 옮긴 초안입니다. 본문의 닉네임·파일 업로드 가능성은 정책 부록에서 구체화한 실명 입력·외부 URL 정책으로 정리했습니다.

@@ -1,7 +1,7 @@
 # 가입과 교내 인증
 
 - 구현 상태: 예정
-- 명세 검토: [PR #14](https://github.com/wejo-team/wejo-app/pull/14)
+- 명세 검토: [PR #14](https://github.com/wejo-team/wejo-app/pull/14), PDF 대조·명세 연결 보완 [PR #17](https://github.com/wejo-team/wejo-app/pull/17)
 - 구현 작업: 미등록
 
 기획 문서의 가입·인증 요구사항을 옮긴 초안입니다. 실제 인증 방식과 시연 방식은 아직 확정되지 않았습니다.
