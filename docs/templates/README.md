@@ -3,6 +3,7 @@
 | 필요한 작업 | 사용할 양식 |
 | --- | --- |
 | 서비스 기능 명세 작성 | [기능 명세 템플릿](spec.md) |
+| 숨은 전제·미정 정책을 한 가지 질문으로 논의 | [기획 결정 이슈 작성하기](planning-decision.md) |
 | 구현 Draft PR·Issue의 개발 계획 작성 | [개발 계획 템플릿](development-plan.md) |
 | 변경 결과·검증을 PR로 공유 | [PR 템플릿](../../.github/pull_request_template.md) |
 
