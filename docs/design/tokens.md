@@ -1,13 +1,14 @@
 # 스타일과 컴포넌트
 
-모바일 공식 디자인은 옅은 세이지 배경과 흰 카드, 에메랄드 주요 버튼을 사용합니다. 서경대학교 홈페이지의 녹색 강조와 밝은 표면을 참고해 본문·조작·상태의 역할을 구분합니다. 밝은 녹색은 마스코트 이미지에 두고, 작은 글자와 주요 행동에는 명암 대비를 확보한 짙은 녹색을 적용합니다. 색상과 수치는 [preview-tokens.css](../../design-reference/src/features/design-preview/preview-tokens.css)가 원본이며 이 문서는 사용 의도를 설명합니다.
+모바일 공식 디자인은 기존 중립 회색 배경과 옅은 녹색 카드, 에메랄드 주요 버튼을 사용합니다. 서경대학교 홈페이지의 녹색 강조와 밝은 표면을 참고해 본문·조작·상태의 역할을 구분합니다. 밝은 녹색은 마스코트 이미지에 두고, 작은 글자와 주요 행동에는 명암 대비를 확보한 짙은 녹색을 적용합니다. 색상과 수치는 [preview-tokens.css](../../design-reference/src/features/design-preview/preview-tokens.css)가 원본이며 이 문서는 사용 의도를 설명합니다.
 
 ## 표면과 상태
 
 | 용도 | 토큰 · 현재 값 | 적용 |
 | --- | --- | --- |
-| 화면 바탕 | `--surface-canvas: #edf4ef` | 스크롤 화면의 배경 |
-| 카드·입력·상단·팝업 | `--card`, `--background: #ffffff` | 바탕과 구분되는 읽기·조작 영역 |
+| 화면 바탕 | `--surface-canvas: #f1f1f3` | 스크롤 화면의 배경 |
+| 콘텐츠 카드 | `--surface-card: #e9f4ed` | 공모전·팀·사람·AI 결과 카드, 프로필·내용 패널과 지원자 행 |
+| 입력·상단·팝업·폼 | `--card`, `--background: #ffffff` | 기본 shadcn 표면과 조작 영역, 카드 안 공모전 정보 |
 | 카드 안 보조 면 | `--muted: #f2f7f4` | 카드의 보조 정보 |
 | 눌린 면·탭 바탕 | `--surface-sunken: #dfeae3` | 탭 레일·설정·사용자 메시지 등 |
 | 본문 | `--foreground: #18352b` | 제목·본문 |
@@ -21,7 +22,7 @@
 | 주의·확인 | `--warning-soft: #fffbeb`, `--warning-ink: #92400e` | 확인 필요·주의 상태 |
 | 오류·위험 행동 | `--coral-soft: #fef2f2`, `--coral-ink: #b91c1c` | 오류·파괴적 행동 |
 
-루트 [globals.css](../../design-reference/src/styles/globals.css)의 기본값만 가져오면 공식 화면의 표면 대비가 달라집니다. 모바일 범위의 토큰 덮어쓰기와 [service-ui.css](../../design-reference/src/features/design-preview/service-ui.css)의 실제 적용을 함께 확인합니다. 카드 바탕과 화면 바탕을 같은 색으로 합치지 않고, 상태는 색상 외에 문구·아이콘으로도 구분합니다. 주요 버튼의 흰 글자 대비는 5.36:1, 보조 글자는 흰 카드에서 6.07:1, 눌린 면에서 4.92:1입니다. 기본색은 [공식 홈페이지 CSS 확인 기록](assets.md)을 참고합니다.
+루트 [globals.css](../../design-reference/src/styles/globals.css)의 기본값만 가져오면 공식 화면의 표면 대비가 달라집니다. 모바일 범위의 토큰 덮어쓰기와 [service-ui.css](../../design-reference/src/features/design-preview/service-ui.css)의 실제 적용을 함께 확인합니다. 카드 바탕과 화면 바탕을 같은 색으로 합치지 않고, 상태는 색상 외에 문구·아이콘으로도 구분합니다. 주요 버튼의 흰 글자 대비는 5.36:1, 보조 글자는 녹색 카드에서 5.39:1, 흰 조작 면에서 6.07:1, 눌린 면에서 4.92:1입니다. 기본색은 [공식 홈페이지 CSS 확인 기록](assets.md)을 참고합니다.
 
 ## 간격·글꼴·입체감
 
@@ -36,7 +37,7 @@
 | 폰트 | `DreamOn Noto` / Noto Sans KR |
 | 주요 조작 영역 | 버튼·아이콘·탭 등에서 최소 44px을 확보 |
 
-카드는 `--card-shadow`로 바탕에서 분리하고 작은 패널은 `--panel-shadow`를 사용합니다. 정확한 그림자와 hover 값은 토큰 원본을 참조합니다. 모바일에서 hover에만 중요한 정보나 행동을 숨기지 않습니다. 장식용 그림자보다 표면 대비·여백·제목 계층을 우선하며, 버튼의 강조를 위해 그림자를 반복 추가하지 않습니다.
+카드는 두 겹의 아래쪽 그림자(`--card-shadow`: 3px·12px 오프셋)로 회색 바탕에서 떠 있는 높이를 표현하고 작은 패널은 `--panel-shadow`를 사용합니다. 색은 화면 배경 대신 콘텐츠 카드에 적용하며, 공모전 카드의 대상·마감 정보는 흰 면으로 구분합니다. 카드 hover에서는 높이와 그림자가 커지고, 누르면 그림자가 낮아집니다. 정확한 그림자와 hover 값은 토큰 원본을 참조합니다. 모바일에서 hover에만 중요한 정보나 행동을 숨기지 않습니다. 장식용 그림자보다 표면 대비·여백·제목 계층을 우선하며, 버튼의 강조를 위해 그림자를 반복 추가하지 않습니다.
 
 [폰트 파일](../../design-reference/public/fonts/NotoSansKR.ttf)과 [OFL 라이선스](../../design-reference/public/fonts/OFL.txt), 카드의 공모전 커버·로고·파워프렌즈 캐릭터는 레퍼런스의 로컬 자산입니다. 원본 및 생성 이미지의 출처는 [자산 문서](assets.md)를 따릅니다. [PreviewUi](../../design-reference/src/features/design-preview/PreviewUi.tsx)의 사용처를 확인하고 파일·라이선스를 함께 유지합니다. 실제 인물 사진·공고 포스터로 오인해 서비스 데이터의 출처로 사용하지 않습니다.
 

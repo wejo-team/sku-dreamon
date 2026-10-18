@@ -14,13 +14,14 @@
   --ring: #007a55;
   --input: #71897c;
   --primary-hover: #00573a;
-  --secondary: #eaf3ee;
+  --secondary: #d9e9df;
   --secondary-foreground: #365f4d;
   --card-foreground: var(--foreground);
   --destructive: var(--coral-ink);
   --surface-control: var(--card);
   --surface-chrome: var(--card);
-  --surface-canvas: #edf4ef;
+  --surface-canvas: #f1f1f3;
+  --surface-card: #e9f4ed;
   --radius: 0.625rem;
   --surface-sunken: #dfeae3;
   --ai-soft: #f0edf8;
@@ -32,13 +33,14 @@
   --coral-soft: #fef2f2;
   --coral-ink: #b91c1c;
   --card-shadow:
-    0 2px 4px -1px color-mix(in srgb, var(--foreground) 8%, transparent),
-    0 8px 22px -7px color-mix(in srgb, var(--foreground) 20%, transparent);
+    0 3px 5px -2px color-mix(in srgb, var(--foreground) 18%, transparent),
+    0 12px 24px -10px color-mix(in srgb, var(--foreground) 30%, transparent);
   --card-hover-shadow:
-    0 3px 6px -2px color-mix(in srgb, var(--foreground) 10%, transparent),
-    0 12px 28px -8px color-mix(in srgb, var(--foreground) 24%, transparent);
-  --panel-shadow: 0 4px 14px -6px
-    color-mix(in srgb, var(--foreground) 16%, transparent);
+    0 4px 7px -2px color-mix(in srgb, var(--foreground) 18%, transparent),
+    0 16px 28px -10px color-mix(in srgb, var(--foreground) 32%, transparent);
+  --panel-shadow:
+    0 2px 4px -2px color-mix(in srgb, var(--foreground) 16%, transparent),
+    0 7px 16px -7px color-mix(in srgb, var(--foreground) 24%, transparent);
   --raised-shadow: 0 6px 18px
     color-mix(in srgb, var(--foreground) 8%, transparent);
   --action-shadow: none;

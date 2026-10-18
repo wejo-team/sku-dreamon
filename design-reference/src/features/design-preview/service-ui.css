@@ -330,7 +330,7 @@
   gap: 12px;
   padding: 10px 12px;
   border-radius: 6px;
-  background: var(--muted);
+  background: var(--card);
   font-size: 13px;
   line-height: 20px;
 }
@@ -368,7 +368,7 @@
 .dreamon-preview .preview-card {
   border: 1px solid transparent;
   border-radius: var(--preview-radius-card);
-  background: var(--card);
+  background: var(--surface-card);
   box-shadow: var(--card-shadow);
   padding: var(--preview-card-padding);
 }
@@ -378,7 +378,7 @@
     transform 160ms ease-out;
 }
 .dreamon-preview .preview-card:is(a):hover {
-  background: var(--card);
+  background: var(--surface-card);
   border-color: transparent;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -475,6 +475,10 @@
 .dreamon-preview .preview-panel {
   padding: var(--preview-card-padding);
   box-shadow: var(--panel-shadow);
+}
+.dreamon-preview .preview-panel:not(.preview-form) {
+  background: var(--surface-card);
+  border-color: transparent;
 }
 .dreamon-preview .preview-panel.preview-form {
   box-shadow: none;
@@ -799,9 +803,10 @@
   border-bottom-color: var(--primary);
 }
 .dreamon-preview .workspace-applicant-row {
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--preview-radius-card);
-  background: var(--card);
+  background: var(--surface-card);
+  box-shadow: var(--panel-shadow);
 }
 .dreamon-preview .workspace-applicant-name p {
   font-size: 16px;
