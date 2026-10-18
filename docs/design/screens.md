@@ -7,7 +7,7 @@
 | 화면·경로 | 코드 원본 | 구현할 정책·완료 조건 |
 | --- | --- | --- |
 | 로그인·가입 `/login`, `/signup` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx) | [인증 AC-04~13](../specs/authentication.md#acceptance-criteria): 자체 로그인·교내 미인증·로그인 후 행동·접근 권한. 레퍼런스 로그인은 모의 동작 |
-| 공모전 탐색 `/explore` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [공고 명세](../specs/contests.md): 제목·분야·마감·공개 정보, 검색·필터·빈 결과 |
+| 공모전 탐색 `/explore` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx), [ExploreFilters](../../design-reference/src/features/design-preview/ExploreFilters.tsx) | [공고 명세](../specs/contests.md): 제목·분야·마감·공개 정보, 검색·필터·빈 결과. 분야는 아이콘으로 여는 Drawer에서 선택·적용 |
 | 공모전 상세 `/contests/:contestId` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [공고 공개·참가·마감 정책](../specs/contests.md): 원문·참가 방식·인원·일정·제출물·미확인 정보, 관련 팀·팀 만들기 연결 |
 | 팀 탐색 `/explore?tab=teams` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [팀 AC-01](../specs/team-recruitment.md#acceptance-criteria): 모집 역할·정원·상태·공모전별 탐색 |
 | 공개 모집글 `/teams/:teamId` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-03~07·15·18·26](../specs/team-recruitment.md#acceptance-criteria): 지원·필수 프로필 보완·메시지·마감·중복·취소 후 재지원 |
@@ -31,6 +31,8 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 | 흐름 | 화면을 검토할 때 함께 확인할 것 |
 | --- | --- |
 | 탐색 → 상세 → 복귀 | 검색·선택한 탭·필터, 결과 없음, 공고·팀이 없는 주소. 커서 조회·무한 스크롤·이전 스크롤 복원은 현재 제품 계약으로 확정하지 않음 |
+| 탐색 필터·정렬·초기화 | 필터 아이콘 → Drawer의 분야/역할 초안 선택 → 적용 시 URL 반영. 취소·Escape·바깥 닫기 시 미적용 선택 제거, 다시 열면 적용값 복원. 팀의 모집중만 조건, 정렬만 변경했을 때도 초기화 아이콘 표시·기본 조건 복원 |
+| 탐색 → AI | 공모전·팀 탐색 제목 옆 AI 아이콘으로 이동. 큰 추천 배너 없이 44px 조작 영역·접근성 이름 제공 |
 | 팀 만들기 → 공모전 선택 | Drawer 열기·검색·선택·취소·닫기, 결과가 많을 때 추가 표시, 팀장 포함 총인원 안내와 공식 인원 범위 오류 |
 | 프로필 수정 → 저장 | 캐릭터 팝업 선택·취소·프로필 저장, 기본 스콘, 공개 결과·팀 공간에서 같은 이미지 표시, 학사 상위 선택 변경, 경험 미입력/경험 없음 구분, 공개 동의 기본값, URL 삭제·무효화 후 공개 해제, 취소 시 미저장 값 제거 |
 | 지원 → 내 지원 | 로그인 안내, 필수 프로필 보완 후 원래 흐름 복귀, 선택 메시지, 중복·마감·정원 부족, 접수 후 현재 지원 표시 |
@@ -40,6 +42,8 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 | 알림 → 관련 화면 | 알림함 열기만으로 읽음 처리하지 않음, 개별/모두 읽음, 빈 상태, 비로그인에 개인 항목 비노출. 읽음 실패 시 개수와 미읽음 상태 유지, 같은 동작 재시도 후 관련 화면 이동 |
 
 반응형 확인은 320px·390px·430px 모바일 폭을 기준으로 합니다. 팝업 포커스·닫기·키보드, 긴 제목·설명, 큰 글꼴, 안전 영역과 세로 스크롤을 함께 검토합니다. 테스트 결과·스크린샷은 검증한 커밋과 함께 PR에 연결합니다.
+
+키·값 정보는 공모전 카드·상세, 팀 목록·공간, 내 프로필·공개 프로필·지원자 검토에서 같은 [정보 계층](tokens.md)을 사용합니다. 워크스페이스 팀 카드는 내 역할과 확정 인원/정원으로 요약하고, 중복되는 `팀장 포함 총 N명` 안내는 생략합니다. 팀 만들기·모집 상세의 정원 안내와 팀장 포함 정원 계산 정책은 유지합니다.
 
 <a id="remaining-decisions"></a>
 
@@ -64,6 +68,7 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 ## 재현 경로
 
 - `/explore?q=로컬`: 이미지가 없는 공모전의 스콘 기본 커버. 공모전 선택창과 AI 공모전 추천에도 같은 fallback을 적용하며 이미지 로드 실패도 처리.
+- `/explore?sort=deadline`: 마감 임박순만 적용된 상태에서 초기화 아이콘 확인. 필터 Drawer에서 분야 선택·취소·적용·다시 열기 확인.
 - `/contests/archive`: 마감 공고 읽기 전용 상세·원문 링크.
 - `/ai?scenario=error`: 첫 응답 실패 후 같은 요청 재시도. `마케팅 역할 사람 찾아줘`로 결과 없음 확인.
 - `/explore?scenario=notification-error`: 로그인한 상태에서 첫 읽음 처리 실패·재시도.

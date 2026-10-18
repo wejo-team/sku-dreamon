@@ -81,6 +81,37 @@ async function navigate(page, route) {
       );
       await login(page);
       await snapshot(page, `explore-${width}`);
+      const aiShortcut = page.getByRole('link', { name: 'AI에게 추천 받기' });
+      assert.equal(await aiShortcut.getAttribute('href'), '/design-preview/ai');
+      const card = page.locator('.preview-contest-card').first();
+      await card.hover();
+      await snapshot(page, `explore-hover-${width}`);
+      await page.mouse.move(0, 0);
+      const filterTrigger = page.getByRole('button', {
+        name: '탐색 필터',
+        exact: true,
+      });
+      await filterTrigger.click();
+      const filters = page.getByRole('dialog', { name: '탐색 필터' });
+      await filters.getByRole('radio', { name: '교육', exact: true }).check();
+      await snapshot(page, `explore-filters-${width}`);
+      await filters.getByRole('button', { name: '취소', exact: true }).click();
+      assert.equal(new URL(page.url()).searchParams.has('category'), false);
+      await filterTrigger.click();
+      assert.equal(
+        await filters.getByRole('radio', { name: '모든 분야' }).isChecked(),
+        true,
+      );
+      await filters.getByRole('radio', { name: '교육', exact: true }).check();
+      await filters.getByRole('button', { name: '필터 적용' }).click();
+      assert.equal(new URL(page.url()).searchParams.get('category'), '교육');
+      await page
+        .getByRole('button', { name: '검색 조건 초기화', exact: true })
+        .click();
+      assert.equal(new URL(page.url()).searchParams.has('category'), false);
+      await navigate(page, '/design-preview/workspace');
+      assert.equal(await page.getByText(/팀장 포함 총/).count(), 0);
+      await snapshot(page, `workspace-${width}`);
       await navigate(page, '/design-preview/explore?q=로컬');
       await snapshot(page, `default-cover-${width}`);
       const defaultCover = page.locator('.preview-contest-cover img');
@@ -178,7 +209,7 @@ async function navigate(page, route) {
       assert.deepEqual(errors, []);
       await page.close();
       console.log(
-        `${width}px: privacy, closed contest, mascot fallback/picker, create/profile, selection/membership, AI retry, notifications passed`,
+        `${width}px: privacy, closed contest, compact filters, card hierarchy, mascot fallback/picker, create/profile, selection/membership, AI retry, notifications passed`,
       );
     }
   } finally {
