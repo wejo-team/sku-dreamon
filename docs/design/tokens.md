@@ -23,6 +23,8 @@
 | 경계·입력 | `--border: #d5e2da`, `--input: #71897c` | 카드와 조작 요소의 경계 |
 | 포커스 | `--ring: #007a55` | 키보드 포커스 표시 |
 | 성공·확정 | `--leaf-soft: #f0fdf4`, `--leaf-ink: #166534` | 성공·완료 상태 |
+| 모집 중 | `--recruiting-background: #cce9d7`, 글자 `#164c35` | `TeamStatusBadge`의 접수 가능한 상태. 상태 문구와 함께 사용 |
+| 모집 마감·정원 마감 | `--closed-background: #e4e4e7`, 글자 `#52525b` | 접수가 닫힌 상태의 회색 면. 카드 자체는 클릭 가능한 흰 기본 면 유지 |
 | 주의·확인 | `--warning-soft: #fffbeb`, `--warning-ink: #92400e` | 확인 필요·주의 상태 |
 | 오류·위험 행동 | `--coral-soft: #fef2f2`, `--coral-ink: #b91c1c` | 오류·파괴적 행동 |
 
@@ -58,13 +60,14 @@
 | 워크스페이스 작업 | [Button](../../design-reference/src/components/ui/button.tsx)의 링크 조합과 [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx). 내 지원은 `ClipboardList`, 팀 만들기는 `Plus` 아이콘 |
 | 입력·선택·설명·오류 | [Input](../../design-reference/src/components/ui/input.tsx), [Textarea](../../design-reference/src/components/ui/textarea.tsx), [NativeSelect](../../design-reference/src/components/ui/native-select.tsx), [Alert](../../design-reference/src/components/ui/alert.tsx) |
 | 학교 인증 상태 | [SchoolVerificationBadge](../../design-reference/src/features/design-preview/PreviewUi.tsx). 미인증은 `--school-unverified: #b42318`, 인증은 `--school-verified: #1d4ed8`, 글자는 흰색. 내 프로필의 미인증 배지는 44px 버튼으로 감싸 안내 Drawer를 열고 다른 화면은 상태 배지로 표시. 현재 계정은 모두 미인증 |
-| 공개 여부 | [Switch](../../design-reference/src/components/ui/switch.tsx)와 [프로필 설정](../../design-reference/src/features/design-preview/AccountPages.tsx) |
+| 공개 여부 | [Switch](../../design-reference/src/components/ui/switch.tsx) + [Drawer](../../design-reference/src/components/ui/drawer.tsx), [ProfileVisibilityControl](../../design-reference/src/features/design-preview/AccountPages.tsx). 전체 프로필 상태 하나를 설명·확인 후 전환하며 취소·닫기는 기존 상태 유지 |
 | 다중·단일 선택 | [Checkbox](../../design-reference/src/components/ui/checkbox.tsx), [RadioGroup](../../design-reference/src/components/ui/radio-group.tsx) |
-| 프로필 캐릭터 선택 | [Drawer](../../design-reference/src/components/ui/drawer.tsx) + [RadioGroup](../../design-reference/src/components/ui/radio-group.tsx), [AvatarPicker](../../design-reference/src/features/design-preview/AvatarPicker.tsx). 팝업 적용 후 프로필 저장, 취소 시 유지 |
+| 프로필 캐릭터 선택 | [Drawer](../../design-reference/src/components/ui/drawer.tsx) + [RadioGroup](../../design-reference/src/components/ui/radio-group.tsx), [AvatarPicker](../../design-reference/src/features/design-preview/AvatarPicker.tsx). 팝업 적용 후 프로필 저장, 취소 시 유지. 제목 `프로필 이미지 변경`은 `sr-only`, 작은 설명 `마음에 드는 파워프렌즈를 골라보세요.`만 표시 |
 | 공모전 검색 선택 | [Drawer](../../design-reference/src/components/ui/drawer.tsx) + [Command](../../design-reference/src/components/ui/command.tsx), [ContestPicker](../../design-reference/src/features/design-preview/ContestPicker.tsx) |
 | 탐색 분야·역할 필터 | [Drawer](../../design-reference/src/components/ui/drawer.tsx) + [RadioGroup](../../design-reference/src/components/ui/radio-group.tsx) + [Checkbox](../../design-reference/src/components/ui/checkbox.tsx), [ExploreFilters](../../design-reference/src/features/design-preview/ExploreFilters.tsx). 초안 선택·취소·적용, 적용한 조건은 URL에 유지 |
 | 시간 설정·알림·확인 | [Drawer](../../design-reference/src/components/ui/drawer.tsx), 각 화면의 열기·닫기·취소·적용 흐름 |
 | AI 대화·입력 | [Message](../../design-reference/src/components/ui/message.tsx), [Bubble](../../design-reference/src/components/ui/bubble.tsx), [InputGroup](../../design-reference/src/components/ui/input-group.tsx), [MessageScroller](../../design-reference/src/components/ui/message-scroller.tsx) |
+| 모집 상태 | [TeamStatusBadge](../../design-reference/src/features/design-preview/PreviewUi.tsx). `recruitmentIssue`에 따라 녹색·회색을 구분하며 `teamStatusLabel`의 상태 문구 유지 |
 | 상태 표시·경계 | [Badge](../../design-reference/src/components/ui/badge.tsx), [Separator](../../design-reference/src/components/ui/separator.tsx) |
 
 컴포넌트는 저장소에 포함된 소스와 고정 의존성을 기준으로 합니다. 공식 사이트의 최신 예제를 복사해 버전·상호작용을 임의로 교체하지 않습니다. 채팅 구성 요소의 출처·라이선스는 [LICENSE.shadcn](../../design-reference/src/components/ui/LICENSE.shadcn)을 유지합니다.
@@ -73,10 +76,10 @@
 
 하단 탐색은 탐색·AI·워크스페이스·프로필의 네 항목입니다. 상단 우측 알림과 하단 프로필의 역할을 구분합니다. 네 루트 화면의 중복 제목은 `h1.sr-only`로 남기고 시각적인 제목 영역은 두지 않습니다. 공모전·팀·지원자 상세와 프로필 수정 화면의 제목은 유지합니다. AI 화면은 대화·입력창·하단 영역을 함께 배치하며 [PreviewShell](../../design-reference/src/features/design-preview/PreviewShell.tsx)의 `visualViewport` 대응을 확인합니다.
 
-공모전·팀 탐색의 AI 추천 진입 아이콘은 검색창 오른쪽 안에 배치하며 사람 탭에는 표시하지 않습니다. 검색어 지우기와 AI 진입은 각각 독립된 44px 조작 영역으로 유지합니다. 필터와 초기화도 최소 44px 아이콘 버튼으로 표시하며 접근성 이름을 제공합니다. 선택한 필터는 개수와 접근성 설명으로 알리고, 공모전 정렬은 선택 목록을 유지합니다. 정렬만 바꾼 경우에도 초기화 아이콘으로 기본 조건으로 돌아갈 수 있습니다.
+공모전·팀·사람 탐색 모두 AI 추천 진입 아이콘을 검색창 오른쪽 안에 배치합니다. AI 대화는 로그인 후 이용하며 비로그인 진입에는 로그인 안내를 표시합니다. 검색어 지우기와 AI 진입은 각각 독립된 44px 조작 영역으로 유지합니다. 필터와 초기화도 최소 44px 아이콘 버튼으로 표시하며 접근성 이름을 제공합니다. 선택한 필터는 개수와 접근성 설명으로 알리고, 공모전 정렬은 선택 목록을 유지합니다. 정렬만 바꾼 경우에도 초기화 아이콘으로 기본 조건으로 돌아갈 수 있습니다.
 
 워크스페이스는 내 팀·내 지원 콘텐츠 제목, 개수, 작업 아이콘을 한 줄로 배치합니다. 내 지원·팀 만들기 링크는 각각 44px 조작 영역과 행동 이름을 나타내는 `aria-label`·`title`을 제공하고, 팀 만들기는 녹색 주요 버튼으로 강조합니다. 내 지원 화면의 목록 아이콘은 `aria-current`와 녹색으로 현재 위치를 표시합니다. 팀 카드는 전체 링크를 유지하고 내 역할·확정 인원과 같은 행 우하단의 `ChevronRight`로 이동을 나타냅니다. 화살표는 장식으로 처리하며, 카드 링크의 접근성 이름에 팀 이름과 `팀 공간으로`를 포함합니다. 이 카드의 이동 문구만 생략하고 상세·선발 이후의 명시적 이동 버튼은 유지합니다.
 
-내 프로필 보기에서는 첫 기본 정보 카드의 이름·아바타 옆에 `SquarePen` 수정 아이콘을 배치합니다. 44px 조작 영역과 `프로필 수정` 접근성 이름·title을 제공하며 공개/비공개 스위치·눈 모양 미리보기를 같은 조작 묶음에 배치합니다. 반복되는 공개 안내 행과 상시 학교 인증 설명은 표시하지 않습니다. 공개 스위치는 사람 탐색 공개만 즉시 저장하며 별도의 항목별 동의는 보존합니다. AI의 `새 대화`는 입력창 왼쪽 도구 아이콘으로 배치하고 `type="button"`을 사용해 메시지 전송과 구분합니다.
+내 프로필 보기에서는 첫 기본 정보 카드의 이름·아바타 옆에 `SquarePen` 수정 아이콘을 배치합니다. 44px 조작 영역과 `프로필 수정` 접근성 이름·title을 제공하며 공개/비공개 스위치·눈 모양 미리보기를 같은 조작 묶음에 배치합니다. 반복되는 공개 안내 행과 상시 학교 인증 설명은 표시하지 않습니다. 공개 스위치의 접근성 이름은 `프로필 공개`이며, 전체 프로필 공개·비공개를 바꾸기 전에 설명 Drawer와 확인·취소 버튼을 제공합니다. 확인 전 스위치는 기존 값을 유지하고 취소·Escape·바깥 닫기로 되돌릴 수 있습니다. 항목별·포트폴리오별 스위치는 두지 않습니다. 등록 시간·포트폴리오를 포함한 전체 항목 공개와 지원 팀장 예외는 [정책 문서 PR #75](https://github.com/wejo-team/sku-dreamon/pull/75)의 병합 전 변경을 참고합니다. AI의 `새 대화`는 입력창 왼쪽 도구 아이콘으로 배치하고 `type="button"`을 사용해 메시지 전송과 구분합니다.
 
 팝업은 열기·닫기·Escape·바깥 영역·포커스 복귀를 확인하고, 폼의 적용과 취소를 구분합니다. 프로필 공개 스위치는 라벨과 설명에서 누구에게 공개되는지 드러내야 합니다. 화면 제목·입력 라벨·오류 메시지·로딩·빈 상태를 유지하고 색만으로 상태를 전달하지 않습니다. 긴 한국어 텍스트·큰 글꼴·화면 확대·작은 높이·키보드가 열린 상태·감소된 모션 설정에서 조작이 가능한지 확인합니다.
