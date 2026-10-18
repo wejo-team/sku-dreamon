@@ -1,7 +1,7 @@
 # 선발 이후 팀원 확정 과정 안내
 
 - 구현 상태: 예정
-- 명세 검토: PR #17
+- 명세 검토: [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17);
 - 구현 작업: 
 
 ## 목적과 사용자
