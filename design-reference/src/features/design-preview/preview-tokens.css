@@ -21,7 +21,10 @@
   --surface-control: var(--card);
   --surface-chrome: var(--card);
   --surface-canvas: #f1f1f3;
-  --surface-card: #e9f4ed;
+  --surface-card: #d4e7db;
+  --surface-card-hover: #bdd9c7;
+  --surface-card-pressed: #b2d0bd;
+  --card-muted-foreground: #40594a;
   --radius: 0.625rem;
   --surface-sunken: #dfeae3;
   --ai-soft: #f0edf8;

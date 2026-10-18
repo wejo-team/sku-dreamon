@@ -58,13 +58,50 @@ describe('official reference public exploration', () => {
       screen.getByRole('heading', { name: contests[0]!.title }),
     ).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.selectOptions(screen.getByLabelText('분야'), '교육');
+    await user.click(screen.getByRole('button', { name: '탐색 필터' }));
+    await user.click(screen.getByRole('radio', { name: '교육' }));
+    await user.click(screen.getByRole('button', { name: '필터 적용' }));
     expect(screen.getByRole('status')).toHaveTextContent('검색 결과 1개');
     expect(
       screen.getByRole('heading', { name: contests[0]!.title }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('heading', { name: contests[1]!.title }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('discards filter drafts and clears applied filters while retaining the selected tab', async () => {
+    renderExplore('/design-preview/explore?tab=teams&role=개발&open=true');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '탐색 필터' }));
+    await user.click(screen.getByRole('radio', { name: '디자인' }));
+    await user.click(screen.getByRole('button', { name: '취소' }));
+    await user.click(screen.getByRole('button', { name: '탐색 필터' }));
+    expect(screen.getByRole('radio', { name: '개발' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: '모집중만' })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: '취소' }));
+    await user.click(screen.getByRole('button', { name: '검색 조건 초기화' }));
+    expect(screen.getByRole('link', { name: '팀' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await user.click(screen.getByRole('button', { name: '탐색 필터' }));
+    expect(screen.getByRole('radio', { name: '모든 역할' })).toBeChecked();
+    expect(
+      screen.getByRole('checkbox', { name: '모집중만' }),
+    ).not.toBeChecked();
+  });
+
+  it('exposes an accessible AI shortcut and resets a sort-only condition', async () => {
+    renderExplore('/design-preview/explore?sort=deadline');
+    expect(
+      screen.getByRole('link', { name: 'AI에게 추천 받기' }),
+    ).toHaveAttribute('href', '/design-preview/ai');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '검색 조건 초기화' }));
+    expect(screen.getByLabelText('정렬')).toHaveValue('default');
+    expect(
+      screen.queryByRole('button', { name: '검색 조건 초기화' }),
     ).not.toBeInTheDocument();
   });
 

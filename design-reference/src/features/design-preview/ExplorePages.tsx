@@ -3,26 +3,26 @@ import {
   CalendarDays,
   ChevronRight,
   Search,
+  Sparkles,
+  RotateCcw,
   Users,
   X,
 } from 'lucide-react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import {
   contests,
   archivedContest,
-  interestOptions,
   people,
   previewPath,
-  roleOptions,
   getPublicProfile,
 } from './data';
 import { usePreview } from './preview-context';
 import { ContestCover } from './ContestCover';
+import { ExploreFilters } from './ExploreFilters';
 import {
   ActionLink,
   Avatar,
@@ -39,9 +39,12 @@ export function ExplorePage() {
   const mine = signedIn ? getPublicProfile(profile) : null;
   const visiblePeople = signedIn ? (mine ? [...people, mine] : people) : [];
   const location = useLocation();
-  const tab = ['teams', 'people'].includes(params.get('tab') ?? '')
-    ? params.get('tab')!
-    : 'contests';
+  const tab =
+    params.get('tab') === 'teams'
+      ? 'teams'
+      : params.get('tab') === 'people'
+        ? 'people'
+        : 'contests';
   const q = params.get('q') ?? '';
   const category = params.get('category') ?? '';
   const role = params.get('role') ?? '';
@@ -90,7 +93,26 @@ export function ExplorePage() {
   );
   return (
     <section className="preview-explore" aria-label="탐색">
-      <PageIntro title="탐색" />
+      <PageIntro
+        title="탐색"
+        action={
+          tab !== 'people' && (
+            <Button
+              asChild
+              variant="outline"
+              className="preview-compact-action preview-ai-shortcut"
+            >
+              <Link
+                to={previewPath('/ai')}
+                aria-label="AI에게 추천 받기"
+                title="AI에게 추천 받기"
+              >
+                <Sparkles size={20} aria-hidden="true" />
+              </Link>
+            </Button>
+          )
+        }
+      />
       <nav className="preview-tabs" aria-label="탐색 종류">
         {[
           ['contests', '공모전'],
@@ -133,39 +155,21 @@ export function ExplorePage() {
         )}
       </div>
       <div className="preview-filters">
-        {tab === 'contests' ? (
-          <div className="preview-filter-control">
-            <Label className="sr-only" htmlFor="explore-category">
-              분야
-            </Label>
-            <NativeSelect
-              id="explore-category"
-              value={category}
-              onChange={(event) => update('category', event.target.value)}
-            >
-              <option value="">모든 분야</option>
-              {interestOptions.map((value) => (
-                <option key={value}>{value}</option>
-              ))}
-            </NativeSelect>
-          </div>
-        ) : (
-          <div className="preview-filter-control">
-            <Label className="sr-only" htmlFor="explore-role">
-              역할
-            </Label>
-            <NativeSelect
-              id="explore-role"
-              value={role}
-              onChange={(event) => update('role', event.target.value)}
-            >
-              <option value="">모든 역할</option>
-              {roleOptions.map((value) => (
-                <option key={value}>{value}</option>
-              ))}
-            </NativeSelect>
-          </div>
-        )}
+        <ExploreFilters
+          key={tab}
+          kind={tab}
+          value={tab === 'contests' ? category : role}
+          onlyOpen={params.get('open') === 'true'}
+          onApply={(value, onlyOpen) => {
+            const next = new URLSearchParams(params);
+            const key = tab === 'contests' ? 'category' : 'role';
+            if (value) next.set(key, value);
+            else next.delete(key);
+            if (tab === 'teams' && onlyOpen) next.set('open', 'true');
+            else next.delete('open');
+            setParams(next);
+          }}
+        />
         {tab === 'contests' && (
           <div className="preview-filter-control preview-sort">
             <Label className="sr-only" htmlFor="explore-sort">
@@ -181,25 +185,20 @@ export function ExplorePage() {
             </NativeSelect>
           </div>
         )}
-        {tab === 'teams' && (
-          <Label className="preview-inline-check" htmlFor="explore-open">
-            <Checkbox
-              id="explore-open"
-              checked={params.get('open') === 'true'}
-              onCheckedChange={(checked) =>
-                update('open', checked === true ? 'true' : '')
-              }
-            />
-            모집중만
-          </Label>
-        )}
-        {(q || category || role || params.get('open') || contestContext) && (
+        {(q ||
+          category ||
+          role ||
+          sort !== 'default' ||
+          params.get('open') ||
+          contestContext) && (
           <Button
-            variant="ghost"
-            className="preview-text-button"
+            variant="outline"
+            className="preview-compact-action"
+            aria-label="검색 조건 초기화"
+            title="검색 조건 초기화"
             onClick={reset}
           >
-            초기화
+            <RotateCcw size={18} aria-hidden="true" />
           </Button>
         )}
       </div>
@@ -226,11 +225,6 @@ export function ExplorePage() {
           </Link>
         )}
       </div>
-      {tab !== 'people' && (
-        <ActionLink to={previewPath('/ai')} secondary>
-          AI에게 추천 받기
-        </ActionLink>
-      )}
       {tab === 'people' && !signedIn ? (
         <EmptyState
           title="로그인하고 함께할 사람을 찾아보세요"
