@@ -272,38 +272,24 @@ export function ExplorePage() {
                 key={item.id}
                 to={previewPath(`/contests/${item.id}?from=${from}`)}
               >
-                <div className="preview-contest-heading">
-                  <div className="preview-contest-cover">
-                    <ContestCover
-                      src={item.cover}
-                      loading={index === 0 ? 'eager' : 'lazy'}
-                    />
-                    <span
-                      className={`preview-deadline ${item.days <= 7 ? 'preview-deadline--soon' : ''}`}
-                    >
-                      D−{item.days}
-                    </span>
-                  </div>
-                  <div className="preview-contest-copy">
-                    <Badge>{item.category}</Badge>
-                    <h3>{item.title}</h3>
-                    <p className="preview-muted">{item.organizer}</p>
-                  </div>
+                <div className="preview-contest-cover">
+                  <ContestCover
+                    src={item.cover}
+                    loading={index === 0 ? 'eager' : 'lazy'}
+                  />
+                  <span
+                    className={`preview-deadline ${item.days <= 7 ? 'preview-deadline--soon' : ''}`}
+                  >
+                    D−{item.days}
+                  </span>
                 </div>
-                <dl className="preview-card-facts">
-                  <div>
-                    <dt>참가 대상</dt>
-                    <dd>{item.audience}</dd>
-                  </div>
-                  <div>
-                    <dt>접수 마감</dt>
-                    <dd>{item.deadline}</dd>
-                  </div>
-                </dl>
-                <div className="preview-card-footer">
-                  <span>
+                <div className="preview-contest-copy">
+                  <h3>{item.title}</h3>
+                  <Badge>{item.category}</Badge>
+                  <p className="preview-muted">{item.organizer}</p>
+                  <span className="preview-contest-teams">
                     <Users size={16} aria-hidden="true" />
-                    함께할 팀{' '}
+                    <span className="sr-only">모집 중인 팀 </span>
                     {
                       teams.filter(
                         (team) =>
@@ -311,11 +297,7 @@ export function ExplorePage() {
                           team.status === '모집중',
                       ).length
                     }
-                    개
-                  </span>
-                  <span className="preview-contest-detail-link">
-                    상세 보기
-                    <ChevronRight size={16} aria-hidden="true" />
+                    <span className="sr-only">개</span>
                   </span>
                 </div>
               </Link>

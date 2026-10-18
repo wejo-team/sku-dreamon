@@ -339,11 +339,17 @@
   font-variant-numeric: tabular-nums;
 }
 .dreamon-preview .preview-explore .preview-contest-card {
-  gap: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
 }
 .dreamon-preview .preview-explore .preview-contest-card h3 {
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 .dreamon-preview .preview-explore .preview-contest-card .preview-muted,
 .dreamon-preview .preview-explore .preview-card-facts,
@@ -356,31 +362,29 @@
   margin: 0;
   gap: 8px;
 }
-.dreamon-preview .preview-contest-heading {
-  display: grid;
-  grid-template-columns: clamp(88px, 24cqi, 104px) minmax(0, 1fr);
-  align-items: start;
-  gap: 14px;
-}
 .dreamon-preview .preview-contest-cover {
   position: relative;
   display: grid;
   place-items: center;
-  height: 116px;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  aspect-ratio: 2 / 3;
   overflow: hidden;
-  border-radius: 8px;
   background: var(--muted);
   color: var(--muted-foreground);
 }
 .dreamon-preview .preview-contest-cover img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 .dreamon-preview .preview-contest-cover .preview-deadline {
   position: absolute;
-  bottom: 6px;
-  left: 6px;
+  bottom: 10px;
+  left: 10px;
   padding: 2px 7px;
   border-radius: 5px;
   background: var(--card);
@@ -399,46 +403,25 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
+  padding: 16px;
 }
 .dreamon-preview .preview-explore .preview-contest-copy .preview-muted {
   font-size: 12px;
   line-height: 18px;
 }
-.dreamon-preview .preview-explore .preview-contest-card .preview-card-facts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: var(--muted);
-  font-size: 13px;
+.dreamon-preview .preview-contest-teams {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-end;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 8px;
+  color: var(--accent-foreground);
+  font-size: 14px;
+  font-weight: 600;
   line-height: 20px;
-}
-.dreamon-preview .preview-contest-card .preview-card-facts > div {
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-.dreamon-preview .preview-contest-card .preview-card-facts dt {
-  font-size: 11px;
-  line-height: 16px;
-}
-.dreamon-preview .preview-contest-card .preview-card-facts dd {
-  text-align: left;
-  color: var(--foreground);
-  font-weight: 500;
   font-variant-numeric: tabular-nums;
-}
-.dreamon-preview .preview-contest-card .preview-card-footer {
-  border: 0;
-  padding-top: 0;
-  font-size: 13px;
-}
-.dreamon-preview .preview-contest-detail-link {
-  flex-shrink: 0;
-  color: var(--muted-foreground);
-  font-size: 12px;
 }
 .dreamon-preview .preview-explore .preview-card-footer {
   line-height: 24px;

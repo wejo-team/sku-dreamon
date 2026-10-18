@@ -11,7 +11,7 @@
 | 화면·경로 | 코드 원본 | 구현할 정책·완료 조건 |
 | --- | --- | --- |
 | 로그인·가입 `/login`, `/signup` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx) | [인증 AC-04~14](../specs/authentication.md#acceptance-criteria): 자체 로그인·교내 미인증·로그인 후 행동·접근 권한. 레퍼런스 로그인은 모의 동작 |
-| 공모전 탐색 `/explore` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx), [ExploreFilters](../../design-reference/src/features/design-preview/ExploreFilters.tsx) | [공고 명세](../specs/contests.md): 제목·분야·마감·공개 정보, 검색·필터·빈 결과. 분야는 아이콘으로 여는 Drawer에서 선택·적용 |
+| 공모전 탐색 `/explore` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx), [ExploreFilters](../../design-reference/src/features/design-preview/ExploreFilters.tsx) | [공고 명세](../specs/contests.md): 왼쪽 세로 포스터·D-day, 오른쪽 제목·분야·주최자와 우하단 팀 아이콘·모집 중 팀 수. 카드 전체로 상세 이동. 검색·필터·빈 결과, 분야는 아이콘으로 여는 Drawer에서 선택·적용 |
 | 공모전 상세 `/contests/:contestId` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [공고 공개·참가·마감 정책](../specs/contests.md): 원문·참가 방식·인원·일정·제출물·미확인 정보, 관련 팀·팀 만들기 연결 |
 | 팀 탐색 `/explore?tab=teams` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [팀 AC-01](../specs/team-recruitment.md#acceptance-criteria): 모집 역할·정원·상태·공모전별 탐색 |
 | 공개 모집글 `/teams/:teamId` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-03~07·15·18·26](../specs/team-recruitment.md#acceptance-criteria): 지원·필수 프로필 보완·메시지·마감·중복·취소 후 재지원 |
@@ -55,7 +55,9 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 
 공개 사람 상세·본인 공개 미리보기·지원자 상세의 등록 항목은 [ProfileDetails](../../design-reference/src/features/design-preview/ProfileDetails.tsx)를 함께 참고합니다. 학사 정보·관심·역량·경험·자기소개·활동 가능 시간·포트폴리오 URL/제목을 같은 정보 계층으로 표시합니다. 인증 정보나 미수집 연락처를 공개 항목으로 추가하지 않습니다. 비공개 프로필도 지원받은 팀장은 전체 현재 정보를 보지만 일반 검색에 포함하지 않으며, 실제 LLM에 비공개 데이터를 전송하는 권한을 뜻하지 않습니다.
 
-키·값 정보는 공모전 카드·상세, 팀 목록·공간, 내 프로필·공개 프로필·지원자 검토에서 같은 [정보 계층](tokens.md)을 사용합니다. 워크스페이스 팀 카드는 내 역할과 확정 인원/정원으로 요약하고, 중복되는 `팀장 포함 총 N명` 안내는 생략합니다. 요약 옆 화살표는 별도 버튼이 아니며 카드 링크의 일부입니다. 팀 만들기·모집 상세의 정원 안내와 팀장 포함 정원 계산 정책은 유지합니다.
+공모전 탐색 카드는 왼쪽 40%를 세로 포스터 영역으로 사용하고 이미지 아래에 별도 문구를 두지 않습니다. 원본 이미지를 자르지 않으며 제목이 길어지면 카드 높이를 늘립니다. 오른쪽은 제목·분야·주최자 순으로 배치하고 우하단의 팀 아이콘·숫자로 현재 모집 중인 팀 수를 표시합니다. 접근성 이름에는 `모집 중인 팀 N개`를 포함합니다. 별도 상세보기 문구·화살표, 참가 대상·접수 마감 정보 행은 두지 않습니다. D-day는 포스터 위에 유지하고 정확한 마감일·참가 대상은 상세에서 확인합니다. 카드 전체의 클릭·키보드 이동과 녹색 hover·포커스·누름 상태를 유지합니다.
+
+키·값 정보는 공모전 상세, 팀 목록·공간, 내 프로필·공개 프로필·지원자 검토에서 같은 [정보 계층](tokens.md)을 사용합니다. 워크스페이스 팀 카드는 내 역할과 확정 인원/정원으로 요약하고, 중복되는 `팀장 포함 총 N명` 안내는 생략합니다. 요약 옆 화살표는 별도 버튼이 아니며 카드 링크의 일부입니다. 팀 만들기·모집 상세의 정원 안내와 팀장 포함 정원 계산 정책은 유지합니다.
 
 <a id="remaining-decisions"></a>
 
