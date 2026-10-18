@@ -1,28 +1,30 @@
-/* shadcn/ui의 중립 표면과 명확한 상태 표현을 따르는 모바일 시안. */
+/* 서경대의 에메랄드 강조색과 shadcn/ui의 표면·상태 역할을 사용하는 모바일 디자인. */
 .dreamon-mobile-viewport,
 .dreamon-preview {
   --background: #ffffff;
-  --foreground: #18181b;
+  --foreground: #18352b;
   --card: #ffffff;
-  --primary: #18181b;
+  --primary: #007a55;
   --primary-foreground: #ffffff;
-  --muted: #f4f4f5;
-  --muted-foreground: #62626c;
-  --accent: #f4f4f5;
-  --accent-foreground: #27272a;
-  --border: #e4e4e7;
-  --ring: #71717a;
-  --input: #8e8e98;
-  --primary-hover: #303036;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #52525b;
+  --muted: #f2f7f4;
+  --muted-foreground: #52675d;
+  --accent: #e1efe7;
+  --accent-foreground: #00573a;
+  --border: #d5e2da;
+  --ring: #007a55;
+  --input: #71897c;
+  --primary-hover: #00573a;
+  --secondary: #eaf3ee;
+  --secondary-foreground: #365f4d;
   --card-foreground: var(--foreground);
   --destructive: var(--coral-ink);
   --surface-control: var(--card);
   --surface-chrome: var(--card);
-  --surface-canvas: #f1f1f3;
+  --surface-canvas: #edf4ef;
   --radius: 0.625rem;
-  --surface-sunken: #e5e5e9;
+  --surface-sunken: #dfeae3;
+  --ai-soft: #f0edf8;
+  --ai-ink: #453587;
   --leaf-soft: #f0fdf4;
   --leaf-ink: #166534;
   --warning-soft: #fffbeb;

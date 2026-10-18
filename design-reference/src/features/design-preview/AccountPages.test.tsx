@@ -114,6 +114,7 @@ describe('design preview account flows', () => {
     expect(getPublicProfile(profile)).toEqual({
       id: 'me',
       name: profile.name,
+      avatarId: profile.avatarId,
       roles: profile.roles,
     });
     expect(
@@ -122,6 +123,80 @@ describe('design preview account flows', () => {
         visibility: { ...profile.visibility, discoverable: false },
       }),
     ).toBeNull();
+  });
+
+  it('keeps character choices in the edit draft until saved and discards cancelled choices', async () => {
+    await renderProfileFlow();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
+    await user.click(
+      screen.getByRole('button', { name: '프로필 이미지 변경, 현재 스콘' }),
+    );
+    let picker = screen.getByRole('dialog', { name: '나를 닮은 캐릭터' });
+    expect(within(picker).getAllByRole('radio')).toHaveLength(5);
+    await user.click(within(picker).getByRole('radio', { name: '아티' }));
+    await user.click(within(picker).getByRole('button', { name: '취소' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole('button', { name: '프로필 이미지 변경, 현재 스콘' }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', { name: '프로필 이미지 변경, 현재 스콘' }),
+    );
+    picker = screen.getByRole('dialog', { name: '나를 닮은 캐릭터' });
+    expect(within(picker).getByRole('radio', { name: '스콘' })).toBeChecked();
+    await user.click(within(picker).getByRole('radio', { name: '디모' }));
+    await user.click(
+      within(picker).getByRole('button', { name: '이 캐릭터로 선택' }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole('button', { name: '프로필 이미지 변경, 현재 디모' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '취소' }));
+    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
+    expect(
+      screen.getByRole('button', { name: '프로필 이미지 변경, 현재 스콘' }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', { name: '프로필 이미지 변경, 현재 스콘' }),
+    );
+    picker = screen.getByRole('dialog', { name: '나를 닮은 캐릭터' });
+    await user.click(within(picker).getByRole('radio', { name: '컨버' }));
+    await user.click(
+      within(picker).getByRole('button', { name: '이 캐릭터로 선택' }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('switch', { name: '사람 탐색에 공개' }));
+    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+    expect(
+      screen.getByRole('region', { name: '내 기본 정보' }).querySelector('img'),
+    ).toHaveAttribute('src', '/mascots/conver.png');
+    await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
+    expect(
+      screen
+        .getByRole('heading', { name: initialProfile.name })
+        .closest('section')
+        ?.querySelector('img'),
+    ).toHaveAttribute('src', '/mascots/conver.png');
+  });
+
+  it('uses the default character when no optional avatar is selected', () => {
+    expect(
+      getPublicProfile({
+        ...initialProfile,
+        avatarId: undefined,
+        visibility: { ...initialProfile.visibility, discoverable: true },
+      })?.avatarId,
+    ).toBe('skon');
   });
 
   it('saves public visibility, cancels changes and hides all fields when made private', async () => {

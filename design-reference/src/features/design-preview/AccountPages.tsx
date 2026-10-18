@@ -41,6 +41,8 @@ import {
 } from './data';
 import { usePreview } from './preview-context';
 import { Avatar, BackLink, Badge, PageIntro } from './PreviewUi';
+import { AvatarPicker } from './AvatarPicker';
+import { mascotAvatarIds } from './mascot-avatars';
 import { AcademicFields, ExperienceFields, SkillFields } from './ProfileFields';
 import './login.css';
 import './profile-fields.css';
@@ -73,6 +75,7 @@ const requiredProfileSchema = z.object({
   interests: z.array(z.string()).min(1, '관심 분야를 하나 이상 선택해 주세요.'),
 });
 const profileSchema = requiredProfileSchema.extend({
+  avatarId: z.enum(mascotAvatarIds).optional(),
   intro: z.string().trim(),
   experience: z.string().trim(),
   experienceState: z.enum(['unspecified', 'none', 'provided']),
@@ -414,6 +417,13 @@ function ProfileEditor({
         onDone();
       })}
     >
+      <Controller
+        control={control}
+        name="avatarId"
+        render={({ field }) => (
+          <AvatarPicker value={field.value} onChange={field.onChange} />
+        )}
+      />
       <fieldset className="dreamon-privacy-settings">
         <legend>공개 설정</legend>
         <p id="profile-save-help" className="preview-muted">
@@ -702,7 +712,7 @@ export function ProfilePage() {
             aria-label="내 기본 정보"
           >
             <div className="preview-row">
-              <Avatar name={profile.name} />
+              <Avatar name={profile.name} avatarId={profile.avatarId} />
               <div>
                 <h2>{profile.name}</h2>
                 <Badge>교내 미인증</Badge>
@@ -861,7 +871,12 @@ export function PublicProfilePage() {
           aria-label="공개된 내 프로필"
         >
           <div className="preview-row">
-            <Avatar name={person.name} personId={person.id} size="large" />
+            <Avatar
+              name={person.name}
+              personId={person.id}
+              avatarId={person.avatarId}
+              size="large"
+            />
             <div>
               <h2>{person.name}</h2>
               <Badge>교내 미인증</Badge>

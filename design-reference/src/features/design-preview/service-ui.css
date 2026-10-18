@@ -59,11 +59,17 @@
   font-weight: 650;
 }
 .dreamon-preview .preview-brand-mark {
-  width: 30px;
-  height: 30px;
-  border-radius: var(--preview-radius-control);
-  background: var(--primary);
-  color: var(--primary-foreground);
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: transparent;
+}
+.dreamon-preview .preview-brand-mark img,
+.service-loading-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .dreamon-preview .preview-notification-trigger {
   position: relative;
@@ -85,7 +91,7 @@
   height: 8px;
   border: 2px solid var(--background);
   border-radius: 50%;
-  background: var(--foreground);
+  background: var(--primary);
   box-sizing: content-box;
 }
 .dreamon-preview .preview-main {
@@ -116,8 +122,8 @@
 }
 .dreamon-preview .preview-desktop-nav a[aria-current],
 .dreamon-preview .preview-mobile-nav a[aria-current] {
-  background: transparent;
-  color: var(--foreground);
+  background: var(--accent);
+  color: var(--primary);
   font-weight: 600;
 }
 .dreamon-preview .preview-desktop-nav a:hover {
@@ -153,7 +159,7 @@
 }
 .dreamon-preview .preview-tabs a[aria-current] {
   background: var(--card);
-  color: var(--foreground);
+  color: var(--primary);
   box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 .dreamon-preview .preview-search {
@@ -298,14 +304,14 @@
   border-radius: 5px;
   background: var(--card);
   color: var(--foreground);
-  box-shadow: 0 1px 4px #18181b14;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--foreground) 8%, transparent);
   font-size: 12px;
   font-weight: 700;
   line-height: 20px;
 }
 .dreamon-preview .preview-contest-cover .preview-deadline--soon {
-  background: var(--foreground);
-  color: var(--primary-foreground);
+  background: var(--warning-soft);
+  color: var(--warning-ink);
 }
 .dreamon-preview .preview-contest-copy {
   min-width: 0;
@@ -429,7 +435,7 @@
   color: var(--warning-ink);
 }
 .dreamon-preview .preview-badge--dark {
-  background: var(--foreground);
+  background: var(--primary);
   color: var(--primary-foreground);
 }
 .dreamon-preview .preview-avatar {
@@ -956,10 +962,7 @@
   place-items: center;
   width: 96px;
   height: 96px;
-  border-radius: var(--preview-radius-panel);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  box-shadow: var(--action-shadow);
+  background: transparent;
 }
 .dreamon-preview.service-loading h1 {
   font-size: 32px;
@@ -1208,7 +1211,7 @@
 .dreamon-preview .preview-notifications-filters button[aria-pressed='true'] {
   background: var(--card);
   color: var(--foreground);
-  box-shadow: 0 1px 3px #18181b14;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 .dreamon-preview .preview-notifications-filters button span {
   font-variant-numeric: tabular-nums;
@@ -1295,7 +1298,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--foreground);
+  background: var(--primary);
 }
 .dreamon-preview .preview-notifications-empty {
   display: flex;
@@ -1446,6 +1449,13 @@
   line-height: 1.6;
   font-weight: 500;
 }
+.dreamon-preview .preview-contest-option-cover {
+  width: 48px;
+  height: 56px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 6px;
+}
 .dreamon-preview .preview-contest-option-organizer,
 .dreamon-preview .preview-contest-option-meta {
   font-size: 12px;
@@ -1542,8 +1552,8 @@
   place-items: center;
   margin-bottom: 20px;
   border-radius: 14px;
-  background: var(--muted);
-  color: var(--foreground);
+  background: var(--ai-soft);
+  color: var(--ai-ink);
 }
 .dreamon-preview .preview-ai-welcome h2 {
   font-size: 24px;
@@ -1618,9 +1628,7 @@
 .dreamon-preview .preview-ai-result {
   gap: 10px;
   padding: 12px;
-  box-shadow:
-    0 3px 10px -5px #18181b26,
-    0 1px 3px -2px #18181b1a;
+  box-shadow: var(--panel-shadow);
 }
 .dreamon-preview .preview-ai-result-heading {
   display: flex;
@@ -1697,7 +1705,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--foreground);
+  background: var(--primary);
 }
 .dreamon-preview .preview-ai-followups {
   display: flex;
@@ -1727,7 +1735,7 @@
   min-height: 44px;
   padding: 0;
   border-radius: 999px;
-  box-shadow: 0 3px 8px -3px #18181b33;
+  box-shadow: var(--raised-shadow);
   z-index: 1;
 }
 .dreamon-preview .preview-ai-composer {

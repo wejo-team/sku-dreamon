@@ -3,7 +3,6 @@ import {
   Layers2,
   Search,
   UserRound,
-  ArrowUpRight,
   ArrowLeft,
   MessageCircle,
 } from 'lucide-react';
@@ -106,7 +105,12 @@ export function PreviewShell() {
             aria-label="서경드림온 탐색"
           >
             <span className="preview-brand-mark">
-              <ArrowUpRight size={23} strokeWidth={2} aria-hidden="true" />
+              <img
+                src="/brand/dreamon-logo.png"
+                alt=""
+                width={40}
+                height={40}
+              />
             </span>
             서경드림온
           </Link>

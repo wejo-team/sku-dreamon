@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { ArrowUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { previewPath } from './data';
 
@@ -24,7 +23,7 @@ export function LoadingPage() {
     >
       <div className="service-loading-brand">
         <span className="service-loading-mark">
-          <ArrowUpRight size={48} strokeWidth={2.2} aria-hidden="true" />
+          <img src="/brand/dreamon-logo.png" alt="" width={96} height={96} />
         </span>
         <h1>서경드림온</h1>
       </div>

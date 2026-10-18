@@ -3,7 +3,6 @@ import {
   CalendarDays,
   ChevronRight,
   Search,
-  Trophy,
   Users,
   X,
 } from 'lucide-react';
@@ -23,6 +22,7 @@ import {
   getPublicProfile,
 } from './data';
 import { usePreview } from './preview-context';
+import { ContestCover } from './ContestCover';
 import {
   ActionLink,
   Avatar,
@@ -267,18 +267,10 @@ export function ExplorePage() {
               >
                 <div className="preview-contest-heading">
                   <div className="preview-contest-cover">
-                    {item.cover ? (
-                      <img
-                        src={item.cover}
-                        alt=""
-                        width={1254}
-                        height={1254}
-                        loading={index === 0 ? 'eager' : 'lazy'}
-                        decoding="async"
-                      />
-                    ) : (
-                      <Trophy size={32} strokeWidth={1.5} aria-hidden="true" />
-                    )}
+                    <ContestCover
+                      src={item.cover}
+                      loading={index === 0 ? 'eager' : 'lazy'}
+                    />
                     <span
                       className={`preview-deadline ${item.days <= 7 ? 'preview-deadline--soon' : ''}`}
                     >
@@ -362,7 +354,11 @@ export function ExplorePage() {
                 to={previewPath(`/people/${item.id}?from=${from}`)}
               >
                 <div className="preview-row">
-                  <Avatar name={item.name} personId={item.id} />
+                  <Avatar
+                    name={item.name}
+                    personId={item.id}
+                    avatarId={item.avatarId}
+                  />
                   <div>
                     <h3>{item.name}</h3>
                     <p className="preview-muted">{item.roles.join(' · ')}</p>
@@ -594,7 +590,12 @@ export function PersonPage() {
       </BackLink>
       <div className="preview-panel preview-stack">
         <div className="preview-row">
-          <Avatar name={person.name} personId={person.id} size="large" />
+          <Avatar
+            name={person.name}
+            personId={person.id}
+            avatarId={person.avatarId}
+            size="large"
+          />
           <div>
             <h1>{person.name}</h1>
             <p className="preview-muted">{person.roles.join(' · ')}</p>

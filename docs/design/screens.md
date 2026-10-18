@@ -17,7 +17,7 @@
 | 팀 공간 `/teams/:teamId?view=space` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-09·13·20·25](../specs/team-recruitment.md#acceptance-criteria): 팀장·현재 팀원만 접근, 확정 인원·남은 자리·공고·모집 상태 |
 | 지원자 관리 `/teams/:teamId?view=applicants` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-05·14·16](../specs/team-recruitment.md#acceptance-criteria): 해당 팀장만 실제 지원자 검토·선발. 선발 성공 즉시 팀원 확정 |
 | 지원자 검토 `/applicants/:applicantId` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [프로필 공개 정책](../specs/profile.md#visibility), [팀 선발 정책](../specs/team-recruitment.md#membership-capacity): 현재 공개된 경험·역량·소개·동의한 포트폴리오 |
-| 내 프로필 `/profile` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx), [ProfileFields](../../design-reference/src/features/design-preview/ProfileFields.tsx) | [프로필 AC-01·06·20~25](../specs/profile.md#acceptance-criteria): 학사·역량·경험·시간 입력, 단일 포트폴리오 URL·제목, 공개 스위치 |
+| 내 프로필 `/profile` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx), [ProfileFields](../../design-reference/src/features/design-preview/ProfileFields.tsx) | [프로필 AC-01·06·20~25](../specs/profile.md#acceptance-criteria): 학사·역량·경험·시간 입력, 단일 포트폴리오 URL·제목, 공개 스위치, 선택형 마스코트 이미지 |
 | 본인 공개 화면 확인 `/profile/public` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx) | [사람 탐색과 공개 설정](../specs/profile.md#people-directory): 본인이 설정한 공개 결과 확인 |
 | 사람 탐색·상세 `/explore?tab=people`, `/people/:personId` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [프로필 AC-23~24](../specs/profile.md#acceptance-criteria): 로그인과 탐색 공개 동의, 항목별 공개. 지원자 관계와 구분 |
 | AI `/ai` | [AiChatPage](../../design-reference/src/features/design-preview/AiChatPage.tsx) | [LLM 추천 AC-16~24](../specs/matching.md#acceptance-criteria): 자연어 입력·결과·후속 조건·중단·실패·재시도·빈 결과. 실제 LLM은 미구현 |
@@ -32,7 +32,7 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 | --- | --- |
 | 탐색 → 상세 → 복귀 | 검색·선택한 탭·필터, 결과 없음, 공고·팀이 없는 주소. 커서 조회·무한 스크롤·이전 스크롤 복원은 현재 제품 계약으로 확정하지 않음 |
 | 팀 만들기 → 공모전 선택 | Drawer 열기·검색·선택·취소·닫기, 결과가 많을 때 추가 표시, 팀장 포함 총인원 안내와 공식 인원 범위 오류 |
-| 프로필 수정 → 저장 | 학사 상위 선택 변경, 경험 미입력/경험 없음 구분, 공개 동의 기본값, URL 삭제·무효화 후 공개 해제, 취소 시 미저장 값 제거 |
+| 프로필 수정 → 저장 | 캐릭터 팝업 선택·취소·프로필 저장, 기본 스콘, 공개 결과·팀 공간에서 같은 이미지 표시, 학사 상위 선택 변경, 경험 미입력/경험 없음 구분, 공개 동의 기본값, URL 삭제·무효화 후 공개 해제, 취소 시 미저장 값 제거 |
 | 지원 → 내 지원 | 로그인 안내, 필수 프로필 보완 후 원래 흐름 복귀, 선택 메시지, 중복·마감·정원 부족, 접수 후 현재 지원 표시 |
 | 팀장 검토 → 선발 | 해당 팀장 권한, 현재 공개 프로필, 선발 즉시 멤버 반영·남은 자리 감소, 마지막 자리·공모전별 소속 제한 |
 | 선발 후 취소 → 재지원 | 팀 공간 접근 종료·자리 반환, 과거 선발 복원 없이 새 지원, 현재 모집 종료·정원 조건 재확인 |
@@ -63,6 +63,7 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 
 ## 재현 경로
 
+- `/explore?q=로컬`: 이미지가 없는 공모전의 스콘 기본 커버. 공모전 선택창과 AI 공모전 추천에도 같은 fallback을 적용하며 이미지 로드 실패도 처리.
 - `/contests/archive`: 마감 공고 읽기 전용 상세·원문 링크.
 - `/ai?scenario=error`: 첫 응답 실패 후 같은 요청 재시도. `마케팅 역할 사람 찾아줘`로 결과 없음 확인.
 - `/explore?scenario=notification-error`: 로그인한 상태에서 첫 읽음 처리 실패·재시도.

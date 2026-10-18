@@ -1,3 +1,5 @@
+import { defaultMascotAvatarId, type MascotAvatarId } from './mascot-avatars';
+
 export const previewBase = '/design-preview';
 export const previewPath = (path = '') => `${previewBase}${path}`;
 
@@ -40,6 +42,7 @@ export type Team = {
 export type Person = {
   id: string;
   name: string;
+  avatarId?: MascotAvatarId;
   roles: string[];
   interests?: string[];
   intro?: string;
@@ -69,6 +72,7 @@ export type Applicant = {
 };
 export type Profile = {
   name: string;
+  avatarId?: MascotAvatarId;
   academicStatus?: string;
   grade?: string;
   college?: string;
@@ -99,6 +103,7 @@ export function getPublicProfile(profile: Profile, id = 'me'): Person | null {
   return {
     id,
     name: profile.name,
+    avatarId: profile.avatarId ?? defaultMascotAvatarId,
     roles: [...profile.roles],
     ...(profile.visibility.interests
       ? { interests: [...profile.interests] }
@@ -172,7 +177,6 @@ export const contests: Contest[] = [
     deliverables: [],
     verifiedOn: '2026-10-18',
     interests: ['디자인', '사회·문화'],
-    cover: '/contest-covers/local.webp',
     title: '우리 동네를 새롭게, 로컬 브랜딩',
     organizer: '드림온 운영팀',
     category: '디자인',
@@ -244,6 +248,7 @@ export const initialTeams: Team[] = [
 ];
 export const initialProfile: Profile = {
   name: '김지우',
+  avatarId: defaultMascotAvatarId,
   academicStatus: '',
   grade: '',
   college: '',
@@ -297,6 +302,7 @@ export const initialApplicants: Applicant[] = [
     profile: {
       ...initialProfile,
       name: '김서연',
+      avatarId: 'arti',
       roles: ['개발'],
       interests: ['IT·기술', '환경'],
       skills: ['프로그래밍', 'UI/UX'],
@@ -330,6 +336,7 @@ export const initialApplicants: Applicant[] = [
     profile: {
       ...initialProfile,
       name: '정수아',
+      avatarId: 'bart',
       roles: ['디자인'],
       interests: ['디자인', '환경'],
       skills: ['UI/UX', '그래픽 디자인'],
@@ -384,6 +391,7 @@ export const people: Person[] = [
     {
       ...initialProfile,
       name: '이도윤',
+      avatarId: 'dmo',
       roles: ['개발'],
       interests: ['IT·기술', '디자인'],
       intro:

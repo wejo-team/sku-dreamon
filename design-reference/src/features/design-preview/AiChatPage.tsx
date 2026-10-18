@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/message-scroller';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar } from './PreviewUi';
+import { ContestCover } from './ContestCover';
 import { contests, getPublicProfile, people, previewPath } from './data';
 import { usePreview } from './preview-context';
 import {
@@ -227,14 +228,15 @@ function RecommendationCard({ item }: { item: ChatRecommendation }) {
     >
       <div className="preview-ai-result-heading">
         {person ? (
-          <Avatar name={person.name} personId={person.id} />
-        ) : contest?.cover ? (
-          <img
+          <Avatar
+            name={person.name}
+            personId={person.id}
+            avatarId={person.avatarId}
+          />
+        ) : contest ? (
+          <ContestCover
             className="preview-ai-result-cover"
             src={contest.cover}
-            alt=""
-            width={44}
-            height={52}
           />
         ) : (
           <span className="preview-ai-result-icon" aria-hidden="true">

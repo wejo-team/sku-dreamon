@@ -81,9 +81,21 @@ async function navigate(page, route) {
       );
       await login(page);
       await snapshot(page, `explore-${width}`);
+      await navigate(page, '/design-preview/explore?q=로컬');
+      await snapshot(page, `default-cover-${width}`);
+      const defaultCover = page.locator('.preview-contest-cover img');
+      assert.equal(
+        await defaultCover.getAttribute('src'),
+        '/contest-covers/skon-default.png',
+      );
+      assert.ok(await defaultCover.evaluate((img) => img.naturalWidth > 0));
       await navigate(page, '/design-preview/teams/new?contest=campus');
       await page.getByLabel('팀장 포함 총 정원').waitFor();
       await snapshot(page, `create-team-${width}`);
+      await page.locator('.preview-contest-picker-trigger').click();
+      await page.getByRole('dialog', { name: '공모전 선택' }).waitFor();
+      await snapshot(page, `contest-picker-${width}`);
+      await page.getByRole('button', { name: '닫기', exact: true }).click();
       await navigate(page, '/design-preview/profile');
       await page
         .getByRole('button', { name: '프로필 수정', exact: true })
@@ -101,6 +113,25 @@ async function navigate(page, route) {
         true,
       );
       await snapshot(page, `profile-${width}`);
+      await page
+        .getByRole('button', { name: '프로필 이미지 변경, 현재 스콘' })
+        .click();
+      const avatarPicker = page.getByRole('dialog', {
+        name: '나를 닮은 캐릭터',
+      });
+      await avatarPicker.getByLabel('비아트', { exact: true }).check();
+      await snapshot(page, `avatar-picker-${width}`);
+      await avatarPicker
+        .getByRole('button', { name: '이 캐릭터로 선택' })
+        .click();
+      await page.getByRole('button', { name: '변경사항 저장' }).click();
+      assert.equal(
+        await page
+          .getByRole('region', { name: '내 기본 정보' })
+          .locator('img')
+          .getAttribute('src'),
+        '/mascots/bart.png',
+      );
       await navigate(page, '/design-preview/applicants/app-seoyeon');
       await page.getByRole('button', { name: '이 지원자 선발하기' }).click();
       await page.getByRole('dialog').waitFor();
@@ -147,7 +178,7 @@ async function navigate(page, route) {
       assert.deepEqual(errors, []);
       await page.close();
       console.log(
-        `${width}px: guest privacy, closed contest, create/profile, selection/membership, AI retry, notifications passed`,
+        `${width}px: privacy, closed contest, mascot fallback/picker, create/profile, selection/membership, AI retry, notifications passed`,
       );
     }
   } finally {

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useContext, useState, type ReactNode } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,6 +11,13 @@ import { Badge as UiBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { previewPath } from './data';
+import { PreviewContext } from './preview-context';
+import {
+  defaultMascotAvatarId,
+  mascotAvatarSource,
+  type MascotAvatarId,
+} from './mascot-avatars';
+import './mascot-profile.css';
 
 export function PageIntro({
   title,
@@ -80,29 +87,43 @@ export function EmptyState({
     </div>
   );
 }
-const avatarByPersonId: Record<string, string> = {
-  me: 'avatar-01',
-  seoyeon: 'avatar-02',
-  doyun: 'avatar-03',
-  sua: 'avatar-04',
-  'app-seoyeon': 'avatar-02',
-  'app-sua': 'avatar-04',
+const avatarByPersonId: Record<string, MascotAvatarId> = {
+  me: 'skon',
+  seoyeon: 'arti',
+  doyun: 'dmo',
+  sua: 'bart',
+  minjae: 'conver',
+  'app-seoyeon': 'arti',
+  'app-sua': 'bart',
 };
 
 export function Avatar({
   name,
   personId = 'me',
+  avatarId,
   size = 'normal',
 }: {
   name: string;
   personId?: string;
+  avatarId?: MascotAvatarId;
   size?: 'normal' | 'large';
 }) {
-  const source = `/profile-avatars/${avatarByPersonId[personId] ?? 'avatar-01'}.webp`;
+  const state = useContext(PreviewContext);
+  const profileAvatar =
+    personId === 'me'
+      ? state?.profile.avatarId
+      : state?.applicants.find((applicant) => applicant.personId === personId)
+          ?.profile?.avatarId;
+  const source = mascotAvatarSource(
+    avatarId ??
+      profileAvatar ??
+      avatarByPersonId[personId] ??
+      defaultMascotAvatarId,
+  );
   const [failedSource, setFailedSource] = useState<string | null>(null);
   return (
     <span
-      className={`preview-avatar preview-avatar--${size}`}
+      className={`preview-avatar preview-avatar--mascot preview-avatar--${size}`}
       aria-hidden="true"
     >
       {failedSource === source ? (

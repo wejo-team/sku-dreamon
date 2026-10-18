@@ -20,6 +20,7 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import type { Contest } from './data';
+import { ContestCover } from './ContestCover';
 
 const pageSize = 20;
 
@@ -155,6 +156,10 @@ export function ContestPicker({
                       setOpen(false);
                     }}
                   >
+                    <ContestCover
+                      src={contest.cover}
+                      className="preview-contest-option-cover"
+                    />
                     <span className="preview-contest-option-copy">
                       <strong>{contest.title}</strong>
                       <span className="preview-contest-option-organizer">
