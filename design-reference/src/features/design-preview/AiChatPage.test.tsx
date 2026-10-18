@@ -1,0 +1,359 @@
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AiChatPage, AiChatProvider } from './AiChatPage';
+import { PreviewProvider } from './PreviewProvider';
+import { usePreview } from './preview-context';
+
+function TestNavigation() {
+  const { signIn, signOut } = usePreview();
+  return (
+    <nav aria-label="테스트 탐색">
+      <button onClick={signIn}>로그인</button>
+      <Link to="/design-preview/ai">대화로 돌아가기</Link>
+      <Link to="/design-preview/elsewhere">다른 화면 열기</Link>
+      <button type="button" onClick={signOut}>
+        로그아웃
+      </button>
+    </nav>
+  );
+}
+
+function renderChat(path = '/design-preview/ai') {
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <PreviewProvider>
+        <AiChatProvider>
+          <TestNavigation />
+          <Routes>
+            <Route path="/design-preview/ai" element={<AiChatPage />} />
+            <Route
+              path="/design-preview/elsewhere"
+              element={<p>다른 화면입니다.</p>}
+            />
+          </Routes>
+        </AiChatProvider>
+      </PreviewProvider>
+    </MemoryRouter>,
+  );
+  return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+}
+
+async function finishReply() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000);
+  });
+}
+
+beforeEach(() => {
+  // RTL drains a zero-delay task after userEvent; let that task settle in Vitest.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+});
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+});
+
+describe('design preview AI chat', () => {
+  it('rejects blank messages and sends typed requests with Enter before showing recommendations', async () => {
+    const user = renderChat();
+    const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
+    expect(
+      screen.getByRole('button', { name: '메시지 보내기' }),
+    ).toBeDisabled();
+    await user.type(input, '   ');
+    await user.keyboard('{Enter}');
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    await user.clear(input);
+    await user.type(input, '디자인 공모전 찾아줘');
+    await user.keyboard('{Enter}');
+    expect(input).toHaveValue('');
+    expect(screen.getByRole('status')).toHaveTextContent('찾고 있어요');
+    const log = screen.getByRole('log', { name: '대화 내용' });
+    expect(within(log).getByText('디자인 공모전 찾아줘')).toBeInTheDocument();
+    expect(within(log).queryByRole('link')).not.toBeInTheDocument();
+    await finishReply();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(
+      within(log).getByRole('link', {
+        name: /우리 동네를 새롭게, 로컬 브랜딩/,
+      }),
+    ).toHaveAttribute(
+      'href',
+      '/design-preview/contests/local?from=%2Fdesign-preview%2Fai',
+    );
+  });
+
+  it('uses a quick question to recommend matching teams and offers follow-up questions', async () => {
+    const user = renderChat();
+    await user.click(
+      screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
+    );
+    expect(screen.getByRole('log')).toHaveTextContent(
+      '개발자를 모집하는 팀 찾아줘',
+    );
+    await finishReply();
+    const log = screen.getByRole('log');
+    expect(
+      within(log).getByRole('link', { name: /그린웨이브/ }),
+    ).toHaveAttribute(
+      'href',
+      '/design-preview/teams/greenwave?from=%2Fdesign-preview%2Fai',
+    );
+    expect(
+      within(log).queryByRole('link', { name: /캠퍼스 메이커스/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '디자인 역할만' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '디자인 역할만' }));
+    await finishReply();
+    expect(
+      within(log).getByRole('link', { name: /캠퍼스 메이커스/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps IME confirmation and Shift+Enter in the draft until an ordinary Enter submits', async () => {
+    const user = renderChat();
+    const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
+    await user.click(input);
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: '공모전 찾아줘' } });
+    fireEvent.keyDown(input, {
+      key: 'Enter',
+      code: 'Enter',
+      isComposing: true,
+    });
+    expect(input).toHaveValue('공모전 찾아줘');
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', keyCode: 229 });
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    await user.keyboard('{End}');
+    await user.keyboard('{Shift>}{Enter}{/Shift}');
+    expect(input).toHaveValue('공모전 찾아줘\n');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('log')).toHaveTextContent('공모전 찾아줘');
+    expect(input).toHaveValue('');
+    await finishReply();
+    expect(within(screen.getByRole('log')).getAllByRole('link')).toHaveLength(
+      3,
+    );
+  });
+
+  it('stops a pending response without late recommendations and can send another request', async () => {
+    const user = renderChat();
+    await user.click(
+      screen.getByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
+    );
+    await user.click(screen.getByRole('button', { name: '응답 중지' }));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('log')).toHaveTextContent('검색을 멈췄어요.');
+    await finishReply();
+    expect(
+      within(screen.getByRole('log')).queryByRole('link'),
+    ).not.toBeInTheDocument();
+    await user.type(
+      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
+      '개발자를 모집하는 팀 찾아줘',
+    );
+    await user.click(screen.getByRole('button', { name: '메시지 보내기' }));
+    await finishReply();
+    const links = within(screen.getByRole('log')).getAllByRole('link');
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName(/그린웨이브/);
+  });
+
+  it('starts a new conversation by clearing the draft and cancelling a pending response', async () => {
+    const user = renderChat();
+    await user.click(
+      screen.getByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
+    );
+    const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
+    await user.type(input, '아직 보내지 않은 질문');
+    await user.click(screen.getByRole('button', { name: '새 대화' }));
+    expect(input).toHaveValue('');
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '응답 중지' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '새 대화' })).toBeDisabled();
+    await finishReply();
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
+    ).toBeInTheDocument();
+  });
+
+  it('retains the conversation and draft across screen navigation while a response completes', async () => {
+    const user = renderChat();
+    await user.click(
+      screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
+      '디자인 역할만',
+    );
+    await user.click(screen.getByRole('link', { name: '다른 화면 열기' }));
+    expect(screen.getByText('다른 화면입니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    await finishReply();
+    await user.click(screen.getByRole('link', { name: '대화로 돌아가기' }));
+    expect(
+      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
+    ).toHaveValue('디자인 역할만');
+    const log = screen.getByRole('log');
+    expect(
+      within(log).getAllByText('개발자를 모집하는 팀 찾아줘'),
+    ).toHaveLength(1);
+    expect(
+      within(log).getAllByRole('link', { name: /그린웨이브/ }),
+    ).toHaveLength(1);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('clears account-specific conversation state and pending replies when signing out', async () => {
+    const user = renderChat();
+    await user.click(screen.getByRole('button', { name: '로그인' }));
+    await user.click(
+      screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
+      '이 계정의 미완성 질문',
+    );
+    await user.click(screen.getByRole('button', { name: '로그아웃' }));
+    expect(
+      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
+    ).toHaveValue('');
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    await finishReply();
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('copies the answer and recommendation details and confirms success without changing the draft', async () => {
+    const user = renderChat();
+    const writeText = vi
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockResolvedValue(undefined);
+    await user.click(
+      screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
+    );
+    await finishReply();
+    const replyText = within(screen.getByRole('log')).getByText(
+      /조건에 맞는 모집 팀 1개를 찾았어요\./,
+    ).textContent;
+    const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
+    await user.type(input, '아직 보내지 않은 질문');
+    const copyButton = screen.getByRole('button', { name: '답변 복사' });
+    await user.click(copyButton);
+    expect(writeText).toHaveBeenCalledOnce();
+    const copiedText = writeText.mock.calls[0]?.[0];
+    expect(copiedText).toContain(replyText);
+    expect(copiedText).toContain('그린웨이브');
+    expect(copiedText).toContain('현재 개발 · 디자인 역할을 모집하고 있어요.');
+    expect(copiedText).toContain('2/4명 · 2026-10-24 마감.');
+    expect(copiedText).not.toContain('개발자를 모집하는 팀 찾아줘');
+    expect(copiedText).not.toContain('아직 보내지 않은 질문');
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '답변을 복사했어요.',
+    );
+    expect(copyButton).toHaveTextContent('복사됨');
+    expect(input).toHaveValue('아직 보내지 않은 질문');
+  });
+
+  it('announces a clipboard failure and allows copying the same answer again', async () => {
+    const user = renderChat();
+    const writeText = vi
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockRejectedValueOnce(new Error('Clipboard access denied'))
+      .mockResolvedValueOnce(undefined);
+    await user.click(
+      screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
+    );
+    await finishReply();
+    const copyButton = screen.getByRole('button', { name: '답변 복사' });
+    await user.click(copyButton);
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '복사하지 못했어요. 텍스트를 선택해 복사해 주세요.',
+    );
+    expect(copyButton).not.toHaveTextContent('복사됨');
+    expect(
+      within(screen.getByRole('log')).getByRole('link', { name: /그린웨이브/ }),
+    ).toBeInTheDocument();
+    await user.click(copyButton);
+    expect(writeText).toHaveBeenCalledTimes(2);
+    expect(await screen.findByText('답변을 복사했어요.')).toHaveAttribute(
+      'role',
+      'status',
+    );
+    expect(copyButton).toHaveTextContent('복사됨');
+    expect(screen.queryByText(/복사하지 못했어요/)).not.toBeInTheDocument();
+  });
+
+  it('does not recommend or copy people to a guest and reveals permitted people after login', async () => {
+    const user = renderChat();
+    const writeText = vi
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockResolvedValue(undefined);
+    await user.type(
+      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
+      '디자인 역할 사람 찾아줘',
+    );
+    await user.click(screen.getByRole('button', { name: '메시지 보내기' }));
+    await finishReply();
+    const log = screen.getByRole('log');
+    expect(
+      within(log).getByText(/사람 탐색은 로그인 후 이용할 수 있어요/),
+    ).toBeInTheDocument();
+    expect(within(log).queryByRole('link')).not.toBeInTheDocument();
+    expect(within(log).queryByText('정수아')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '답변 복사' }));
+    expect(writeText.mock.calls[0]?.[0]).not.toContain('정수아');
+    await user.click(screen.getByRole('button', { name: '로그인' }));
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    await user.type(
+      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
+      '디자인 역할 사람 찾아줘',
+    );
+    await user.click(screen.getByRole('button', { name: '메시지 보내기' }));
+    await finishReply();
+    expect(
+      within(screen.getByRole('log')).getByRole('link', { name: /정수아/ }),
+    ).toHaveAttribute(
+      'href',
+      '/design-preview/people/sua?from=%2Fdesign-preview%2Fai',
+    );
+  });
+
+  it('retries a failed reply without duplicating the user message and replaces the error with results', async () => {
+    const user = renderChat('/design-preview/ai?scenario=error');
+    await user.click(
+      screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
+    );
+    await finishReply();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '답변을 준비하지 못했어요. 다시 시도해 주세요.',
+    );
+    const log = screen.getByRole('log');
+    expect(within(log).queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('찾고 있어요');
+    await finishReply();
+    expect(
+      within(log).getAllByText('개발자를 모집하는 팀 찾아줘'),
+    ).toHaveLength(1);
+    expect(
+      within(log).getByRole('link', { name: /그린웨이브/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+});

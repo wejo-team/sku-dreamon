@@ -1,0 +1,92 @@
+# 프론트엔드 개발 인계
+
+팀의 공식 화면·인터랙션 기준은 저장소의 `design-reference/`입니다. 제품 개발에서는 같은 브랜치·커밋의 레퍼런스와 명세를 참조합니다. 배포된 GPT Sites가 이후 변경되더라도 저장소에 반영되지 않은 내용을 자동으로 공식 기준으로 사용하지 않습니다.
+
+## 로컬 실행
+
+저장소 루트에서 시작합니다. Node·npm 버전은 [레퍼런스 package.json](../../design-reference/package.json)과 [.nvmrc](../../design-reference/.nvmrc)에 고정돼 있습니다.
+
+```bash
+cd design-reference
+nvm use
+npm ci
+npm run dev
+```
+
+[로컬 레퍼런스 열기](http://127.0.0.1:5174/)로 접속합니다. 개발 서버는 `127.0.0.1:5174`를 사용하고 포트가 사용 중이면 실패합니다. 다른 앱을 종료하거나 포트를 임의 변경하기 전에 현재 실행 중인 서버를 확인합니다. 백엔드·DB·환경 변수·API 키는 필요하지 않습니다.
+
+| 항목 | 값 |
+| --- | --- |
+| 아이디 | `dreamon-demo` |
+| 비밀번호 | `dreamon-demo` |
+| 시작 경로 | `/` → `/design-preview/login?returnTo=%2Fdesign-preview%2Fexplore` |
+| 탐색 | `/design-preview/explore` |
+| AI | `/design-preview/ai` |
+
+위 계정은 공개된 로컬 UI 확인용 문자열입니다. 실제 서비스 계정·비밀값이나 인증 구현이 아닙니다. 로그인 전에도 공개 공모전·팀을 볼 수 있고 사람 탐색·개인 화면에는 로그인 안내가 표시됩니다.
+
+모바일 화면으로 확인하며 별도 데스크톱 서비스 디자인은 제공하지 않습니다. 넓은 창에서는 최대 480px 화면이 가운데 배치됩니다. 브라우저의 모바일 에뮬레이션에서 폭 320px·390px·430px을 확인하고 입력창 키보드·안전 영역·바닥 메뉴는 실제 기기에서도 검증합니다.
+
+## 원본과 파일 역할
+
+| 위치 | 책임 |
+| --- | --- |
+| [라우트](../../design-reference/src/pages/DesignPreviewPage.tsx) | 화면 경로와 공통 Provider·Shell 연결 |
+| [화면 코드 폴더](../../design-reference/src/features/design-preview/PreviewShell.tsx) | 화면 구성·폼·카드·팝업·하단 탐색·상태 표현 |
+| [디자인 토큰](../../design-reference/src/features/design-preview/preview-tokens.css) | 공식 모바일 화면의 색상·간격·반경·그림자 |
+| [UI 컴포넌트](../../design-reference/src/components/ui/button.tsx) | shadcn/ui 기반 버튼·입력·스위치·Drawer·채팅 구성 요소 |
+| [예시 데이터](../../design-reference/src/features/design-preview/data.ts) | 화면 확인용 공모전·팀·사용자·지원 데이터와 로컬 타입 |
+| [메모리 상태](../../design-reference/src/features/design-preview/PreviewProvider.tsx) | 프로필·로그인 여부·지원·선발 등 현재 탭의 로컬 상태 |
+| [모의 대화 응답](../../design-reference/src/features/design-preview/chat-demo.ts) | 실제 모델 호출 없이 대화·추천 카드 동작 확인 |
+| [기능 명세](../specs/README.md) | 참여 조건·공개 범위·상태 전환과 제품 완료 조건 |
+| [제품 프론트 가이드](../development/frontend.md) | `frontend/`에 구현할 API·폼·상태·컴포넌트 책임 |
+
+레퍼런스의 `/design-preview` 경로·`Preview` 접두사는 개발용 파일 식별자이며 제품의 최종 URL·API 이름을 확정하지 않습니다. 화면에 “시안·개발 환경·미연동” 배너를 표시하지 않아도 아래 구현 범위는 유지합니다.
+
+## 데이터·인증·AI의 실제 범위
+
+- 데이터는 메모리에 있으므로 새로고침하면 초기 로그인·프로필·팀·지원 상태로 돌아갑니다. 다른 브라우저나 팀원의 화면과 공유되지 않습니다. 탭 이동 중 유지되는 상태도 영구 저장을 뜻하지 않습니다.
+- 로그인은 고정 문자열을 검사하며 계정 발급·비밀번호 해시·서버 세션을 제공하지 않습니다. 가입 화면의 입력은 인터랙션 확인용이고 새로 가입한 아이디·비밀번호로 실제 로그인할 수 있는 계정을 만들지 않습니다.
+- 지원·취소·선발·정원·팀 공간은 로컬 상태 전환을 확인합니다. 실제 여러 사용자 간 동시 요청, 서버 권한 검사·트랜잭션·DB 보존은 제품에서 구현해야 합니다.
+- AI는 예시 데이터에서 로컬 응답을 만드는 UI입니다. 제품 추천은 [LLM 기반](../specs/matching.md)으로 변경됐지만 모델·검색·실행·API·저장 등 내부 아키텍처는 TBD입니다. 로컬 응답 코드를 제품 추천 알고리즘으로 복사하지 않습니다.
+- 알림의 읽음 상태·탐색 결과도 로컬 상태입니다. 푸시·이메일·실시간 서버 이벤트를 제공하지 않습니다.
+- 공고·인물·팀·학사 선택지는 화면 확인용 데이터입니다. 학사 데이터의 운영 연도·정규 코드와 실제 공고의 출처·조건은 담당 명세대로 검증합니다. 레퍼런스의 외부 링크를 실제 공고가 존재하거나 접수 가능하다는 근거로 사용하지 않습니다.
+- 실제 제품 시연의 계정·데이터·AI 연동 안내는 [시연 기준](../specs/sprint-1.md#web-demo)을 따릅니다. 공식 디자인의 제품 문구와 모의 구현에 관한 개발자 설명을 구분합니다.
+
+## 제품 구현에 옮기는 순서
+
+1. [화면 목록](screens.md)에서 담당 경로·소스·명세 완료 조건을 확인하고 정상·빈 상태·오류·권한 상태를 직접 눌러 봅니다.
+2. [스타일](tokens.md)과 재사용 가능한 UI 구성 요소를 참고해 `frontend/`의 해당 기능에 구현합니다. `design-reference/`를 제품 앱의 런타임 의존성으로 연결하지 않습니다.
+3. 화면이 필요로 하는 실제 API 계약·서버 권한·저장을 개발 계획에서 정합니다. 메모리 Provider·예시 타입을 그대로 서버 계약으로 사용하지 않습니다.
+4. 로컬 상태 예시를 실제 요청의 대기·성공·실패·재시도에 연결하고 명세의 검증·권한을 적용합니다. 사용자 데이터가 없는 첫 사용 상태도 확인합니다.
+5. 해당 기능의 실제 구현·검증 결과를 PR에 연결합니다. 디자인 반영과 제품 완료를 구분해 명세 상태를 갱신합니다.
+
+기능 정책이 바뀌면 먼저 해당 명세에 반영하고 관련 화면·테스트·인계표를 같은 변경에서 맞춥니다. 중요한 TBD를 모의 데이터의 값으로 결정하지 않습니다. 남은 정책은 [화면별 미정 사항](screens.md#remaining-decisions)에서 찾습니다.
+
+<a id="verification-commands"></a>
+
+## 확인 명령
+
+`design-reference/`에서 실행합니다.
+
+```bash
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
+npm run build
+npm run preview
+```
+
+production build 미리보기는 [127.0.0.1:4174](http://127.0.0.1:4174/)입니다. 정적 빌드는 레퍼런스의 로컬 동작을 확인하는 용도이며 백엔드·LLM이 연결되지는 않습니다. 독립 검사와 기존 필수 검사의 관계는 [테스트·CI](../development/testing.md#design-reference)에서 설명합니다.
+
+브라우저 검사는 별도 터미널에서 실행 중인 5174 레퍼런스와 Playwright Chromium이 필요합니다. 처음에는 브라우저를 설치한 뒤 같은 `design-reference/` 폴더에서 실행합니다. 로컬의 별도 런타임을 사용하는 경우 `PLAYWRIGHT_MODULE`·`CHROMIUM_PATH`로 경로를 지정할 수 있습니다.
+
+```bash
+npx playwright install chromium
+npm run check:ui
+```
+
+## 최초 이관 근거
+
+2026-10-18 GPT Sites에 공개했던 버전 1의 소스를 출발점으로 저장소에 이관했습니다. 최초 배포 소스 커밋은 `1319517e3304bbbe2b6cb3756612abfeaf82c1e4`, Sites 버전 식별자는 `appgver_233bd63a72788191a54690cfb45350ab`입니다. 이관 이후의 공식 화면·명세 보완과 검증 이력은 현재 저장소의 PR·Git 커밋을 따릅니다. Sites 배포 메타데이터·토큰·별도 Git 이력은 이 앱의 실행에 필요하지 않습니다.

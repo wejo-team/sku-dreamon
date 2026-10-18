@@ -1,6 +1,6 @@
 # 테스트·CI 기준
 
-문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `main`에 병합된 뒤에는 전체를 검사합니다. 현재 실행 기반에 대한 검사가 있으며 도메인 기능과 E2E 검사는 기능이 생길 때 추가합니다. 앱 실행 명령은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다.
+문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `main`에 병합된 뒤에는 전체를 검사합니다. 현재 실행 기반에 대한 검사가 있으며 도메인 기능과 E2E 검사는 기능이 생길 때 추가합니다. 앱 실행 명령은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 공식 디자인 앱은 아래 [독립 검사](#design-reference)를 사용합니다.
 
 ## 의미 있는 테스트
 
@@ -62,6 +62,30 @@
 - `main`의 push는 변경 경로와 관계없이 프론트·백엔드·문서 전체 검사를 실행합니다. 수동 문서 workflow도 전체 문서 검사를 실행합니다.
 - PR의 새 실행은 오래된 실행을 취소합니다. `main` 검사는 커밋별 concurrency 그룹을 사용해 다른 병합의 검사와 취소·대기 슬롯을 공유하지 않습니다. PR의 대상 브랜치 변경도 다시 판별하도록 `edited` 이벤트를 처리하므로 제목·본문 수정 시에도 재검사합니다.
 - `main` 검사는 병합 **후** 검증입니다. 최신 기본 브랜치 반영과 PR 필수 검사 조건은 유지하며, 병합 직전 전체 조합 검증을 보장하는 Merge Queue는 이번 범위에 포함하지 않습니다.
+
+<a id="design-reference"></a>
+
+## 공식 디자인 앱의 독립 검사
+
+`design-reference/`는 `frontend/`의 제품 실행 기반과 별도인 [공식 모바일 디자인 참고 앱](../design/README.md)입니다. [design-reference.yml](../../.github/workflows/design-reference.yml)의 `Design reference` job은 모든 PR과 `main` push에서 다음 검사를 실행합니다. 기존 `Frontend`·`Backend`·`Validate docs` 필수 검사 이름과 분류기 동작을 변경하지 않습니다.
+
+```bash
+cd design-reference
+npm ci
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
+npm run build
+```
+
+설치에는 이 폴더의 `.nvmrc`·package manager 버전·lockfile을 사용하며 CI에서 의존성을 갱신하지 않습니다. 모의 UI 검증은 제품 인증·API·LLM·동시성 검증의 완료 근거로 사용하지 않습니다.
+
+이어서 CI는 Playwright Chromium과 필요한 시스템 의존성을 설치하고 5174 개발 서버를 실행한 뒤 `npm run check:ui`로 모바일 브라우저 흐름을 검사합니다. 검사가 끝나면 해당 서버를 종료합니다.
+
+실행 중인 5174 레퍼런스를 대상으로 하는 브라우저 검사는 `design-reference/`에서 `npx playwright install chromium` 후 `npm run check:ui`로 실행합니다. 정상·권한 제한·공개 동의·선발·취소·좁은 화면 등의 확인 결과를 해당 PR에 기록합니다. 실행 환경과 자세한 범위는 [디자인 개발 인계](../design/handoff.md)를 따릅니다.
+
+기존 변경 영향 분류기에서 `design-reference/`와 새 workflow는 아직 별도 영역으로 분류하지 않으므로 보수적으로 기존 앱·문서 전체 검사도 선택됩니다. 별도 `Design reference` job을 추가한 것이 GitHub 보호 규칙의 필수 검사를 새로 설정한 것은 아닙니다.
 
 ## PR 완료 확인
 

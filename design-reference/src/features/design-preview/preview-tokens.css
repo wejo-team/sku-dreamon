@@ -1,0 +1,61 @@
+/* shadcn/ui의 중립 표면과 명확한 상태 표현을 따르는 모바일 시안. */
+.dreamon-mobile-viewport,
+.dreamon-preview {
+  --background: #ffffff;
+  --foreground: #18181b;
+  --card: #ffffff;
+  --primary: #18181b;
+  --primary-foreground: #ffffff;
+  --muted: #f4f4f5;
+  --muted-foreground: #62626c;
+  --accent: #f4f4f5;
+  --accent-foreground: #27272a;
+  --border: #e4e4e7;
+  --ring: #71717a;
+  --input: #8e8e98;
+  --primary-hover: #303036;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #52525b;
+  --card-foreground: var(--foreground);
+  --destructive: var(--coral-ink);
+  --surface-control: var(--card);
+  --surface-chrome: var(--card);
+  --surface-canvas: #f1f1f3;
+  --radius: 0.625rem;
+  --surface-sunken: #e5e5e9;
+  --leaf-soft: #f0fdf4;
+  --leaf-ink: #166534;
+  --warning-soft: #fffbeb;
+  --warning-ink: #92400e;
+  --coral-soft: #fef2f2;
+  --coral-ink: #b91c1c;
+  --card-shadow:
+    0 2px 4px -1px color-mix(in srgb, var(--foreground) 8%, transparent),
+    0 8px 22px -7px color-mix(in srgb, var(--foreground) 20%, transparent);
+  --card-hover-shadow:
+    0 3px 6px -2px color-mix(in srgb, var(--foreground) 10%, transparent),
+    0 12px 28px -8px color-mix(in srgb, var(--foreground) 24%, transparent);
+  --panel-shadow: 0 4px 14px -6px
+    color-mix(in srgb, var(--foreground) 16%, transparent);
+  --raised-shadow: 0 6px 18px
+    color-mix(in srgb, var(--foreground) 8%, transparent);
+  --action-shadow: none;
+  --overlay: color-mix(in srgb, var(--foreground) 40%, transparent);
+  --display-font: 'DreamOn Noto', 'Noto Sans KR', sans-serif;
+  --preview-radius-control: 8px;
+  --preview-radius-button: 8px;
+  --preview-radius-card: 12px;
+  --preview-radius-panel: 12px;
+  --preview-page-gutter: 20px;
+  --preview-section-gap: 20px;
+  --preview-card-padding: 20px;
+  --preview-title-size: 26px;
+}
+
+@container dreamon (max-width: 699px) {
+  .dreamon-preview {
+    --preview-page-gutter: 20px;
+    --preview-card-padding: 16px;
+    --preview-title-size: 26px;
+  }
+}
