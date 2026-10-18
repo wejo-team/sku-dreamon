@@ -212,6 +212,23 @@
   background: var(--ai-soft);
   border-color: transparent;
 }
+.dreamon-preview .preview-explore .preview-search {
+  gap: 4px;
+  padding: 4px 4px 4px 12px;
+}
+.dreamon-preview .preview-explore .preview-search > svg {
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.dreamon-preview .preview-explore .preview-search input {
+  flex: 1;
+}
+.dreamon-preview .preview-explore .preview-search button {
+  margin-right: 0;
+}
+.dreamon-preview .preview-explore .preview-ai-shortcut svg {
+  color: inherit;
+}
 .dreamon-preview .preview-filter-trigger[data-active='true'] {
   background: var(--accent);
   border-color: var(--primary);
@@ -296,6 +313,9 @@
   font-weight: 400;
   line-height: 24px;
   letter-spacing: inherit;
+}
+.dreamon-preview .preview-explore .preview-results-heading {
+  gap: 8px;
 }
 .dreamon-preview .preview-result-count {
   margin-left: auto;
@@ -841,8 +861,18 @@
   align-items: center;
   gap: 12px;
 }
-.dreamon-preview .workspace-heading .preview-page-intro {
-  margin: 0;
+.dreamon-preview .workspace-section-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.dreamon-preview .workspace-section-summary h2 {
+  font-size: 20px;
+  line-height: 1.4;
+}
+.dreamon-preview .workspace-section-summary > span {
+  font-size: 14px;
 }
 .dreamon-preview .workspace-pending {
   color: var(--accent-foreground);
@@ -927,6 +957,31 @@
 }
 .dreamon-preview .preview-profile-summary > .preview-row {
   gap: 12px;
+}
+.dreamon-preview .preview-profile-heading,
+.dreamon-preview .preview-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.dreamon-preview .preview-profile-heading {
+  justify-content: space-between;
+}
+.dreamon-preview .preview-profile-identity > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dreamon-preview .preview-profile-edit {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0;
+  color: var(--accent-foreground);
+}
+.dreamon-preview .preview-profile-edit svg {
+  width: 20px;
+  height: 20px;
 }
 .dreamon-preview .preview-profile-summary .preview-avatar {
   border: 0;
@@ -1610,24 +1665,6 @@
   min-width: 0;
   width: 100%;
 }
-.dreamon-preview .preview-ai-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-  gap: 12px;
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-chrome);
-}
-.dreamon-preview .preview-ai-toolbar h1 {
-  font-size: 20px;
-}
-.dreamon-preview .preview-ai-toolbar button {
-  min-height: 44px;
-  padding-inline: 12px;
-  font-size: 13px;
-}
 .dreamon-preview .preview-ai-conversation {
   flex: 1;
   min-height: 0;
@@ -1879,10 +1916,6 @@
   padding: 0 8px 8px 16px;
   gap: 8px;
 }
-.dreamon-preview .preview-ai-prompt-toolbar > span {
-  font-size: 11px;
-  font-weight: 400;
-}
 .dreamon-preview .preview-ai-prompt-toolbar button {
   flex-shrink: 0;
   width: 44px;
@@ -1894,9 +1927,6 @@
 @container ai-chat-shell (max-height: 600px) {
   .dreamon-preview .preview-header {
     display: none;
-  }
-  .dreamon-preview .preview-ai-toolbar {
-    padding-block: 6px;
   }
   .dreamon-preview .preview-ai-prompt textarea {
     min-height: 48px;

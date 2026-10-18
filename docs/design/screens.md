@@ -2,6 +2,8 @@
 
 경로의 공통 접두사는 `/design-preview`이며 로컬 기준 주소는 `http://127.0.0.1:5174`입니다. 경로의 모양이 제품의 최종 URL을 확정하지는 않습니다. 전체 화면 연결은 [라우트 원본](../../design-reference/src/pages/DesignPreviewPage.tsx), 공통 상단·하단 탐색은 [PreviewShell](../../design-reference/src/features/design-preview/PreviewShell.tsx)에서 확인합니다.
 
+탐색·AI·워크스페이스·내 프로필 보기의 루트 제목은 하단 탐색과 중복되므로 `h1.sr-only`로 유지하고 화면 공간은 사용하지 않습니다. 공모전·팀·지원자 상세 제목과 `프로필 수정` 제목은 표시합니다. 로그인 안내와 필요한 복귀 링크도 유지합니다.
+
 ## 화면별 참조
 
 | 화면·경로 | 코드 원본 | 구현할 정책·완료 조건 |
@@ -12,7 +14,7 @@
 | 팀 탐색 `/explore?tab=teams` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [팀 AC-01](../specs/team-recruitment.md#acceptance-criteria): 모집 역할·정원·상태·공모전별 탐색 |
 | 공개 모집글 `/teams/:teamId` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-03~07·15·18·26](../specs/team-recruitment.md#acceptance-criteria): 지원·필수 프로필 보완·메시지·마감·중복·취소 후 재지원 |
 | 팀 만들기 `/teams/new` | [CreateTeamPage](../../design-reference/src/features/design-preview/CreateTeamPage.tsx), [ContestPicker](../../design-reference/src/features/design-preview/ContestPicker.tsx) | [팀 AC-02·13·16·22~24](../specs/team-recruitment.md#acceptance-criteria): 공모전 검색 선택, 목표·역할·팀장 포함 정원·마감·공식 인원 범위·개인 전용 준비 팀 |
-| 워크스페이스 `/workspace` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access): 본인이 팀장이거나 현재 확정 팀원인 팀과 빈 상태. 제목 옆 내 지원·팀 만들기 아이콘, 팀 카드 전체를 눌러 팀 공간 이동 |
+| 워크스페이스 `/workspace` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access): 본인이 팀장이거나 현재 확정 팀원인 팀과 빈 상태. 내 팀·내 지원 콘텐츠 제목과 개수, 작업 아이콘을 한 줄에 배치하고 팀 카드 전체를 눌러 팀 공간 이동 |
 | 내 지원 `/workspace?view=applications` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-04·17~18](../specs/team-recruitment.md#acceptance-criteria): 현재 지원 상태·선발 후 취소·자리 반환·재지원 |
 | 팀 공간 `/teams/:teamId?view=space` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-09·13·20·25](../specs/team-recruitment.md#acceptance-criteria): 팀장·현재 팀원만 접근, 확정 인원·남은 자리·공고·모집 상태 |
 | 지원자 관리 `/teams/:teamId?view=applicants` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-05·14·16](../specs/team-recruitment.md#acceptance-criteria): 해당 팀장만 실제 지원자 검토·선발. 선발 성공 즉시 팀원 확정 |
@@ -32,15 +34,16 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 | --- | --- |
 | 탐색 → 상세 → 복귀 | 검색·선택한 탭·필터, 결과 없음, 공고·팀이 없는 주소. 커서 조회·무한 스크롤·이전 스크롤 복원은 현재 제품 계약으로 확정하지 않음 |
 | 탐색 필터·정렬·초기화 | 필터 아이콘 → Drawer의 분야/역할 초안 선택 → 적용 시 URL 반영. 취소·Escape·바깥 닫기 시 미적용 선택 제거, 다시 열면 적용값 복원. 팀의 모집중만 조건, 정렬만 변경했을 때도 초기화 아이콘 표시·기본 조건 복원 |
-| 탐색 → AI | 공모전·팀 탐색 제목 옆 AI 아이콘으로 이동. 큰 추천 배너 없이 44px 조작 영역·접근성 이름 제공 |
-| 워크스페이스 → 내 지원·팀 만들기 | 제목 옆 목록 아이콘의 접근성 이름·title은 `내 지원`, 더하기 아이콘은 `팀 만들기`. 각각 44px 조작 영역을 유지하고 팀 만들기는 녹색 주요 행동으로 표시. 내 지원 화면에서는 해당 아이콘의 `aria-current`와 녹색 선택 상태 확인 |
+| 탐색 → AI | 공모전·팀 탭의 검색창 오른쪽 안에 있는 AI 아이콘으로 이동. 사람 탭에는 표시하지 않음. AI 진입과 검색어 지우기는 각각 독립된 44px 조작 영역·접근성 이름 제공 |
+| 워크스페이스 → 내 지원·팀 만들기 | 내 팀·내 지원 콘텐츠 제목과 개수 옆에 작업 아이콘 배치. 목록 아이콘의 접근성 이름·title은 `내 지원`, 더하기 아이콘은 `팀 만들기`. 각각 44px 조작 영역을 유지하고 팀 만들기는 녹색 주요 행동으로 표시. 내 지원 화면에서는 해당 아이콘의 `aria-current`·녹색 선택 상태와 `내 팀으로` 복귀 링크 확인 |
 | 워크스페이스 → 팀 공간 | 카드 전체가 링크이며 접근성 이름은 팀 이름과 `팀 공간으로`를 포함. 카드 안 이동 문구는 생략하고 내 역할·확정 인원 요약과 같은 행의 우하단 화살표로 이동 가능성을 표시. 공개 모집글과 선발 이후의 명시적 `팀 공간으로` 버튼은 유지 |
 | 팀 만들기 → 공모전 선택 | Drawer 열기·검색·선택·취소·닫기, 결과가 많을 때 추가 표시, 팀장 포함 총인원 안내와 공식 인원 범위 오류 |
-| 프로필 수정 → 저장 | 캐릭터 팝업 선택·취소·프로필 저장, 기본 스콘, 공개 결과·팀 공간에서 같은 이미지 표시, 학사 상위 선택 변경, 경험 미입력/경험 없음 구분, 공개 동의 기본값, URL 삭제·무효화 후 공개 해제, 취소 시 미저장 값 제거 |
+| 프로필 수정 → 저장 | 첫 기본 정보 카드의 이름·아바타 옆 수정 아이콘으로 진입. 접근성 이름·title은 `프로필 수정`, 조작 영역은 44px이며 수정 화면 제목은 유지. 캐릭터 팝업 선택·취소·프로필 저장, 기본 스콘, 공개 결과·팀 공간에서 같은 이미지 표시, 학사 상위 선택 변경, 경험 미입력/경험 없음 구분, 공개 동의 기본값, URL 삭제·무효화 후 공개 해제, 취소 시 미저장 값 제거 |
 | 지원 → 내 지원 | 로그인 안내, 필수 프로필 보완 후 원래 흐름 복귀, 선택 메시지, 중복·마감·정원 부족, 접수 후 현재 지원 표시 |
 | 팀장 검토 → 선발 | 해당 팀장 권한, 현재 공개 프로필, 선발 즉시 멤버 반영·남은 자리 감소, 마지막 자리·공모전별 소속 제한 |
 | 선발 후 취소 → 재지원 | 팀 공간 접근 종료·자리 반환, 과거 선발 복원 없이 새 지원, 현재 모집 종료·정원 조건 재확인 |
 | AI → 추천 카드 → 상세 | 준비 중·중단·오류·재시도·결과 없음, 공개 정보 제한, 다시 돌아왔을 때 대화 유지. 이전 카드 표시·복사에도 현재 공개 범위·모집 상태·마감·정원 반영, 입력창과 하단 영역의 겹침 |
+| AI → 새 대화 | 입력창 왼쪽 도구 아이콘으로 시작. 접근성 이름·title은 `새 대화`, `type="button"`으로 전송과 분리하며 대화·입력 초안 초기화 동작 유지 |
 | 알림 → 관련 화면 | 알림함 열기만으로 읽음 처리하지 않음, 개별/모두 읽음, 빈 상태, 비로그인에 개인 항목 비노출. 읽음 실패 시 개수와 미읽음 상태 유지, 같은 동작 재시도 후 관련 화면 이동 |
 
 반응형 확인은 320px·390px·430px 모바일 폭을 기준으로 합니다. 팝업 포커스·닫기·키보드, 긴 제목·설명, 큰 글꼴, 안전 영역과 세로 스크롤을 함께 검토합니다. 테스트 결과·스크린샷은 검증한 커밋과 함께 PR에 연결합니다.

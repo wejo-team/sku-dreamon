@@ -334,16 +334,7 @@ export function AiChatPage() {
   const last = messages.at(-1);
   return (
     <section className="preview-ai" aria-label="AI 탐색 대화">
-      <header className="preview-ai-toolbar">
-        <h1>AI</h1>
-        <Button
-          variant="ghost"
-          onClick={clear}
-          disabled={!messages.length && !draft}
-        >
-          <SquarePen size={17} aria-hidden="true" />새 대화
-        </Button>
-      </header>
+      <h1 className="sr-only">AI</h1>
       <MessageScrollerProvider
         key={messages[0]?.id ?? 'empty'}
         // Replies arrive at once in this prototype; keep the question in view.
@@ -530,7 +521,17 @@ export function AiChatPage() {
             align="block-end"
             className="preview-ai-prompt-toolbar"
           >
-            <span>공모전 · 팀 · 사람 탐색</span>
+            <InputGroupButton
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="새 대화"
+              title="새 대화"
+              onClick={clear}
+              disabled={!messages.length && !draft}
+            >
+              <SquarePen size={20} aria-hidden="true" />
+            </InputGroupButton>
             {pending ? (
               <InputGroupButton
                 type="button"

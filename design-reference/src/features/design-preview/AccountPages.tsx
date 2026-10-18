@@ -1,6 +1,13 @@
 import { useId, useState, type ChangeEvent } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowRight, Check, Eye, EyeOff, UserRound } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  Eye,
+  EyeOff,
+  SquarePen,
+  UserRound,
+} from 'lucide-react';
 import {
   Controller,
   useForm,
@@ -312,11 +319,25 @@ function AvailabilityField({
   );
 }
 
-function LoginGate({ returnTo, title }: { returnTo: string; title: string }) {
+function LoginGate({
+  returnTo,
+  title,
+  rootPage = false,
+}: {
+  returnTo: string;
+  title: string;
+  rootPage?: boolean;
+}) {
   return (
     <div className="preview-detail preview-stack">
-      <BackLink />
-      <PageIntro title={title} />
+      {rootPage ? (
+        <h1 className="sr-only">{title}</h1>
+      ) : (
+        <>
+          <BackLink />
+          <PageIntro title={title} />
+        </>
+      )}
       <div className="preview-panel preview-stack">
         <UserRound size={28} aria-hidden="true" />
         <p>로그인하고 계속해 주세요.</p>
@@ -665,28 +686,22 @@ export function ProfilePage() {
   );
   const [saved, setSaved] = useState(false);
   if (!signedIn)
-    return <LoginGate returnTo={previewPath('/profile')} title="내 프로필" />;
+    return (
+      <LoginGate
+        returnTo={previewPath('/profile')}
+        title="내 프로필"
+        rootPage
+      />
+    );
   return (
     <div
       className={`preview-detail preview-stack preview-own-profile${editing ? ' preview-account-page' : ''}`}
     >
-      <PageIntro
-        title="내 프로필"
-        action={
-          !editing && (
-            <Button
-              variant="outline"
-              className="preview-button"
-              onClick={() => {
-                setSaved(false);
-                setEditing(true);
-              }}
-            >
-              프로필 수정
-            </Button>
-          )
-        }
-      />
+      {editing ? (
+        <PageIntro title="프로필 수정" />
+      ) : (
+        <h1 className="sr-only">내 프로필</h1>
+      )}
       {saved && (
         <Alert role="status" className="preview-notice">
           <Check size={18} aria-hidden="true" />
@@ -711,16 +726,29 @@ export function ProfilePage() {
             className="preview-panel preview-stack preview-profile-summary"
             aria-label="내 기본 정보"
           >
-            <div className="preview-row">
-              <Avatar name={profile.name} avatarId={profile.avatarId} />
-              <div>
-                <h2>{profile.name}</h2>
-                <Badge>교내 미인증</Badge>
-                <p className="preview-muted">
-                  학교 인증은 아직 제공하지 않아요.
-                </p>
+            <div className="preview-row preview-profile-heading">
+              <div className="preview-profile-identity">
+                <Avatar name={profile.name} avatarId={profile.avatarId} />
+                <div>
+                  <h2>{profile.name}</h2>
+                  <Badge>교내 미인증</Badge>
+                </div>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="preview-profile-edit"
+                aria-label="프로필 수정"
+                title="프로필 수정"
+                onClick={() => {
+                  setSaved(false);
+                  setEditing(true);
+                }}
+              >
+                <SquarePen size={20} aria-hidden="true" />
+              </Button>
             </div>
+            <p className="preview-muted">학교 인증은 아직 제공하지 않아요.</p>
             <div className="dreamon-privacy-summary">
               <div className="preview-row">
                 <h3 className="preview-section-title preview-info-label">

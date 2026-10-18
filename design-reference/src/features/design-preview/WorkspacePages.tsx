@@ -190,7 +190,7 @@ export function WorkspacePage() {
   if (!signedIn)
     return (
       <div className="workspace-page preview-stack">
-        <PageIntro title="워크스페이스" />
+        <h1 className="sr-only">워크스페이스</h1>
         <LoginPrompt
           from={showApplications ? applicationsPath : workspacePath}
         />
@@ -198,8 +198,24 @@ export function WorkspacePage() {
     );
   return (
     <div className="workspace-page preview-stack">
+      <h1 className="sr-only">워크스페이스</h1>
       <header className="workspace-heading">
-        <PageIntro title="워크스페이스" />
+        <div className="workspace-section-summary">
+          <h2
+            id={
+              showApplications
+                ? 'workspace-applications-title'
+                : 'workspace-teams-title'
+            }
+          >
+            {showApplications ? '내 지원' : '내 팀'}
+          </h2>
+          <span className="preview-muted">
+            {showApplications
+              ? `${applications.length}건`
+              : `${myTeams.length}개`}
+          </span>
+        </div>
         <nav className="workspace-actions" aria-label="워크스페이스 작업">
           <Button asChild variant="outline" className="workspace-action">
             <Link
@@ -228,10 +244,6 @@ export function WorkspacePage() {
           aria-labelledby="workspace-applications-title"
         >
           <BackLink to={workspacePath}>내 팀으로</BackLink>
-          <div className="preview-section-title">
-            <h2 id="workspace-applications-title">내 지원</h2>
-            <span className="preview-muted">{applications.length}건</span>
-          </div>
           {!applications.length ? (
             <EmptyState
               title="아직 지원한 팀이 없어요"
@@ -329,10 +341,6 @@ export function WorkspacePage() {
           className="preview-stack"
           aria-labelledby="workspace-teams-title"
         >
-          <div className="preview-section-title">
-            <h2 id="workspace-teams-title">내 팀</h2>
-            <span className="preview-muted">{myTeams.length}개</span>
-          </div>
           {!myTeams.length ? (
             <EmptyState
               title="함께할 첫 팀을 찾아보세요"

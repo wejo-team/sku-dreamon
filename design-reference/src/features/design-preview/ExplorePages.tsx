@@ -1,8 +1,8 @@
 import {
-  ArrowRight,
   CalendarDays,
   ChevronRight,
   Search,
+  ArrowRight,
   Sparkles,
   RotateCcw,
   Users,
@@ -93,26 +93,7 @@ export function ExplorePage() {
   );
   return (
     <section className="preview-explore" aria-label="탐색">
-      <PageIntro
-        title="탐색"
-        action={
-          tab !== 'people' && (
-            <Button
-              asChild
-              variant="outline"
-              className="preview-compact-action preview-ai-shortcut"
-            >
-              <Link
-                to={previewPath('/ai')}
-                aria-label="AI에게 추천 받기"
-                title="AI에게 추천 받기"
-              >
-                <Sparkles size={20} aria-hidden="true" />
-              </Link>
-            </Button>
-          )
-        }
-      />
+      <h1 className="sr-only">탐색</h1>
       <nav className="preview-tabs" aria-label="탐색 종류">
         {[
           ['contests', '공모전'],
@@ -151,6 +132,21 @@ export function ExplorePage() {
             onClick={() => update('q', '')}
           >
             <X size={18} aria-hidden="true" />
+          </Button>
+        )}
+        {tab !== 'people' && (
+          <Button
+            asChild
+            variant="outline"
+            className="preview-compact-action preview-ai-shortcut"
+          >
+            <Link
+              to={previewPath('/ai')}
+              aria-label="AI에게 추천 받기"
+              title="AI에게 추천 받기"
+            >
+              <Sparkles size={20} aria-hidden="true" />
+            </Link>
           </Button>
         )}
       </div>
@@ -221,7 +217,7 @@ export function ExplorePage() {
         {tab === 'teams' && (
           <Link className="preview-text-link" to={previewPath('/teams/new')}>
             팀 만들기
-            <ArrowRight size={16} />
+            <ArrowRight size={16} aria-hidden="true" />
           </Link>
         )}
       </div>
