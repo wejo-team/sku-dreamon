@@ -26,7 +26,7 @@
 .dreamon-preview .preview-info-value {
   min-width: 0;
   margin: 0;
-  color: var(--foreground);
+  color: var(--accent-foreground);
   font-size: 16px;
   font-weight: 600;
   line-height: 1.5;

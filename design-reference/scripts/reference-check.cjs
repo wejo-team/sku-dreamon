@@ -41,8 +41,10 @@ async function login(page, returnTo = '/design-preview/explore') {
   await page.getByLabel('비밀번호', { exact: true }).fill('dreamon-demo');
   await page.getByRole('button', { name: '로그인', exact: true }).click();
   await page.waitForURL(`**${returnTo}`);
+  await page.mouse.move(0, 0);
 }
 async function navigate(page, route) {
+  await page.mouse.move(0, 0);
   // Browser history navigation preserves the mounted session, like an in-app Link.
   await page.evaluate((route) => {
     history.pushState({}, '', route);
