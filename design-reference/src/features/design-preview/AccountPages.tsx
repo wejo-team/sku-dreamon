@@ -1012,7 +1012,14 @@ export function LoginPage() {
             공모전과 사람, 다음 도전을 연결해요.
           </p>
         </div>
-        <p className="dreamon-login-story-signature">서경드림온</p>
+        <p className="dreamon-login-story-signature">
+          <img
+            src="/brand/dreamon-wordmark.svg"
+            alt="서경드림온"
+            width={180}
+            height={42}
+          />
+        </p>
       </section>
       <section className="dreamon-login-content" aria-labelledby="login-title">
         <header className="dreamon-login-heading">

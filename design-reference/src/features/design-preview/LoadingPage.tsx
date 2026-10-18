@@ -25,7 +25,15 @@ export function LoadingPage() {
         <span className="service-loading-mark">
           <img src="/brand/dreamon-logo.png" alt="" width={96} height={96} />
         </span>
-        <h1>서경드림온</h1>
+        <h1>
+          <img
+            className="service-loading-wordmark"
+            src="/brand/dreamon-wordmark.svg"
+            alt="서경드림온"
+            width={240}
+            height={56}
+          />
+        </h1>
       </div>
       <div
         role="status"

@@ -112,7 +112,13 @@ export function PreviewShell() {
                 height={40}
               />
             </span>
-            서경드림온
+            <img
+              className="preview-wordmark"
+              src="/brand/dreamon-wordmark.svg"
+              alt=""
+              width={140}
+              height={33}
+            />
           </Link>
           {!isAuth && (
             <nav className="preview-desktop-nav" aria-label="주 메뉴">

@@ -52,6 +52,8 @@
 
 [폰트 파일](../../design-reference/public/fonts/NotoSansKR.ttf)과 [OFL 라이선스](../../design-reference/public/fonts/OFL.txt), 카드의 공모전 커버·로고·파워프렌즈 캐릭터는 레퍼런스의 로컬 자산입니다. 원본 및 생성 이미지의 출처는 [자산 문서](assets.md)를 따릅니다. [PreviewUi](../../design-reference/src/features/design-preview/PreviewUi.tsx)의 사용처를 확인하고 파일·라이선스를 함께 유지합니다. 실제 인물 사진·공고 포스터로 오인해 서비스 데이터의 출처로 사용하지 않습니다.
 
+서비스명 워드마크는 [전용 SVG](../../design-reference/public/brand/dreamon-wordmark.svg)를 사용합니다. 둥근 한글 획과 `온`의 전원 형태, 짙은 녹색·기본 녹색 두 톤을 유지하며 폰트 텍스트로 대체하거나 이미지를 가로로 늘리지 않습니다. 모바일 헤더의 이미지 너비는 140px이고 링크의 터치 높이는 44px 이상입니다.
+
 ## shadcn/ui 사용 맵
 
 | 상황 | 참고 컴포넌트·원본 |

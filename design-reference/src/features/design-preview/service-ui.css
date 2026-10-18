@@ -60,11 +60,17 @@
   height: 88px;
 }
 .dreamon-preview .preview-brand {
-  font-family: var(--display-font);
-  font-size: 17px;
-  letter-spacing: -0.025em;
   min-height: 44px;
-  font-weight: 650;
+  flex-shrink: 0;
+}
+.dreamon-preview .preview-wordmark {
+  display: block;
+  width: 140px;
+  height: auto;
+}
+.dreamon-preview .preview-auth-home {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .dreamon-preview .preview-brand-mark {
   width: 40px;
@@ -1181,8 +1187,18 @@
   background: transparent;
 }
 .dreamon-preview.service-loading h1 {
-  font-size: 32px;
-  font-weight: 700;
+  margin: 0;
+}
+.service-loading-wordmark {
+  display: block;
+  width: 240px;
+  max-width: calc(100vw - 40px);
+  height: auto;
+}
+.dreamon-preview .dreamon-login-story-signature img {
+  display: block;
+  width: 180px;
+  height: auto;
 }
 .service-loading-status {
   display: flex;
