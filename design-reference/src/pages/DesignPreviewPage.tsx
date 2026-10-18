@@ -31,6 +31,7 @@ import {
 } from '@/features/design-preview/AiChatPage';
 import '@/features/design-preview/design-preview.css';
 import '@/features/design-preview/service-ui.css';
+import '@/features/design-preview/information-hierarchy.css';
 import '@/features/design-preview/mobile-preview.css';
 
 export function DesignPreviewPage() {

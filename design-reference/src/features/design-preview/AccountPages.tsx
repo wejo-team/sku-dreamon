@@ -723,7 +723,9 @@ export function ProfilePage() {
             </div>
             <div className="dreamon-privacy-summary">
               <div className="preview-row">
-                <h3 className="preview-section-title">사람 탐색에 공개</h3>
+                <h3 className="preview-section-title preview-info-label">
+                  사람 탐색에 공개
+                </h3>
                 <Badge>
                   {profile.visibility.discoverable ? '공개 중' : '비공개'}
                 </Badge>
@@ -735,7 +737,9 @@ export function ProfilePage() {
               </Button>
             </div>
             <div>
-              <h3 className="preview-section-title">희망 역할</h3>
+              <h3 className="preview-section-title preview-info-label">
+                희망 역할
+              </h3>
               <div className="preview-row">
                 {profile.roles.map((role) => (
                   <Badge key={role}>{role}</Badge>
@@ -744,24 +748,30 @@ export function ProfilePage() {
             </div>
             <div>
               <div className="preview-row">
-                <h3 className="preview-section-title">관심 분야</h3>
+                <h3 className="preview-section-title preview-info-label">
+                  관심 분야
+                </h3>
                 <Badge>
                   {profile.visibility.interests ? '공개' : '비공개'}
                 </Badge>
               </div>
-              <p>{profile.interests.join(' · ')}</p>
+              <p className="preview-info-value">
+                {profile.interests.join(' · ')}
+              </p>
               {profile.interests.includes('기타') && profile.interestOther && (
                 <p className="preview-muted">{profile.interestOther}</p>
               )}
             </div>
             <div>
               <div className="preview-row">
-                <h3 className="preview-section-title">관련 경험</h3>
+                <h3 className="preview-section-title preview-info-label">
+                  관련 경험
+                </h3>
                 <Badge>
                   {profile.visibility.experience ? '공개' : '비공개'}
                 </Badge>
               </div>
-              <p>
+              <p className="preview-info-copy">
                 {profile.experienceState === 'none'
                   ? '관련 경험 없음'
                   : profile.experience || '아직 경험을 입력하지 않았어요.'}
@@ -769,10 +779,14 @@ export function ProfilePage() {
             </div>
             <div>
               <div className="preview-row">
-                <h3 className="preview-section-title">자기소개</h3>
+                <h3 className="preview-section-title preview-info-label">
+                  자기소개
+                </h3>
                 <Badge>{profile.visibility.intro ? '공개' : '비공개'}</Badge>
               </div>
-              <p>{profile.intro || '아직 자기소개를 작성하지 않았어요.'}</p>
+              <p className="preview-info-copy">
+                {profile.intro || '아직 자기소개를 작성하지 않았어요.'}
+              </p>
             </div>
           </section>
           <section className="preview-panel preview-stack">
@@ -789,8 +803,14 @@ export function ProfilePage() {
                 .join(' · ') || '등록한 학사 정보가 없어요.'}
             </p>
             <div>
-              <h3 className="preview-section-title">보유 역량</h3>
-              <p>
+              <h3 className="preview-section-title preview-info-label">
+                보유 역량
+              </h3>
+              <p
+                className={
+                  profile.skills.length ? 'preview-info-value' : 'preview-muted'
+                }
+              >
                 {profile.skills.join(' · ') || '아직 역량을 선택하지 않았어요.'}
               </p>
               {profile.skills.includes('기타') && profile.skillOther && (
@@ -801,7 +821,13 @@ export function ProfilePage() {
           <div className="preview-detail-grid">
             <section className="preview-panel preview-stack">
               <h2 className="preview-section-title">활동 가능 시간</h2>
-              <p>{profile.availability || '아직 시간을 선택하지 않았어요.'}</p>
+              <p
+                className={
+                  profile.availability ? 'preview-info-value' : 'preview-muted'
+                }
+              >
+                {profile.availability || '아직 시간을 선택하지 않았어요.'}
+              </p>
               <p className="preview-muted">나만 보기</p>
             </section>
             <section className="preview-panel preview-stack">
@@ -883,7 +909,9 @@ export function PublicProfilePage() {
             </div>
           </div>
           <div>
-            <h3 className="preview-section-title">희망 역할</h3>
+            <h3 className="preview-section-title preview-info-label">
+              희망 역할
+            </h3>
             <div className="preview-row">
               {person.roles.map((role) => (
                 <Badge key={role}>{role}</Badge>
@@ -892,7 +920,9 @@ export function PublicProfilePage() {
           </div>
           {person.interests && (
             <div>
-              <h3 className="preview-section-title">관심 분야</h3>
+              <h3 className="preview-section-title preview-info-label">
+                관심 분야
+              </h3>
               <div className="preview-row">
                 {person.interests.map((interest) => (
                   <Badge key={interest}>{interest}</Badge>
@@ -902,14 +932,18 @@ export function PublicProfilePage() {
           )}
           {person.experience && (
             <div>
-              <h3 className="preview-section-title">관련 경험</h3>
-              <p>{person.experience}</p>
+              <h3 className="preview-section-title preview-info-label">
+                관련 경험
+              </h3>
+              <p className="preview-info-copy">{person.experience}</p>
             </div>
           )}
           {person.intro && (
             <div>
-              <h3 className="preview-section-title">자기소개</h3>
-              <p>{person.intro}</p>
+              <h3 className="preview-section-title preview-info-label">
+                자기소개
+              </h3>
+              <p className="preview-info-copy">{person.intro}</p>
             </div>
           )}
         </section>

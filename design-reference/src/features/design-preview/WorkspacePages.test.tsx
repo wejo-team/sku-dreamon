@@ -171,7 +171,7 @@ describe('team application', () => {
     expect(
       screen.getByRole('heading', { name: '확정된 팀원' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('내 역할: 팀장')).toBeInTheDocument();
+    expect(screen.getByText('내 역할').parentElement).toHaveTextContent('팀장');
   });
   it('preserves filtered return destinations and rejects external ones', () => {
     const from = previewPath('/explore?tab=teams&role=디자인&q=캠퍼스');
@@ -280,6 +280,14 @@ describe('applicant review', () => {
     const user = userEvent.setup();
     renderPage(previewPath('/applicants/app-seoyeon'));
     await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    const profile = within(screen.getByRole('region', { name: '김서연' }));
+    const applicantProfile = initialApplicants[0]!.profile!;
+    expect(profile.getByText('경험')).toBeInTheDocument();
+    expect(profile.getByText(applicantProfile.experience)).toBeInTheDocument();
+    expect(profile.getByText(applicantProfile.intro)).toBeInTheDocument();
+    expect(
+      profile.getByRole('link', { name: '김서연의 프로젝트' }),
+    ).toBeInTheDocument();
     await user.click(
       screen.getByRole('button', { name: '이 지원자 선발하기' }),
     );
@@ -292,7 +300,7 @@ describe('applicant review', () => {
       screen.getByText('김서연 님이 팀원으로 확정됐어요'),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: '팀 공간으로' }));
-    expect(screen.getByText('확정 3 / 4명')).toBeInTheDocument();
+    expect(screen.getByText('확정').parentElement).toHaveTextContent('3 / 4명');
     expect(
       within(screen.getByRole('region', { name: '확정된 팀원' })).getByText(
         '김서연',

@@ -373,9 +373,6 @@ export function WorkspacePage() {
                         </dd>
                       </div>
                     </dl>
-                    <p className="preview-muted">
-                      팀장 포함 총 {team.capacity}명
-                    </p>
                     <span className="workspace-team-enter">
                       팀 공간으로 <ChevronRight size={20} aria-hidden="true" />
                     </span>
@@ -486,10 +483,15 @@ function TeamOverview({
         >
           <h2 id="team-contest-title">참여 공모전</h2>
           <h3>{contest.title}</h3>
-          <p className="preview-muted">
-            {contest.status === 'closed'
-              ? '접수 마감됨'
-              : `접수 마감 ${contest.deadline}`}
+          <p className="preview-inline-fact">
+            {contest.status === 'closed' ? (
+              '접수 마감됨'
+            ) : (
+              <>
+                <span>접수 마감</span>
+                <strong>{contest.deadline}</strong>
+              </>
+            )}
           </p>
           <ActionLink
             to={`${previewPath(`/contests/${contest.id}`)}?from=${encodeURIComponent(currentPath)}`}
@@ -538,11 +540,15 @@ function TeamSpace({
       />
       <div className="preview-row">
         <Badge>{teamStatusLabel(team)}</Badge>
-        <span className="preview-muted">
-          내 역할: {team.owner ? '팀장' : '팀원'}
+        <span className="preview-inline-fact">
+          <span>내 역할</span>
+          <strong>{team.owner ? '팀장' : '팀원'}</strong>
         </span>
-        <span className="preview-muted">
-          확정 {team.members} / {team.capacity}명
+        <span className="preview-inline-fact">
+          <span>확정</span>
+          <strong>
+            {team.members} / {team.capacity}명
+          </strong>
         </span>
       </div>
       <TeamTabs
@@ -1010,65 +1016,75 @@ function ApplicantDetail({
           </div>
           <Badge>{applicationLabel(applicant.status)}</Badge>
         </div>
-        <div className="preview-stack">
-          <h3>희망 역할</h3>
-          <div className="preview-row">
-            {visible.roles.map((role) => (
-              <Badge key={role}>{role}</Badge>
-            ))}
+        <dl className="preview-profile-facts">
+          <div>
+            <dt>희망 역할</dt>
+            <dd className="preview-row">
+              {visible.roles.map((role) => (
+                <Badge key={role}>{role}</Badge>
+              ))}
+            </dd>
           </div>
-          <h3>보유 역량</h3>
-          <div className="preview-row">
-            {visible.skills.length ? (
-              visible.skills.map((skill) => <Badge key={skill}>{skill}</Badge>)
-            ) : (
-              <p className="preview-muted">아직 입력하지 않았어요.</p>
-            )}
+          <div>
+            <dt>보유 역량</dt>
+            <dd className="preview-row">
+              {visible.skills.length ? (
+                visible.skills.map((skill) => (
+                  <Badge key={skill}>{skill}</Badge>
+                ))
+              ) : (
+                <p className="preview-muted">아직 입력하지 않았어요.</p>
+              )}
+            </dd>
           </div>
           {visible.interests !== undefined && (
-            <>
-              <h3>관심 분야</h3>
-              <div className="preview-row">
+            <div>
+              <dt>관심 분야</dt>
+              <dd className="preview-row">
                 {visible.interests.map((interest) => (
                   <Badge key={interest}>{interest}</Badge>
                 ))}
-              </div>
-            </>
+              </dd>
+            </div>
           )}
           {visible.experience !== undefined && (
-            <>
-              <h3>경험</h3>
-              <p>{visible.experience}</p>
-            </>
+            <div>
+              <dt>경험</dt>
+              <dd className="preview-info-copy">{visible.experience}</dd>
+            </div>
           )}
           {visible.intro !== undefined && (
-            <>
-              <h3>자기소개</h3>
-              <p>{visible.intro || '아직 입력하지 않았어요.'}</p>
-            </>
+            <div>
+              <dt>자기소개</dt>
+              <dd className="preview-info-copy">
+                {visible.intro || '아직 입력하지 않았어요.'}
+              </dd>
+            </div>
           )}
           {visible.portfolio && (
-            <>
-              <h3>포트폴리오</h3>
-              <a
-                className="workspace-text-link"
-                href={visible.portfolio}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {visible.portfolioTitle || '포트폴리오 열기'}
-                <ExternalLink size={16} aria-hidden="true" />
-              </a>
-              <p className="preview-muted">
-                외부 사이트로 이동해요. 링크가 열리지 않으면 지원자에게 공개
-                설정을 확인해 주세요.
-              </p>
-            </>
+            <div>
+              <dt>포트폴리오</dt>
+              <dd>
+                <a
+                  className="workspace-text-link"
+                  href={visible.portfolio}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {visible.portfolioTitle || '포트폴리오 열기'}
+                  <ExternalLink size={16} aria-hidden="true" />
+                </a>
+                <p className="preview-muted">
+                  외부 사이트로 이동해요. 링크가 열리지 않으면 지원자에게 공개
+                  설정을 확인해 주세요.
+                </p>
+              </dd>
+            </div>
           )}
-          <p className="preview-muted">
-            현재 공개한 정보만 보여요. 개인 일정과 이메일은 표시하지 않아요.
-          </p>
-        </div>
+        </dl>
+        <p className="preview-muted">
+          현재 공개한 정보만 보여요. 개인 일정과 이메일은 표시하지 않아요.
+        </p>
       </section>
       <section
         className="preview-panel preview-stack"
@@ -1124,10 +1140,16 @@ function ApplicantDetail({
           </>
         ) : pending ? (
           <>
-            <p>
-              현재 {team.members}명 · 남은 자리{' '}
-              {Math.max(0, team.capacity - team.members)}명
-            </p>
+            <div className="preview-row">
+              <span className="preview-inline-fact">
+                <span>현재</span>
+                <strong>{team.members}명</strong>
+              </span>
+              <span className="preview-inline-fact">
+                <span>남은 자리</span>
+                <strong>{Math.max(0, team.capacity - team.members)}명</strong>
+              </span>
+            </div>
             {scenario !== 'ready' ? (
               <p className="preview-muted">
                 {scenario === 'full'
