@@ -9,6 +9,7 @@ import {
   initialProfile,
   initialTeams,
   people,
+  type Profile,
 } from './data';
 import { PreviewContext, type PreviewState } from './preview-context';
 
@@ -50,6 +51,26 @@ function renderExplore(path: string, overrides: Partial<PreviewState> = {}) {
   );
   return state;
 }
+
+const publicProfile: Profile = {
+  ...initialProfile,
+  name: '공개검색검증사용자',
+  academicStatus: '재학',
+  grade: '3학년',
+  college: '융합과학대학',
+  department: '디지털미디어학과',
+  major: '콘텐츠공학전공',
+  skills: ['프로토타이핑'],
+  interestOther: '로컬브랜드',
+  skillOther: '웹접근성검수',
+  intro: '사용자인터뷰를 함께 진행하고 싶어요.',
+  experience: '졸업전시기획 프로젝트',
+  experienceState: 'provided',
+  availability: '토 14:00~18:00',
+  portfolioTitle: '캠퍼스작업집',
+  portfolio: 'https://portfolio.example.com/jiwoo',
+  visibility: { discoverable: true },
+};
 
 describe('official reference public exploration', () => {
   it('allows guests to read and filter public contests using the shared interests', async () => {
@@ -126,6 +147,9 @@ describe('official reference public exploration', () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('검색 결과 0개');
+    expect(
+      screen.getByRole('link', { name: 'AI에게 추천 받기' }),
+    ).toHaveAttribute('href', '/design-preview/ai');
     for (const person of people)
       expect(
         screen.queryByRole('heading', { name: person.name }),
@@ -134,6 +158,13 @@ describe('official reference public exploration', () => {
       'href',
       '/design-preview/login?returnTo=%2Fdesign-preview%2Fexplore%3Ftab%3Dpeople',
     );
+  });
+
+  it('provides the AI shortcut in people search for both guests and members', async () => {
+    renderExplore('/design-preview/explore?tab=people', { signedIn: true });
+    expect(
+      screen.getByRole('link', { name: 'AI에게 추천 받기' }),
+    ).toHaveAttribute('href', '/design-preview/ai');
   });
 
   it('guards direct people detail links and keeps the target for login', () => {
@@ -159,62 +190,87 @@ describe('official reference public exploration', () => {
     expect(screen.queryByText(initialProfile.name)).not.toBeInTheDocument();
   });
 
-  it('does not search hidden profile fields even when the profile is listed', () => {
-    renderExplore('/design-preview/explore?tab=people&q=비공개프로젝트', {
-      signedIn: true,
-      profile: {
-        ...initialProfile,
-        experience: '비공개프로젝트',
-        experienceState: 'provided',
-        visibility: {
-          discoverable: true,
-          interests: false,
-          experience: false,
-          intro: false,
+  it.each(['공개검색검증사용자', '졸업전시기획', 'portfolio.example.com'])(
+    'excludes a private profile from search regardless of the matching field: %s',
+    (query) => {
+      renderExplore(
+        `/design-preview/explore?tab=people&q=${encodeURIComponent(query)}`,
+        {
+          signedIn: true,
+          profile: { ...publicProfile, visibility: { discoverable: false } },
         },
-      },
-    });
-    expect(
-      screen.getByRole('heading', { name: '검색 결과가 없어요' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: initialProfile.name }),
-    ).not.toBeInTheDocument();
-  });
+      );
+      expect(
+        screen.getByRole('heading', { name: '검색 결과가 없어요' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: publicProfile.name }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
-  it('projects only permitted fields and never reveals portfolio consent or personal schedules in a public detail', () => {
+  it.each([
+    '공개검색검증사용자',
+    '재학',
+    '3학년',
+    '융합과학대학',
+    '디지털미디어학과',
+    '콘텐츠공학전공',
+    '프로토타이핑',
+    '로컬브랜드',
+    '웹접근성검수',
+    '사용자인터뷰',
+    '졸업전시기획',
+    '토 14:00~18:00',
+    '캠퍼스작업집',
+    'portfolio.example.com',
+  ])(
+    'finds a public profile by registered profile information: %s',
+    (query) => {
+      renderExplore(
+        `/design-preview/explore?tab=people&q=${encodeURIComponent(query)}`,
+        {
+          signedIn: true,
+          profile: publicProfile,
+        },
+      );
+      expect(
+        screen.getByRole('heading', { name: publicProfile.name }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it('shows every registered public profile field including the schedule and portfolio link', () => {
     renderExplore('/design-preview/people/me', {
       signedIn: true,
-      profile: {
-        ...initialProfile,
-        intro: '공개된 자기소개',
-        experience: '비공개프로젝트',
-        portfolio: 'https://example.com/private',
-        portfolioTitle: '비공개 작업집',
-        portfolioConsent: true,
-        visibility: {
-          discoverable: true,
-          interests: false,
-          experience: false,
-          intro: true,
-        },
-      },
+      profile: publicProfile,
     });
     expect(
-      screen.getByRole('heading', { name: initialProfile.name }),
+      screen.getByRole('heading', { name: publicProfile.name }),
     ).toBeInTheDocument();
-    expect(screen.getByText('공개된 자기소개')).toBeInTheDocument();
-    expect(screen.queryByText('비공개프로젝트')).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: '관심 분야' }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(initialProfile.availability),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText('비공개 작업집')).not.toBeInTheDocument();
-    expect(
-      document.querySelector('a[href="https://example.com/private"]'),
-    ).toBeNull();
+    for (const value of [
+      publicProfile.academicStatus!,
+      publicProfile.grade!,
+      publicProfile.college!,
+      publicProfile.department!,
+      publicProfile.major!,
+      ...publicProfile.skills,
+      ...publicProfile.interests,
+      publicProfile.interestOther,
+      publicProfile.skillOther,
+      publicProfile.intro,
+      publicProfile.experience,
+      publicProfile.availability,
+    ])
+      expect(screen.getByText(value)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /캠퍼스작업집/ })).toHaveAttribute(
+      'href',
+      publicProfile.portfolio,
+    );
+    expect(screen.getByRole('link', { name: /캠퍼스작업집/ })).toHaveAttribute(
+      'target',
+      '_blank',
+    );
   });
 
   it('keeps closed contest history readable with its source while preventing new participation actions', () => {

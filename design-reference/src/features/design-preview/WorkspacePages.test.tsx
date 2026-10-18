@@ -88,6 +88,11 @@ describe('team application', () => {
     const user = userEvent.setup();
     renderPage(previewPath('/teams/makers'));
     await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    expect(
+      screen.getByText(
+        /프로필이 비공개여도 지원받은 팀장에게는 등록한 전체 프로필/,
+      ),
+    ).toHaveTextContent('학사 정보, 활동 가능 시간, 포트폴리오');
     await user.click(screen.getByRole('button', { name: '이 팀에 지원하기' }));
     expect(
       await screen.findByText('지원할 역할을 선택해 주세요.'),
@@ -286,7 +291,7 @@ describe('applicant review', () => {
     expect(profile.getByText(applicantProfile.experience)).toBeInTheDocument();
     expect(profile.getByText(applicantProfile.intro)).toBeInTheDocument();
     expect(
-      profile.getByRole('link', { name: '김서연의 프로젝트' }),
+      profile.getByRole('link', { name: /김서연의 프로젝트\s*\(새 창\)/ }),
     ).toBeInTheDocument();
     await user.click(
       screen.getByRole('button', { name: '이 지원자 선발하기' }),
@@ -307,17 +312,28 @@ describe('applicant review', () => {
       ),
     ).toBeInTheDocument();
   });
-  it('hides private applicant fields and unconsented portfolio, including from the leader', () => {
+  it('shows a private applicant’s full registered profile to the applied team leader', () => {
     const applicants = [
       {
         ...initialApplicants[0]!,
         profile: {
           ...initialProfile,
-          intro: '숨겨진 자기소개',
-          experience: '숨겨진 경험',
+          intro: '지원자의 자기소개',
+          experienceState: 'provided' as const,
+          experience: '지원자의 경험',
+          academicStatus: '재학',
+          grade: '3학년',
+          college: '이공대학',
+          department: '소프트웨어학과',
+          major: '컴퓨터공학',
+          skills: ['개발', '기타'],
+          skillOther: '사용자 테스트',
+          interests: ['기타'],
+          interestOther: '지역 커뮤니티',
+          availability: '수 18:00~21:00',
+          visibility: { discoverable: false },
           portfolio: 'https://example.com/secret',
-          portfolioTitle: '비밀 포트폴리오',
-          interests: ['숨겨진 관심 분야'],
+          portfolioTitle: '지원자의 포트폴리오',
         },
       },
     ];
@@ -325,12 +341,27 @@ describe('applicant review', () => {
       previewPath('/applicants/app-seoyeon'),
       previewState({ applicants }),
     );
-    expect(screen.queryByText('숨겨진 자기소개')).not.toBeInTheDocument();
-    expect(screen.queryByText('숨겨진 경험')).not.toBeInTheDocument();
-    expect(screen.queryByText('숨겨진 관심 분야')).not.toBeInTheDocument();
+    for (const value of [
+      '지원자의 자기소개',
+      '지원자의 경험',
+      '재학',
+      '3학년',
+      '이공대학',
+      '소프트웨어학과',
+      '컴퓨터공학',
+      '개발',
+      '사용자 테스트',
+      '지역 커뮤니티',
+      '수 18:00~21:00',
+    ]) {
+      expect(screen.getByText(value)).toBeInTheDocument();
+    }
     expect(
-      screen.queryByRole('link', { name: '비밀 포트폴리오' }),
-    ).not.toBeInTheDocument();
+      screen.getByRole('link', { name: /지원자의 포트폴리오\s*\(새 창\)/ }),
+    ).toHaveAttribute('href', 'https://example.com/secret');
+    expect(
+      screen.getByText(/공개 설정과 관계없이 등록한 전체 프로필/),
+    ).toBeInTheDocument();
     expect(screen.getByText('교내 미인증')).toBeInTheDocument();
   });
   it('does not expose applications to a nonleader', () => {
@@ -342,6 +373,20 @@ describe('applicant review', () => {
     );
     expect(screen.getByText('지원서를 확인할 수 없어요')).toBeInTheDocument();
     expect(screen.queryByText('김서연')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(initialApplicants[0]!.profile!.availability),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /김서연의 프로젝트/ }),
+    ).not.toBeInTheDocument();
+  });
+  it('does not expose applicant details before login', () => {
+    renderPage(previewPath('/applicants/app-seoyeon'));
+    expect(screen.getByText('로그인하고 이어가세요')).toBeInTheDocument();
+    expect(screen.queryByText('김서연')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /김서연의 프로젝트/ }),
+    ).not.toBeInTheDocument();
   });
 });
 

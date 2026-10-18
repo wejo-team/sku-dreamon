@@ -57,7 +57,7 @@ export function AvatarPicker({
       </DrawerTrigger>
       <DrawerContent className="dreamon-preview preview-drawer preview-avatar-picker">
         <DrawerHeader>
-          <DrawerTitle>나를 닮은 캐릭터</DrawerTitle>
+          <DrawerTitle className="sr-only">프로필 이미지 변경</DrawerTitle>
           <DrawerDescription>
             마음에 드는 파워프렌즈를 골라보세요.
           </DrawerDescription>

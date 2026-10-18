@@ -22,8 +22,9 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { previewPath } from './data';
+import { previewPath, type Team } from './data';
 import { PreviewContext } from './preview-context';
+import { recruitmentIssue, teamStatusLabel } from './team-state';
 import {
   defaultMascotAvatarId,
   mascotAvatarSource,
@@ -69,7 +70,7 @@ export function Badge({
   tone = 'neutral',
 }: {
   children: ReactNode;
-  tone?: 'neutral' | 'lime' | 'warm' | 'dark';
+  tone?: 'neutral' | 'lime' | 'warm' | 'dark' | 'recruiting' | 'closed';
 }) {
   return (
     <UiBadge
@@ -79,6 +80,13 @@ export function Badge({
       {children === '비공개' && <LockKeyhole size={12} aria-hidden="true" />}
       {children}
     </UiBadge>
+  );
+}
+export function TeamStatusBadge({ team }: { team: Team }) {
+  return (
+    <Badge tone={recruitmentIssue(team) ? 'closed' : 'recruiting'}>
+      {teamStatusLabel(team)}
+    </Badge>
   );
 }
 export function SchoolVerificationBadge({

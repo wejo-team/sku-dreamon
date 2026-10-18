@@ -133,24 +133,13 @@ async function navigate(page, route) {
       await page
         .getByRole('button', { name: '프로필 수정', exact: true })
         .click();
-      assert.equal(
-        await page
-          .getByRole('switch', { name: '사람 탐색에 공개', exact: true })
-          .isChecked(),
-        false,
-      );
-      assert.equal(
-        await page
-          .getByRole('switch', { name: '관심 분야 공개', exact: true })
-          .isEnabled(),
-        true,
-      );
+      assert.equal(await page.getByRole('switch').count(), 0);
       await snapshot(page, `profile-${width}`);
       await page
         .getByRole('button', { name: '프로필 이미지 변경, 현재 스콘' })
         .click();
       const avatarPicker = page.getByRole('dialog', {
-        name: '나를 닮은 캐릭터',
+        name: '프로필 이미지 변경',
       });
       await avatarPicker.getByLabel('비아트', { exact: true }).check();
       await snapshot(page, `avatar-picker-${width}`);

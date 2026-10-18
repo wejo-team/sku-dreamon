@@ -23,6 +23,7 @@ import {
 import { usePreview } from './preview-context';
 import { ContestCover } from './ContestCover';
 import { ExploreFilters } from './ExploreFilters';
+import { ProfileDetails } from './ProfileDetails';
 import {
   ActionLink,
   Avatar,
@@ -31,6 +32,7 @@ import {
   EmptyState,
   Notice,
   PageIntro,
+  SchoolVerificationBadge,
 } from './PreviewUi';
 
 export function ExplorePage() {
@@ -77,7 +79,24 @@ export function ExplorePage() {
   const matchedPeople = visiblePeople.filter(
     (item) =>
       includes(
-        `${item.name} ${item.roles.join(' ')} ${item.interests?.join(' ') ?? ''} ${item.intro ?? ''} ${item.experience ?? ''}`,
+        [
+          item.name,
+          ...item.roles,
+          ...(item.interests ?? []),
+          ...(item.skills ?? []),
+          item.academicStatus,
+          item.grade,
+          item.college,
+          item.department,
+          item.major,
+          item.interestOther,
+          item.skillOther,
+          item.intro,
+          item.experience,
+          item.availability,
+          item.portfolioTitle,
+          item.portfolio,
+        ].join(' '),
       ) &&
       (!role || item.roles.includes(role)),
   );
@@ -134,21 +153,19 @@ export function ExplorePage() {
             <X size={18} aria-hidden="true" />
           </Button>
         )}
-        {tab !== 'people' && (
-          <Button
-            asChild
-            variant="outline"
-            className="preview-compact-action preview-ai-shortcut"
+        <Button
+          asChild
+          variant="outline"
+          className="preview-compact-action preview-ai-shortcut"
+        >
+          <Link
+            to={previewPath('/ai')}
+            aria-label="AI에게 추천 받기"
+            title="AI에게 추천 받기"
           >
-            <Link
-              to={previewPath('/ai')}
-              aria-label="AI에게 추천 받기"
-              title="AI에게 추천 받기"
-            >
-              <Sparkles size={20} aria-hidden="true" />
-            </Link>
-          </Button>
-        )}
+            <Sparkles size={20} aria-hidden="true" />
+          </Link>
+        </Button>
       </div>
       <div className="preview-filters">
         <ExploreFilters
@@ -591,39 +608,8 @@ export function PersonPage() {
             <p className="preview-muted">{person.roles.join(' · ')}</p>
           </div>
         </div>
-        <div>
-          <h2>희망 역할</h2>
-          <div className="preview-row">
-            {person.roles.map((role) => (
-              <Badge key={role} tone="lime">
-                {role}
-              </Badge>
-            ))}
-          </div>
-        </div>
-        {!!person.interests?.length && (
-          <div>
-            <h2>관심 분야</h2>
-            <div className="preview-row">
-              {(person.interests ?? []).map((interest) => (
-                <Badge key={interest}>{interest}</Badge>
-              ))}
-            </div>
-          </div>
-        )}
-        {person.intro && (
-          <div>
-            <h2>자기소개</h2>
-            <p>{person.intro}</p>
-          </div>
-        )}
-        {person.experience && (
-          <div>
-            <h2>경험</h2>
-            <p>{person.experience}</p>
-          </div>
-        )}
-        <Badge>미인증</Badge>
+        <SchoolVerificationBadge />
+        <ProfileDetails profile={person} />
       </div>
     </div>
   );

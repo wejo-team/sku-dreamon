@@ -1,3 +1,4 @@
+import { profileToPerson } from './data';
 import {
   contests,
   roleOptions,
@@ -237,23 +238,13 @@ export function applicantVisibleProfile(
 ) {
   const profile =
     applicant.personId === 'me' ? currentProfile : applicant.profile;
-  return {
-    name: profile?.name ?? applicant.name,
-    roles: profile?.roles ?? [applicant.role],
-    skills: profile?.skills ?? [],
-    interests: profile?.visibility.interests ? profile.interests : undefined,
-    intro: profile?.visibility.intro ? profile.intro : undefined,
-    experience: profile?.visibility.experience
-      ? profile.experienceState === 'none'
-        ? '아직 경험이 없어요'
-        : profile.experience || '아직 입력하지 않았어요'
-      : undefined,
-    portfolio:
-      profile?.portfolioConsent && /^https?:\/\//i.test(profile.portfolio)
-        ? profile.portfolio
-        : undefined,
-    portfolioTitle: profile?.portfolioConsent
-      ? profile.portfolioTitle
-      : undefined,
-  };
+  return profile
+    ? profileToPerson(profile, applicant.personId)
+    : {
+        id: applicant.personId,
+        name: applicant.name,
+        roles: [applicant.role],
+        interests: applicant.interests,
+        skills: [],
+      };
 }

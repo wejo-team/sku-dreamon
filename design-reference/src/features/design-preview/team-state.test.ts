@@ -4,6 +4,7 @@ import {
   initialApplications,
   initialProfile,
   initialTeams,
+  getPublicProfile,
   type Applicant,
 } from './data';
 import {
@@ -187,22 +188,46 @@ describe('applicant visibility', () => {
     ...initialApplicants[0]!,
     profile: {
       ...initialProfile,
-      name: '공개 지원자',
-      intro: '비공개 자기소개',
-      experience: '비공개 경험',
+      name: '비공개 지원자',
+      intro: '지원자의 자기소개',
+      experienceState: 'provided',
+      experience: '지원자의 경험',
+      academicStatus: '재학',
+      grade: '3학년',
+      college: '이공대학',
+      department: '소프트웨어학과',
+      major: '컴퓨터공학',
+      skills: ['개발', '기타'],
+      skillOther: '사용자 테스트',
+      interests: ['기타'],
+      interestOther: '지역 커뮤니티',
+      availability: '수 18:00~21:00',
+      visibility: { discoverable: false },
       portfolio: 'https://example.com/private',
       portfolioTitle: '비공개 링크',
     },
   });
-  it('never projects private fields or an unconsented portfolio to the leader', () => {
-    const visible = applicantVisibleProfile(fixture(), initialProfile);
-    expect(visible.interests).toBeUndefined();
-    expect(visible.experience).toBeUndefined();
-    expect(visible.intro).toBeUndefined();
-    expect(visible.portfolio).toBeUndefined();
-    expect(visible.portfolioTitle).toBeUndefined();
-    expect(visible).not.toHaveProperty('availability');
-    expect(visible).not.toHaveProperty('academicStatus');
+  it('shares the full private profile in applicant review while excluding it from discovery', () => {
+    const applicant = fixture();
+    expect(getPublicProfile(applicant.profile!)).toBeNull();
+    expect(applicantVisibleProfile(applicant, initialProfile)).toMatchObject({
+      name: '비공개 지원자',
+      intro: '지원자의 자기소개',
+      experience: '지원자의 경험',
+      experienceState: 'provided',
+      academicStatus: '재학',
+      grade: '3학년',
+      college: '이공대학',
+      department: '소프트웨어학과',
+      major: '컴퓨터공학',
+      skills: ['개발', '기타'],
+      skillOther: '사용자 테스트',
+      interests: ['기타'],
+      interestOther: '지역 커뮤니티',
+      availability: '수 18:00~21:00',
+      portfolio: 'https://example.com/private',
+      portfolioTitle: '비공개 링크',
+    });
   });
   it('uses the current self profile instead of a stored application snapshot', () => {
     const applicant = {
@@ -213,22 +238,27 @@ describe('applicant visibility', () => {
     const current = {
       ...initialProfile,
       name: '수정된 이름',
-      intro: '공개 자기소개',
-      visibility: { ...initialProfile.visibility, intro: true },
+      intro: '수정된 자기소개',
+      visibility: { discoverable: false },
+      availability: '금 18:00~21:00',
       portfolio: 'https://example.com/current',
       portfolioTitle: '현재 포트폴리오',
-      portfolioConsent: true,
     };
     expect(applicantVisibleProfile(applicant, current)).toMatchObject({
       name: '수정된 이름',
-      intro: '공개 자기소개',
+      intro: '수정된 자기소개',
+      availability: '금 18:00~21:00',
       portfolio: 'https://example.com/current',
     });
     expect(
       applicantVisibleProfile(applicant, {
         ...current,
-        portfolioConsent: false,
-      }).portfolio,
-    ).toBeUndefined();
+        visibility: { discoverable: true },
+      }),
+    ).toEqual(applicantVisibleProfile(applicant, current));
+    expect(
+      applicantVisibleProfile(applicant, { ...current, portfolio: '' })
+        .portfolio,
+    ).toBe('');
   });
 });

@@ -1,16 +1,22 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Link, MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiChatPage, AiChatProvider } from './AiChatPage';
+import { LoginPage } from './AccountPages';
 import { PreviewProvider } from './PreviewProvider';
 import { usePreview } from './preview-context';
 
 function TestNavigation() {
   const { signIn, signOut } = usePreview();
+  const location = useLocation();
   return (
     <nav aria-label="테스트 탐색">
-      <button onClick={signIn}>로그인</button>
+      <button onClick={signIn}>테스트 로그인</button>
+      <span aria-label="현재 경로">
+        {location.pathname}
+        {location.search}
+      </span>
       <Link to="/design-preview/ai">대화로 돌아가기</Link>
       <Link to="/design-preview/elsewhere">다른 화면 열기</Link>
       <button type="button" onClick={signOut}>
@@ -20,7 +26,7 @@ function TestNavigation() {
   );
 }
 
-function renderChat(path = '/design-preview/ai') {
+function renderChat(path = '/design-preview/ai', signedIn = true) {
   render(
     <MemoryRouter initialEntries={[path]}>
       <PreviewProvider>
@@ -28,6 +34,7 @@ function renderChat(path = '/design-preview/ai') {
           <TestNavigation />
           <Routes>
             <Route path="/design-preview/ai" element={<AiChatPage />} />
+            <Route path="/design-preview/login" element={<LoginPage />} />
             <Route
               path="/design-preview/elsewhere"
               element={<p>다른 화면입니다.</p>}
@@ -37,6 +44,9 @@ function renderChat(path = '/design-preview/ai') {
       </PreviewProvider>
     </MemoryRouter>,
   );
+  if (signedIn) {
+    fireEvent.click(screen.getByRole('button', { name: '테스트 로그인' }));
+  }
   return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 }
 
@@ -217,7 +227,6 @@ describe('design preview AI chat', () => {
 
   it('clears account-specific conversation state and pending replies when signing out', async () => {
     const user = renderChat();
-    await user.click(screen.getByRole('button', { name: '로그인' }));
     await user.click(
       screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
     );
@@ -226,13 +235,18 @@ describe('design preview AI chat', () => {
       '이 계정의 미완성 질문',
     );
     await user.click(screen.getByRole('button', { name: '로그아웃' }));
-    expect(
-      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
-    ).toHaveValue('');
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '로그인' })).toBeInTheDocument();
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
     await finishReply();
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    expect(
+      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
+    ).toHaveValue('');
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '새 대화' })).toBeDisabled();
   });
 
   it('copies the answer and recommendation details and confirms success without changing the draft', async () => {
@@ -296,27 +310,41 @@ describe('design preview AI chat', () => {
     expect(screen.queryByText(/복사하지 못했어요/)).not.toBeInTheDocument();
   });
 
-  it('does not recommend or copy people to a guest and reveals permitted people after login', async () => {
-    const user = renderChat();
-    const writeText = vi
-      .spyOn(navigator.clipboard, 'writeText')
-      .mockResolvedValue(undefined);
-    await user.type(
-      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
-      '디자인 역할 사람 찾아줘',
-    );
-    await user.click(screen.getByRole('button', { name: '메시지 보내기' }));
-    await finishReply();
-    const log = screen.getByRole('log');
-    expect(
-      within(log).getByText(/사람 탐색은 로그인 후 이용할 수 있어요/),
-    ).toBeInTheDocument();
-    expect(within(log).queryByRole('link')).not.toBeInTheDocument();
-    expect(within(log).queryByText('정수아')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '답변 복사' }));
-    expect(writeText.mock.calls[0]?.[0]).not.toContain('정수아');
-    await user.click(screen.getByRole('button', { name: '로그인' }));
+  it('requires login before mounting chat and returns to the original AI URL after login', async () => {
+    const path = '/design-preview/ai?scenario=error';
+    const user = renderChat(path, false);
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '답변 복사' }),
+    ).not.toBeInTheDocument();
+    const login = screen.getByRole('link', { name: '로그인' });
+    expect(login).toHaveAttribute(
+      'href',
+      `/design-preview/login?returnTo=${encodeURIComponent(path)}`,
+    );
+    await user.click(login);
+    await user.type(screen.getByLabelText('아이디'), 'dreamon-demo');
+    await user.type(screen.getByLabelText('비밀번호'), 'dreamon-demo');
+    await user.click(screen.getByRole('button', { name: '로그인' }));
+    expect(
+      await screen.findByRole('textbox', { name: 'AI에게 보낼 메시지' }),
+    ).toHaveValue('');
+    expect(screen.getByLabelText('현재 경로')).toHaveTextContent(path);
+    await user.click(
+      screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
+    );
+    await finishReply();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '답변을 준비하지 못했어요. 다시 시도해 주세요.',
+    );
+  });
+
+  it('recommends visible people for a signed-in user', async () => {
+    const user = renderChat();
     await user.type(
       screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
       '디자인 역할 사람 찾아줘',

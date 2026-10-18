@@ -98,30 +98,31 @@ async function renderProfileFlow() {
 }
 
 describe('design preview account flows', () => {
-  it('removes every undisclosed field from the public profile projection', () => {
+  it('projects every registered field of a public profile and none of a private profile', () => {
     const profile = {
       ...initialProfile,
-      experience: '비공개 프로젝트 경험',
-      portfolio: 'https://example.com/private',
-      portfolioConsent: true,
-      visibility: {
-        discoverable: true,
-        interests: false,
-        experience: false,
-        intro: false,
-      },
+      academicStatus: '재학',
+      skills: ['프로그래밍'],
+      experience: '프로젝트 경험',
+      experienceState: 'provided' as const,
+      portfolio: 'https://example.com/work',
+      portfolioTitle: '작업집',
+      visibility: { discoverable: true },
     };
-    expect(getPublicProfile(profile)).toEqual({
+    expect(getPublicProfile(profile)).toMatchObject({
       id: 'me',
       name: profile.name,
-      avatarId: profile.avatarId,
-      roles: profile.roles,
+      interests: profile.interests,
+      intro: profile.intro,
+      availability: profile.availability,
+      academicStatus: '재학',
+      skills: ['프로그래밍'],
+      experience: '프로젝트 경험',
+      portfolio: profile.portfolio,
+      portfolioTitle: '작업집',
     });
     expect(
-      getPublicProfile({
-        ...profile,
-        visibility: { ...profile.visibility, discoverable: false },
-      }),
+      getPublicProfile({ ...profile, visibility: { discoverable: false } }),
     ).toBeNull();
   });
 
@@ -132,7 +133,7 @@ describe('design preview account flows', () => {
     await user.click(
       screen.getByRole('button', { name: '프로필 이미지 변경, 현재 스콘' }),
     );
-    let picker = screen.getByRole('dialog', { name: '나를 닮은 캐릭터' });
+    let picker = screen.getByRole('dialog', { name: '프로필 이미지 변경' });
     expect(within(picker).getAllByRole('radio')).toHaveLength(5);
     await user.click(within(picker).getByRole('radio', { name: '아티' }));
     await user.click(within(picker).getByRole('button', { name: '취소' }));
@@ -146,7 +147,7 @@ describe('design preview account flows', () => {
     await user.click(
       screen.getByRole('button', { name: '프로필 이미지 변경, 현재 스콘' }),
     );
-    picker = screen.getByRole('dialog', { name: '나를 닮은 캐릭터' });
+    picker = screen.getByRole('dialog', { name: '프로필 이미지 변경' });
     expect(within(picker).getByRole('radio', { name: '스콘' })).toBeChecked();
     await user.click(within(picker).getByRole('radio', { name: '디모' }));
     await user.click(
@@ -167,7 +168,7 @@ describe('design preview account flows', () => {
     await user.click(
       screen.getByRole('button', { name: '프로필 이미지 변경, 현재 스콘' }),
     );
-    picker = screen.getByRole('dialog', { name: '나를 닮은 캐릭터' });
+    picker = screen.getByRole('dialog', { name: '프로필 이미지 변경' });
     await user.click(within(picker).getByRole('radio', { name: '컨버' }));
     await user.click(
       within(picker).getByRole('button', { name: '이 캐릭터로 선택' }),
@@ -175,8 +176,9 @@ describe('design preview account flows', () => {
     await waitFor(() =>
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     );
-    await user.click(screen.getByRole('switch', { name: '사람 탐색에 공개' }));
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+    await user.click(screen.getByRole('switch', { name: '프로필 공개' }));
+    await user.click(screen.getByRole('button', { name: '공개로 전환' }));
     expect(
       screen.getByRole('region', { name: '내 기본 정보' }).querySelector('img'),
     ).toHaveAttribute('src', '/mascots/conver.png');
@@ -200,85 +202,75 @@ describe('design preview account flows', () => {
   });
 
   it.each([false, true])(
-    'changes only directory visibility from the header when discoverable is %s',
+    'requires confirmation for a visibility change from %s and preserves cancelled changes',
     async (discoverable) => {
-      const profile = {
-        ...initialProfile,
-        portfolio: 'https://example.com/portfolio',
-        portfolioConsent: true,
-        visibility: {
-          discoverable,
-          interests: true,
-          experience: false,
-          intro: true,
-        },
-      };
+      const profile = { ...initialProfile, visibility: { discoverable } };
       const state = renderAccount('/design-preview/profile', { profile });
       const user = userEvent.setup();
+      const toggle = screen.getByRole('switch', { name: '프로필 공개' });
+      await user.click(toggle);
+      expect(toggle).toHaveAttribute('aria-checked', String(discoverable));
+      expect(state.saveProfile).not.toHaveBeenCalled();
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveAccessibleDescription(
+        /지원한 팀장에게는 공개 여부와 관계없이 전체 프로필/,
+      );
+      await user.click(within(dialog).getByRole('button', { name: '취소' }));
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      expect(state.saveProfile).not.toHaveBeenCalled();
+      await user.click(toggle);
+      await user.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      expect(state.saveProfile).not.toHaveBeenCalled();
+      await user.click(toggle);
       await user.click(
-        within(screen.getByRole('group', { name: '프로필 관리' })).getByRole(
-          'switch',
-          { name: '사람 탐색에 공개' },
-        ),
+        screen.getByRole('button', {
+          name: discoverable ? '비공개로 전환' : '공개로 전환',
+        }),
       );
       expect(state.saveProfile).toHaveBeenCalledExactlyOnceWith({
         ...profile,
-        visibility: { ...profile.visibility, discoverable: !discoverable },
+        visibility: { discoverable: !discoverable },
       });
     },
   );
 
-  it('applies header discovery changes immediately to preview while retaining separate sharing choices', async () => {
+  it('shows all saved fields after public confirmation and hides the entire preview after private confirmation', async () => {
     await renderProfileFlow();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
-    await user.click(screen.getByRole('switch', { name: '자기소개 공개' }));
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     await user.type(
       screen.getByLabelText('포트폴리오 링크 (선택)'),
-      'https://example.com/portfolio',
+      'https://example.com/work',
     );
-    await user.click(
-      screen.getByRole('switch', { name: '포트폴리오 링크 공개' }),
+    await user.type(
+      screen.getByLabelText('포트폴리오 제목 (선택)'),
+      '나의 작업',
     );
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
-
+    await user.click(screen.getByRole('switch', { name: '프로필 공개' }));
+    await user.click(screen.getByRole('button', { name: '공개로 전환' }));
     await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
-    expect(screen.getByText('현재 비공개 상태입니다.')).toBeInTheDocument();
+    expect(screen.getByText(initialProfile.intro)).toBeVisible();
+    expect(screen.getByText(initialProfile.availability)).toBeVisible();
+    expect(screen.getByRole('link', { name: /나의 작업/ })).toHaveAttribute(
+      'href',
+      'https://example.com/work',
+    );
     await user.click(screen.getByRole('link', { name: '내 프로필' }));
-    await user.click(screen.getByRole('switch', { name: '사람 탐색에 공개' }));
-    expect(
-      screen.getByRole('switch', { name: '사람 탐색에 공개' }),
-    ).toBeChecked();
+    await user.click(screen.getByRole('switch', { name: '프로필 공개' }));
+    await user.click(screen.getByRole('button', { name: '비공개로 전환' }));
     await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
-    const publicProfile = screen.getByRole('region', {
-      name: '공개된 내 프로필',
-    });
-    expect(within(publicProfile).getByText(initialProfile.intro)).toBeVisible();
-    expect(
-      within(publicProfile).queryByRole('heading', { name: '관심 분야' }),
-    ).not.toBeInTheDocument();
-    expect(
-      within(publicProfile).queryByText('https://example.com/portfolio'),
-    ).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('link', { name: '내 프로필' }));
-    await user.click(screen.getByRole('switch', { name: '사람 탐색에 공개' }));
-    expect(
-      screen.getByRole('switch', { name: '사람 탐색에 공개' }),
-    ).not.toBeChecked();
-    await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
-    expect(screen.getByText('현재 비공개 상태입니다.')).toBeInTheDocument();
+    expect(screen.getByText('현재 비공개 상태입니다.')).toBeVisible();
     expect(screen.queryByText(initialProfile.intro)).not.toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: '내 프로필' }));
-    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
-    expect(screen.getByRole('switch', { name: '자기소개 공개' })).toBeChecked();
     expect(
-      screen.getByRole('switch', { name: '관심 분야 공개' }),
-    ).not.toBeChecked();
-    expect(screen.getByRole('switch', { name: '경험 공개' })).not.toBeChecked();
-    expect(
-      screen.getByRole('switch', { name: '포트폴리오 링크 공개' }),
-    ).toBeChecked();
+      screen.queryByRole('link', { name: /나의 작업/ }),
+    ).not.toBeInTheDocument();
   });
 
   it('explains unavailable school verification in a dismissible popup without changing the profile', async () => {
@@ -297,48 +289,6 @@ describe('design preview account flows', () => {
       screen.getByRole('button', { name: '교내 미인증, 학교 인증 안내' }),
     ).toBeInTheDocument();
     expect(state.saveProfile).not.toHaveBeenCalled();
-  });
-
-  it('saves public visibility, cancels changes and hides all fields when made private', async () => {
-    await renderProfileFlow();
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
-    expect(
-      screen.getByRole('switch', { name: '사람 탐색에 공개' }),
-    ).not.toBeChecked();
-    expect(
-      screen.getByRole('switch', { name: '관심 분야 공개' }),
-    ).toBeEnabled();
-    await user.click(screen.getByRole('switch', { name: '사람 탐색에 공개' }));
-    await user.click(screen.getByRole('switch', { name: '경험 공개' }));
-    await user.type(
-      screen.getByLabelText('관련 경험 (선택)'),
-      '캠퍼스 지도 프로젝트 기획',
-    );
-    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
-    await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
-    expect(screen.getByText('캠퍼스 지도 프로젝트 기획')).toBeInTheDocument();
-    expect(screen.queryByText(initialProfile.intro)).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(initialProfile.availability),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: '관심 분야' }),
-    ).not.toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: '공개 설정 변경' }));
-    await user.click(screen.getByRole('switch', { name: '자기소개 공개' }));
-    await user.click(screen.getByRole('button', { name: '취소' }));
-    await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
-    expect(screen.queryByText(initialProfile.intro)).not.toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: '공개 설정 변경' }));
-    await user.click(screen.getByRole('switch', { name: '사람 탐색에 공개' }));
-    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
-    await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
-    expect(screen.getByText('현재 비공개 상태입니다.')).toBeInTheDocument();
-    expect(screen.queryByText(initialProfile.name)).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('캠퍼스 지도 프로젝트 기획'),
-    ).not.toBeInTheDocument();
   });
 
   it('starts with empty fields and reveals a password without submitting or changing it', async () => {
@@ -412,7 +362,7 @@ describe('design preview account flows', () => {
     expect(state.signIn).toHaveBeenCalledOnce();
   });
 
-  it('validates profile requirements and saves an optional portfolio without granting consent', async () => {
+  it('validates profile requirements and saves an optional portfolio without changing global privacy', async () => {
     const state = renderAccount('/design-preview/profile', {
       profile: { ...initialProfile, availability: '' },
     });
@@ -474,7 +424,7 @@ describe('design preview account flows', () => {
       expect.objectContaining({
         name: '김예시',
         portfolio: 'https://example.com/portfolio',
-        portfolioConsent: false,
+
         availability: '월 18:00~21:00; 화 09:00~12:00',
       }),
     );
@@ -494,7 +444,9 @@ describe('design preview account flows', () => {
       const drawer = await screen.findByRole('dialog', {
         name: '활동 가능 시간',
       });
-      expect(drawer).toHaveAccessibleDescription(/개인 일정은 공개되지 않아요/);
+      expect(drawer).toHaveAccessibleDescription(
+        /공개 프로필과 지원한 팀의 팀장에게 표시돼요/,
+      );
       await waitFor(() =>
         expect(within(drawer).getByLabelText('요일')).toHaveFocus(),
       );
@@ -574,120 +526,51 @@ describe('design preview account flows', () => {
     );
   });
 
-  it('saves keyboard portfolio consent, preserves it on cancel and keeps the link out of public profiles', async () => {
+  it('retains portfolio edits only after saving and preserves the global privacy state', async () => {
     await renderProfileFlow();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
-    const portfolioSwitch = screen.getByRole('switch', {
-      name: '포트폴리오 링크 공개',
-    });
-    expect(portfolioSwitch).not.toBeChecked();
-    expect(portfolioSwitch).toBeDisabled();
-    expect(portfolioSwitch).toHaveAccessibleDescription(
-      /지금까지 지원했거나 앞으로 지원할 모든 팀의 팀장에게 동일하게 적용돼요\./,
-    );
-    expect(portfolioSwitch).toHaveAccessibleDescription(
-      /저장 버튼을 눌러야 적용/,
-    );
-    await user.click(screen.getByRole('switch', { name: '사람 탐색에 공개' }));
     await user.type(
       screen.getByLabelText('포트폴리오 링크 (선택)'),
-      'https://example.com/private-portfolio',
+      'https://example.com/draft',
     );
-    await user.tab();
-    expect(screen.getByLabelText('포트폴리오 제목 (선택)')).toHaveFocus();
-    await user.tab();
-    expect(portfolioSwitch).toHaveFocus();
-    await user.keyboard('[Space]');
-    expect(portfolioSwitch).toBeChecked();
-    expect(screen.queryByText('프로필을 저장했어요.')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
-    expect(
-      await screen.findByText('모든 지원 팀의 팀장에게 공개 동의함'),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
-    await user.click(screen.getByText('포트폴리오 링크 공개'));
-    expect(
-      screen.getByRole('switch', { name: '포트폴리오 링크 공개' }),
-    ).not.toBeChecked();
     await user.click(screen.getByRole('button', { name: '취소' }));
-    expect(
-      screen.getByText('모든 지원 팀의 팀장에게 공개 동의함'),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
-    expect(screen.getByText(initialProfile.name)).toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: /등록한 링크 열기/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/example\.com\/private-portfolio/),
-    ).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('link', { name: '공개 설정 변경' }));
-    expect(
-      screen.getByRole('switch', { name: '포트폴리오 링크 공개' }),
-    ).toBeChecked();
-    await user.click(
-      screen.getByRole('switch', { name: '포트폴리오 링크 공개' }),
+    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
+    expect(screen.getByLabelText('포트폴리오 링크 (선택)')).toHaveValue('');
+    await user.type(
+      screen.getByLabelText('포트폴리오 링크 (선택)'),
+      'https://example.com/saved',
     );
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(
-      screen.queryByText('모든 지원 팀의 팀장에게 공개 동의함'),
-    ).not.toBeInTheDocument();
+      screen.getByRole('switch', { name: '프로필 공개' }),
+    ).not.toBeChecked();
     expect(
       screen.getByRole('link', { name: /등록한 링크 열기/ }),
-    ).toHaveAttribute('href', 'https://example.com/private-portfolio');
-    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
-    expect(
-      screen.getByRole('switch', { name: '포트폴리오 링크 공개' }),
-    ).not.toBeChecked();
+    ).toHaveAttribute('href', 'https://example.com/saved');
   });
 
-  it('revokes the draft consent when the URL becomes invalid and does not restore it with a new URL', async () => {
-    const state = renderAccount('/design-preview/profile', {
-      profile: {
-        ...initialProfile,
-        portfolio: 'https://example.com/previous',
-        portfolioConsent: true,
-      },
-    });
+  it('rejects unsafe portfolio URLs without saving profile changes', async () => {
+    const state = renderAccount('/design-preview/profile?edit=details');
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
-    const portfolioSwitch = screen.getByRole('switch', {
-      name: '포트폴리오 링크 공개',
-    });
-    const portfolioInput = screen.getByLabelText('포트폴리오 링크 (선택)');
-    expect(portfolioSwitch).toBeChecked();
-    await user.clear(portfolioInput);
-    expect(portfolioSwitch).toBeDisabled();
-    expect(portfolioSwitch).not.toBeChecked();
-    await user.type(portfolioInput, 'javascript:alert(1)');
-    expect(portfolioSwitch).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'http:// 또는 https://로 시작하는 링크',
+    await user.type(
+      screen.getByLabelText('포트폴리오 링크 (선택)'),
+      'javascript:alert(1)',
     );
+    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+    expect(
+      screen.getByText(
+        'http:// 또는 https://로 시작하는 링크를 입력해 주세요.',
+      ),
+    ).toBeVisible();
     expect(state.saveProfile).not.toHaveBeenCalled();
-    await user.clear(portfolioInput);
-    await user.type(portfolioInput, 'https://example.com/new');
-    expect(portfolioSwitch).toBeEnabled();
-    expect(portfolioSwitch).not.toBeChecked();
-    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
-    expect(state.saveProfile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        portfolio: 'https://example.com/new',
-        portfolioConsent: false,
-      }),
-    );
   });
 
-  it('saves a deleted portfolio with its sharing consent removed', async () => {
+  it('clears the portfolio title when its URL is deleted', async () => {
     const state = renderAccount('/design-preview/profile', {
       profile: {
         ...initialProfile,
         portfolio: 'https://example.com/previous',
-        portfolioConsent: true,
       },
     });
     const user = userEvent.setup();
@@ -695,7 +578,7 @@ describe('design preview account flows', () => {
     await user.clear(screen.getByLabelText('포트폴리오 링크 (선택)'));
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(state.saveProfile).toHaveBeenCalledWith(
-      expect.objectContaining({ portfolio: '', portfolioConsent: false }),
+      expect.objectContaining({ portfolio: '', portfolioTitle: '' }),
     );
   });
 
@@ -864,21 +747,13 @@ describe('design preview account flows', () => {
     );
   });
 
-  it('keeps field visibility editable while absent from the people directory', async () => {
+  it('keeps the global privacy state when saving profile details without field-level toggles', async () => {
     const state = renderAccount('/design-preview/profile?edit=details');
     const user = userEvent.setup();
-    expect(
-      screen.getByRole('switch', { name: '사람 탐색에 공개' }),
-    ).not.toBeChecked();
-    await user.click(screen.getByRole('switch', { name: '자기소개 공개' }));
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(state.saveProfile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        visibility: expect.objectContaining({
-          discoverable: false,
-          intro: true,
-        }),
-      }),
+      expect.objectContaining({ visibility: { discoverable: false } }),
     );
   });
 
@@ -977,7 +852,6 @@ describe('design preview account flows', () => {
         skills: ['프로그래밍', '기타'],
         skillOther: '3D 모델링',
         portfolioTitle: '나의 작업',
-        portfolioConsent: false,
       }),
     );
   });

@@ -45,7 +45,10 @@ import {
   Badge,
   EmptyState,
   PageIntro,
+  SchoolVerificationBadge,
+  TeamStatusBadge,
 } from './PreviewUi';
+import { ProfileDetails } from './ProfileDetails';
 import { usePreview } from './preview-context';
 import { missingProfileFields } from './profile-fields';
 import {
@@ -53,7 +56,6 @@ import {
   isTeamMember,
   recruitmentIssue,
   selectionScenario,
-  teamStatusLabel,
 } from './team-state';
 import './workspace.css';
 
@@ -366,7 +368,7 @@ export function WorkspacePage() {
                     aria-label={`${team.name} 팀 공간으로`}
                   >
                     <div className="preview-split">
-                      <Badge>{teamStatusLabel(team)}</Badge>
+                      <TeamStatusBadge team={team} />
                       {team.owner && pending > 0 && (
                         <span className="workspace-pending">
                           검토 대기 {pending}명
@@ -560,7 +562,7 @@ function TeamSpace({
         description={contests.find((item) => item.id === team.contestId)?.title}
       />
       <div className="preview-row">
-        <Badge>{teamStatusLabel(team)}</Badge>
+        <TeamStatusBadge team={team} />
         <span className="preview-inline-fact">
           <span>내 역할</span>
           <strong>{team.owner ? '팀장' : '팀원'}</strong>
@@ -791,7 +793,7 @@ function TeamDetail({
         description={contests.find((item) => item.id === team.contestId)?.title}
       />
       <div className="preview-row">
-        <Badge>{teamStatusLabel(team)}</Badge>
+        <TeamStatusBadge team={team} />
         <span className="preview-muted">팀장 포함 총 {team.capacity}명</span>
       </div>
       <TeamOverview team={team} currentPath={currentPath} />
@@ -935,9 +937,9 @@ function TeamDetail({
             <Alert role="note">
               <AlertTitle>팀장에게 전달되는 정보</AlertTitle>
               <AlertDescription>
-                이름, 희망 역할, 보유 역량, 팀에 전할 말과 공개한 프로필 항목이
-                전달돼요. 비공개 관심 분야·경험·자기소개는 유지되고,
-                포트폴리오는 프로필에서 공개한 경우에만 보여요.
+                프로필이 비공개여도 지원받은 팀장에게는 등록한 전체 프로필이
+                보여요. 학사 정보, 활동 가능 시간, 포트폴리오와 팀에 전할 말도
+                함께 전달돼요.
               </AlertDescription>
             </Alert>
             {submitError && (
@@ -1033,78 +1035,13 @@ function ApplicantDetail({
           />
           <div>
             <h2 id="applicant-name">{visible.name}</h2>
-            <p className="preview-muted">교내 미인증</p>
+            <SchoolVerificationBadge />
           </div>
           <Badge>{applicationLabel(applicant.status)}</Badge>
         </div>
-        <dl className="preview-profile-facts">
-          <div>
-            <dt>희망 역할</dt>
-            <dd className="preview-row">
-              {visible.roles.map((role) => (
-                <Badge key={role}>{role}</Badge>
-              ))}
-            </dd>
-          </div>
-          <div>
-            <dt>보유 역량</dt>
-            <dd className="preview-row">
-              {visible.skills.length ? (
-                visible.skills.map((skill) => (
-                  <Badge key={skill}>{skill}</Badge>
-                ))
-              ) : (
-                <p className="preview-muted">아직 입력하지 않았어요.</p>
-              )}
-            </dd>
-          </div>
-          {visible.interests !== undefined && (
-            <div>
-              <dt>관심 분야</dt>
-              <dd className="preview-row">
-                {visible.interests.map((interest) => (
-                  <Badge key={interest}>{interest}</Badge>
-                ))}
-              </dd>
-            </div>
-          )}
-          {visible.experience !== undefined && (
-            <div>
-              <dt>경험</dt>
-              <dd className="preview-info-copy">{visible.experience}</dd>
-            </div>
-          )}
-          {visible.intro !== undefined && (
-            <div>
-              <dt>자기소개</dt>
-              <dd className="preview-info-copy">
-                {visible.intro || '아직 입력하지 않았어요.'}
-              </dd>
-            </div>
-          )}
-          {visible.portfolio && (
-            <div>
-              <dt>포트폴리오</dt>
-              <dd>
-                <a
-                  className="workspace-text-link"
-                  href={visible.portfolio}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {visible.portfolioTitle || '포트폴리오 열기'}
-                  <ExternalLink size={16} aria-hidden="true" />
-                </a>
-                <p className="preview-muted">
-                  외부 사이트로 이동해요. 링크가 열리지 않으면 지원자에게 공개
-                  설정을 확인해 주세요.
-                </p>
-              </dd>
-            </div>
-          )}
-        </dl>
+        <ProfileDetails profile={visible} />
         <p className="preview-muted">
-          현재 공개한 정보만 보여요. 개인 일정과 이메일은 표시하지 않아요.
+          지원받은 팀장에게는 공개 설정과 관계없이 등록한 전체 프로필이 보여요.
         </p>
       </section>
       <section

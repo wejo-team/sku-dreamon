@@ -47,6 +47,18 @@ export type Person = {
   interests?: string[];
   intro?: string;
   experience?: string;
+  academicStatus?: string;
+  grade?: string;
+  college?: string;
+  department?: string;
+  major?: string;
+  skills?: string[];
+  interestOther?: string;
+  skillOther?: string;
+  experienceState?: Profile['experienceState'];
+  availability?: string;
+  portfolio?: string;
+  portfolioTitle?: string;
 };
 export type ApplicationStatus =
   '지원완료' | '검토중' | '선발' | '미선발' | '지원취소';
@@ -89,38 +101,40 @@ export type Profile = {
   experience: string;
   visibility: {
     discoverable: boolean;
-    interests: boolean;
-    experience: boolean;
-    intro: boolean;
   };
   portfolio: string;
-  portfolioConsent: boolean;
   availability: string;
 };
 
-export function getPublicProfile(profile: Profile, id = 'me'): Person | null {
-  if (!profile.visibility.discoverable) return null;
+export function profileToPerson(profile: Profile, id = 'me'): Person {
   return {
     id,
     name: profile.name,
     avatarId: profile.avatarId ?? defaultMascotAvatarId,
     roles: [...profile.roles],
-    ...(profile.visibility.interests
-      ? { interests: [...profile.interests] }
-      : {}),
-    ...(profile.visibility.experience &&
-    (profile.experience || profile.experienceState === 'none')
-      ? {
-          experience:
-            profile.experienceState === 'none'
-              ? '관련 경험 없음'
-              : profile.experience,
-        }
-      : {}),
-    ...(profile.visibility.intro && profile.intro
-      ? { intro: profile.intro }
-      : {}),
+    interests: [...profile.interests],
+    intro: profile.intro,
+    experience:
+      profile.experienceState === 'none'
+        ? '관련 경험 없음'
+        : profile.experience,
+    experienceState: profile.experienceState,
+    academicStatus: profile.academicStatus,
+    grade: profile.grade,
+    college: profile.college,
+    department: profile.department,
+    major: profile.major,
+    skills: [...profile.skills],
+    interestOther: profile.interestOther,
+    skillOther: profile.skillOther,
+    availability: profile.availability,
+    portfolio: /^https?:\/\//i.test(profile.portfolio) ? profile.portfolio : '',
+    portfolioTitle: profile.portfolioTitle,
   };
+}
+
+export function getPublicProfile(profile: Profile, id = 'me'): Person | null {
+  return profile.visibility.discoverable ? profileToPerson(profile, id) : null;
 }
 
 export const contests: Contest[] = [
@@ -265,12 +279,9 @@ export const initialProfile: Profile = {
   experience: '',
   visibility: {
     discoverable: false,
-    interests: false,
-    experience: false,
-    intro: false,
   },
   portfolio: '',
-  portfolioConsent: false,
+
   availability: '월 18:00~21:00; 목 18:00~21:00',
 };
 export const roleOptions = [
@@ -311,16 +322,12 @@ export const initialApplicants: Applicant[] = [
       intro: '함께 배우며 완성하는 팀을 찾고 있어요.',
       visibility: {
         discoverable: true,
-        interests: true,
-        experience: true,
-        intro: true,
       },
       portfolio: new URL(
         '/design-preview/reference/portfolios/seoyeon',
         globalThis.location?.origin ?? 'http://localhost:5174',
       ).href,
       portfolioTitle: '김서연의 프로젝트',
-      portfolioConsent: true,
     },
     teamId: 'greenwave',
     name: '김서연',
@@ -345,9 +352,6 @@ export const initialApplicants: Applicant[] = [
       intro: '사용자 관점에서 설계합니다.',
       visibility: {
         discoverable: true,
-        interests: true,
-        experience: false,
-        intro: false,
       },
     },
     teamId: 'greenwave',
@@ -398,9 +402,6 @@ export const people: Person[] = [
         '아이디어를 동작하는 화면으로 만드는 프론트엔드 개발에 관심이 있어요.',
       visibility: {
         discoverable: true,
-        interests: true,
-        experience: false,
-        intro: true,
       },
     },
     'doyun',

@@ -3,6 +3,10 @@
   --school-unverified-hover: #912018;
   --school-verified: #1d4ed8;
   --school-status-foreground: #ffffff;
+  --recruiting-background: #cce9d7;
+  --recruiting-foreground: #164c35;
+  --closed-background: #e4e4e7;
+  --closed-foreground: #52525b;
   font-family: 'DreamOn Noto', 'Noto Sans KR', sans-serif;
   font-size: 15px;
   line-height: 1.6;
@@ -515,6 +519,14 @@
   background: var(--primary);
   color: var(--primary-foreground);
 }
+.dreamon-preview .preview-badge--recruiting {
+  background: var(--recruiting-background);
+  color: var(--recruiting-foreground);
+}
+.dreamon-preview .preview-badge--closed {
+  background: var(--closed-background);
+  color: var(--closed-foreground);
+}
 .dreamon-preview .preview-avatar {
   width: 56px;
   height: 56px;
@@ -976,7 +988,7 @@
 .dreamon-preview .preview-profile-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin-left: auto;
 }
 .dreamon-preview .preview-profile-visibility {

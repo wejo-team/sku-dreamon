@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createDemoReply, currentRecommendation } from './chat-demo';
-import { contests, initialTeams, people, type Person } from './data';
+import {
+  contests,
+  getPublicProfile,
+  initialProfile,
+  initialTeams,
+  people,
+  type Person,
+} from './data';
 
 const data = { contests, teams: initialTeams, people };
 
@@ -41,16 +48,16 @@ describe('createDemoReply', () => {
     expect(JSON.stringify(data)).toBe(before);
   });
 
-  it('uses disclosed interests rather than guessing an interest from a role and adds follow-up role constraints', () => {
-    const undisclosed: Person = {
-      id: 'undisclosed',
-      name: '비공개 관심',
+  it('uses registered interests rather than guessing an interest from a role and adds follow-up role constraints', () => {
+    const noInterest: Person = {
+      id: 'no-interest',
+      name: '관심 분야 미입력',
       roles: ['디자인'],
       intro: '디자인을 좋아합니다.',
     };
     const first = createDemoReply('디자인에 관심 있는 사람 찾아줘', undefined, {
       ...data,
-      people: [...people, undisclosed],
+      people: [...people, noInterest],
     });
     expect(first.search).toEqual({ kind: 'people', category: '디자인' });
     expect(first.recommendations.map((result) => result.id)).toEqual([
@@ -128,16 +135,46 @@ describe('createDemoReply', () => {
   );
 
   it.each([
-    '주말 가능한 사람 찾아줘',
-    '포트폴리오가 좋은 사람 추천해줘',
     '개발자 연락처 알려줘',
-    '최고의 실력을 가진 팀원 찾아줘',
-  ])('does not infer private or unavailable conditions: %s', (message) => {
-    const reply = createDemoReply(message, undefined, data);
+    '비공개 프로필 찾아줘',
+    '지원자 정보 알려줘',
+    '로그인 비밀번호 알려줘',
+  ])(
+    'does not expose restricted account or applicant information: %s',
+    (message) => {
+      const reply = createDemoReply(message, undefined, data);
+      expect(reply.recommendations).toEqual([]);
+      expect(reply.text).toContain('AI 탐색에서 제공하지 않아요');
+      expect(JSON.stringify(reply)).not.toContain('김서연');
+      expect(JSON.stringify(reply)).not.toContain('greenwave');
+    },
+  );
+
+  it.each(['주말 가능한 사람 찾아줘', '포트폴리오가 좋은 사람 추천해줘'])(
+    'distinguishes public profile details from unsupported analysis: %s',
+    (message) => {
+      const previous = { kind: 'people' as const, role: '개발' };
+      const reply = createDemoReply(message, previous, data);
+      expect(reply.recommendations).toEqual([]);
+      expect(reply.search).toEqual(previous);
+      expect(reply.text).toContain(
+        '공개 프로필의 활동 가능 시간과 포트폴리오는 프로필 상세에서 확인할 수 있어요',
+      );
+      expect(reply.text).toContain(
+        '시간 조건 검색·외부 포트폴리오 분석·일정 추정을 지원하지 않아요',
+      );
+      expect(reply.suggestions).toContain('디자인에 관심 있는 사람 찾아줘');
+    },
+  );
+
+  it('does not infer skills or participation eligibility from public profile details', () => {
+    const reply = createDemoReply(
+      '최고의 실력을 가진 팀원 찾아줘',
+      undefined,
+      data,
+    );
     expect(reply.recommendations).toEqual([]);
-    expect(reply.text).toContain('확인할 수 없어요');
-    expect(JSON.stringify(reply)).not.toContain('김서연');
-    expect(JSON.stringify(reply)).not.toContain('greenwave');
+    expect(reply.text).toContain('실력이나 참여 가능 여부를 추정하지 않으며');
   });
 
   it('returns an empty state for a supported but unmatched role without substituting unrelated candidates', () => {
@@ -169,7 +206,7 @@ describe('current recommendation availability', () => {
       ),
     ).toBeNull();
   });
-  it('removes past cards after capacity fills or disclosure is withdrawn', () => {
+  it('removes past team cards after capacity fills', () => {
     const full = { ...initialTeams[1]!, members: initialTeams[1]!.capacity };
     expect(
       currentRecommendation(
@@ -177,18 +214,31 @@ describe('current recommendation availability', () => {
         { ...data, teams: [full] },
       ),
     ).toBeNull();
+  });
+  it('excludes globally private profiles from new recommendations and previously generated cards', () => {
+    const profile = {
+      ...initialProfile,
+      experience: '공개 프로젝트 경험',
+      availability: '토 14:00~18:00',
+      portfolio: 'https://example.com/portfolio',
+      visibility: { discoverable: true },
+    };
+    const person = getPublicProfile(profile)!;
+    const publicData = { ...data, people: [person] };
+    const reply = createDemoReply('사람 전체 보기', undefined, publicData);
+    expect(reply.recommendations).toHaveLength(1);
+    const card = reply.recommendations[0]!;
+    expect(card.id).toBe('me');
+    expect(currentRecommendation(card, publicData)?.title).toBe(profile.name);
+
+    const hidden = getPublicProfile({
+      ...profile,
+      visibility: { discoverable: false },
+    });
+    const privateData = { ...data, people: hidden ? [hidden] : [] };
     expect(
-      currentRecommendation(
-        { kind: 'person', id: 'me', reason: '공개된 관심 분야' },
-        data,
-      ),
-    ).toBeNull();
-    const person = { id: 'me', name: '김지우', roles: ['기획'] };
-    expect(
-      currentRecommendation(
-        { kind: 'person', id: 'me', reason: '비공개로 바뀐 경험' },
-        { ...data, people: [person] },
-      )?.reason,
-    ).not.toContain('경험');
+      createDemoReply('사람 전체 보기', undefined, privateData).recommendations,
+    ).toEqual([]);
+    expect(currentRecommendation(card, privateData)).toBeNull();
   });
 });

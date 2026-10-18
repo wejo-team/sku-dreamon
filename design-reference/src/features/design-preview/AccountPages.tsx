@@ -1,4 +1,4 @@
-import { useId, useState, type ChangeEvent } from 'react';
+import { useId, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   ArrowRight,
@@ -55,6 +55,7 @@ import {
   SchoolVerificationBadge,
 } from './PreviewUi';
 import { AvatarPicker } from './AvatarPicker';
+import { ProfileDetails } from './ProfileDetails';
 import { mascotAvatarIds } from './mascot-avatars';
 import { AcademicFields, ExperienceFields, SkillFields } from './ProfileFields';
 import './login.css';
@@ -103,9 +104,6 @@ const profileSchema = requiredProfileSchema.extend({
   portfolioTitle: z.string().trim(),
   visibility: z.object({
     discoverable: z.boolean(),
-    interests: z.boolean(),
-    experience: z.boolean(),
-    intro: z.boolean(),
   }),
   portfolio: z
     .string()
@@ -114,7 +112,6 @@ const profileSchema = requiredProfileSchema.extend({
       (value) => !value || isWebUrl(value),
       'http:// 또는 https://로 시작하는 링크를 입력해 주세요.',
     ),
-  portfolioConsent: z.boolean(),
   availability: z.string(),
 });
 const accountSchema = z.object({
@@ -242,8 +239,8 @@ function AvailabilityField({
           <DrawerHeader>
             <DrawerTitle>활동 가능 시간</DrawerTitle>
             <DrawerDescription>
-              개인 일정은 공개되지 않아요. 시간을 선택해 적용한 뒤 프로필을
-              저장해 주세요.
+              공개 프로필과 지원한 팀의 팀장에게 표시돼요. 시간을 선택해 적용한
+              뒤 프로필을 저장해 주세요.
             </DrawerDescription>
           </DrawerHeader>
           <div className="preview-drawer-body">
@@ -325,7 +322,7 @@ function AvailabilityField({
   );
 }
 
-function LoginGate({
+export function LoginGate({
   returnTo,
   title,
   rootPage = false,
@@ -359,40 +356,75 @@ function LoginGate({
   );
 }
 
-function VisibilitySwitch({
-  label,
+function ProfileVisibilityControl({
   checked,
-  onChange,
-  disabled = false,
-  describedBy,
+  onConfirm,
 }: {
-  label: string;
   checked: boolean;
-  onChange: (value: boolean) => void;
-  disabled?: boolean;
-  describedBy?: string;
+  onConfirm: (next: boolean) => void;
 }) {
+  const [pending, setPending] = useState<boolean | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const id = useId();
   return (
-    <Label
-      htmlFor={id}
-      className="dreamon-privacy-switch"
-      data-disabled={disabled}
+    <Drawer
+      open={pending !== null}
+      onOpenChange={(open) => setPending(open ? !checked : null)}
+      shouldScaleBackground={false}
+      autoFocus
     >
-      <span>{label}</span>
-      <span className="dreamon-privacy-state" aria-hidden="true">
-        {checked ? '공개' : '비공개'}
-      </span>
-      <Switch
-        id={id}
-        className="preview-control-switch"
-        aria-label={label}
-        aria-describedby={describedBy}
-        checked={checked}
-        onCheckedChange={onChange}
-        disabled={disabled}
-      />
-    </Label>
+      <Label
+        className="preview-profile-visibility"
+        htmlFor={id}
+        title="프로필 공개 설정"
+      >
+        <Switch
+          ref={triggerRef}
+          id={id}
+          aria-label="프로필 공개"
+          aria-haspopup="dialog"
+          checked={checked}
+          onCheckedChange={setPending}
+        />
+        <span>{checked ? '공개' : '비공개'}</span>
+      </Label>
+      <DrawerContent
+        className="dreamon-preview preview-drawer"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          triggerRef.current?.focus();
+        }}
+      >
+        <DrawerHeader>
+          <DrawerTitle>
+            {pending ? '프로필을 공개할까요?' : '프로필을 비공개로 바꿀까요?'}
+          </DrawerTitle>
+          <DrawerDescription>
+            {pending
+              ? '로그인한 사용자의 검색·AI 추천에 표시되고, 등록한 모든 프로필 항목이 보여요. 활동 가능 시간과 포트폴리오도 포함돼요.'
+              : '모든 일반 검색·AI 추천에서 숨겨지고, 다른 사용자는 프로필을 열 수 없어요.'}{' '}
+            지원한 팀장에게는 공개 여부와 관계없이 전체 프로필이 보여요.
+          </DrawerDescription>
+        </DrawerHeader>
+        <DrawerFooter>
+          <Button
+            type="button"
+            className="preview-button"
+            onClick={() => {
+              if (pending !== null) onConfirm(pending);
+              setPending(null);
+            }}
+          >
+            {pending ? '공개로 전환' : '비공개로 전환'}
+          </Button>
+          <DrawerClose asChild>
+            <Button type="button" variant="outline" className="preview-button">
+              취소
+            </Button>
+          </DrawerClose>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   );
 }
 
@@ -412,13 +444,8 @@ function ProfileEditor({
     formState: { errors, isSubmitting },
   } = useForm<Profile>({
     resolver: zodResolver(profileSchema),
-    defaultValues: {
-      ...profile,
-      portfolioConsent: isWebUrl(profile.portfolio) && profile.portfolioConsent,
-    },
+    defaultValues: profile,
   });
-  const portfolio = useWatch({ control, name: 'portfolio' });
-  const validPortfolio = isWebUrl(portfolio.trim());
   const interests = useWatch({ control, name: 'interests' });
   return (
     <form
@@ -438,8 +465,6 @@ function ProfileEditor({
           experience:
             values.experienceState === 'provided' ? values.experience : '',
           portfolioTitle: values.portfolio ? values.portfolioTitle : '',
-          portfolioConsent:
-            isWebUrl(values.portfolio) && values.portfolioConsent,
         });
         onDone();
       })}
@@ -451,51 +476,10 @@ function ProfileEditor({
           <AvatarPicker value={field.value} onChange={field.onChange} />
         )}
       />
-      <fieldset className="dreamon-privacy-settings">
-        <legend>공개 설정</legend>
-        <p id="profile-save-help" className="preview-muted">
-          변경사항은 아래 저장 버튼을 눌러야 적용돼요.
-        </p>
-        <Controller
-          control={control}
-          name="visibility.discoverable"
-          render={({ field }) => (
-            <VisibilitySwitch
-              label="사람 탐색에 공개"
-              checked={field.value}
-              onChange={field.onChange}
-              describedBy="profile-visibility-help profile-save-help"
-            />
-          )}
-        />
-        <p id="profile-visibility-help" className="preview-muted">
-          사람 탐색 공개는 목록에 나타날지 정하는 설정이에요. 아래 항목별 공개
-          설정은 지원한 팀의 팀장에게도 적용돼요.
-        </p>
-        <div className="dreamon-privacy-fields">
-          {(
-            [
-              ['interests', '관심 분야 공개'],
-              ['experience', '경험 공개'],
-              ['intro', '자기소개 공개'],
-            ] as const
-          ).map(([key, label]) => (
-            <Controller
-              key={key}
-              control={control}
-              name={`visibility.${key}`}
-              render={({ field }) => (
-                <VisibilitySwitch
-                  label={label}
-                  checked={field.value}
-                  onChange={field.onChange}
-                  describedBy="profile-visibility-help profile-save-help"
-                />
-              )}
-            />
-          ))}
-        </div>
-      </fieldset>
+      <p className="preview-muted">
+        공개 상태에서는 등록한 모든 항목이 보여요. 지원한 팀의 팀장은 공개
+        여부와 관계없이 전체 프로필을 볼 수 있어요.
+      </p>
       <Separator className="preview-form-separator" />
       <section
         className="preview-form-section"
@@ -600,13 +584,7 @@ function ProfileEditor({
           <Input
             id="profile-portfolio"
             type="url"
-            {...register('portfolio', {
-              onChange: (event: ChangeEvent<HTMLInputElement>) => {
-                if (!isWebUrl(event.target.value.trim())) {
-                  setValue('portfolioConsent', false, { shouldDirty: true });
-                }
-              },
-            })}
+            {...register('portfolio')}
             placeholder="https://example.com/portfolio"
             autoComplete="off"
             aria-invalid={!!errors.portfolio}
@@ -629,35 +607,6 @@ function ProfileEditor({
             {...register('portfolioTitle')}
             placeholder="작업 모음, 프로젝트 소개 등"
           />
-        </div>
-        <div className="preview-field preview-portfolio-visibility">
-          <Controller
-            control={control}
-            name="portfolioConsent"
-            render={({ field }) => (
-              <VisibilitySwitch
-                label="포트폴리오 링크 공개"
-                checked={validPortfolio && field.value}
-                onChange={field.onChange}
-                disabled={!validPortfolio}
-                describedBy="portfolio-visibility-help portfolio-visibility-status profile-save-help"
-              />
-            )}
-          />
-          <p id="portfolio-visibility-help" className="preview-muted">
-            지금까지 지원했거나 앞으로 지원할 모든 팀의 팀장에게 동일하게
-            적용돼요. 취소·미선발된 지원에도 적용되며 사람 탐색에는 표시되지
-            않아요.
-          </p>
-          <p
-            id="portfolio-visibility-status"
-            className="preview-muted"
-            aria-live="polite"
-          >
-            {validPortfolio
-              ? '공개할지 선택한 뒤 변경사항을 저장해 주세요.'
-              : '유효한 링크를 먼저 입력하면 공개 여부를 선택할 수 있어요.'}
-          </p>
         </div>
       </section>
       <Separator className="preview-form-separator" />
@@ -758,30 +707,13 @@ export function ProfilePage() {
                 >
                   <SquarePen size={20} aria-hidden="true" />
                 </Button>
-                <Label
-                  className="preview-profile-visibility"
-                  title="사람 탐색에 공개"
-                >
-                  <Switch
-                    aria-label="사람 탐색에 공개"
-                    aria-describedby="profile-quick-visibility-help"
-                    checked={profile.visibility.discoverable}
-                    onCheckedChange={(discoverable) => {
-                      setSaved(false);
-                      saveProfile({
-                        ...profile,
-                        visibility: { ...profile.visibility, discoverable },
-                      });
-                    }}
-                  />
-                  <span>
-                    {profile.visibility.discoverable ? '공개' : '비공개'}
-                  </span>
-                </Label>
-                <span id="profile-quick-visibility-help" className="sr-only">
-                  로그인한 사용자의 사람 탐색에 공개해요. 변경은 즉시 적용되며
-                  항목별 공개 설정은 유지돼요.
-                </span>
+                <ProfileVisibilityControl
+                  checked={profile.visibility.discoverable}
+                  onConfirm={(discoverable) => {
+                    setSaved(false);
+                    saveProfile({ ...profile, visibility: { discoverable } });
+                  }}
+                />
                 <Button
                   asChild
                   variant="outline"
@@ -812,9 +744,6 @@ export function ProfilePage() {
                 <h3 className="preview-section-title preview-info-label">
                   관심 분야
                 </h3>
-                <Badge>
-                  {profile.visibility.interests ? '공개' : '비공개'}
-                </Badge>
               </div>
               <p className="preview-info-value">
                 {profile.interests.join(' · ')}
@@ -828,9 +757,6 @@ export function ProfilePage() {
                 <h3 className="preview-section-title preview-info-label">
                   관련 경험
                 </h3>
-                <Badge>
-                  {profile.visibility.experience ? '공개' : '비공개'}
-                </Badge>
               </div>
               <p className="preview-info-copy">
                 {profile.experienceState === 'none'
@@ -843,7 +769,6 @@ export function ProfilePage() {
                 <h3 className="preview-section-title preview-info-label">
                   자기소개
                 </h3>
-                <Badge>{profile.visibility.intro ? '공개' : '비공개'}</Badge>
               </div>
               <p className="preview-info-copy">
                 {profile.intro || '아직 자기소개를 작성하지 않았어요.'}
@@ -889,7 +814,6 @@ export function ProfilePage() {
               >
                 {profile.availability || '아직 시간을 선택하지 않았어요.'}
               </p>
-              <p className="preview-muted">나만 보기</p>
             </section>
             <section className="preview-panel preview-stack">
               <h2 className="preview-section-title">포트폴리오</h2>
@@ -903,11 +827,6 @@ export function ProfilePage() {
                   >
                     {profile.portfolioTitle || '등록한 링크 열기'} (새 창)
                   </a>
-                  <p className="preview-muted">
-                    {profile.portfolioConsent
-                      ? '모든 지원 팀의 팀장에게 공개 동의함'
-                      : '비공개'}
-                  </p>
                 </>
               ) : (
                 <p className="preview-muted">등록한 링크가 없어요.</p>
@@ -944,10 +863,7 @@ export function PublicProfilePage() {
       <PageIntro
         title="공개 프로필"
         action={
-          <Link
-            className="preview-text-link"
-            to={previewPath('/profile?edit=visibility')}
-          >
+          <Link className="preview-text-link" to={previewPath('/profile')}>
             공개 설정 변경
           </Link>
         }
@@ -969,44 +885,7 @@ export function PublicProfilePage() {
               <SchoolVerificationBadge />
             </div>
           </div>
-          <div>
-            <h3 className="preview-section-title preview-info-label">
-              희망 역할
-            </h3>
-            <div className="preview-row">
-              {person.roles.map((role) => (
-                <Badge key={role}>{role}</Badge>
-              ))}
-            </div>
-          </div>
-          {person.interests && (
-            <div>
-              <h3 className="preview-section-title preview-info-label">
-                관심 분야
-              </h3>
-              <div className="preview-row">
-                {person.interests.map((interest) => (
-                  <Badge key={interest}>{interest}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
-          {person.experience && (
-            <div>
-              <h3 className="preview-section-title preview-info-label">
-                관련 경험
-              </h3>
-              <p className="preview-info-copy">{person.experience}</p>
-            </div>
-          )}
-          {person.intro && (
-            <div>
-              <h3 className="preview-section-title preview-info-label">
-                자기소개
-              </h3>
-              <p className="preview-info-copy">{person.intro}</p>
-            </div>
-          )}
+          <ProfileDetails profile={person} />
         </section>
       ) : (
         <div className="preview-panel">
@@ -1252,12 +1131,9 @@ export function SignupPage() {
             skillOther: '',
             visibility: {
               discoverable: false,
-              interests: false,
-              experience: false,
-              intro: false,
             },
             portfolio: '',
-            portfolioConsent: false,
+
             availability: '',
           });
           resetField('password', { defaultValue: '' });

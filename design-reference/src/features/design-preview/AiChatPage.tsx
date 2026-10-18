@@ -20,7 +20,7 @@ import {
   SquarePen,
   Users,
 } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useLocation, useSearchParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Bubble, BubbleContent } from '@/components/ui/bubble';
 import {
@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/message-scroller';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar } from './PreviewUi';
+import { LoginGate } from './AccountPages';
 import { ContestCover } from './ContestCover';
 import { contests, getPublicProfile, people, previewPath } from './data';
 import { usePreview } from './preview-context';
@@ -73,9 +74,7 @@ const ChatContext = createContext<ChatState | null>(null);
 
 export function AiChatProvider({ children }: { children: ReactNode }) {
   const { signedIn } = usePreview();
-  return (
-    <ChatSession key={signedIn ? 'signed-in' : 'guest'}>{children}</ChatSession>
-  );
+  return signedIn ? <ChatSession>{children}</ChatSession> : children;
 }
 
 function ChatSession({ children }: { children: ReactNode }) {
@@ -139,11 +138,6 @@ function ChatSession({ children }: { children: ReactNode }) {
           teams,
           people: visiblePeople,
         });
-        if (!signedIn && reply.search.kind === 'people') {
-          reply.text =
-            '사람 탐색은 로그인 후 이용할 수 있어요. 공개 공모전과 팀은 바로 찾아볼 수 있어요.';
-          reply.recommendations = [];
-        }
         search.current = reply.search;
         const message: Message = {
           id: nextId.current++,
@@ -319,6 +313,21 @@ const starters = [
 ];
 
 export function AiChatPage() {
+  const { signedIn } = usePreview();
+  const location = useLocation();
+  if (!signedIn) {
+    return (
+      <LoginGate
+        title="AI"
+        rootPage
+        returnTo={`${location.pathname}${location.search}${location.hash}`}
+      />
+    );
+  }
+  return <AiConversation />;
+}
+
+function AiConversation() {
   const chat = useContext(ChatContext);
   if (!chat) throw new Error('AiChatProvider가 필요합니다.');
   const {
