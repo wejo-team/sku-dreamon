@@ -33,7 +33,7 @@
 - 구조: 제품의 `frontend/`, `backend/`와 독립적인 공식 UI 참고 앱 `design-reference/`가 있는 모노레포. 공통 패키지나 별도 모노레포 실행 도구는 필요가 생길 때 추가합니다.
 - 프론트: React + TypeScript + Vite + React Router, Tailwind + shadcn/ui, TanStack Query + fetch, React Hook Form + Zod. 패키지 관리자는 npm입니다.
 - 백엔드: FastAPI + uv + Pydantic + SQLAlchemy 2 비동기 API + asyncpg + PostgreSQL + Alembic입니다. 앞서 검토했던 동기 DB 접근안은 이 결정으로 대체합니다.
-- CI: GitHub Actions. 프론트는 ESLint·Prettier·TypeScript, 백엔드는 Ruff·mypy를 사용합니다. 공식 디자인은 별도 `Design reference` 검사로 검증합니다.
+- CI: GitHub Actions. 프론트는 ESLint·Prettier·TypeScript, 백엔드는 Ruff·mypy를 사용합니다. 공식 디자인은 필요할 때 로컬에서 수동 확인합니다.
 - 문서: `docs/`를 원본으로 VitePress + GitHub Pages에서 읽습니다. 명세·계획·구현의 사람 검토 절차는 그대로 유지합니다.
 - 스프린트 1 로그인: [자체 아이디·비밀번호 방식](../specs/authentication.md#login-decision). 학교·이메일 인증과 소셜 로그인은 후속 범위이며, [내부 사용자 ID와 로그인 수단의 분리](../specs/authentication.md#account-linking)를 적용합니다.
 - 처음에는 한국어 개발 문서와 영어 코드 식별자를 사용합니다.

@@ -67,7 +67,7 @@ npm run dev
 
 ## 확인 명령
 
-`design-reference/`에서 실행합니다.
+디자인 변경에 필요한 명령을 `design-reference/`에서 골라 실행합니다. 전용 CI는 두지 않습니다.
 
 ```bash
 npm run lint
@@ -78,7 +78,7 @@ npm run build
 npm run preview
 ```
 
-production build 미리보기는 [127.0.0.1:4174](http://127.0.0.1:4174/)입니다. 정적 빌드는 레퍼런스의 로컬 동작을 확인하는 용도이며 백엔드·LLM이 연결되지는 않습니다. 독립 검사와 기존 필수 검사의 관계는 [테스트·CI](../development/testing.md#design-reference)에서 설명합니다.
+production build 미리보기는 [127.0.0.1:4174](http://127.0.0.1:4174/)입니다. 정적 빌드는 레퍼런스의 로컬 동작을 확인하는 용도이며 백엔드·LLM이 연결되지는 않습니다. 필요할 때 수행하는 수동 확인과 PR 검사 범위는 [테스트·CI](../development/testing.md#design-reference)에서 설명합니다.
 
 브라우저 검사는 별도 터미널에서 실행 중인 5174 레퍼런스와 Playwright Chromium이 필요합니다. 처음에는 브라우저를 설치한 뒤 같은 `design-reference/` 폴더에서 실행합니다. 로컬의 별도 런타임을 사용하는 경우 `PLAYWRIGHT_MODULE`·`CHROMIUM_PATH`로 경로를 지정할 수 있습니다.
 
