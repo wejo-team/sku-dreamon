@@ -57,6 +57,7 @@
 | 주요/보조 행동·링크 | [Button](../../design-reference/src/components/ui/button.tsx), [PreviewUi](../../design-reference/src/features/design-preview/PreviewUi.tsx) |
 | 워크스페이스 작업 | [Button](../../design-reference/src/components/ui/button.tsx)의 링크 조합과 [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx). 내 지원은 `ClipboardList`, 팀 만들기는 `Plus` 아이콘 |
 | 입력·선택·설명·오류 | [Input](../../design-reference/src/components/ui/input.tsx), [Textarea](../../design-reference/src/components/ui/textarea.tsx), [NativeSelect](../../design-reference/src/components/ui/native-select.tsx), [Alert](../../design-reference/src/components/ui/alert.tsx) |
+| 학교 인증 상태 | [SchoolVerificationBadge](../../design-reference/src/features/design-preview/PreviewUi.tsx). 미인증은 `--school-unverified: #b42318`, 인증은 `--school-verified: #1d4ed8`, 글자는 흰색. 내 프로필의 미인증 배지는 44px 버튼으로 감싸 안내 Drawer를 열고 다른 화면은 상태 배지로 표시. 현재 계정은 모두 미인증 |
 | 공개 여부 | [Switch](../../design-reference/src/components/ui/switch.tsx)와 [프로필 설정](../../design-reference/src/features/design-preview/AccountPages.tsx) |
 | 다중·단일 선택 | [Checkbox](../../design-reference/src/components/ui/checkbox.tsx), [RadioGroup](../../design-reference/src/components/ui/radio-group.tsx) |
 | 프로필 캐릭터 선택 | [Drawer](../../design-reference/src/components/ui/drawer.tsx) + [RadioGroup](../../design-reference/src/components/ui/radio-group.tsx), [AvatarPicker](../../design-reference/src/features/design-preview/AvatarPicker.tsx). 팝업 적용 후 프로필 저장, 취소 시 유지 |
@@ -76,6 +77,6 @@
 
 워크스페이스는 내 팀·내 지원 콘텐츠 제목, 개수, 작업 아이콘을 한 줄로 배치합니다. 내 지원·팀 만들기 링크는 각각 44px 조작 영역과 행동 이름을 나타내는 `aria-label`·`title`을 제공하고, 팀 만들기는 녹색 주요 버튼으로 강조합니다. 내 지원 화면의 목록 아이콘은 `aria-current`와 녹색으로 현재 위치를 표시합니다. 팀 카드는 전체 링크를 유지하고 내 역할·확정 인원과 같은 행 우하단의 `ChevronRight`로 이동을 나타냅니다. 화살표는 장식으로 처리하며, 카드 링크의 접근성 이름에 팀 이름과 `팀 공간으로`를 포함합니다. 이 카드의 이동 문구만 생략하고 상세·선발 이후의 명시적 이동 버튼은 유지합니다.
 
-내 프로필 보기에서는 첫 기본 정보 카드의 이름·아바타 옆에 `SquarePen` 수정 아이콘을 배치합니다. 44px 조작 영역과 `프로필 수정` 접근성 이름·title을 제공하며 학교 인증 상태 안내는 카드에 유지합니다. AI의 `새 대화`는 입력창 왼쪽 도구 아이콘으로 배치하고 `type="button"`을 사용해 메시지 전송과 구분합니다.
+내 프로필 보기에서는 첫 기본 정보 카드의 이름·아바타 옆에 `SquarePen` 수정 아이콘을 배치합니다. 44px 조작 영역과 `프로필 수정` 접근성 이름·title을 제공하며 공개/비공개 스위치·눈 모양 미리보기를 같은 조작 묶음에 배치합니다. 반복되는 공개 안내 행과 상시 학교 인증 설명은 표시하지 않습니다. 공개 스위치는 사람 탐색 공개만 즉시 저장하며 별도의 항목별 동의는 보존합니다. AI의 `새 대화`는 입력창 왼쪽 도구 아이콘으로 배치하고 `type="button"`을 사용해 메시지 전송과 구분합니다.
 
 팝업은 열기·닫기·Escape·바깥 영역·포커스 복귀를 확인하고, 폼의 적용과 취소를 구분합니다. 프로필 공개 스위치는 라벨과 설명에서 누구에게 공개되는지 드러내야 합니다. 화면 제목·입력 라벨·오류 메시지·로딩·빈 상태를 유지하고 색만으로 상태를 전달하지 않습니다. 긴 한국어 텍스트·큰 글꼴·화면 확대·작은 높이·키보드가 열린 상태·감소된 모션 설정에서 조작이 가능한지 확인합니다.

@@ -1,4 +1,8 @@
 .dreamon-preview {
+  --school-unverified: #b42318;
+  --school-unverified-hover: #912018;
+  --school-verified: #1d4ed8;
+  --school-status-foreground: #ffffff;
   font-family: 'DreamOn Noto', 'Noto Sans KR', sans-serif;
   font-size: 15px;
   line-height: 1.6;
@@ -967,6 +971,51 @@
 }
 .dreamon-preview .preview-profile-heading {
   justify-content: space-between;
+  flex-wrap: wrap;
+}
+.dreamon-preview .preview-profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.dreamon-preview .preview-profile-visibility {
+  min-height: 44px;
+  padding-inline: 8px;
+  gap: 8px;
+  color: var(--accent-foreground);
+  cursor: pointer;
+}
+.dreamon-preview .preview-profile-visibility > span {
+  min-width: 36px;
+  font-size: 12px;
+}
+.dreamon-preview .preview-school-badge {
+  gap: 4px;
+  border: 0;
+  background: var(--school-unverified);
+  color: var(--school-status-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.dreamon-preview .preview-school-badge[data-verified='true'] {
+  background: var(--school-verified);
+}
+.dreamon-preview .preview-school-trigger {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.dreamon-preview
+  .preview-school-trigger:is(:hover, :active)
+  .preview-school-badge {
+  background: var(--school-unverified-hover);
 }
 .dreamon-preview .preview-profile-identity > div {
   min-width: 0;
@@ -1007,11 +1056,6 @@
 }
 .dreamon-preview .preview-profile-summary .preview-badge {
   font-weight: 400;
-}
-.dreamon-preview .preview-profile-summary .dreamon-privacy-summary {
-  align-items: stretch;
-  padding-block: 20px;
-  border-block: 1px solid var(--border);
 }
 .dreamon-preview .dreamon-privacy-settings > p {
   font-size: 16px;

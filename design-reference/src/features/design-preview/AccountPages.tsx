@@ -47,7 +47,13 @@ import {
   type Profile,
 } from './data';
 import { usePreview } from './preview-context';
-import { Avatar, BackLink, Badge, PageIntro } from './PreviewUi';
+import {
+  Avatar,
+  BackLink,
+  Badge,
+  PageIntro,
+  SchoolVerificationBadge,
+} from './PreviewUi';
 import { AvatarPicker } from './AvatarPicker';
 import { mascotAvatarIds } from './mascot-avatars';
 import { AcademicFields, ExperienceFields, SkillFields } from './ProfileFields';
@@ -677,7 +683,7 @@ function ProfileEditor({
 }
 
 export function ProfilePage() {
-  const { signedIn, profile, signOut } = usePreview();
+  const { signedIn, profile, signOut, saveProfile } = usePreview();
   const [search] = useSearchParams();
   const navigate = useNavigate();
   const returnTo = search.get('returnTo');
@@ -731,38 +737,65 @@ export function ProfilePage() {
                 <Avatar name={profile.name} avatarId={profile.avatarId} />
                 <div>
                   <h2>{profile.name}</h2>
-                  <Badge>교내 미인증</Badge>
+                  <SchoolVerificationBadge interactive />
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="preview-profile-edit"
-                aria-label="프로필 수정"
-                title="프로필 수정"
-                onClick={() => {
-                  setSaved(false);
-                  setEditing(true);
-                }}
+              <div
+                className="preview-profile-actions"
+                role="group"
+                aria-label="프로필 관리"
               >
-                <SquarePen size={20} aria-hidden="true" />
-              </Button>
-            </div>
-            <p className="preview-muted">학교 인증은 아직 제공하지 않아요.</p>
-            <div className="dreamon-privacy-summary">
-              <div className="preview-row">
-                <h3 className="preview-section-title preview-info-label">
-                  사람 탐색에 공개
-                </h3>
-                <Badge>
-                  {profile.visibility.discoverable ? '공개 중' : '비공개'}
-                </Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="preview-profile-edit"
+                  aria-label="프로필 수정"
+                  title="프로필 수정"
+                  onClick={() => {
+                    setSaved(false);
+                    setEditing(true);
+                  }}
+                >
+                  <SquarePen size={20} aria-hidden="true" />
+                </Button>
+                <Label
+                  className="preview-profile-visibility"
+                  title="사람 탐색에 공개"
+                >
+                  <Switch
+                    aria-label="사람 탐색에 공개"
+                    aria-describedby="profile-quick-visibility-help"
+                    checked={profile.visibility.discoverable}
+                    onCheckedChange={(discoverable) => {
+                      setSaved(false);
+                      saveProfile({
+                        ...profile,
+                        visibility: { ...profile.visibility, discoverable },
+                      });
+                    }}
+                  />
+                  <span>
+                    {profile.visibility.discoverable ? '공개' : '비공개'}
+                  </span>
+                </Label>
+                <span id="profile-quick-visibility-help" className="sr-only">
+                  로그인한 사용자의 사람 탐색에 공개해요. 변경은 즉시 적용되며
+                  항목별 공개 설정은 유지돼요.
+                </span>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="preview-profile-edit"
+                >
+                  <Link
+                    to={previewPath('/profile/public')}
+                    aria-label="공개된 모습 보기"
+                    title="공개된 모습 보기"
+                  >
+                    <Eye size={20} aria-hidden="true" />
+                  </Link>
+                </Button>
               </div>
-              <Button asChild variant="outline" className="preview-button">
-                <Link to={previewPath('/profile/public')}>
-                  공개된 모습 보기
-                </Link>
-              </Button>
             </div>
             <div>
               <h3 className="preview-section-title preview-info-label">
@@ -933,7 +966,7 @@ export function PublicProfilePage() {
             />
             <div>
               <h2>{person.name}</h2>
-              <Badge>교내 미인증</Badge>
+              <SchoolVerificationBadge />
             </div>
           </div>
           <div>
@@ -1303,7 +1336,7 @@ export function SignupPage() {
             />
           )}
         />
-        <Badge>교내 미인증</Badge>
+        <SchoolVerificationBadge />
         <Button
           type="submit"
           className="preview-button"

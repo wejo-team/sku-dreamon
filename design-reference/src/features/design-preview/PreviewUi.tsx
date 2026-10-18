@@ -2,6 +2,8 @@ import { useContext, useState, type ReactNode } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
+  BadgeCheck,
+  CircleHelp,
   Info,
   LockKeyhole,
   SearchX,
@@ -10,6 +12,16 @@ import { Link } from 'react-router';
 import { Badge as UiBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
 import { previewPath } from './data';
 import { PreviewContext } from './preview-context';
 import {
@@ -67,6 +79,54 @@ export function Badge({
       {children === '비공개' && <LockKeyhole size={12} aria-hidden="true" />}
       {children}
     </UiBadge>
+  );
+}
+export function SchoolVerificationBadge({
+  verified = false,
+  interactive = false,
+}: {
+  verified?: boolean;
+  interactive?: boolean;
+}) {
+  const badge = (
+    <UiBadge className="preview-school-badge" data-verified={verified}>
+      {verified ? (
+        <BadgeCheck aria-hidden="true" />
+      ) : (
+        <CircleHelp aria-hidden="true" />
+      )}
+      {verified ? '교내 인증' : '교내 미인증'}
+    </UiBadge>
+  );
+  if (verified || !interactive) return badge;
+  return (
+    <Drawer shouldScaleBackground={false} autoFocus>
+      <DrawerTrigger asChild>
+        <button
+          type="button"
+          className="preview-school-trigger"
+          aria-label="교내 미인증, 학교 인증 안내"
+        >
+          {badge}
+        </button>
+      </DrawerTrigger>
+      <DrawerContent className="dreamon-preview preview-drawer">
+        <DrawerHeader>
+          <DrawerTitle>학교 인증 안내</DrawerTitle>
+          <DrawerDescription>
+            학교 인증은 아직 제공하지 않는 기능이에요. 현재는 모든 계정이 교내
+            미인증으로 표시돼요.
+          </DrawerDescription>
+        </DrawerHeader>
+        <DrawerFooter>
+          <DrawerClose asChild>
+            <Button type="button" className="preview-button">
+              확인
+            </Button>
+          </DrawerClose>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   );
 }
 export function EmptyState({

@@ -199,6 +199,106 @@ describe('design preview account flows', () => {
     ).toBe('skon');
   });
 
+  it.each([false, true])(
+    'changes only directory visibility from the header when discoverable is %s',
+    async (discoverable) => {
+      const profile = {
+        ...initialProfile,
+        portfolio: 'https://example.com/portfolio',
+        portfolioConsent: true,
+        visibility: {
+          discoverable,
+          interests: true,
+          experience: false,
+          intro: true,
+        },
+      };
+      const state = renderAccount('/design-preview/profile', { profile });
+      const user = userEvent.setup();
+      await user.click(
+        within(screen.getByRole('group', { name: '프로필 관리' })).getByRole(
+          'switch',
+          { name: '사람 탐색에 공개' },
+        ),
+      );
+      expect(state.saveProfile).toHaveBeenCalledExactlyOnceWith({
+        ...profile,
+        visibility: { ...profile.visibility, discoverable: !discoverable },
+      });
+    },
+  );
+
+  it('applies header discovery changes immediately to preview while retaining separate sharing choices', async () => {
+    await renderProfileFlow();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
+    await user.click(screen.getByRole('switch', { name: '자기소개 공개' }));
+    await user.type(
+      screen.getByLabelText('포트폴리오 링크 (선택)'),
+      'https://example.com/portfolio',
+    );
+    await user.click(
+      screen.getByRole('switch', { name: '포트폴리오 링크 공개' }),
+    );
+    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+
+    await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
+    expect(screen.getByText('현재 비공개 상태입니다.')).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: '내 프로필' }));
+    await user.click(screen.getByRole('switch', { name: '사람 탐색에 공개' }));
+    expect(
+      screen.getByRole('switch', { name: '사람 탐색에 공개' }),
+    ).toBeChecked();
+    await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
+    const publicProfile = screen.getByRole('region', {
+      name: '공개된 내 프로필',
+    });
+    expect(within(publicProfile).getByText(initialProfile.intro)).toBeVisible();
+    expect(
+      within(publicProfile).queryByRole('heading', { name: '관심 분야' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(publicProfile).queryByText('https://example.com/portfolio'),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: '내 프로필' }));
+    await user.click(screen.getByRole('switch', { name: '사람 탐색에 공개' }));
+    expect(
+      screen.getByRole('switch', { name: '사람 탐색에 공개' }),
+    ).not.toBeChecked();
+    await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
+    expect(screen.getByText('현재 비공개 상태입니다.')).toBeInTheDocument();
+    expect(screen.queryByText(initialProfile.intro)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: '내 프로필' }));
+    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
+    expect(screen.getByRole('switch', { name: '자기소개 공개' })).toBeChecked();
+    expect(
+      screen.getByRole('switch', { name: '관심 분야 공개' }),
+    ).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: '경험 공개' })).not.toBeChecked();
+    expect(
+      screen.getByRole('switch', { name: '포트폴리오 링크 공개' }),
+    ).toBeChecked();
+  });
+
+  it('explains unavailable school verification in a dismissible popup without changing the profile', async () => {
+    const state = renderAccount('/design-preview/profile');
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole('button', { name: '교내 미인증, 학교 인증 안내' }),
+    );
+    const popup = await screen.findByRole('dialog', { name: '학교 인증 안내' });
+    expect(popup).toHaveAccessibleDescription(
+      /학교 인증은 아직 제공하지 않는 기능이에요/,
+    );
+    await user.click(within(popup).getByRole('button', { name: '확인' }));
+    await waitFor(() => expect(popup).not.toBeInTheDocument());
+    expect(
+      screen.getByRole('button', { name: '교내 미인증, 학교 인증 안내' }),
+    ).toBeInTheDocument();
+    expect(state.saveProfile).not.toHaveBeenCalled();
+  });
+
   it('saves public visibility, cancels changes and hides all fields when made private', async () => {
     await renderProfileFlow();
     const user = userEvent.setup();
