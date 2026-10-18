@@ -5,9 +5,11 @@ import {
   ArrowRight,
   CheckCircle2,
   ChevronRight,
+  ClipboardList,
   ExternalLink,
   FileText,
   LoaderCircle,
+  Plus,
   Sparkles,
 } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router';
@@ -202,13 +204,21 @@ export function WorkspacePage() {
           <Button asChild variant="outline" className="workspace-action">
             <Link
               to={applicationsPath}
+              aria-label="내 지원"
+              title="내 지원"
               aria-current={showApplications ? 'page' : undefined}
             >
-              내 지원
+              <ClipboardList size={20} aria-hidden="true" />
             </Link>
           </Button>
-          <Button asChild variant="outline" className="workspace-action">
-            <Link to={previewPath('/teams/new')}>팀 만들기</Link>
+          <Button asChild className="workspace-action workspace-create-action">
+            <Link
+              to={previewPath('/teams/new')}
+              aria-label="팀 만들기"
+              title="팀 만들기"
+            >
+              <Plus size={22} aria-hidden="true" />
+            </Link>
           </Button>
         </nav>
       </header>
@@ -345,6 +355,7 @@ export function WorkspacePage() {
                     key={team.id}
                     to={teamViewPath(team.id, 'space')}
                     className="preview-card workspace-team-card"
+                    aria-label={`${team.name} 팀 공간으로`}
                   >
                     <div className="preview-split">
                       <Badge>{teamStatusLabel(team)}</Badge>
@@ -361,21 +372,23 @@ export function WorkspacePage() {
                           ?.title
                       }
                     </p>
-                    <dl className="workspace-team-facts">
-                      <div>
-                        <dt>내 역할</dt>
-                        <dd>{team.owner ? '팀장' : '팀원'}</dd>
-                      </div>
-                      <div>
-                        <dt>확정 인원</dt>
-                        <dd>
-                          {team.members} / {team.capacity}명
-                        </dd>
-                      </div>
-                    </dl>
-                    <span className="workspace-team-enter">
-                      팀 공간으로 <ChevronRight size={20} aria-hidden="true" />
-                    </span>
+                    <div className="workspace-team-summary">
+                      <dl className="workspace-team-facts">
+                        <div>
+                          <dt>내 역할</dt>
+                          <dd>{team.owner ? '팀장' : '팀원'}</dd>
+                        </div>
+                        <div>
+                          <dt>확정 인원</dt>
+                          <dd>
+                            {team.members} / {team.capacity}명
+                          </dd>
+                        </div>
+                      </dl>
+                      <span className="workspace-team-enter" aria-hidden="true">
+                        <ChevronRight size={22} />
+                      </span>
+                    </div>
                   </Link>
                 );
               })}

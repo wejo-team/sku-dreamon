@@ -55,6 +55,7 @@
 | 상황 | 참고 컴포넌트·원본 |
 | --- | --- |
 | 주요/보조 행동·링크 | [Button](../../design-reference/src/components/ui/button.tsx), [PreviewUi](../../design-reference/src/features/design-preview/PreviewUi.tsx) |
+| 워크스페이스 작업 | [Button](../../design-reference/src/components/ui/button.tsx)의 링크 조합과 [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx). 내 지원은 `ClipboardList`, 팀 만들기는 `Plus` 아이콘 |
 | 입력·선택·설명·오류 | [Input](../../design-reference/src/components/ui/input.tsx), [Textarea](../../design-reference/src/components/ui/textarea.tsx), [NativeSelect](../../design-reference/src/components/ui/native-select.tsx), [Alert](../../design-reference/src/components/ui/alert.tsx) |
 | 공개 여부 | [Switch](../../design-reference/src/components/ui/switch.tsx)와 [프로필 설정](../../design-reference/src/features/design-preview/AccountPages.tsx) |
 | 다중·단일 선택 | [Checkbox](../../design-reference/src/components/ui/checkbox.tsx), [RadioGroup](../../design-reference/src/components/ui/radio-group.tsx) |
@@ -72,5 +73,7 @@
 하단 탐색은 탐색·AI·워크스페이스·프로필의 네 항목입니다. 상단 우측 알림과 하단 프로필의 역할을 구분합니다. AI 화면은 대화·입력창·하단 영역을 함께 배치하며 [PreviewShell](../../design-reference/src/features/design-preview/PreviewShell.tsx)의 `visualViewport` 대응을 확인합니다.
 
 공모전·팀 탐색의 AI 추천 진입은 제목 옆 아이콘입니다. 필터와 초기화도 최소 44px 조작 영역의 아이콘 버튼으로 표시하며 접근성 이름을 제공합니다. 선택한 필터는 개수와 접근성 설명으로 알리고, 공모전 정렬은 선택 목록을 유지합니다. 정렬만 바꾼 경우에도 초기화 아이콘으로 기본 조건으로 돌아갈 수 있습니다.
+
+워크스페이스 제목 옆 내 지원·팀 만들기는 각각 44px 아이콘 조작 영역으로 배치합니다. 두 링크에 `aria-label`과 `title`로 행동 이름을 제공하고, 팀 만들기는 녹색 주요 버튼으로 강조합니다. 내 지원 화면의 목록 아이콘은 `aria-current`와 녹색으로 현재 위치를 표시합니다. 팀 카드는 전체 링크를 유지하고 내 역할·확정 인원과 같은 행 우하단의 `ChevronRight`로 이동을 나타냅니다. 화살표는 장식으로 처리하며, 카드 링크의 접근성 이름에 팀 이름과 `팀 공간으로`를 포함합니다. 이 카드의 이동 문구만 생략하고 상세·선발 이후의 명시적 이동 버튼은 유지합니다.
 
 팝업은 열기·닫기·Escape·바깥 영역·포커스 복귀를 확인하고, 폼의 적용과 취소를 구분합니다. 프로필 공개 스위치는 라벨과 설명에서 누구에게 공개되는지 드러내야 합니다. 화면 제목·입력 라벨·오류 메시지·로딩·빈 상태를 유지하고 색만으로 상태를 전달하지 않습니다. 긴 한국어 텍스트·큰 글꼴·화면 확대·작은 높이·키보드가 열린 상태·감소된 모션 설정에서 조작이 가능한지 확인합니다.
