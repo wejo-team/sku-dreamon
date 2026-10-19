@@ -11,6 +11,7 @@
 | [collaboration/](collaboration/README.md) | GitHub에서 문서 작성·PR·리뷰·게시 확인을 하는 방법 |
 | [development/](development/README.md) | 설치·실행, 기술 규칙, 개발·리뷰·검증 방법 |
 | [specs/](specs/README.md) | 팀이 검토하는 기능 동작·정책·예외·완료 조건 |
+| [logical-model/](logical-model/README.md) | 프로젝트 전체의 논리 ERD·속성·관계·제약·권한 설계 초안 |
 | [templates/](templates/README.md) | 새 문서를 작성할 때 복사하는 양식 |
 | [branding.md](branding.md) | 서경드림온의 의미와 이름·기술 식별자 표기 기준 |
 | [agent-guide.md](agent-guide.md) | 에이전트의 문서 선택과 작업·보고 원칙 |
