@@ -1,0 +1,275 @@
+.dreamon-login {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 64px;
+  width: 100%;
+  max-width: 1000px;
+  margin-inline: auto;
+}
+
+.dreamon-login-story {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 48px;
+  padding: 40px 36px 28px;
+  border-radius: 16px;
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.dreamon-preview .dreamon-login-story h2 {
+  font-size: 34px;
+  line-height: 1.45;
+  letter-spacing: -0.035em;
+  font-weight: 700;
+}
+
+.dreamon-preview .dreamon-login-story-summary {
+  margin-top: 20px;
+  color: var(--accent-foreground);
+  font-size: 15px;
+  line-height: 1.9;
+  word-break: keep-all;
+}
+
+.dreamon-preview .dreamon-login-story-signature {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: baseline;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.dreamon-login-content {
+  align-self: center;
+  width: 100%;
+  max-width: 420px;
+  padding-block: 32px;
+}
+
+.dreamon-preview .dreamon-login-heading h1 {
+  font-size: 32px;
+  line-height: 1.35;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.dreamon-preview .dreamon-login-heading p {
+  margin-top: 12px;
+  font-size: 16px;
+  color: var(--muted-foreground);
+}
+
+.dreamon-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 28px;
+}
+
+.dreamon-login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+
+.dreamon-login-field > label {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.dreamon-preview .dreamon-login-field input {
+  width: 100%;
+  min-width: 0;
+  height: 54px;
+  padding: 14px 16px;
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 16px;
+  line-height: 24px;
+  transition: border-color 160ms ease-out;
+}
+
+.dreamon-login-field input:hover {
+  border-color: var(--muted-foreground);
+}
+
+.dreamon-preview .dreamon-login-field input::placeholder {
+  color: var(--muted-foreground);
+  opacity: 1;
+}
+
+.dreamon-login-field input:focus {
+  border-color: var(--ring);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.dreamon-login-field input[aria-invalid='true'] {
+  border-color: var(--coral-ink);
+}
+
+.dreamon-login-password {
+  position: relative;
+}
+
+.dreamon-preview .dreamon-login-password input {
+  padding-right: 58px;
+}
+
+.dreamon-login-reveal {
+  position: absolute;
+  inset: 5px 5px auto auto;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.dreamon-login-reveal:hover,
+.dreamon-login-reveal[aria-pressed='true'] {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.dreamon-login .dreamon-login-submit {
+  width: 100%;
+  height: 52px;
+  min-height: 52px;
+  margin-top: 6px;
+  justify-content: space-between;
+  padding-inline: 20px;
+}
+
+.dreamon-login-signup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.dreamon-login-signup p {
+  color: var(--muted-foreground);
+}
+
+.dreamon-login-signup a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-weight: 650;
+}
+
+.dreamon-login-signup a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+@container dreamon (max-width: 1050px) {
+  .dreamon-login {
+    gap: 40px;
+  }
+
+  .dreamon-login-story {
+    padding: 36px 28px 28px;
+  }
+
+  .dreamon-preview .dreamon-login-story h2 {
+    font-size: 30px;
+  }
+}
+
+@container dreamon (max-width: 800px) {
+  .dreamon-login {
+    display: block;
+    max-width: 420px;
+  }
+
+  .dreamon-login-story {
+    display: none;
+  }
+
+  .dreamon-login-content {
+    padding-block: 16px 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dreamon-login-field input {
+    transition: none;
+  }
+}
+
+.dreamon-privacy-settings {
+  border: 0;
+  margin: 0 0 8px;
+  padding: 0 0 24px;
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+.dreamon-privacy-settings legend {
+  margin-bottom: 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.dreamon-privacy-settings > p {
+  font-size: 13px;
+  margin: 4px 0 12px;
+}
+.dreamon-privacy-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+.dreamon-privacy-switch > span:first-child {
+  flex: 1;
+  font-weight: 600;
+}
+.dreamon-privacy-switch[data-disabled='true'] {
+  color: var(--muted-foreground);
+  cursor: not-allowed;
+}
+.dreamon-privacy-state {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.dreamon-privacy-fields {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.dreamon-privacy-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-block: 20px;
+  border-block: 1px solid var(--border);
+}
+@media (prefers-reduced-motion: reduce) {
+  .preview-control-switch [data-slot='switch-thumb'] {
+    transition: none;
+  }
+}

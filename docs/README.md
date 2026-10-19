@@ -11,6 +11,7 @@
 | [collaboration/](collaboration/README.md) | GitHub에서 문서 작성·PR·리뷰·게시 확인을 하는 방법 |
 | [development/](development/README.md) | 설치·실행, 기술 규칙, 개발·리뷰·검증 방법 |
 | [specs/](specs/README.md) | 팀이 검토하는 기능 동작·정책·예외·완료 조건 |
+| [design/](design/README.md) | 공식 모바일 디자인 실행·화면별 명세·프론트엔드 인계 |
 | [templates/](templates/README.md) | 새 문서를 작성할 때 복사하는 양식 |
 | [branding.md](branding.md) | 서경드림온의 의미와 이름·기술 식별자 표기 기준 |
 | [agent-guide.md](agent-guide.md) | 에이전트의 문서 선택과 작업·보고 원칙 |
@@ -20,6 +21,7 @@
 - 서비스명을 쓰거나 소개 문구를 작성할 때: [이름과 표기](branding.md)
 - 기획 팀원 등 GitHub가 처음인 팀원이 참여할 때: [문서 협업 시작하기](collaboration/README.md)
 - 처음 실행할 때: [로컬 실행](development/local-development.md)
+- 제품 화면을 구현할 때: [공식 디자인 레퍼런스](design/README.md)
 - 명세·계획·PR을 검토할 때: [팀 작업 흐름](development/workflow.md)
 - 공식 모바일 디자인을 참고할 때: [디자인 앱 PR](https://github.com/wejo-team/sku-dreamon/pull/74)과 [버전·검증 기록](specs/prototype-alignment.md)
 - 현재 프로토타입과 기능 명세를 대조할 때: [디자인 기능·명세 대조](specs/prototype-alignment.md)
