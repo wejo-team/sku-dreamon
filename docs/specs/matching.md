@@ -66,7 +66,7 @@ LLM 전환으로 참가 자격·마감·정원·중복 지원·공모전별 소�
 
 ## 현재 디자인 레퍼런스와 남은 차이
 
-아래는 배포 v11과 대응하는 디자인 소스 `030d2df`의 관찰 결과입니다. 제품 구현 완료 조건과 구분하며, 전체 대조 기준은 [프로토타입·명세 일치 검증](prototype-alignment.md)에서 관리합니다.
+아래는 배포 v12과 대응하는 디자인 소스 `e3c4f4f`의 관찰 결과입니다. 제품 구현 완료 조건과 구분하며, 전체 대조 기준은 [프로토타입·명세 일치 검증](prototype-alignment.md)에서 관리합니다.
 
 | 항목 | 현재 참고 화면의 동작과 한계 |
 | --- | --- |
@@ -80,7 +80,7 @@ LLM 전환으로 참가 자격·마감·정원·중복 지원·공모전별 소�
 | 모의 응답 | 로컬 예시 데이터와 제한된 단어 해석으로 연결 가능한 결과를 보여 주며 실제 LLM을 호출하지 않음. 1,000자 입력 제한·최대 3개 결과·450ms 지연은 참고 구현 설정이며 제품의 운영 제한·추천 알고리즘·성능 목표가 아님 |
 | 서버 영역 | 실제 로그인 세션 만료, 서버 권한 검증, LLM 요청·스트리밍·데이터 전송 동의·보존과 기기 동기화는 검증되지 않음. 현재 메모리 상태의 초기화가 영구 삭제 정책을 확정하지 않음 |
 
-근거는 [AiChatPage.tsx](https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/AiChatPage.tsx), [대화 모의 데이터 처리](https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/chat-demo.ts), [지원자 상세](https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/WorkspacePages.tsx)와 [대화 동작 테스트](https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/AiChatPage.test.tsx)·[추천 공개 범위 테스트](https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/chat-demo.test.ts)입니다. 지원되는 예시 단어·시간 검색 미지원 등 모의 처리의 제한을 LLM 제품 정책으로 승격하지 않습니다.
+근거는 [AiChatPage.tsx](https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/AiChatPage.tsx), [대화 모의 데이터 처리](https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/chat-demo.ts), [지원자 상세](https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/WorkspacePages.tsx)와 [대화 동작 테스트](https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/AiChatPage.test.tsx)·[추천 공개 범위 테스트](https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/chat-demo.test.ts)입니다. 지원되는 예시 단어·시간 검색 미지원 등 모의 처리의 제한을 LLM 제품 정책으로 승격하지 않습니다.
 
 <a id="eligibility"></a>
 

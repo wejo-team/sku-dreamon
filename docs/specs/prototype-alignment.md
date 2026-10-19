@@ -1,4 +1,4 @@
-# 프로토타입 v11 기능·명세 대조
+# 프로토타입 v12 기능·명세 대조
 
 2026-10-19 기준 배포된 공식 디자인의 적용 기능을 담당 명세와 연결한 검증 기록입니다. 정책 원본은 각 기능 명세이며, 이 문서는 확인한 버전·화면 범위·남은 차이를 관리합니다. **현재 화면이 있다는 사실과 실제 제품 구현 완료를 구분합니다.** 제품 명세의 구현 상태와 완료 조건 체크는 변경하지 않습니다.
 
@@ -6,14 +6,14 @@
 
 | 대상 | 확인한 버전·근거 |
 | --- | --- |
-| 공유 프로토타입 | [GPT Sites 탐색 화면](https://wejo-team-review-20261018.pjhdye.chatgpt.site/design-preview/explore), 배포 성공한 **v11** |
-| 배포 소스 커밋 | `08e020033fb9a9c8f3ee25e07a0c13be385ac94c` — Sites 저장 버전의 소스와 로컬 배포 체크아웃 HEAD 일치 |
-| 저장소 디자인 원본 | [디자인 커밋 `030d2df`의 design-reference/][reference] — 배포 소스와 추적 파일 94개의 바이트가 모두 같음 |
+| 공유 프로토타입 | [GPT Sites 탐색 화면](https://wejo-team-review-20261018.pjhdye.chatgpt.site/design-preview/explore), 배포 성공한 **v12** |
+| 배포 소스 커밋 | `13f65447fe1dc0a687e5fc468050920de325b4b1` — Sites 저장 버전의 소스와 로컬 배포 체크아웃 HEAD 일치 |
+| 저장소 디자인 원본 | [디자인 커밋 `e3c4f4f`의 design-reference/][reference] — 배포 소스와 추적 파일 98개의 바이트가 모두 같음 |
 | 선행 정책 | [PR #75](https://github.com/wejo-team/sku-dreamon/pull/75)의 전체 프로필 공개·비공개와 AI 로그인 전용 정책. 이 문서 작성 시 병합 전 |
 | 디자인 PR | [PR #74](https://github.com/wejo-team/sku-dreamon/pull/74). 이 문서 작성 시 병합 전이며 정책 PR과 별도 검토 |
 | 시각·실행 인계 | [화면별 참조][screens], [색상·컴포넌트][tokens], [자산 출처][assets], [실행·개발 인계][handoff] |
 
-프론트엔드 개발자는 저장소의 디자인 원본과 담당 기능 명세를 함께 참조합니다. 공유 사이트가 이후 변경되더라도 이 기록은 위 커밋과 v11에 대한 결과입니다. 디자인 앱이 아직 이 문서 PR의 base에 없으므로 링크는 변경 가능한 브랜치 대신 확인한 커밋에 고정했습니다. 이 문서 PR에는 앱 코드·이미지·의존성·CI 변경을 포함하지 않습니다.
+프론트엔드 개발자는 저장소의 디자인 원본과 담당 기능 명세를 함께 참조합니다. 공유 사이트가 이후 변경되더라도 이 기록은 위 커밋과 v12에 대한 결과입니다. 디자인 앱이 아직 이 문서 PR의 base에 없으므로 링크는 변경 가능한 브랜치 대신 확인한 커밋에 고정했습니다. 이 문서 PR에는 앱 코드·이미지·의존성·CI 변경을 포함하지 않습니다.
 
 <a id="feature-map"></a>
 
@@ -26,10 +26,10 @@
 | 시작 `/`, `/loading` · 공통 탐색 | 로고·SVG 서비스명, 시작 후 탐색 이동, 하단 탐색·AI·워크스페이스·프로필, 상단 로고 탐색 이동·알림. 로그인/가입은 탐색 복귀 링크, 루트 중복 제목 생략·접근성 제목 유지 | [스프린트 화면](sprint-1.md#screens), [브랜딩](../branding.md). 화면 일치. 시작 지연은 모의 표현 |
 | `/login`, `/signup` | 아이디·비밀번호 입력, 보기/숨기기, 빈값·로그인 실패 안내, 내부 목적지 복귀, 가입·로그인 간 이동, 가입 완료 후 로그인 연결 | [인증](authentication.md#access-policy). 화면 일치; 실제 계정 생성·세션은 미구현 |
 | 내 프로필의 학교 인증 배지 | 빨간 `교내 미인증`을 누르면 미제공 기능 안내 팝업. 상시 안내문 생략. 파란 인증 상태 스타일은 준비만 됨 | [인증 의미](authentication.md#verification-meaning). 학교 인증 제공·인증 완료 계정은 없음 |
-| `/explore` 공모전 | 검색, 분야 필터 팝업의 초안·적용·취소, 등록순·마감 임박순, 초기화 아이콘, 결과 수·빈 결과. 왼쪽 세로 포스터·D-day, 오른쪽 제목→분야→주최자, 우하단 팀 아이콘·숫자, 이미지 실패 시 기본 커버, 전체 카드 클릭 | [공고](contests.md). 간결 카드·필터 화면 일치. 모집 중 집계 차이는 D-01 |
-| `/explore?tab=teams` | 검색·역할·모집중만·공모전 조건, 팀 카드와 상태 배지, 조건 초기화, AI 진입 | [팀 탐색](team-recruitment.md). 상태 기준 필터와 실제 지원 가능 여부 차이는 D-01 |
-| `/explore?tab=people`, `/people/:personId` | 로그인 안내, 공개 사용자만 검색·역할 필터·상세, 검색창 AI 아이콘. 비공개·없는 사용자 직접 접근 제한 | [사람 탐색](profile.md#people-directory). 전체 공개·지원 팀장 예외와 구분해 화면 일치 |
-| `/contests/:contestId` | 주최자·참가 대상·방식·공식 인원·접수 일정·제출물·원문, 미확인 항목, 마감 읽기 전용, 개인 전용 준비 팀 안내, 관련 팀·팀 만들기·AI 연결 | [공고 공개·참가·마감](contests.md). 상세 정보는 유지되며 목록에서만 대상·정확한 날짜 요약 생략 |
+| `/explore` 공모전 | 검색, 분야 필터 팝업의 초안·적용·취소, 등록순·마감 임박순, 초기화 아이콘, 조건별 전체 결과 수·번호 페이지·빈 결과. 왼쪽 세로 포스터·D-day, 오른쪽 제목→분야→주최자, 우하단 팀 아이콘·숫자, 이미지 실패 시 기본 커버, 전체 카드 클릭 | [공고](contests.md). 간결 카드·필터 화면 일치. 모집 중 집계 차이는 D-01 |
+| `/explore?tab=teams` | 검색·역할·모집중만·공모전 조건, 팀 카드와 정원·기한을 반영한 상태 배지, 번호 페이지·조건 초기화, AI 진입 | [팀 탐색](team-recruitment.md). 상태 기준 필터와 실제 지원 가능 여부 차이는 D-01 |
+| `/explore?tab=people`, `/people/:personId` | `함께할 사람` 제목, 로그인 안내, 공개 사용자만 검색·역할 필터·번호 페이지·상세, 검색창 AI 아이콘. 비로그인 결과 집계 비노출. 비공개·없는 사용자 직접 접근 제한 | [사람 탐색](profile.md#people-directory). 전체 공개·지원 팀장 예외와 구분해 화면 일치 |
+| `/contests/:contestId` | 주최자·참가 대상·방식·공식 인원·접수 일정·제출물·원문, 미확인 항목, 마감 읽기 전용, 개인 전용 준비 모임 안내, 해당 공모전의 공개 팀 목록·페이지를 상세에 바로 표시, 생성(+)/AI 아이콘·열린 공고 빈 팀 권유·마감 시 행동 숨김 | [공고 공개·참가·마감](contests.md). 상세 정보는 유지되며 목록에서만 대상·정확한 날짜 요약 생략 |
 | `/teams/new` | 로그인, 공모전 검색 팝업·추가 표시·선택, 이름·목표·역할·총 정원·모집 기한, 오류 안내, 공모전별 소속 제한, 공식 인원 범위, 생성 후 이동 | [팀 생성](team-recruitment.md). 로컬 흐름 일치; 현재 입력 길이·기준 날짜는 모의 제한으로 분리 |
 | 공개 `/teams/:teamId` | 모집 역할·정원·기한·공모전 확인, 로그인·필수 프로필 보완, 역할·선택 메시지 입력, 제출 전 지원 팀장 전체 프로필 공개 안내, 중복·마감·정원 차단 | [지원](team-recruitment.md), [지원 전 프로필](profile.md#before-application). 로컬 흐름 일치 |
 | `/workspace`, `?view=applications` | 내 팀·내 지원 전환, 팀 만들기 아이콘, 역할·확정 인원, 녹색 모집 중/회색 마감 배지, 전체 팀 카드 이동, 지원 결과·취소·재지원 | [팀 상태·취소](team-recruitment.md). 중복 `팀장 포함 총 N명` 생략. 본인 메시지 재열람은 D-02 |
@@ -49,18 +49,18 @@
 
 ## 남아 있는 차이
 
-**문서와 v11이 모든 항목에서 완전히 일치하는 것은 아닙니다.** 문서만 변경하는 이번 작업에서는 아래 구현 차이를 그대로 공개합니다. 기존 요구를 삭제하거나 제품 구현 완료로 표시해 차이를 숨기지 않습니다.
+**문서와 v12가 모든 항목에서 완전히 일치하는 것은 아닙니다.** 문서만 변경하는 이번 작업에서는 아래 구현 차이를 그대로 공개합니다. 기존 요구를 삭제하거나 제품 구현 완료로 표시해 차이를 숨기지 않습니다.
 
-| ID | 문서의 요구·의미 | v11에서 확인한 차이 | 확인 위치·후속 처리 |
+| ID | 문서의 요구·의미 | v12에서 확인한 차이 | 확인 위치·후속 처리 |
 | --- | --- | --- | --- |
-| D-01 | 모집 중인 팀 정보와 실제 지원 가능 여부를 일관되게 이해할 수 있어야 함. 지원자 검토 중에도 기한·정원 등 조건을 충족하면 접수 가능 | 공모전 카드의 숫자는 `모집중` 상태만 집계하고 `지원자검토`는 제외. 팀의 `모집중만` 필터와 탐색 카드 배지는 정원·기한을 함께 판정하지 않음. 정원에 도달한 팀도 목록에는 `모집중`으로 남을 수 있으며 상세에서는 접수 조건을 다시 검사 | [탐색 코드][explore]의 `matchedTeams`·카드 집계와 [지원 판정][team-state]. 수치·필터를 ‘현재 지원 가능한 팀 수/목록’으로 해석하지 않음. 제품 구현에서 표시 의미와 조건을 함께 정리 |
+| D-01 | 모집 중인 팀 정보와 실제 지원 가능 여부를 일관되게 이해할 수 있어야 함. 지원자 검토 중에도 기한·정원 등 조건을 충족하면 접수 가능 | 공모전 카드의 숫자는 `모집중` 상태만 집계하고 `지원자검토`는 제외. 팀의 `모집중만` 필터는 정원·기한을 함께 판정하지 않음. v12의 탐색/공모전 상세 팀 카드 배지는 정원·기한을 반영해 마감으로 표시하지만 해당 팀이 모집중만 필터 결과나 공모전 집계에는 남을 수 있음. 지원 시 상세에서 접수 조건을 다시 검사 | [탐색 코드][explore]의 `matchedTeams`·카드 집계와 [지원 판정][team-state]. 수치·필터를 ‘현재 지원 가능한 팀 수/목록’으로 해석하지 않음. 제품 구현에서 표시 의미와 조건을 함께 정리 |
 | D-02 | [지원 메시지](team-recruitment.md#application-message)는 본인·지원받은 팀장만 확인 | 팀장은 지원자 상세에서 메시지를 보지만 내 지원 목록에는 본인이 제출한 메시지의 재열람 UI가 없음 | [WorkspacePages][workspace]의 내 지원·지원자 상세. 본인 메시지 재열람을 구현할 때 AC-26 확인 |
 | D-03 | [지원자 추천](matching.md)은 팀장 관리에서 요청·갱신하며 실제 데이터와 근거를 사용 | 지원자 상세의 `AI 검토 도움`은 고정 예시 문구. 추천 요청·재요청이나 실제 LLM 실행 기능이 없음 | [WorkspacePages][workspace]의 지원자 상세. AI 채팅의 모의 응답과도 구분; LLM 내부 아키텍처는 TBD 유지 |
 | D-04 | [알림 사용자 흐름](notifications.md)의 뒤로 닫기는 현재 화면을 잃지 않고 팝업에서 복귀하는 경험을 요구 | 닫기·바깥 영역·Escape는 제공하지만 브라우저 뒤로가기와 Drawer 상태를 연결하지 않음. 뒤로가기로 팝업만 닫힌다고 보장할 수 없음 | [Notifications][notifications]·[공통 라우트][routes]. 브라우저 뒤로 처리 구현·검증이 필요 |
 | D-05 | [추천 대상·제한](matching.md)은 실제 지원·소속·자격 등 현재 조건을 고려해야 함 | 모의 추천은 공고·팀·공개 사람 데이터로 생성하며 현재 지원 이력·내 소속·자격 판정 데이터를 받지 않음. 모집 상태·정원·마감 일부는 검사하지만 중복 지원·본인 팀·이미 소속된 공모전·자격까지 모두 판단하지 않음 | [모의 추천][chat-demo]. 상세에서 실행하는 지원 제한과 추천 후보 판정을 구분. 현재 TBD인 자격 정책을 먼저 확정하지 않음 |
 | D-06 | [팀 공간 AC-09](team-recruitment.md#acceptance-criteria)는 모집·매칭 상태 표시를 포함 | 팀 공간에는 모집 상태가 있으나 별도의 매칭 상태 값·표시는 없음 | [팀 공간][workspace]. 매칭 상태의 구체적인 의미·전이는 TEAM-08의 미정 범위로 남기며 현재 구현으로 간주하지 않음 |
 
-390px 로컬 브라우저에서 D-01·02·04를 별도로 재현했습니다. 초기 그린웨이브(2/4명)의 김서연·정수아를 선발해 4/4명이 된 뒤에도 `탐색 → 팀 → 모집중만`에 `모집중 · 4명 활동 중`으로 남고 공모전 카드 팀 수는 1입니다. 내 지원의 초기 로컬 크루 지원 메시지는 목록에 표시되지 않습니다. 워크스페이스에서 탐색으로 이동해 알림을 연 뒤 브라우저 뒤로가기를 누르면 배경은 워크스페이스로 이동하고 알림 팝업은 열린 채 남습니다. D-03·05·06과 `지원자검토` 집계 차이는 코드 대조로 확인했습니다.
+v11의 390px 로컬 브라우저에서 D-01·02·04를 별도로 재현했습니다. 초기 그린웨이브(2/4명)의 김서연·정수아를 선발해 4/4명이 된 뒤에도 `탐색 → 팀 → 모집중만`에 `모집중 · 4명 활동 중`으로 남고 공모전 카드 팀 수는 1입니다. 내 지원의 초기 로컬 크루 지원 메시지는 목록에 표시되지 않습니다. 워크스페이스에서 탐색으로 이동해 알림을 연 뒤 브라우저 뒤로가기를 누르면 배경은 워크스페이스로 이동하고 알림 팝업은 열린 채 남습니다. D-03·05·06과 `지원자검토` 집계 차이는 코드 대조로 확인했습니다. v12에서는 공유 TeamCard가 정원·기한을 반영한 TeamStatusBadge를 사용하도록 바뀌어 위 v11 관찰 중 카드 배지 차이는 해결됐습니다. 집계·필터 코드는 그대로이며, 나머지 차이에 관련된 구현도 변경되지 않았음을 대조했습니다.
 
 학사 상위 선택 변경 시 하위값 초기화, 기타 설명의 선택 입력 등은 레퍼런스에서 관찰한 선택입니다. 운영 목록 검증·학사 정정·세부 필수 규칙은 [학사 미정 사항](academic-structure.md#open-questions), [선택지 미정 사항](profile-options.md#open-questions)의 결정 범위를 유지합니다. 별도 정책 검토 없이 코드에 있는 선택을 모두 확정 요구사항으로 승격하지 않습니다.
 
@@ -77,31 +77,32 @@
 | 예시 날짜는 2026-10-18 기준. 입력 길이·대기 시간·후보 수·선택창 더보기 수치는 로컬 표현 | 실제 현재 시각·마감 시간대·입력 제한·조회 계약·운영 제한 |
 | 공모전 원문·포트폴리오는 일부 내부 예시 목적지 | 실제 외부 URL·원문 유효성·공고 수집/등록/검수·포트폴리오 접근 권한 |
 
-탐색 목록은 현재 메모리 데이터의 검색·필터이며 커서 API·무한 스크롤·페이지네이션은 구현하지 않았습니다. 공모전 선택창의 로컬 더보기는 백엔드 페이징 계약이 아닙니다. 상세 복귀 시 검색·필터 URL은 유지하지만 이전 스크롤 위치 복원은 제공하지 않습니다. [PreviewShell][shell]은 경로 변경 시 스크롤을 위로 이동합니다. 이전 대화의 아키텍처 논의를 현재 제품의 확정·구현 사항으로 기록하지 않습니다.
+탐색 3탭은 메모리 데이터를 검색·필터한 뒤 한 페이지 6개씩 번호로 나눕니다. `page`와 조건을 URL에 유지하고 조건 변경은 1페이지, 잘못된 값은 유효한 페이지로 보정합니다. 상세에서 돌아오면 조건·페이지가 유지되며 공모전 안의 팀 목록은 `teamPage`를 사용합니다. 페이지 이동은 결과 제목으로 포커스/스크롤을 옮깁니다. 이전 스크롤 위치 복원은 제공하지 않고 [PreviewShell][shell]은 경로 변경 시 화면 위로 이동합니다. 번호 방식은 [현재 탐색 정책](sprint-1.md#exploration-pagination)이지만 운영 페이지 크기·API/DB 조회·집계는 미구현/TBD입니다. 팀 생성 공모전 선택창의 로컬 더보기는 이번 변경 대상이 아닙니다.
 
 <a id="verification"></a>
 
 ## 수행한 검증
 
-- Sites v11 저장 소스 커밋·배포 성공을 조회하고, 배포 체크아웃과 저장소 디자인 커밋의 추적 파일 94개가 동일함을 비교했습니다.
+- Sites v12 저장 소스 커밋·배포 성공을 조회하고, 배포 체크아웃과 저장소 디자인 커밋의 추적 파일 98개가 동일함을 비교했습니다.
 - 위 버전의 라우트·화면·상태 전이·권한 분기·선택지와 관련 테스트를 담당 명세별로 대조했습니다. 인증·프로필, 공모전·팀, AI·알림은 각각 독립 검토 후 통합했습니다.
 - 관심 분야·역할·역량·학적·학년·요일·시간의 7개 선택지 분류와 학사 31행·하위 전공 관계가 문서와 코드에서 일치함을 확인했습니다. 운영 학사 정보의 최신성 검증과는 다릅니다.
-- 해당 디자인 소스에서 `npm test`를 실행해 **9개 파일·133개 테스트**가 통과했습니다. 이는 테스트가 다루는 로컬 동작의 결과이며, D-01~06이나 서버 영역까지 검증됐다는 뜻이 아닙니다.
+- 해당 디자인 소스에서 `npm test`를 실행해 **10개 파일·155개 테스트**가 통과했습니다. 이는 테스트가 다루는 로컬 동작의 결과이며, D-01~06이나 서버 영역까지 검증됐다는 뜻이 아닙니다.
 - [기존 브라우저 확인 스크립트][browser-check]를 배포 소스와 동일한 로컬 앱에서 실행했습니다. **320·390·430px**에서 비로그인 공개 범위, 마감 공고, 필터 적용/취소, 카드·기본 이미지, 캐릭터·프로필·팀 만들기, 선발/멤버, AI 재시도, 알림 흐름을 통과했고 가로 넘침·런타임 오류가 없었습니다.
+- v12 변경은 14팀 통합 테스트와 브라우저 응답만 임시 확장한 19팀/4페이지로 번호 이동·조건 유지·상세 복귀·제목 포커스·잘못된 페이지를 검증했습니다. 공모전별 팀 분리·생성/AI 아이콘·열린/마감/개인 전용/빈 팀 상태와 사람 제목, 320px 150% CSS 글꼴에서도 가로 넘침이 없었습니다. 선택 번호 대비는 5.36:1이며 임시 fixture는 배포하지 않습니다.
 - 이 결과는 원격 배포 화면의 모든 상태를 직접 자동화한 결과가 아닙니다. 배포 소스 일치 확인과 로컬 상호작용 검증을 결합했습니다. 실제 모바일 기기·보조 기술·운영 인증·DB·LLM은 검증 대상이 아닙니다.
 
 문서 변경 시에는 링크·앵커, VitePress 빌드와 생성된 HTML 링크·자산도 검사합니다. 다음 디자인 변경은 기준 커밋·배포 버전·영향받는 대조 행·알려진 차이를 함께 갱신합니다. 이 기록만으로 명세의 AC 체크를 완료 처리하지 않습니다.
 
-[reference]: https://github.com/wejo-team/sku-dreamon/tree/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference
-[screens]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/docs/design/screens.md
-[tokens]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/docs/design/tokens.md
-[assets]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/docs/design/assets.md
-[handoff]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/docs/design/handoff.md
-[explore]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/ExplorePages.tsx
-[team-state]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/team-state.ts
-[chat-demo]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/chat-demo.ts
-[workspace]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/WorkspacePages.tsx
-[notifications]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/Notifications.tsx
-[routes]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/pages/DesignPreviewPage.tsx
-[shell]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/PreviewShell.tsx
-[browser-check]: https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/scripts/reference-check.cjs
+[reference]: https://github.com/wejo-team/sku-dreamon/tree/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference
+[screens]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/docs/design/screens.md
+[tokens]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/docs/design/tokens.md
+[assets]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/docs/design/assets.md
+[handoff]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/docs/design/handoff.md
+[explore]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/ExplorePages.tsx
+[team-state]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/team-state.ts
+[chat-demo]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/chat-demo.ts
+[workspace]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/WorkspacePages.tsx
+[notifications]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/Notifications.tsx
+[routes]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/pages/DesignPreviewPage.tsx
+[shell]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/PreviewShell.tsx
+[browser-check]: https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/scripts/reference-check.cjs

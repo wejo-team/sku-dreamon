@@ -45,7 +45,7 @@
 
 ## 현재 디자인 레퍼런스와 남은 차이
 
-배포 v11과 대응하는 디자인 소스 `030d2df`에는 아래 화면 동작이 있습니다. 전체 대조 기준은 [프로토타입·명세 일치 검증](prototype-alignment.md)을 따르며, 이 표는 서버 알림 기능의 구현 완료를 뜻하지 않습니다.
+배포 v12과 대응하는 디자인 소스 `e3c4f4f`에는 아래 화면 동작이 있습니다. 전체 대조 기준은 [프로토타입·명세 일치 검증](prototype-alignment.md)을 따르며, 이 표는 서버 알림 기능의 구현 완료를 뜻하지 않습니다.
 
 | 항목 | 현재 참고 화면의 동작과 한계 |
 | --- | --- |
@@ -56,7 +56,7 @@
 | 닫기 | 닫기 버튼·바깥 영역·Escape로 닫는 팝업 동작을 사용. 브라우저·기기 뒤로가기를 알림함 닫기로 처리하는 기능은 아직 없으며 위 흐름 5의 요구와 남은 차이로 유지 |
 | 데이터·지속성 | 브라우저의 예시 지원·팀 관계에서 항목을 계산. 읽음 상태는 현재 화면 세션의 메모리에 있으며 로그아웃·새로고침 후 서버 복원·다른 기기 동기화·보존·정렬 정책은 구현하지 않음 |
 
-근거는 [Notifications.tsx](https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/Notifications.tsx), [알림 동작 테스트](https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/features/design-preview/Notifications.test.tsx), [Drawer 구성](https://github.com/wejo-team/sku-dreamon/blob/030d2df9761334f7f47f870c1afdf163212be1bc/design-reference/src/components/ui/drawer.tsx)입니다. 현재 목록의 배열 순서·알림 식별자·메모리 초기화 방식은 실제 생성·정렬·영구 저장 정책의 결정이 아닙니다.
+근거는 [Notifications.tsx](https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/Notifications.tsx), [알림 동작 테스트](https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/features/design-preview/Notifications.test.tsx), [Drawer 구성](https://github.com/wejo-team/sku-dreamon/blob/e3c4f4f7d374d53956ec1fd5447bed3a4b58c7f6/design-reference/src/components/ui/drawer.tsx)입니다. 현재 목록의 배열 순서·알림 식별자·메모리 초기화 방식은 실제 생성·정렬·영구 저장 정책의 결정이 아닙니다.
 
 ## 완료 조건
 
