@@ -4,7 +4,7 @@
 - 명세 검토: [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17)
 - 구현 작업: 미등록
 - 변경 검토: 2026-10-18 공식 디자인·LLM 추천 반영, 이 변경 PR에서 사람 검토 대기
-- 현재 화면 대조: [2026-10-19 프로토타입 v12의 적용 기능·일치 여부·남은 차이](prototype-alignment.md). 화면 검증만으로 제품 구현 상태를 완료로 바꾸지 않음
+- 현재 화면 대조: [공식 디자인의 적용 기능·검증 버전·남은 차이](prototype-alignment.md). 화면 검증만으로 제품 구현 상태를 완료로 바꾸지 않음
 
 `스프린트1_기능정의_및_개발범위_정책확정본.pdf`의 전체 범위, 화면, 일정과 시연 기준을 관리합니다. 기능별 정책은 아래 담당 명세에서 정의합니다. 이 문서의 일정과 완료 조건은 계획이며, 구현·검증·배포 완료 기록이 아닙니다.
 
@@ -22,6 +22,7 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 - 2026-10-19 사용자 요청에 따른 [프로필 전체 공개·비공개와 지원 팀장 예외](profile.md#visibility), [AI 전체 로그인 전용](authentication.md#access-policy) 정책은 원문의 항목별 공개·포트폴리오 별도 동의와 비로그인 추천 미정 범위를 대체합니다.
 - 2026-10-19 추가 사용자 요청에 따라 탐색의 공모전·팀·사람 목록은 [페이지 번호 방식](#exploration-pagination)을 적용하고, 공모전 상세에서 해당 공모전의 공개 팀 목록을 바로 제공합니다.
 - 2026-10-19 [#77](https://github.com/wejo-team/sku-dreamon/issues/77) 정책 결정에 따라 개인의 요일별 시간 구간을 [주당 참여 가능 시간](profile-options.md#weekly-availability)으로 대체합니다. 참여 중인 모든 프로젝트를 합산한 참고 정보이며 권장 입력을 유지합니다. 세부 일정 조율은 팀 공간의 후속 기능으로 구상하고 현재 MVP에 추가하지 않습니다.
+- 같은 날 [#77의 확정 정책](https://github.com/wejo-team/sku-dreamon/issues/77#issuecomment-6260435650)을 담당 명세에 반영합니다. 참가 대상·분야·입력 제한·알림·추천·인증의 기존 설명과 충돌하면 최신 담당 명세를 적용합니다. 신규 지원은 공개 프로필만 가능하고, 비공개 전환 후 기존 지원과 지원 팀장의 최신 프로필 기반 AI 검토는 유지하되 일반 검색·AI 사람 추천에서는 제외합니다.
 - 원문에서 정하지 않은 동작을 이관 과정에서 확정하지 않습니다. 기능별 미정 사항은 해당 명세에 남깁니다. 기존 `추가 리스트 최종.md`와의 선택지 차이는 [선택지 차이](profile-options.md#source-differences)에서 관리합니다.
 - 원문 이관 이후 [이슈 #20](https://github.com/wejo-team/sku-dreamon/issues/20)에서 변경한 가입 경로는 [자체 로그인 결정](authentication.md#login-decision)을 적용합니다. 원문의 학교 이메일 필수·실제/시연 인증 선택은 이번 범위에서 대체합니다.
 
@@ -34,16 +35,16 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 | 가입·로그인 | 자체 아이디·비밀번호로 가입·로그인·로그아웃하고 교내 미인증 상태 확인 | [가입과 로그인](authentication.md) |
 | 프로필 | 필수 정보 작성·수정, 공개 범위 설정, 선택적인 외부 포트폴리오와 모든 프로젝트 합산 주당 참여 가능 시간 등록 | [프로필](profile.md), [공통 선택지](profile-options.md), [학사 구조](academic-structure.md) |
 | 공모전 공고 | 최초 공개 전 필수 정보 확인, 사용자 목록·상세 탐색과 공식 원문 확인; 수집·적재·관리 방식은 TBD | [공고](contests.md) |
-| 팀 생성·모집 | 공모전·팀 목표·필요 역할·모집 인원 등록, 팀 탐색과 모집 조건 확인; 개인 전용 공고의 준비 팀과 공동 출전 팀 구분 | [팀 모집과 지원](team-recruitment.md), [참가 방식 정책](contests.md#participation-policy) |
+| 팀 생성·모집 | 공모전·팀 목표·필요 역할·모집 인원 등록, 팀 탐색과 모집 조건 확인; 공고의 참가 인원 범위에 맞춘 목표 정원과 1명 공고의 추가 모집 제외 | [팀 모집과 지원](team-recruitment.md), [참가 방식 정책](contests.md#participation-policy) |
 | 지원·선발 | 지원·취소·현황 확인, 팀장의 지원자 검토·선발, 지원자의 결과 확인 | [팀 모집과 지원](team-recruitment.md) |
 | AI·추천 | 로그인 후 AI 탭의 자연어 탐색·후속 대화, LLM 기반 공모전·팀·실제 지원자 추천과 근거 표시; 내부 아키텍처 TBD | [추천 매칭](matching.md) |
 | 사람 탐색 | 기본 비공개. 로그인한 사용자에게 공개 프로필의 등록 항목 전체 표시; 지원 팀장 예외 적용 | [프로필](profile.md#people-directory) |
-| 알림 | 상단 알림함에서 본인의 지원·팀장 대상 지원자·마감 안내와 읽음 상태 확인 | [서비스 알림](notifications.md) |
+| 알림 | 상단 알림함에서 본인의 지원 상태 변경·팀장이 받은 신규 지원과 읽음 상태 확인 | [서비스 알림](notifications.md) |
 | 팀 공간 | 팀장과 현재 확정 팀원에게 공모전 정보, 팀원, 모집·매칭 상태를 보여 주는 최소 공간 | [팀 모집과 지원](team-recruitment.md#team-workspace-access) |
 
 팀장이 선발하면 해당 지원자가 즉시 확정 팀원이 되며 별도 수락은 없습니다. 팀장 포함 정원과 선발 시 차감은 [팀원 확정과 정원 정책](team-recruitment.md#membership-capacity)을 따릅니다. [지원자 검토를 시작해도 현재 접수 조건을 충족하면 신규 지원을 받으며](team-recruitment.md#recruitment-review), 나머지 팀 전체 모집 상태 전이·종료는 [팀 명세의 미정 사항](team-recruitment.md#open-questions)에서 별도로 결정합니다.
 
-개인 참가 전용 공고에서도 [함께 준비하는 팀](contests.md#participation-policy)을 만들 수 있으며 공식 공동 출전 팀과 구분해 안내합니다. 공동 출전 팀의 목표 총 정원은 [확인된 공식 팀 인원 범위](team-recruitment.md#official-capacity) 안에서만 저장합니다. 날짜만 있는 마감일의 기본 시각·시간대는 [TBD](contests.md#deadline-policy)로 두고 일정 처리 구체화 때 결정합니다.
+모든 팀의 목표 총 정원은 [공고의 참가 인원 범위](team-recruitment.md#official-capacity)에 맞추며, 1명 공고는 추가 모집 없이 운영합니다. 준비 모임 예외와 개인/팀 참가 방식의 별도 관리는 제거합니다. 마감은 [원문 시각·시간대를 우선하고 누락 시 한국시간·해당 날짜 종료로 보완](contests.md#deadline-policy)하며 보완 사실을 안내합니다.
 
 팀 생성·선발에는 팀장을 포함한 [공모전별 한 팀 소속 제한](team-recruitment.md#membership-limit)을 적용합니다. 지원자는 선발·확정 후에도 [지원을 취소해 팀에서 빠지고 한 자리를 반환](team-recruitment.md#application-cancellation)할 수 있으며, 현재 모집 조건을 충족하면 [즉시 재지원](team-recruitment.md#reapplication)할 수 있습니다. 동시 지원·다른 지원의 자동 취소·미선발 후 재지원·팀장 탈퇴와 위임은 이번 결정에 포함하지 않습니다.
 
@@ -59,7 +60,7 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 | 외부 사이트 공고 자동 수집 | 수동 입력·크롤링 등 수집·DB 적재 방식의 채택 여부는 [TBD](contests.md#open-questions) |
 | 포트폴리오 파일 업로드·AI 분석 | 초기 범위에서 제외; 상세 근거는 [포트폴리오 정책](profile.md#portfolio) |
 | 네이티브 앱·기능, 앱 설치, 앱스토어 배포 | 이번 범위에서 제외 |
-| 푸시 알림 | 후속 검토. 초기 알림은 서비스 화면 안의 상태 표시로 처리 |
+| 마감 알림·푸시 알림 | 후속 검토. 초기 알림함은 지원 상태 변경·팀장이 받은 신규 지원만 제공 |
 
 자연어 탐색·추천 대화는 AI 탭의 포함 범위입니다. 사용자 간 메시지, 작업 분해·일정 조율 등의 후속 기능을 함께 포함하는 결정은 아닙니다.
 
@@ -71,7 +72,7 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 
 | 기능 | 처리 기준 | 담당 명세 |
 | --- | --- | --- |
-| 참가 자격 확인 | 공고에 명시된 조건의 충족·미충족·확인 필요 구분. 상세 판정·접수 정책의 TBD 유지 | [추천 매칭](matching.md) |
+| 참가 자격 확인 | 넓은 참가 대상 분류와 원문 조건 안내. 개별 자격 정보가 부족해도 원문 확인 안내 후 일반 지원을 접수하고 다른 접수 제한은 유지 | [추천 매칭](matching.md) |
 | 마감 여부 확인 | 날짜와 상태 기반 처리 | [공고](contests.md), [팀 모집과 지원](team-recruitment.md) |
 | 공모전·팀·지원자 추천 | LLM 기반 후보 제안·근거. 고정 점수·기존 산식 제외, 내부 아키텍처 TBD | [추천 매칭](matching.md) |
 | 공고 요약 | 사용처·필요성·MVP 포함 여부는 TBD. 포함 시 내용·생성 방식·표시 기준을 정하고 실제 AI 연동은 이후 결정. 참가 조건 정리와 최초 공개 조건은 유지 | [요약 범위](contests.md#summary-scope) |
@@ -210,7 +211,7 @@ PDF에는 일정의 연도가 명시되어 있지 않습니다. 이 표는 원�
 | 공고 등록·관리 및 AI 요약 | [최초 공개 조건](contests.md#publication-policy)은 정의됨. [요약 사용처·필요성·MVP 포함 여부](contests.md#summary-scope)는 TBD이며 AI 연동은 이후 결정. 수집·DB 적재·갱신·권한·관리 화면·재확인 방식은 [공고 미정 사항](contests.md#open-questions) |
 | 매칭 기준 | [LLM 추천 전환](matching.md#policy-decisions)으로 기존 규칙·산식 제외. 모델·실행·검색·API·저장·검증 등 내부 아키텍처는 [TBD](matching.md#open-questions) |
 | 프로필 공개 범위 | 기본 비공개인 전체 프로필 상태를 [설명·확인 후 전환](profile.md#visibility-changes). 지원 팀장은 비공개여도 전체 현재 프로필을 열람하며 [취소·미선발 후 관계도 유지](profile.md#former-applicant-visibility). 기록 보존·탈퇴 등은 [프로필 미정 사항](profile.md#open-questions) |
-| 로그인·지원 진입·AI·시연 데이터 | [공개 탐색과 로그인 필요 행동](authentication.md#access-policy), [지원 직전 필수 정보 점검](profile.md#before-application), [실제·시연 데이터 상호작용](#demo-data-scope)은 정의됨. 자격 확인 필요의 접수는 #33에 따라 TBD. 로그인 실패·복구는 [인증 미정 사항](authentication.md#open-questions), AI 추천은 추천 명세·공고 요약은 공고 명세, 시연 데이터 선정·준비·정리·표시 UI는 후속 결정 |
+| 로그인·지원 진입·AI·시연 데이터 | [공개 탐색과 로그인 필요 행동](authentication.md#access-policy), [지원 직전 필수 정보 점검](profile.md#before-application), [실제·시연 데이터 상호작용](#demo-data-scope)은 정의됨. 자격 정보가 부족해도 원문 확인 안내 후 일반 지원을 접수하며, 공개 프로필·마감·정원 등 나머지 제한은 유지. 로그인 실패·복구는 [인증 미정 사항](authentication.md#open-questions), AI 추천은 추천 명세·공고 요약은 공고 명세, 시연 데이터 선정·준비·정리·표시 UI는 후속 결정 |
 | 웹 구현 범위 | 위 주요 화면과 모바일 웹 기준을 적용. 시연 URL·대상 브라우저 버전·기기 목록은 미정 |
 
 <a id="source-coverage"></a>
