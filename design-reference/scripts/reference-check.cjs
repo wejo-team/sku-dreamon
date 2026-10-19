@@ -37,8 +37,8 @@ async function login(page, returnTo = '/design-preview/explore') {
   await page.goto(
     `${base}/design-preview/login?returnTo=${encodeURIComponent(returnTo)}`,
   );
-  await page.getByLabel('아이디', { exact: true }).fill('dreamon-demo');
-  await page.getByLabel('비밀번호', { exact: true }).fill('dreamon-demo');
+  await page.getByLabel('아이디', { exact: true }).fill('dreamondemo');
+  await page.getByLabel('비밀번호', { exact: true }).fill('DreamonReview2026!');
   await page.getByRole('button', { name: '로그인', exact: true }).click();
   await page.waitForURL(`**${returnTo}`);
   await page.mouse.move(0, 0);
@@ -154,7 +154,46 @@ async function navigate(page, route) {
           .getAttribute('src'),
         '/mascots/bart.png',
       );
+      await snapshot(page, `profile-view-${width}`);
+      await navigate(page, '/design-preview/teams/makers');
+      await page.getByText('프로필을 공개한 뒤 지원할 수 있어요').waitFor();
+      assert.equal(
+        await page.getByRole('button', { name: '이 팀에 지원하기' }).count(),
+        0,
+      );
+      await page.getByRole('button', { name: '프로필 공개하기' }).click();
+      await snapshot(page, `profile-public-confirm-${width}`);
+      await page
+        .getByRole('button', { name: '공개로 전환', exact: true })
+        .click();
+      await page.getByRole('button', { name: '이 팀에 지원하기' }).waitFor();
+      assert.equal(await page.getByText('지원이 완료됐어요').count(), 0);
+      await page.getByRole('radio', { name: '마케팅', exact: true }).check();
+      await page
+        .getByLabel(/팀에 전할 말/)
+        .fill('서로의 관점을 더해 좋은 결과를 만들고 싶어요.');
+      await page.getByRole('button', { name: '이 팀에 지원하기' }).click();
+      await page.getByText('지원이 완료됐어요', { exact: true }).waitFor();
+      await page.getByRole('link', { name: '내 지원 확인하기' }).click();
+      const submitted = page
+        .locator('details')
+        .filter({ hasText: '서로의 관점을 더해 좋은 결과를 만들고 싶어요.' });
+      await submitted.locator('summary').click();
+      await snapshot(page, `applications-${width}`);
+      await navigate(page, '/design-preview/profile');
+      await page
+        .getByRole('switch', { name: '프로필 공개', exact: true })
+        .click();
+      await snapshot(page, `profile-private-confirm-${width}`);
+      await page
+        .getByRole('button', { name: '비공개로 전환', exact: true })
+        .click();
+      await navigate(page, '/design-preview/workspace?view=applications');
+      await page.getByText('캠퍼스 메이커스', { exact: true }).waitFor();
       await navigate(page, '/design-preview/applicants/app-seoyeon');
+      await page.getByRole('button', { name: 'AI 검토 요청' }).click();
+      await page.getByRole('button', { name: '다시 검토하기' }).waitFor();
+      await snapshot(page, `applicant-profile-${width}`);
       await page.getByRole('button', { name: '이 지원자 선발하기' }).click();
       await page.getByRole('dialog').waitFor();
       await snapshot(page, `selection-${width}`);
@@ -172,20 +211,30 @@ async function navigate(page, route) {
       await navigate(page, '/design-preview/ai?scenario=error');
       await page
         .getByRole('button', {
-          name: '개발자를 모집하는 팀 찾아줘',
+          name: '마감이 가까운 공모전 찾아줘',
           exact: true,
         })
         .click();
       await page
         .getByRole('button', { name: '다시 시도', exact: true })
         .click();
-      await page.getByRole('link', { name: /그린웨이브/ }).waitFor();
+      await page.locator('.preview-ai-result').first().waitFor();
       await snapshot(page, `ai-${width}`);
       await navigate(
         page,
         '/design-preview/explore?scenario=notification-error',
       );
+      const notificationBackground = page.url();
       await page.getByRole('button', { name: /^알림/ }).click();
+      await page.getByRole('dialog', { name: '알림', exact: true }).waitFor();
+      await page.goBack();
+      await page
+        .getByRole('dialog', { name: '알림', exact: true })
+        .waitFor({ state: 'hidden' });
+      assert.equal(page.url(), notificationBackground);
+      await ready(page);
+      await page.getByRole('button', { name: /^알림/ }).click();
+      await ready(page);
       await page
         .getByRole('button', { name: '모두 읽음', exact: true })
         .click();
@@ -200,7 +249,7 @@ async function navigate(page, route) {
       assert.deepEqual(errors, []);
       await page.close();
       console.log(
-        `${width}px: privacy, closed contest, compact filters, card hierarchy, mascot fallback/picker, create/profile, selection/membership, AI retry, notifications passed`,
+        `${width}px: privacy application gate, existing applications retained, submitted message, AI applicant review, closed contest, filters, cards, mascot, create/profile, selection, AI retry, notification history/back passed`,
       );
     }
   } finally {
