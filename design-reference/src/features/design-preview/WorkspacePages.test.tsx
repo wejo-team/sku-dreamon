@@ -19,12 +19,20 @@ import { ApplicantPage, TeamPage, WorkspacePage } from './WorkspacePages';
 import { CreateTeamPage } from './CreateTeamPage';
 
 function TestControls() {
-  const { signOut, signIn, emptyWorkspace } = usePreview();
+  const { signOut, signIn, emptyWorkspace, profile, saveProfile } =
+    usePreview();
   return (
     <>
       <button onClick={signOut}>테스트 로그아웃</button>
       <button onClick={signIn}>테스트 로그인</button>
       <button onClick={emptyWorkspace}>테스트 비우기</button>
+      <button
+        onClick={() =>
+          saveProfile({ ...profile, visibility: { discoverable: true } })
+        }
+      >
+        테스트 공개
+      </button>
     </>
   );
 }
@@ -65,7 +73,9 @@ function renderPage(path: string, state?: PreviewState) {
 function previewState(overrides: Partial<PreviewState> = {}): PreviewState {
   return {
     signedIn: true,
-    profile: initialProfile,
+    notifications: [],
+    markNotificationsRead: vi.fn(),
+    profile: { ...initialProfile, visibility: { discoverable: true } },
     teams: initialTeams,
     applicants: initialApplicants,
     applications: initialApplications,
@@ -89,10 +99,30 @@ describe('team application', () => {
     renderPage(previewPath('/teams/makers'));
     await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
     expect(
-      screen.getByText(
-        /프로필이 비공개여도 지원받은 팀장에게는 등록한 전체 프로필/,
-      ),
-    ).toHaveTextContent('학사 정보, 활동 가능 시간, 포트폴리오');
+      screen.getByText('프로필을 공개한 뒤 지원할 수 있어요'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '이 팀에 지원하기' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '프로필 공개하기' }));
+    const privacyDialog = within(screen.getByRole('dialog'));
+    expect(
+      privacyDialog.getByText(/공개 전환만으로 지원이 접수되지는 않아요/),
+    ).toBeInTheDocument();
+    await user.click(privacyDialog.getByRole('button', { name: '취소' }));
+    expect(
+      screen.getByText('프로필을 공개한 뒤 지원할 수 있어요'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '프로필 공개하기' }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '공개로 전환',
+      }),
+    );
+    expect(screen.queryByText('지원이 완료됐어요')).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/AI 검토에 최신 프로필을 사용할 수 있어요/),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '이 팀에 지원하기' }));
     expect(
       await screen.findByText('지원할 역할을 선택해 주세요.'),
@@ -114,6 +144,12 @@ describe('team application', () => {
     expect(applications.getByText('캠퍼스 메이커스')).toBeInTheDocument();
     expect(applications.getByText('마케팅 지원')).toBeInTheDocument();
     expect(applications.getByText('지원 완료')).toBeInTheDocument();
+    const submitted =
+      applications.getByText('사용자 인터뷰를 함께하고 싶어요.');
+    await user.click(
+      within(submitted.closest('details')!).getByText('내가 전한 말'),
+    );
+    expect(submitted).toBeVisible();
   });
   it('gates missing required profile fields and preserves the target team', () => {
     renderPage(
@@ -152,6 +188,7 @@ describe('team application', () => {
     view.unmount();
     renderPage(previewPath('/teams/makers'));
     await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    await user.click(screen.getByRole('button', { name: '테스트 공개' }));
     await user.click(screen.getByRole('radio', { name: '기획' }));
     await user.click(screen.getByRole('button', { name: '이 팀에 지원하기' }));
     await user.click(screen.getByRole('button', { name: '테스트 로그아웃' }));
@@ -162,6 +199,26 @@ describe('team application', () => {
       screen.getByRole('link', { name: '로그인하고 지원하기' }),
     ).toBeInTheDocument();
     expect(screen.queryByText('지원이 완료됐어요')).not.toBeInTheDocument();
+  });
+  it('preserves an over-limit application message and accepts the 1,000-codepoint boundary', async () => {
+    const user = userEvent.setup();
+    const apply = vi.fn().mockReturnValue(false);
+    renderPage(previewPath('/teams/makers'), previewState({ apply }));
+    await user.click(screen.getByRole('radio', { name: '디자인' }));
+    const field = screen.getByLabelText(/팀에 전할 말/);
+    await user.click(field);
+    await user.paste('🎨'.repeat(1001));
+    await user.click(screen.getByRole('button', { name: '이 팀에 지원하기' }));
+    expect(
+      await screen.findByText('팀에 전할 말은 1,000자까지 입력할 수 있어요.'),
+    ).toBeInTheDocument();
+    expect(field).toHaveValue('🎨'.repeat(1001));
+    expect(apply).not.toHaveBeenCalled();
+    await user.clear(field);
+    await user.paste('🎨'.repeat(1000));
+    await user.click(screen.getByRole('button', { name: '이 팀에 지원하기' }));
+    await screen.findByText(/지원을 완료하지 못했어요/);
+    expect(apply).toHaveBeenCalledWith('makers', '디자인', '🎨'.repeat(1000));
   });
   it('keeps public recruitment separate from the private team space', async () => {
     const user = userEvent.setup();
@@ -326,11 +383,9 @@ describe('applicant review', () => {
           college: '이공대학',
           department: '소프트웨어학과',
           major: '컴퓨터공학',
-          skills: ['개발', '기타'],
-          skillOther: '사용자 테스트',
-          interests: ['기타'],
-          interestOther: '지역 커뮤니티',
-          availability: '수 18:00~21:00',
+          skills: ['개발'],
+          interests: ['교육'],
+          availability: '5~10시간 미만',
           visibility: { discoverable: false },
           portfolio: 'https://example.com/secret',
           portfolioTitle: '지원자의 포트폴리오',
@@ -350,9 +405,8 @@ describe('applicant review', () => {
       '소프트웨어학과',
       '컴퓨터공학',
       '개발',
-      '사용자 테스트',
-      '지역 커뮤니티',
-      '수 18:00~21:00',
+      '교육',
+      '5~10시간 미만',
     ]) {
       expect(screen.getByText(value)).toBeInTheDocument();
     }
@@ -364,6 +418,34 @@ describe('applicant review', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('교내 미인증')).toBeInTheDocument();
   });
+  it.each(['모집마감', '팀원확정'] as const)(
+    'allows AI review for existing applicants while %s',
+    async (status) => {
+      const user = userEvent.setup();
+      renderPage(
+        previewPath('/applicants/app-seoyeon'),
+        previewState({
+          teams: initialTeams.map((team) =>
+            team.id === 'greenwave'
+              ? { ...team, status, members: team.capacity }
+              : team,
+          ),
+        }),
+      );
+      expect(
+        screen.queryByRole('button', { name: '이 지원자 선발하기' }),
+      ).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
+      expect(
+        await within(
+          screen.getByRole('region', { name: 'AI 검토 도움' }),
+        ).findByRole('status'),
+      ).toHaveTextContent(initialApplicants[0]!.message);
+      expect(
+        screen.getByRole('button', { name: '다시 검토하기' }),
+      ).toBeEnabled();
+    },
+  );
   it('does not expose applications to a nonleader', () => {
     renderPage(
       previewPath('/applicants/app-seoyeon'),
@@ -374,7 +456,7 @@ describe('applicant review', () => {
     expect(screen.getByText('지원서를 확인할 수 없어요')).toBeInTheDocument();
     expect(screen.queryByText('김서연')).not.toBeInTheDocument();
     expect(
-      screen.queryByText(initialApplicants[0]!.profile!.availability),
+      screen.queryByText(initialApplicants[0]!.profile!.experience),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: /김서연의 프로젝트/ }),
@@ -391,7 +473,8 @@ describe('applicant review', () => {
 });
 
 describe('team creation', () => {
-  it('shows capacity and deadline constraints in the official creation flow', () => {
+  it('shows capacity and deadline constraints in the official creation flow', async () => {
+    const user = userEvent.setup();
     renderPage(previewPath('/teams/new?contestId=campus'), previewState());
     expect(screen.getByLabelText('팀장 포함 총 정원')).toHaveAttribute(
       'min',
@@ -405,8 +488,7 @@ describe('team creation', () => {
       'max',
       '2026-11-08',
     );
-    expect(
-      screen.getByText(/다른 역할의 지원자도 지원할 수 있어요/),
-    ).toBeInTheDocument();
+    await user.type(screen.getByLabelText('팀장 포함 총 정원'), '3');
+    expect(screen.getByText(/다른 역할/)).toBeInTheDocument();
   });
 });

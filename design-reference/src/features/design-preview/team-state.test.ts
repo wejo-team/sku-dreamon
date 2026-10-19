@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  contests,
   initialApplicants,
   initialApplications,
   initialProfile,
@@ -14,8 +15,11 @@ import {
   createTeamIssue,
   isTeamMember,
   selectTeamApplicant,
+  recruitmentIssue,
+  teamRecruitmentDeadline,
   type TeamActivity,
 } from './team-state';
+const publicProfile = { ...initialProfile, visibility: { discoverable: true } };
 const state = (): TeamActivity => ({
   teams: structuredClone(initialTeams),
   applications: structuredClone(initialApplications),
@@ -84,7 +88,7 @@ describe('team reference transitions', () => {
   it('allows an unadvertised role, and reapplication gets a fresh identity', () => {
     const first = applyToTeam(
       state(),
-      initialProfile,
+      publicProfile,
       'makers',
       '마케팅',
       '',
@@ -95,7 +99,7 @@ describe('team reference transitions', () => {
     const cancelled = cancelTeamApplication(first, 'new-1')!;
     const second = applyToTeam(
       cancelled,
-      initialProfile,
+      publicProfile,
       'makers',
       '기획',
       '다시 지원해요',
@@ -107,7 +111,7 @@ describe('team reference transitions', () => {
     expect(cancelTeamApplication(second, 'new-1')).toBeNull();
     expect(selectTeamApplicant(second, 'new-1', initialProfile)).toBeNull();
     expect(
-      applyToTeam(second, initialProfile, 'makers', '기획', '', 'new-3'),
+      applyToTeam(second, publicProfile, 'makers', '기획', '', 'new-3'),
     ).toBeNull();
   });
   it('accepts applications during review, but blocks deadline, full capacity, and missing profile', () => {
@@ -116,7 +120,7 @@ describe('team reference transitions', () => {
       team.id === 'makers' ? { ...team, status: '지원자검토' } : team,
     );
     expect(
-      applyToTeam(before, initialProfile, 'makers', '기획', '', 'review-new'),
+      applyToTeam(before, publicProfile, 'makers', '기획', '', 'review-new'),
     ).not.toBeNull();
     expect(
       applyToTeam(
@@ -131,7 +135,7 @@ describe('team reference transitions', () => {
     expect(
       applyToTeam(
         before,
-        initialProfile,
+        publicProfile,
         'makers',
         '기획',
         'x'.repeat(1001),
@@ -142,7 +146,7 @@ describe('team reference transitions', () => {
       team.id === 'makers' ? { ...team, capacity: team.members } : team,
     );
     expect(
-      applyToTeam(before, initialProfile, 'makers', '기획', '', 'full'),
+      applyToTeam(before, publicProfile, 'makers', '기획', '', 'full'),
     ).toBeNull();
     before.teams = before.teams.map((team) =>
       team.id === 'makers'
@@ -150,7 +154,7 @@ describe('team reference transitions', () => {
         : team,
     );
     expect(
-      applyToTeam(before, initialProfile, 'makers', '기획', '', 'expired'),
+      applyToTeam(before, publicProfile, 'makers', '기획', '', 'expired'),
     ).toBeNull();
   });
   it('validates the official target capacity without requiring all members at creation', () => {
@@ -162,7 +166,6 @@ describe('team reference transitions', () => {
       interests: [],
       capacity: 4,
       recruitmentDeadline: '2026-11-01',
-      kind: 'entry' as const,
     };
     expect(createTeamIssue(input, initialTeams)).toBeNull();
     expect(createTeamIssue({ ...input, capacity: 1 }, initialTeams)).toMatch(
@@ -197,11 +200,9 @@ describe('applicant visibility', () => {
       college: '이공대학',
       department: '소프트웨어학과',
       major: '컴퓨터공학',
-      skills: ['개발', '기타'],
-      skillOther: '사용자 테스트',
-      interests: ['기타'],
-      interestOther: '지역 커뮤니티',
-      availability: '수 18:00~21:00',
+      skills: ['프로그래밍', 'UI/UX'],
+      interests: ['사회·문화'],
+      availability: '5~10시간 미만',
       visibility: { discoverable: false },
       portfolio: 'https://example.com/private',
       portfolioTitle: '비공개 링크',
@@ -220,11 +221,9 @@ describe('applicant visibility', () => {
       college: '이공대학',
       department: '소프트웨어학과',
       major: '컴퓨터공학',
-      skills: ['개발', '기타'],
-      skillOther: '사용자 테스트',
-      interests: ['기타'],
-      interestOther: '지역 커뮤니티',
-      availability: '수 18:00~21:00',
+      skills: ['프로그래밍', 'UI/UX'],
+      interests: ['사회·문화'],
+      availability: '5~10시간 미만',
       portfolio: 'https://example.com/private',
       portfolioTitle: '비공개 링크',
     });
@@ -240,14 +239,14 @@ describe('applicant visibility', () => {
       name: '수정된 이름',
       intro: '수정된 자기소개',
       visibility: { discoverable: false },
-      availability: '금 18:00~21:00',
+      availability: '10~20시간 미만',
       portfolio: 'https://example.com/current',
       portfolioTitle: '현재 포트폴리오',
     };
     expect(applicantVisibleProfile(applicant, current)).toMatchObject({
       name: '수정된 이름',
       intro: '수정된 자기소개',
-      availability: '금 18:00~21:00',
+      availability: '10~20시간 미만',
       portfolio: 'https://example.com/current',
     });
     expect(
@@ -260,5 +259,102 @@ describe('applicant visibility', () => {
       applicantVisibleProfile(applicant, { ...current, portfolio: '' })
         .portfolio,
     ).toBe('');
+  });
+});
+
+describe('normalized team policies', () => {
+  const input = {
+    name: '새 도전',
+    summary: '공모전을 함께 준비하고 완성해요.',
+    contestId: 'campus',
+    roles: ['기획'],
+    interests: ['교육', 'IT·기술'],
+    capacity: 3,
+    recruitmentDeadline: '2026-11-01',
+  };
+  it('requires a public profile only for a new application and allows unspecified academic fields', () => {
+    expect(
+      applyToTeam(state(), initialProfile, 'makers', '기획', '', 'private'),
+    ).toBeNull();
+    const next = applyToTeam(
+      state(),
+      { ...publicProfile, academicStatus: '', grade: '' },
+      'makers',
+      '기획',
+      '',
+      'new',
+    );
+    expect(next?.applications.at(-1)?.status).toBe('지원완료');
+    expect(
+      cancelTeamApplication(state(), initialApplications[0]!.id),
+    ).not.toBeNull();
+  });
+  it('does not introduce the undecided cross-team application restriction', () => {
+    const before = state();
+    before.teams.push({
+      ...initialTeams[0]!,
+      id: 'same-contest-member',
+      owner: true,
+    });
+    expect(
+      applyToTeam(before, publicProfile, 'makers', '기획', '', 'new'),
+    ).not.toBeNull();
+  });
+  it('enforces name, summary and role boundaries without treating whitespace as content', () => {
+    expect(createTeamIssue({ ...input, name: ' 가 ' }, [])).toMatch(/2~40/);
+    expect(createTeamIssue({ ...input, summary: ' '.repeat(12) }, [])).toMatch(
+      /10~/,
+    );
+    expect(createTeamIssue({ ...input, name: '가'.repeat(41) }, [])).toMatch(
+      /2~40/,
+    );
+    expect(createTeamIssue({ ...input, roles: [] }, [])).toMatch(/역할/);
+    expect(createTeamIssue({ ...input, roles: ['임의역할'] }, [])).toMatch(
+      /역할/,
+    );
+    expect(createTeamIssue({ ...input, roles: ['기획', '기획'] }, [])).toMatch(
+      /역할/,
+    );
+  });
+  it('uses fixed official one-person capacity, omits roles and applies no arbitrary unlimited ceiling', () => {
+    expect(
+      createTeamIssue(
+        { ...input, contestId: 'solo', capacity: 1, roles: [] },
+        [],
+      ),
+    ).toBeNull();
+    expect(
+      createTeamIssue({ ...input, contestId: 'solo', capacity: 2 }, []),
+    ).toMatch(/공식 참가 인원/);
+    expect(
+      createTeamIssue({ ...input, contestId: 'solo', capacity: 1 }, []),
+    ).toMatch(/1명/);
+    expect(
+      createTeamIssue({ ...input, contestId: 'open-lab', capacity: 1000 }, []),
+    ).toBeNull();
+    expect(createTeamIssue({ ...input, capacity: NaN }, [])).toMatch(/정원/);
+    expect(createTeamIssue({ ...input, contestId: 'upcoming' }, [])).toMatch(
+      /접수 중/,
+    );
+  });
+  it('closes at the exact team or contest boundary, whichever is earlier', () => {
+    const team = { ...initialTeams[0]!, recruitmentDeadline: '2026-10-18' };
+    const cutoff = Date.parse('2026-10-18T15:00:00Z');
+    expect(recruitmentIssue(team, cutoff - 1)).toBeNull();
+    expect(recruitmentIssue(team, cutoff)).toMatch(/기한/);
+    const solo = {
+      ...team,
+      contestId: 'solo',
+      recruitmentDeadline: '2026-11-20',
+    };
+    expect(teamRecruitmentDeadline(solo)).toBe(
+      Date.parse('2026-11-20T09:00:00Z'),
+    );
+    expect(contests.find((contest) => contest.id === 'local')?.minMembers).toBe(
+      2,
+    );
+    expect(initialTeams.find((item) => item.id === 'localcrew')?.members).toBe(
+      3,
+    );
   });
 });

@@ -27,7 +27,6 @@ import {
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
-  DrawerTrigger,
 } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -58,22 +57,16 @@ import { AvatarPicker } from './AvatarPicker';
 import { ProfileDetails } from './ProfileDetails';
 import { mascotAvatarIds } from './mascot-avatars';
 import { AcademicFields, ExperienceFields, SkillFields } from './ProfileFields';
+import {
+  demoId,
+  demoPassword,
+  loginIdSchema,
+  passwordSchema,
+  signupPasswordSchema,
+} from './auth-policy';
+import { profileTextLength, weeklyAvailabilityOptions } from './profile-fields';
 import './login.css';
 import './profile-fields.css';
-
-const demoId = 'dreamon-demo';
-const demoPassword = 'dreamon-demo';
-const days = ['월', '화', '수', '목', '금', '토', '일'];
-const timeSlots = [
-  '00:00~03:00',
-  '03:00~06:00',
-  '06:00~09:00',
-  '09:00~12:00',
-  '12:00~15:00',
-  '15:00~18:00',
-  '18:00~21:00',
-  '21:00~24:00',
-];
 
 function isWebUrl(value: string) {
   try {
@@ -84,14 +77,39 @@ function isWebUrl(value: string) {
 }
 
 const requiredProfileSchema = z.object({
-  name: z.string().trim().min(1, '이름을 입력해 주세요.'),
-  roles: z.array(z.string()).min(1, '희망 역할을 하나 이상 선택해 주세요.'),
-  interests: z.array(z.string()).min(1, '관심 분야를 하나 이상 선택해 주세요.'),
+  name: z
+    .string()
+    .trim()
+    .min(1, '이름을 입력해 주세요.')
+    .refine(
+      (value) => profileTextLength(value) <= 50,
+      '이름은 50자 이내로 입력해 주세요.',
+    ),
+  roles: z
+    .array(z.string())
+    .min(1, '희망 역할을 하나 이상 선택해 주세요.')
+    .max(2, '희망 역할은 최대 2개까지 선택해 주세요.'),
+  interests: z
+    .array(z.string())
+    .min(1, '관심 분야를 하나 이상 선택해 주세요.')
+    .max(3, '관심 분야는 최대 3개까지 선택해 주세요.'),
 });
 const profileSchema = requiredProfileSchema.extend({
   avatarId: z.enum(mascotAvatarIds).optional(),
-  intro: z.string().trim(),
-  experience: z.string().trim(),
+  intro: z
+    .string()
+    .trim()
+    .refine(
+      (value) => profileTextLength(value) <= 300,
+      '자기소개는 300자 이내로 입력해 주세요.',
+    ),
+  experience: z
+    .string()
+    .trim()
+    .refine(
+      (value) => profileTextLength(value) <= 500,
+      '관련 경험은 500자 이내로 입력해 주세요.',
+    ),
   experienceState: z.enum(['unspecified', 'none', 'provided']),
   academicStatus: z.string().optional(),
   grade: z.string().optional(),
@@ -99,9 +117,13 @@ const profileSchema = requiredProfileSchema.extend({
   department: z.string().optional(),
   major: z.string().optional(),
   skills: z.array(z.string()),
-  interestOther: z.string().trim(),
-  skillOther: z.string().trim(),
-  portfolioTitle: z.string().trim(),
+  portfolioTitle: z
+    .string()
+    .trim()
+    .refine(
+      (value) => profileTextLength(value) <= 50,
+      '포트폴리오 제목은 50자 이내로 입력해 주세요.',
+    ),
   visibility: z.object({
     discoverable: z.boolean(),
   }),
@@ -112,13 +134,24 @@ const profileSchema = requiredProfileSchema.extend({
       (value) => !value || isWebUrl(value),
       'http:// 또는 https://로 시작하는 링크를 입력해 주세요.',
     ),
-  availability: z.string(),
+  availability: z
+    .string()
+    .refine(
+      (value) => !value || weeklyAvailabilityOptions.includes(value),
+      '주당 참여 가능 시간을 다시 선택해 주세요.',
+    ),
 });
 const accountSchema = z.object({
-  username: z.string().trim().min(1, '아이디를 입력해 주세요.'),
-  password: z.string().min(1, '비밀번호를 입력해 주세요.'),
+  username: loginIdSchema,
+  password: passwordSchema,
 });
-const signupSchema = requiredProfileSchema.merge(accountSchema);
+const signupSchema = requiredProfileSchema.merge(accountSchema).extend({
+  username: loginIdSchema.refine(
+    (value) => value !== demoId,
+    '이미 사용 중인 아이디예요.',
+  ),
+  password: signupPasswordSchema,
+});
 type SignupValues = z.infer<typeof signupSchema>;
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -150,7 +183,10 @@ function ChoiceField({
       aria-describedby={error ? `${id}-error` : undefined}
     >
       <legend>
-        {label} <span className="preview-muted">(필수 · 복수 선택)</span>
+        {label}{' '}
+        <span className="preview-muted">
+          (필수 · {label === '관심 분야' ? '1~3개' : '1~2개'})
+        </span>
       </legend>
       <div className="preview-row">
         {options.map((option) => (
@@ -187,138 +223,29 @@ function AvailabilityField({
   value: string;
   onChange: (value: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [day, setDay] = useState('월');
-  const selected = draft
-    .split('; ')
-    .filter((item) =>
-      days.some((d) => timeSlots.some((slot) => item === `${d} ${slot}`)),
-    );
-  function toggle(slot: string, checked: boolean) {
-    const key = `${day} ${slot}`;
-    const next = checked
-      ? [...selected, key]
-      : selected.filter((item) => item !== key);
-    setDraft(
-      days
-        .flatMap((d) => timeSlots.map((time) => `${d} ${time}`))
-        .filter((item) => next.includes(item))
-        .join('; '),
-    );
-  }
   return (
-    <fieldset
-      className="preview-field preview-availability-summary"
-      aria-describedby="availability-summary"
-    >
-      <legend>
-        활동 가능 시간 <span className="preview-muted">(선택)</span>
-      </legend>
-      <p id="availability-summary" className="preview-muted" aria-live="polite">
-        {value || '미설정'}
-      </p>
-      <Drawer
-        open={open}
-        onOpenChange={(nextOpen) => {
-          if (nextOpen) {
-            setDraft(value);
-            setDay('월');
-          }
-          setOpen(nextOpen);
-        }}
-        shouldScaleBackground={false}
-        autoFocus
+    <div className="preview-field">
+      <Label htmlFor="profile-weekly-availability">
+        주당 참여 가능 시간 (선택)
+      </Label>
+      <NativeSelect
+        id="profile-weekly-availability"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-describedby="weekly-availability-help"
       >
-        <DrawerTrigger asChild>
-          <Button type="button" variant="outline" className="preview-button">
-            활동 시간 설정
-          </Button>
-        </DrawerTrigger>
-        <DrawerContent className="dreamon-preview preview-drawer">
-          <DrawerHeader>
-            <DrawerTitle>활동 가능 시간</DrawerTitle>
-            <DrawerDescription>
-              공개 프로필과 지원한 팀의 팀장에게 표시돼요. 시간을 선택해 적용한
-              뒤 프로필을 저장해 주세요.
-            </DrawerDescription>
-          </DrawerHeader>
-          <div className="preview-drawer-body">
-            <div className="preview-field">
-              <Label htmlFor="availability-day">요일</Label>
-              <NativeSelect
-                id="availability-day"
-                value={day}
-                onChange={(event) => setDay(event.target.value)}
-              >
-                {days.map((item) => (
-                  <NativeSelectOption value={item} key={item}>
-                    {item}요일
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </div>
-            <fieldset className="preview-field">
-              <legend>가능한 시간 (복수 선택)</legend>
-              <div className="preview-row">
-                {timeSlots.map((slot) => (
-                  <Label
-                    className="preview-choice"
-                    key={slot}
-                    htmlFor={`availability-${slot}`}
-                  >
-                    <Checkbox
-                      type="button"
-                      id={`availability-${slot}`}
-                      checked={selected.includes(`${day} ${slot}`)}
-                      onCheckedChange={(checked) =>
-                        toggle(slot, checked === true)
-                      }
-                      aria-label={`${day}요일 ${slot}`}
-                    />
-                    {slot}
-                  </Label>
-                ))}
-              </div>
-            </fieldset>
-            <p className="preview-muted" aria-live="polite">
-              선택한 시간: {draft || '미설정'}
-            </p>
-            {draft && (
-              <Button
-                type="button"
-                variant="outline"
-                className="preview-button"
-                onClick={() => setDraft('')}
-              >
-                시간 선택 지우기
-              </Button>
-            )}
-          </div>
-          <DrawerFooter>
-            <Button
-              type="button"
-              className="preview-button"
-              onClick={() => {
-                onChange(draft);
-                setOpen(false);
-              }}
-            >
-              선택 적용
-            </Button>
-            <DrawerClose asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="preview-button"
-              >
-                취소
-              </Button>
-            </DrawerClose>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
-    </fieldset>
+        <NativeSelectOption value="">미입력</NativeSelectOption>
+        {weeklyAvailabilityOptions.map((option) => (
+          <NativeSelectOption value={option} key={option}>
+            {option}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+      <p id="weekly-availability-help" className="preview-muted">
+        참여 중인 모든 프로젝트를 합한 주당 예상 시간이에요. 팀마다 쓸 수 있는
+        시간이나 남은 시간을 뜻하지 않아요.
+      </p>
+    </div>
   );
 }
 
@@ -356,38 +283,67 @@ export function LoginGate({
   );
 }
 
-function ProfileVisibilityControl({
+export function ProfileVisibilityControl({
   checked,
   onConfirm,
+  triggerLabel,
+  className,
 }: {
   checked: boolean;
-  onConfirm: (next: boolean) => void;
+  onConfirm: (next: boolean) => void | Promise<void>;
+  triggerLabel?: string;
+  className?: string;
 }) {
   const [pending, setPending] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const triggerRef = useRef<HTMLButtonElement>(null);
   const id = useId();
   return (
     <Drawer
       open={pending !== null}
-      onOpenChange={(open) => setPending(open ? !checked : null)}
+      onOpenChange={(open) => {
+        if (!saving) {
+          setSaveError('');
+          setPending(open ? !checked : null);
+        }
+      }}
       shouldScaleBackground={false}
       autoFocus
     >
-      <Label
-        className="preview-profile-visibility"
-        htmlFor={id}
-        title="프로필 공개 설정"
-      >
-        <Switch
+      {triggerLabel ? (
+        <Button
           ref={triggerRef}
-          id={id}
-          aria-label="프로필 공개"
+          type="button"
+          className={className ?? 'preview-button'}
           aria-haspopup="dialog"
-          checked={checked}
-          onCheckedChange={setPending}
-        />
-        <span>{checked ? '공개' : '비공개'}</span>
-      </Label>
+          onClick={() => {
+            setSaveError('');
+            setPending(!checked);
+          }}
+        >
+          {triggerLabel}
+        </Button>
+      ) : (
+        <Label
+          className="preview-profile-visibility"
+          htmlFor={id}
+          title="프로필 공개 설정"
+        >
+          <Switch
+            ref={triggerRef}
+            id={id}
+            aria-label="프로필 공개"
+            aria-haspopup="dialog"
+            checked={checked}
+            onCheckedChange={(next) => {
+              setSaveError('');
+              setPending(next);
+            }}
+          />
+          <span>{checked ? '공개' : '비공개'}</span>
+        </Label>
+      )}
       <DrawerContent
         className="dreamon-preview preview-drawer"
         onCloseAutoFocus={(event) => {
@@ -401,21 +357,39 @@ function ProfileVisibilityControl({
           </DrawerTitle>
           <DrawerDescription>
             {pending
-              ? '로그인한 사용자의 검색·AI 추천에 표시되고, 등록한 모든 프로필 항목이 보여요. 활동 가능 시간과 포트폴리오도 포함돼요.'
-              : '모든 일반 검색·AI 추천에서 숨겨지고, 다른 사용자는 프로필을 열 수 없어요.'}{' '}
-            지원한 팀장에게는 공개 여부와 관계없이 전체 프로필이 보여요.
+              ? '일반 사람 검색·AI 사람 추천의 후보가 되고, 로그인한 사용자에게 등록한 모든 프로필 항목이 보여요. 주당 참여 가능 시간과 포트폴리오도 포함돼요. 공개 전환만으로 지원이 접수되지는 않아요.'
+              : '일반 검색·AI 사람 추천에서 숨겨져요. 기존 지원과 팀 소속은 유지되며, 새 지원은 다시 공개한 뒤 할 수 있어요.'}{' '}
+            이미 지원받은 팀장은 전체 현재 프로필을 볼 수 있고, AI 지원자
+            검토에도 최신 프로필이 반영돼요.
           </DrawerDescription>
         </DrawerHeader>
         <DrawerFooter>
+          {saveError && (
+            <p role="alert" className="preview-error">
+              {saveError}
+            </p>
+          )}
           <Button
             type="button"
             className="preview-button"
-            onClick={() => {
-              if (pending !== null) onConfirm(pending);
-              setPending(null);
+            disabled={saving}
+            onClick={async () => {
+              if (pending === null || saving) return;
+              setSaving(true);
+              setSaveError('');
+              try {
+                await onConfirm(pending);
+                setPending(null);
+              } catch {
+                setSaveError(
+                  '공개 설정을 저장하지 못했어요. 다시 시도해 주세요.',
+                );
+              } finally {
+                setSaving(false);
+              }
             }}
           >
-            {pending ? '공개로 전환' : '비공개로 전환'}
+            {saving ? '저장 중' : pending ? '공개로 전환' : '비공개로 전환'}
           </Button>
           <DrawerClose asChild>
             <Button type="button" variant="outline" className="preview-button">
@@ -445,8 +419,11 @@ function ProfileEditor({
   } = useForm<Profile>({
     resolver: zodResolver(profileSchema),
     defaultValues: profile,
+    mode: 'onChange',
   });
-  const interests = useWatch({ control, name: 'interests' });
+  const name = useWatch({ control, name: 'name' });
+  const intro = useWatch({ control, name: 'intro' });
+  const portfolioTitle = useWatch({ control, name: 'portfolioTitle' });
   return (
     <form
       className="preview-panel preview-form"
@@ -454,10 +431,6 @@ function ProfileEditor({
       onSubmit={handleSubmit((values) => {
         saveProfile({
           ...values,
-          interestOther: values.interests.includes('기타')
-            ? values.interestOther
-            : '',
-          skillOther: values.skills.includes('기타') ? values.skillOther : '',
           experienceState:
             values.experienceState === 'provided' && !values.experience
               ? 'unspecified'
@@ -497,6 +470,9 @@ function ProfileEditor({
             aria-invalid={!!errors.name}
             aria-describedby={errors.name ? 'profile-name-error' : undefined}
           />
+          <p className="preview-field-count">
+            {profileTextLength(name)} / 50자
+          </p>
           <FieldError id="profile-name-error" message={errors.name?.message} />
         </div>
         <Controller
@@ -512,18 +488,7 @@ function ProfileEditor({
             />
           )}
         />
-        {interests.includes('기타') && (
-          <div className="preview-field">
-            <Label htmlFor="profile-interest-other">
-              기타 관심 분야 설명 (선택)
-            </Label>
-            <Input
-              id="profile-interest-other"
-              {...register('interestOther')}
-              placeholder="관심 있는 분야를 알려 주세요."
-            />
-          </div>
-        )}
+
         <Controller
           control={control}
           name="roles"
@@ -548,11 +513,12 @@ function ProfileEditor({
         <h2 id="profile-experience-heading" className="preview-section-title">
           활동과 경험
         </h2>
-        <SkillFields control={control} register={register} />
+        <SkillFields control={control} />
         <ExperienceFields
           control={control}
           register={register}
           setValue={setValue}
+          error={errors.experience?.message}
         />
         <div className="preview-field">
           <Label htmlFor="profile-intro">자기소개 (선택)</Label>
@@ -560,7 +526,16 @@ function ProfileEditor({
             id="profile-intro"
             rows={3}
             {...register('intro')}
+            aria-invalid={!!errors.intro}
+            aria-describedby="profile-intro-count profile-intro-error"
             placeholder="함께하고 싶은 활동을 소개해 주세요."
+          />
+          <p id="profile-intro-count" className="preview-field-count">
+            {profileTextLength(intro)} / 300자
+          </p>
+          <FieldError
+            id="profile-intro-error"
+            message={errors.intro?.message}
           />
         </div>
         <Controller
@@ -605,7 +580,16 @@ function ProfileEditor({
           <Input
             id="profile-portfolio-title"
             {...register('portfolioTitle')}
+            aria-invalid={!!errors.portfolioTitle}
+            aria-describedby="profile-title-count profile-title-error"
             placeholder="작업 모음, 프로젝트 소개 등"
+          />
+          <p id="profile-title-count" className="preview-field-count">
+            {profileTextLength(portfolioTitle)} / 50자
+          </p>
+          <FieldError
+            id="profile-title-error"
+            message={errors.portfolioTitle?.message}
           />
         </div>
       </section>
@@ -748,9 +732,6 @@ export function ProfilePage() {
               <p className="preview-info-value">
                 {profile.interests.join(' · ')}
               </p>
-              {profile.interests.includes('기타') && profile.interestOther && (
-                <p className="preview-muted">{profile.interestOther}</p>
-              )}
             </div>
             <div>
               <div className="preview-row">
@@ -799,20 +780,21 @@ export function ProfilePage() {
               >
                 {profile.skills.join(' · ') || '아직 역량을 선택하지 않았어요.'}
               </p>
-              {profile.skills.includes('기타') && profile.skillOther && (
-                <p className="preview-muted">{profile.skillOther}</p>
-              )}
             </div>
           </section>
           <div className="preview-detail-grid">
             <section className="preview-panel preview-stack">
-              <h2 className="preview-section-title">활동 가능 시간</h2>
+              <h2 className="preview-section-title">주당 참여 가능 시간</h2>
               <p
                 className={
                   profile.availability ? 'preview-info-value' : 'preview-muted'
                 }
               >
-                {profile.availability || '아직 시간을 선택하지 않았어요.'}
+                {profile.availability || '미입력'}
+              </p>
+              <p className="preview-muted">
+                모든 참여 프로젝트의 예상 시간이에요. 팀별 약속이나 남은 시간이
+                아니에요.
               </p>
             </section>
             <section className="preview-panel preview-stack">
@@ -911,7 +893,8 @@ function AccountFields({
         <Input
           id="login-username"
           {...register('username')}
-          autoComplete="off"
+          autoComplete="username"
+          autoCapitalize="none"
           placeholder="아이디를 입력해 주세요"
           spellCheck={false}
           aria-invalid={!!errors.username}
@@ -932,7 +915,7 @@ function AccountFields({
             type={showPassword ? 'text' : 'password'}
             {...register('password')}
             placeholder="비밀번호를 입력해 주세요"
-            autoComplete="off"
+            autoComplete="current-password"
             aria-invalid={!!errors.password}
             aria-describedby={
               errors.password ? 'login-password-error' : undefined
@@ -1074,6 +1057,7 @@ export function SignupPage() {
   const [search] = useSearchParams();
   const returnTo = safeReturnTo(search.get('returnTo') ?? search.get('from'));
   const [complete, setComplete] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const {
     register,
     control,
@@ -1082,6 +1066,7 @@ export function SignupPage() {
     formState: { errors, isSubmitting },
   } = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
+    mode: 'onChange',
     defaultValues: {
       username: '',
       password: '',
@@ -1134,8 +1119,6 @@ export function SignupPage() {
             skills: [],
             experienceState: 'unspecified',
             portfolioTitle: '',
-            interestOther: '',
-            skillOther: '',
             visibility: {
               discoverable: false,
             },
@@ -1153,13 +1136,17 @@ export function SignupPage() {
           <Input
             id="signup-username"
             {...register('username')}
-            autoComplete="off"
+            autoComplete="username"
+            autoCapitalize="none"
             spellCheck={false}
             aria-invalid={!!errors.username}
             aria-describedby={
               errors.username ? 'signup-username-error' : undefined
             }
           />
+          <p className="preview-muted">
+            영문 소문자와 숫자 4~24자. 대문자는 소문자로 바뀌어요.
+          </p>
           <FieldError
             id="signup-username-error"
             message={errors.username?.message}
@@ -1167,16 +1154,39 @@ export function SignupPage() {
         </div>
         <div className="preview-field">
           <Label htmlFor="signup-password">비밀번호 (필수)</Label>
-          <Input
-            id="signup-password"
-            type="password"
-            {...register('password')}
-            autoComplete="off"
-            aria-invalid={!!errors.password}
-            aria-describedby={
-              errors.password ? 'signup-password-error' : undefined
-            }
-          />
+          <div className="dreamon-login-password">
+            <Input
+              id="signup-password"
+              type={showPassword ? 'text' : 'password'}
+              {...register('password')}
+              autoComplete="new-password"
+              aria-invalid={!!errors.password}
+              aria-describedby={
+                errors.password
+                  ? 'signup-password-error signup-password-help'
+                  : 'signup-password-help'
+              }
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              className="dreamon-login-reveal"
+              aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+              aria-controls="signup-password"
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((value) => !value)}
+            >
+              {showPassword ? (
+                <EyeOff size={20} aria-hidden="true" />
+              ) : (
+                <Eye size={20} aria-hidden="true" />
+              )}
+            </Button>
+          </div>
+          <p id="signup-password-help" className="preview-muted">
+            15~128자. 한글과 공백을 사용할 수 있으며 앞뒤 공백도 비밀번호에
+            포함돼요.
+          </p>
           <FieldError
             id="signup-password-error"
             message={errors.password?.message}

@@ -22,6 +22,17 @@ import {
   getPublicProfile,
 } from './data';
 import { usePreview } from './preview-context';
+import {
+  contestBadgeLabel,
+  contestDaysLeft,
+  contestDeadline,
+  contestStatus,
+  deadlineLabel,
+  deadlineNotice,
+  isContestOpen,
+  memberLimitLabel,
+} from './contest-state';
+import { recruitmentIssue } from './team-state';
 import { ContestCover } from './ContestCover';
 import { ExploreFilters } from './ExploreFilters';
 import { ProfileDetails } from './ProfileDetails';
@@ -67,18 +78,18 @@ export function ExplorePage() {
     text.toLocaleLowerCase().includes(q.trim().toLocaleLowerCase());
   const matchedContests = contests.filter(
     (item) =>
-      includes(`${item.title} ${item.organizer} ${item.category}`) &&
+      includes(`${item.title} ${item.organizer} ${item.interests.join(' ')}`) &&
       (!category || item.interests.includes(category)),
   );
-  if (sort === 'deadline') matchedContests.sort((a, b) => a.days - b.days);
+  if (sort === 'deadline')
+    matchedContests.sort((a, b) => contestDeadline(a) - contestDeadline(b));
   const matchedTeams = teams.filter(
     (item) =>
       includes(
         `${item.name} ${item.summary} ${item.roles.join(' ')} ${contests.find((contest) => contest.id === item.contestId)?.title}`,
       ) &&
       (!role || item.roles.includes(role)) &&
-      (params.get('open') !== 'true' ||
-        ['모집중', '지원자검토'].includes(item.status)) &&
+      (params.get('open') !== 'true' || !recruitmentIssue(item)) &&
       (!params.get('contest') || item.contestId === params.get('contest')),
   );
   const matchedPeople = visiblePeople.filter(
@@ -94,8 +105,6 @@ export function ExplorePage() {
           item.college,
           item.department,
           item.major,
-          item.interestOther,
-          item.skillOther,
           item.intro,
           item.experience,
           item.availability,
@@ -229,7 +238,7 @@ export function ExplorePage() {
       <div className="preview-results-heading">
         <h2 ref={headingRef} tabIndex={-1}>
           {tab === 'contests'
-            ? '모집 중인 공모전'
+            ? '공모전 둘러보기'
             : tab === 'teams'
               ? '함께 도전하는 팀'
               : '함께할 사람'}
@@ -288,25 +297,23 @@ export function ExplorePage() {
                     loading={index === 0 ? 'eager' : 'lazy'}
                   />
                   <span
-                    className={`preview-deadline ${item.days <= 7 ? 'preview-deadline--soon' : ''}`}
+                    className={`preview-deadline ${isContestOpen(item) && contestDaysLeft(item) <= 7 ? 'preview-deadline--soon' : ''}`}
                   >
-                    D−{item.days}
+                    {contestBadgeLabel(item)}
                   </span>
                 </div>
                 <div className="preview-contest-copy">
                   <h3>{item.title}</h3>
-                  <Badge>{item.category}</Badge>
+                  <div className="preview-row">
+                    {item.interests.map((interest) => (
+                      <Badge key={interest}>{interest}</Badge>
+                    ))}
+                  </div>
                   <p className="preview-muted">{item.organizer}</p>
                   <span className="preview-contest-teams">
                     <Users size={16} aria-hidden="true" />
-                    <span className="sr-only">모집 중인 팀 </span>
-                    {
-                      teams.filter(
-                        (team) =>
-                          team.contestId === item.id &&
-                          team.status === '모집중',
-                      ).length
-                    }
+                    <span className="sr-only">연결된 팀 </span>
+                    {teams.filter((team) => team.contestId === item.id).length}
                     <span className="sr-only">개</span>
                   </span>
                 </div>
@@ -413,10 +420,10 @@ export function ContestPage() {
       <div className="preview-detail-grid">
         <article className="preview-stack">
           <div className="preview-row">
-            <Badge>{contest.category}</Badge>
-            <Badge tone="warm">
-              {contest.status === 'closed' ? '접수 마감' : `D−${contest.days}`}
-            </Badge>
+            {contest.interests.map((interest) => (
+              <Badge key={interest}>{interest}</Badge>
+            ))}
+            <Badge tone="warm">{contestBadgeLabel(contest)}</Badge>
           </div>
           <PageIntro title={contest.title} description={contest.organizer} />
           <div className="preview-panel">
@@ -428,39 +435,27 @@ export function ContestPage() {
                   <CalendarDays size={16} />
                   접수 마감
                 </dt>
-                <dd>{contest.deadline}</dd>
+                <dd>{deadlineLabel(contest)}</dd>
               </div>
               <div>
                 <dt>
                   <Users size={16} />
                   참가 대상
                 </dt>
-                <dd>{contest.audience}</dd>
+                <dd>{contest.audience.join(' · ')}</dd>
               </div>
               <div>
                 <dt>접수 시작</dt>
                 <dd>{contest.startsAt}</dd>
               </div>
               <div>
-                <dt>참가 방식</dt>
-                <dd>
-                  {contest.participation === 'individual'
-                    ? '개인 참가'
-                    : contest.participation === 'both'
-                      ? '개인 또는 팀 참가'
-                      : '팀 참가'}
-                </dd>
+                <dt>공식 참가 인원</dt>
+                <dd>{memberLimitLabel(contest)}</dd>
               </div>
-              {contest.participation !== 'individual' && (
-                <div>
-                  <dt>공식 팀 인원</dt>
-                  <dd>
-                    {contest.minMembers && contest.maxMembers
-                      ? `${contest.minMembers}~${contest.maxMembers}명`
-                      : '공식 공고 확인 필요'}
-                  </dd>
-                </div>
-              )}
+              <div>
+                <dt>원문 참가 자격</dt>
+                <dd>{contest.audienceOriginal}</dd>
+              </div>
               <div>
                 <dt>제출물</dt>
                 <dd>
@@ -474,6 +469,9 @@ export function ContestPage() {
                 <dd>{contest.verifiedOn}</dd>
               </div>
             </dl>
+            {deadlineNotice(contest) && (
+              <p className="preview-muted">{deadlineNotice(contest)}</p>
+            )}
             <a
               className="preview-button"
               href={contest.officialUrl}
@@ -500,7 +498,7 @@ export function ContestPage() {
                 <span className="sr-only">개</span>
               </span>
             </div>
-            {contest.status !== 'closed' && (
+            {isContestOpen(contest) && (
               <div className="preview-contest-team-actions">
                 <Button
                   asChild
@@ -518,16 +516,8 @@ export function ContestPage() {
                 <Button asChild className="preview-compact-action">
                   <Link
                     to={previewPath(`/teams/new?contest=${contest.id}`)}
-                    aria-label={
-                      contest.participation === 'individual'
-                        ? '준비 모임 만들기'
-                        : '팀 만들기'
-                    }
-                    title={
-                      contest.participation === 'individual'
-                        ? '준비 모임 만들기'
-                        : '팀 만들기'
-                    }
+                    aria-label="팀 만들기"
+                    title="팀 만들기"
                   >
                     <Plus size={20} aria-hidden="true" />
                   </Link>
@@ -535,13 +525,10 @@ export function ContestPage() {
               </div>
             )}
           </div>
-          {contest.participation === 'individual' && (
-            <Notice>
-              개인 참가 공모전이에요. 준비 모임에서 함께 준비하고 접수는 각자
-              진행해요.
-            </Notice>
+          {contestStatus(contest) === 'upcoming' && (
+            <Notice>접수가 시작되면 팀을 만들거나 지원할 수 있어요.</Notice>
           )}
-          {contest.status === 'closed' && (
+          {contestStatus(contest) === 'closed' && (
             <Notice>
               접수가 마감되어 새 팀을 만들거나 지원할 수 없어요. 공고는 계속
               확인할 수 있어요.
@@ -571,15 +558,15 @@ export function ContestPage() {
           ) : (
             <EmptyState
               title={
-                contest.status === 'closed'
+                contestStatus(contest) === 'closed'
                   ? '등록된 팀이 없어요'
                   : '아직 함께할 팀이 없어요'
               }
               description={
-                contest.status === 'closed'
+                contestStatus(contest) === 'closed'
                   ? '공모전 상세 정보는 계속 확인할 수 있어요.'
-                  : contest.participation === 'individual'
-                    ? '첫 준비 모임을 만들어 함께 도전해 보세요.'
+                  : contestStatus(contest) === 'upcoming'
+                    ? '접수가 시작되면 첫 팀을 만들어 보세요.'
                     : '첫 팀을 만들어 함께 도전해 보세요.'
               }
             />

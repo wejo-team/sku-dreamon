@@ -4,7 +4,6 @@ import {
   CheckCheck,
   ChevronRight,
   ClipboardCheck,
-  Clock3,
   RotateCcw,
   UserRoundPlus,
   X,
@@ -21,7 +20,8 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { contests, previewPath, type ApplicationStatus } from './data';
+import { previewPath, type ApplicationStatus } from './data';
+import { isNotificationRecipient } from './notification-state';
 import { usePreview } from './preview-context';
 
 type Notification = {
@@ -29,13 +29,13 @@ type Notification = {
   title: string;
   description: string;
   to: string;
-  kind: 'applicant' | 'application' | 'deadline';
+  kind: 'applicant' | 'application';
+  read: boolean;
 };
 
 const icons = {
   applicant: UserRoundPlus,
   application: ClipboardCheck,
-  deadline: Clock3,
 };
 const applicationTitles: Record<ApplicationStatus, string> = {
   지원취소: '지원이 취소됐어요',
@@ -51,7 +51,12 @@ export function Notifications() {
 }
 
 function NotificationInbox() {
-  const { signedIn, teams, applicants, applications } = usePreview();
+  const {
+    signedIn,
+    teams,
+    notifications: history,
+    markNotificationsRead,
+  } = usePreview();
   const location = useLocation();
   const navigate = useNavigate();
   const failedOnce = useRef(false);
@@ -59,62 +64,44 @@ function NotificationInbox() {
     ids: string[];
     to?: string;
   } | null>(null);
-  const [open, setOpen] = useState(false);
+  const open = location.state?.notificationInbox === true;
+  const setOpen = (next: boolean) => {
+    if (next === open) return;
+    if (next) {
+      navigate(`${location.pathname}${location.search}`, {
+        state: { ...location.state, notificationInbox: true },
+      });
+    } else {
+      navigate(-1);
+    }
+  };
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
-  const notifications: Notification[] = [];
+  const notifications: Notification[] = signedIn
+    ? history
+        .filter((item) => isNotificationRecipient(item, teams))
+        .reverse()
+        .map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          title:
+            item.kind === 'application'
+              ? applicationTitles[item.status]
+              : `${item.applicantName} 님이 지원했어요`,
+          description: `${item.teamName} · ${item.role} 지원`,
+          to:
+            item.kind === 'application'
+              ? previewPath('/workspace?view=applications')
+              : previewPath(`/applicants/${item.applicationId}`),
+          read: item.read,
+        }))
+    : [];
 
-  if (signedIn) {
-    for (const application of [...applications].reverse()) {
-      const team = teams.find((item) => item.id === application.teamId);
-      if (!team) continue;
-      notifications.push({
-        id: `application:${application.id}:${application.status}`,
-        kind: 'application',
-        title: applicationTitles[application.status],
-        description: `${team.name} · ${application.role} 지원`,
-        to: previewPath('/workspace?view=applications'),
-      });
-    }
-    for (const applicant of applicants) {
-      const team = teams.find(
-        (item) => item.id === applicant.teamId && item.owner,
-      );
-      if (!team) continue;
-      notifications.push({
-        id: `applicant:${applicant.id}`,
-        kind: 'applicant',
-        title: `${applicant.name} 님이 지원했어요`,
-        description: `${team.name} · ${applicant.role} 지원`,
-        to: previewPath(`/applicants/${applicant.id}`),
-      });
-    }
-    for (const contest of contests) {
-      if (
-        contest.days < 0 ||
-        contest.days > 7 ||
-        !teams.some((team) => team.owner && team.contestId === contest.id)
-      )
-        continue;
-      notifications.push({
-        id: `deadline:${contest.id}:${contest.deadline}`,
-        kind: 'deadline',
-        title:
-          contest.days === 0
-            ? '우리 팀 공모전이 오늘 마감돼요'
-            : `우리 팀 공모전 마감까지 ${contest.days}일 남았어요`,
-        description: `${contest.title} · ${contest.deadline} 마감`,
-        to: previewPath(`/contests/${contest.id}`),
-      });
-    }
-  }
-
-  const unread = notifications.filter((item) => !readIds.has(item.id));
+  const unread = notifications.filter((item) => !item.read);
   const visible = filter === 'unread' ? unread : notifications;
   const markRead = (ids: string[], to?: string) => {
     // A single failed write makes the recovery state reproducible in this reference.
     if (
-      ids.some((id) => !readIds.has(id)) &&
+      ids.some((id) => unread.some((item) => item.id === id)) &&
       new URLSearchParams(location.search).get('scenario') ===
         'notification-error' &&
       !failedOnce.current
@@ -123,15 +110,14 @@ function NotificationInbox() {
       setFailedRead({ ids, to });
       return false;
     }
-    setReadIds((previous) => new Set([...previous, ...ids]));
+    markNotificationsRead(ids);
     setFailedRead(null);
     return true;
   };
   const retryRead = () => {
     if (!failedRead || !markRead(failedRead.ids, failedRead.to)) return;
     if (failedRead.to) {
-      setOpen(false);
-      navigate(failedRead.to);
+      navigate(failedRead.to, { replace: true });
     }
   };
   const returnTo = `${location.pathname}${location.search}`;
@@ -231,7 +217,7 @@ function NotificationInbox() {
                 >
                   {visible.map((item) => {
                     const Icon = icons[item.kind];
-                    const isUnread = !readIds.has(item.id);
+                    const isUnread = !item.read;
                     return (
                       <li key={item.id}>
                         <Link
@@ -239,11 +225,9 @@ function NotificationInbox() {
                           className="preview-notification-item"
                           data-unread={isUnread || undefined}
                           onClick={(event) => {
-                            if (!markRead([item.id], item.to)) {
-                              event.preventDefault();
-                              return;
-                            }
-                            setOpen(false);
+                            event.preventDefault();
+                            if (!markRead([item.id], item.to)) return;
+                            navigate(item.to, { replace: true });
                           }}
                         >
                           <span className="preview-notification-icon">
@@ -299,7 +283,13 @@ function NotificationInbox() {
             <Button asChild>
               <Link
                 to={`${previewPath('/login')}?returnTo=${encodeURIComponent(returnTo)}`}
-                onClick={() => setOpen(false)}
+                onClick={(event) => {
+                  event.preventDefault();
+                  navigate(
+                    `${previewPath('/login')}?returnTo=${encodeURIComponent(returnTo)}`,
+                    { replace: true },
+                  );
+                }}
               >
                 로그인
               </Link>

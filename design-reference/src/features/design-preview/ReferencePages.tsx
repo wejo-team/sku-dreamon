@@ -1,5 +1,6 @@
 import { useParams } from 'react-router';
 import { archivedContest, contests, previewPath } from './data';
+import { memberLimitLabel } from './contest-state';
 import { BackLink, EmptyState, PageIntro } from './PreviewUi';
 
 // Local destinations keep fixture links reviewable without inventing organizer URLs.
@@ -31,11 +32,11 @@ export function ReferenceNoticePage() {
         </div>
         <div>
           <dt>참가 대상</dt>
-          <dd>{contest.audience}</dd>
+          <dd>{contest.audienceOriginal}</dd>
         </div>
         <div>
-          <dt>참가 방식</dt>
-          <dd>{contest.participation === 'individual' ? '개인' : '팀'}</dd>
+          <dt>참가 인원</dt>
+          <dd>{memberLimitLabel(contest)}</dd>
         </div>
         <div>
           <dt>제출물</dt>

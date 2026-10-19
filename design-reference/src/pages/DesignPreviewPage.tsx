@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router';
 import { PreviewProvider } from '@/features/design-preview/PreviewProvider';
+import { ApplicantReviewProvider } from '@/features/design-preview/ApplicantReviewProvider';
 import { PreviewShell } from '@/features/design-preview/PreviewShell';
 import { LoadingPage } from '@/features/design-preview/LoadingPage';
 import {
@@ -39,48 +40,50 @@ export function DesignPreviewPage() {
     <div className="dreamon-mobile-viewport">
       <PreviewProvider>
         <AiChatProvider>
-          <Routes>
-            <Route index element={<LoadingPage />} />
-            <Route path="loading" element={<LoadingPage />} />
-            <Route element={<PreviewShell />}>
-              <Route
-                path="reference/notices/:contestId"
-                element={<ReferenceNoticePage />}
-              />
-              <Route
-                path="reference/portfolios/:personId"
-                element={<ReferencePortfolioPage />}
-              />
-              <Route path="explore" element={<ExplorePage />} />
-              <Route path="ai" element={<AiChatPage />} />
-              <Route path="contests/:contestId" element={<ContestPage />} />
-              <Route path="people/:personId" element={<PersonPage />} />
-              <Route path="workspace" element={<WorkspacePage />} />
-              <Route path="teams/new" element={<CreateTeamPage />} />
-              <Route path="teams/:teamId" element={<TeamPage />} />
-              <Route
-                path="applicants/:applicantId"
-                element={<ApplicantPage />}
-              />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="profile/public" element={<PublicProfilePage />} />
-              <Route path="login" element={<LoginPage />} />
-              <Route path="signup" element={<SignupPage />} />
-              <Route
-                path="*"
-                element={
-                  <EmptyState
-                    title="페이지를 찾을 수 없어요"
-                    description="탐색으로 돌아가 다시 시작해 주세요."
-                  >
-                    <ActionLink to={previewPath('/explore')}>
-                      탐색으로
-                    </ActionLink>
-                  </EmptyState>
-                }
-              />
-            </Route>
-          </Routes>
+          <ApplicantReviewProvider>
+            <Routes>
+              <Route index element={<LoadingPage />} />
+              <Route path="loading" element={<LoadingPage />} />
+              <Route element={<PreviewShell />}>
+                <Route
+                  path="reference/notices/:contestId"
+                  element={<ReferenceNoticePage />}
+                />
+                <Route
+                  path="reference/portfolios/:personId"
+                  element={<ReferencePortfolioPage />}
+                />
+                <Route path="explore" element={<ExplorePage />} />
+                <Route path="ai" element={<AiChatPage />} />
+                <Route path="contests/:contestId" element={<ContestPage />} />
+                <Route path="people/:personId" element={<PersonPage />} />
+                <Route path="workspace" element={<WorkspacePage />} />
+                <Route path="teams/new" element={<CreateTeamPage />} />
+                <Route path="teams/:teamId" element={<TeamPage />} />
+                <Route
+                  path="applicants/:applicantId"
+                  element={<ApplicantPage />}
+                />
+                <Route path="profile" element={<ProfilePage />} />
+                <Route path="profile/public" element={<PublicProfilePage />} />
+                <Route path="login" element={<LoginPage />} />
+                <Route path="signup" element={<SignupPage />} />
+                <Route
+                  path="*"
+                  element={
+                    <EmptyState
+                      title="페이지를 찾을 수 없어요"
+                      description="탐색으로 돌아가 다시 시작해 주세요."
+                    >
+                      <ActionLink to={previewPath('/explore')}>
+                        탐색으로
+                      </ActionLink>
+                    </EmptyState>
+                  }
+                />
+              </Route>
+            </Routes>
+          </ApplicantReviewProvider>
         </AiChatProvider>
       </PreviewProvider>
     </div>

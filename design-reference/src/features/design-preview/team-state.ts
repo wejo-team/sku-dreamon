@@ -7,7 +7,16 @@ import {
   type Profile,
   type Team,
 } from './data';
-import { missingProfileFields } from './profile-fields';
+import {
+  contestDeadline,
+  contestStatus,
+  hasConfirmedMemberLimit,
+  isContestOpen,
+  memberLimitLabel,
+  referenceNow,
+  scheduleInstant,
+} from './contest-state';
+import { missingProfileFields, profileTextLength } from './profile-fields';
 
 // Reference fixtures intentionally use a fixed date so archived designs stay reviewable.
 export const referenceDate = '2026-10-18';
@@ -29,81 +38,96 @@ export function isTeamMember(team: Team, personId = 'me') {
   );
 }
 
-export function recruitmentIssue(team: Team): string | null {
+export function teamRecruitmentDeadline(
+  team: Pick<Team, 'recruitmentDeadline' | 'contestId'>,
+): number {
   const contest = contests.find((item) => item.id === team.contestId);
-  if (
-    !contest ||
-    contest.status === 'closed' ||
-    dateValue(contest.deadline) < referenceDate
-  )
+  const teamDeadline = scheduleInstant(
+    team.recruitmentDeadline,
+    'Asia/Seoul',
+    true,
+  );
+  return contest
+    ? Math.min(teamDeadline, contestDeadline(contest))
+    : teamDeadline;
+}
+
+export function recruitmentIssue(
+  team: Team,
+  now = referenceNow,
+): string | null {
+  const contest = contests.find((item) => item.id === team.contestId);
+  if (!contest || contestStatus(contest, now) === 'closed')
     return '공모전 접수가 마감되어 지원할 수 없어요.';
-  if (team.status === '모집마감' || team.status === '팀원확정')
+  if (contestStatus(contest, now) === 'upcoming')
+    return '공모전 접수가 시작되면 지원할 수 있어요.';
+  if (!['모집중', '지원자검토'].includes(team.status))
     return '모집이 마감되어 지금은 지원할 수 없어요.';
-  if (
-    team.recruitmentDeadline &&
-    dateValue(team.recruitmentDeadline) < referenceDate
-  )
+  if (now >= teamRecruitmentDeadline(team))
     return '팀 모집 기한이 지나 지원할 수 없어요.';
   if (team.members >= team.capacity) return '팀 정원이 모두 찼어요.';
   return null;
 }
 
-// Existing-applicant behavior after closing/deadlines is still TEAM-02/03 TBD.
-// Those fixture scenarios are deliberately not modeled; this is not a server
-// eligibility rule, and must not reuse the new-application rejection message.
+// Selection after closing remains TEAM-02/03 TBD; AI review has separate access rules.
 export function selectionScenario(
   team: Team,
 ): 'ready' | 'full' | 'not-modeled' {
   if (team.members >= team.capacity) return 'full';
-  const contest = contests.find((item) => item.id === team.contestId);
-  if (
-    !contest ||
-    contest.status === 'closed' ||
-    dateValue(contest.deadline) < referenceDate ||
-    !['모집중', '지원자검토'].includes(team.status) ||
-    (team.recruitmentDeadline &&
-      dateValue(team.recruitmentDeadline) < referenceDate)
-  )
-    return 'not-modeled';
-  return 'ready';
+  return recruitmentIssue(team) ? 'not-modeled' : 'ready';
 }
 
 export function teamStatusLabel(team: Team) {
   if (team.status === '팀원확정') return '팀원 확정';
   if (team.status === '모집마감') return '모집 마감';
   if (team.members >= team.capacity) return '정원 충족';
+  const contest = contests.find((item) => item.id === team.contestId);
+  if (contest && contestStatus(contest) === 'upcoming') return '모집 예정';
   if (recruitmentIssue(team)) return '모집 마감';
   return team.status === '지원자검토' ? '지원자 검토' : '모집 중';
 }
 
 export function createTeamIssue(input: NewTeam, teams: Team[]) {
   const contest = contests.find((item) => item.id === input.contestId);
-  if (
-    !contest ||
-    contest.status === 'closed' ||
-    dateValue(contest.deadline) < referenceDate
-  )
-    return '모집 중인 공모전을 선택해 주세요.';
+  if (!contest || !isContestOpen(contest))
+    return '접수 중인 공모전을 선택해 주세요.';
   if (
     teams.some(
       (team) => team.contestId === input.contestId && isTeamMember(team),
     )
   )
     return '이미 이 공모전의 팀에 소속되어 있어요. 내 팀에서 확인해 주세요.';
+  const nameLength = profileTextLength(input.name);
+  if (nameLength < 2 || nameLength > 40)
+    return '팀 이름을 2~40자로 입력해 주세요.';
+  const summaryLength = profileTextLength(input.summary);
+  if (summaryLength < 10 || summaryLength > 1000)
+    return '팀 소개와 목표를 10~1,000자로 입력해 주세요.';
   if (!Number.isInteger(input.capacity) || input.capacity < 1)
     return '팀장 포함 총 정원을 1명 이상 입력해 주세요.';
+  if (!hasConfirmedMemberLimit(contest))
+    return '공식 참가 인원을 확인한 뒤 팀을 만들 수 있어요.';
   if (
-    input.kind === 'entry' &&
-    ((contest.minMembers != null && input.capacity < contest.minMembers) ||
-      (contest.maxMembers != null && input.capacity > contest.maxMembers))
+    (contest.minMembers != null && input.capacity < contest.minMembers) ||
+    (contest.memberLimit === 'range' &&
+      contest.maxMembers != null &&
+      input.capacity > contest.maxMembers)
   )
-    return `공식 참가 인원 ${contest.minMembers ?? 1}~${contest.maxMembers ?? '제한 없음'}명에 맞춰 총 정원을 입력해 주세요.`;
-  if (contest.participation === 'individual' && input.kind !== 'preparation')
-    return '개인 참가 공모전은 함께 준비하는 팀으로 만들 수 있어요.';
+    return `공식 참가 인원 ${memberLimitLabel(contest)}에 맞춰 총 정원을 입력해 주세요.`;
+  if (
+    input.capacity >= 2 &&
+    (input.roles.length < 1 ||
+      input.roles.length > 6 ||
+      input.roles.some((role) => !roleOptions.includes(role)) ||
+      new Set(input.roles).size !== input.roles.length)
+  )
+    return '모집할 역할을 1~6개 선택해 주세요.';
+  if (input.capacity === 1 && input.roles.length)
+    return '1명인 팀은 모집할 역할을 선택하지 않아요.';
   if (
     !input.recruitmentDeadline ||
     input.recruitmentDeadline < referenceDate ||
-    input.recruitmentDeadline > dateValue(contest.deadline)
+    input.recruitmentDeadline > dateValue(contest.deadline).slice(0, 10)
   )
     return '팀 모집 마감은 오늘부터 공모전 마감일까지 설정해 주세요.';
   return null;
@@ -120,10 +144,11 @@ export function applyToTeam(
   const team = state.teams.find((item) => item.id === teamId);
   if (
     !team ||
+    !profile.visibility.discoverable ||
     isTeamMember(team) ||
     recruitmentIssue(team) ||
     !roleOptions.includes(role) ||
-    message.trim().length > 1000 ||
+    profileTextLength(message) > 1000 ||
     missingProfileFields(profile).length ||
     state.applications.some(
       (item) => item.teamId === teamId && item.status !== '지원취소',

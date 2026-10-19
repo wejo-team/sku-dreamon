@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -7,7 +13,10 @@ import {
   ProfilePage,
   PublicProfilePage,
   SignupPage,
+  ProfileVisibilityControl,
 } from './AccountPages';
+import { demoId, demoPassword } from './auth-policy';
+import { weeklyAvailabilityOptions } from './profile-fields';
 import { CreateTeamPage } from './CreateTeamPage';
 import { getPublicProfile, initialProfile, initialTeams } from './data';
 import { PreviewProvider } from './PreviewProvider';
@@ -30,6 +39,8 @@ function renderAccount(path: string, overrides: Partial<PreviewState> = {}) {
     teams: initialTeams,
     applications: [],
     applicants: [],
+    notifications: [],
+    markNotificationsRead: vi.fn(),
     signIn: vi.fn(),
     signOut: vi.fn(),
     saveProfile: vi.fn(),
@@ -62,13 +73,10 @@ function renderAccount(path: string, overrides: Partial<PreviewState> = {}) {
 }
 
 async function enterLogin(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(
-    screen.getByLabelText('아이디', { exact: true }),
-    'dreamon-demo',
-  );
+  await user.type(screen.getByLabelText('아이디', { exact: true }), demoId);
   await user.type(
     screen.getByLabelText('비밀번호', { exact: true }),
-    'dreamon-demo',
+    demoPassword,
   );
 }
 
@@ -213,7 +221,7 @@ describe('design preview account flows', () => {
       expect(state.saveProfile).not.toHaveBeenCalled();
       const dialog = screen.getByRole('dialog');
       expect(dialog).toHaveAccessibleDescription(
-        /지원한 팀장에게는 공개 여부와 관계없이 전체 프로필/,
+        /이미 지원받은 팀장은 전체 현재 프로필을 볼 수 있고, AI 지원자 검토에도 최신 프로필/,
       );
       await user.click(within(dialog).getByRole('button', { name: '취소' }));
       await waitFor(() =>
@@ -257,7 +265,7 @@ describe('design preview account flows', () => {
     await user.click(screen.getByRole('button', { name: '공개로 전환' }));
     await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
     expect(screen.getByText(initialProfile.intro)).toBeVisible();
-    expect(screen.getByText(initialProfile.availability)).toBeVisible();
+    expect(screen.getByText('미입력')).toBeVisible();
     expect(screen.getByRole('link', { name: /나의 작업/ })).toHaveAttribute(
       'href',
       'https://example.com/work',
@@ -305,7 +313,7 @@ describe('design preview account flows', () => {
     ).toHaveAttribute('aria-pressed', 'true');
     await user.click(screen.getByRole('button', { name: '비밀번호 숨기기' }));
     expect(input).toHaveAttribute('type', 'password');
-    expect(input).toHaveValue('dreamon-demo');
+    expect(input).toHaveValue(demoPassword);
     expect(state.signIn).not.toHaveBeenCalled();
   });
 
@@ -314,15 +322,15 @@ describe('design preview account flows', () => {
       '/design-preview/login?from=%2Fdesign-preview%2Fteams%2Fmakers',
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('아이디'), 'dreamon-demo');
-    await user.type(screen.getByLabelText('비밀번호'), 'incorrect');
+    await user.type(screen.getByLabelText('아이디'), '  DREAMONDEMO  ');
+    await user.type(screen.getByLabelText('비밀번호'), 'incorrect-password');
     await user.click(screen.getByRole('button', { name: '로그인' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '아이디 또는 비밀번호를 확인',
     );
     expect(state.signIn).not.toHaveBeenCalled();
     await user.clear(screen.getByLabelText('비밀번호'));
-    await user.type(screen.getByLabelText('비밀번호'), 'dreamon-demo');
+    await user.type(screen.getByLabelText('비밀번호'), demoPassword);
     await user.click(screen.getByRole('button', { name: '로그인' }));
     expect(
       await screen.findByText('이동한 경로: /design-preview/teams/makers'),
@@ -394,28 +402,11 @@ describe('design preview account flows', () => {
       screen.getByLabelText('포트폴리오 링크 (선택)'),
       'https://example.com/portfolio',
     );
-    await user.click(screen.getByRole('button', { name: '활동 시간 설정' }));
-    const availabilityDrawer = await screen.findByRole('dialog', {
-      name: '활동 가능 시간',
-    });
-    await user.click(
-      within(availabilityDrawer).getByLabelText('월요일 18:00~21:00'),
-    );
     await user.selectOptions(
-      within(availabilityDrawer).getByLabelText('요일'),
-      '화',
+      screen.getByLabelText('주당 참여 가능 시간 (선택)'),
+      '5~10시간 미만',
     );
-    await user.click(
-      within(availabilityDrawer).getByLabelText('화요일 09:00~12:00'),
-    );
-    await user.click(
-      within(availabilityDrawer).getByRole('button', { name: '선택 적용' }),
-    );
-    await waitFor(() => expect(availabilityDrawer).not.toBeInTheDocument());
     expect(state.saveProfile).not.toHaveBeenCalled();
-    expect(
-      screen.getByText('월 18:00~21:00; 화 09:00~12:00'),
-    ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(await screen.findByRole('status')).toHaveTextContent(
       '프로필을 저장했어요.',
@@ -425,101 +416,35 @@ describe('design preview account flows', () => {
         name: '김예시',
         portfolio: 'https://example.com/portfolio',
 
-        availability: '월 18:00~21:00; 화 09:00~12:00',
+        availability: '5~10시간 미만',
       }),
     );
   });
 
-  it.each(['취소', 'Escape'])(
-    'discards unsaved time selections on %s and restores the trigger focus and previous times',
-    async (dismissMethod) => {
-      const state = renderAccount('/design-preview/profile');
-      const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: '프로필 수정' }));
-      const trigger = screen.getByRole('button', { name: '활동 시간 설정' });
-      expect(
-        screen.queryByLabelText('월요일 18:00~21:00'),
-      ).not.toBeInTheDocument();
-      await user.click(trigger);
-      const drawer = await screen.findByRole('dialog', {
-        name: '활동 가능 시간',
-      });
-      expect(drawer).toHaveAccessibleDescription(
-        /공개 프로필과 지원한 팀의 팀장에게 표시돼요/,
-      );
-      await waitFor(() =>
-        expect(within(drawer).getByLabelText('요일')).toHaveFocus(),
-      );
-      expect(within(drawer).getByLabelText('월요일 18:00~21:00')).toBeChecked();
-      await user.click(
-        within(drawer).getByRole('button', { name: '시간 선택 지우기' }),
-      );
-      await user.selectOptions(within(drawer).getByLabelText('요일'), '화');
-      await user.click(within(drawer).getByLabelText('화요일 09:00~12:00'));
-      if (dismissMethod === '취소') {
-        await user.click(within(drawer).getByRole('button', { name: '취소' }));
-      } else {
-        await user.keyboard('{Escape}');
-      }
-      await waitFor(() => expect(drawer).not.toBeInTheDocument());
-      await waitFor(() => expect(trigger).toHaveFocus());
-      expect(screen.getByText(initialProfile.availability)).toBeInTheDocument();
-      expect(state.saveProfile).not.toHaveBeenCalled();
-      await user.click(trigger);
-      const reopened = await screen.findByRole('dialog', {
-        name: '활동 가능 시간',
-      });
-      expect(
-        within(reopened).getByLabelText('월요일 18:00~21:00'),
-      ).toBeChecked();
-      await user.selectOptions(within(reopened).getByLabelText('요일'), '화');
-      expect(
-        within(reopened).getByLabelText('화요일 09:00~12:00'),
-      ).not.toBeChecked();
-      await user.selectOptions(within(reopened).getByLabelText('요일'), '목');
-      expect(
-        within(reopened).getByLabelText('목요일 18:00~21:00'),
-      ).toBeChecked();
-      await user.keyboard('{Escape}');
-      await waitFor(() => expect(reopened).not.toBeInTheDocument());
-      await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
-      expect(state.saveProfile).toHaveBeenCalledWith(
-        expect.objectContaining({ availability: initialProfile.availability }),
-      );
-    },
-  );
-
-  it('applies cleared time selections to the form and saves them only with the profile', async () => {
-    const state = renderAccount('/design-preview/profile');
+  it('keeps weekly availability optional and discards unsaved changes', async () => {
+    const state = renderAccount('/design-preview/profile', {
+      profile: { ...initialProfile, availability: '10~20시간 미만' },
+    });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
-    const trigger = screen.getByRole('button', { name: '활동 시간 설정' });
-    await user.click(trigger);
-    const drawer = await screen.findByRole('dialog', {
-      name: '활동 가능 시간',
-    });
-    await user.click(
-      within(drawer).getByRole('button', { name: '시간 선택 지우기' }),
-    );
-    expect(within(drawer).getByText('선택한 시간: 미설정')).toBeInTheDocument();
-    await user.click(within(drawer).getByRole('button', { name: '선택 적용' }));
-    await waitFor(() => expect(drawer).not.toBeInTheDocument());
-    await waitFor(() => expect(trigger).toHaveFocus());
-    expect(screen.getByText('미설정')).toBeInTheDocument();
+    const field = screen.getByLabelText('주당 참여 가능 시간 (선택)');
+    expect(
+      within(field)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['미입력', ...weeklyAvailabilityOptions]);
+    expect(field).toHaveAccessibleDescription(/참여 중인 모든 프로젝트를 합한/);
+    await user.selectOptions(field, '20시간 이상');
+    await user.click(screen.getByRole('button', { name: '취소' }));
     expect(state.saveProfile).not.toHaveBeenCalled();
-    await user.click(trigger);
-    const reopened = await screen.findByRole('dialog', {
-      name: '활동 가능 시간',
-    });
-    expect(
-      within(reopened).queryAllByRole('checkbox', { checked: true }),
-    ).toHaveLength(0);
-    await user.selectOptions(within(reopened).getByLabelText('요일'), '목');
-    expect(
-      within(reopened).queryAllByRole('checkbox', { checked: true }),
-    ).toHaveLength(0);
-    await user.keyboard('{Escape}');
-    await waitFor(() => expect(reopened).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
+    expect(screen.getByLabelText('주당 참여 가능 시간 (선택)')).toHaveValue(
+      '10~20시간 미만',
+    );
+    await user.selectOptions(
+      screen.getByLabelText('주당 참여 가능 시간 (선택)'),
+      '',
+    );
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(state.saveProfile).toHaveBeenCalledWith(
       expect.objectContaining({ availability: '' }),
@@ -605,8 +530,11 @@ describe('design preview account flows', () => {
   it('completes signup preview without automatic sign-in or passing credentials into profile state', async () => {
     const state = renderAccount('/design-preview/signup');
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('아이디 (필수)'), 'new-account');
-    await user.type(screen.getByLabelText('비밀번호 (필수)'), 'dreamon-demo');
+    await user.type(screen.getByLabelText('아이디 (필수)'), '  NewAccount  ');
+    await user.type(
+      screen.getByLabelText('비밀번호 (필수)'),
+      '새로운비밀번호를길게만들어요123',
+    );
     await user.type(screen.getByLabelText('이름 (필수)'), '김지우');
     await user.click(
       within(screen.getByRole('group', { name: /관심 분야/ })).getByLabelText(
@@ -665,6 +593,7 @@ describe('design preview account flows', () => {
       screen.getByLabelText('팀 소개와 목표'),
       '환경 문제를 함께 해결해요.',
     );
+    await user.type(screen.getByLabelText('팀장 포함 총 정원'), '3');
     await user.click(
       within(screen.getByRole('group', { name: /모집할 역할/ })).getByLabelText(
         '개발',
@@ -682,10 +611,9 @@ describe('design preview account flows', () => {
       name: '새로운 예시 팀',
       summary: '환경 문제를 함께 해결해요.',
       roles: ['개발'],
-      capacity: 4,
+      capacity: 3,
       recruitmentDeadline: '2026-10-24',
-      interests: [],
-      kind: 'entry',
+      interests: ['환경', 'IT·기술'],
     });
   });
 
@@ -699,11 +627,6 @@ describe('design preview account flows', () => {
     await user.type(
       screen.getByLabelText('팀 소개와 목표'),
       '함께 자료를 조사하고 정리해요.',
-    );
-    await user.click(
-      within(screen.getByRole('group', { name: /모집할 역할/ })).getByLabelText(
-        '개발',
-      ),
     );
     await user.click(screen.getByRole('button', { name: '팀 만들기' }));
     expect(
@@ -731,6 +654,12 @@ describe('design preview account flows', () => {
     expect(screen.getByLabelText('팀 소개와 목표')).toHaveValue(
       '함께 자료를 조사하고 정리해요.',
     );
+    await user.type(screen.getByLabelText('팀장 포함 총 정원'), '3');
+    await user.click(
+      within(screen.getByRole('group', { name: /모집할 역할/ })).getByLabelText(
+        '개발',
+      ),
+    );
     await user.type(screen.getByLabelText('팀 모집 마감'), '2026-11-01');
     await user.click(screen.getByRole('button', { name: '팀 만들기' }));
     await waitFor(() =>
@@ -739,10 +668,9 @@ describe('design preview account flows', () => {
         name: '검색해서 만든 팀',
         summary: '함께 자료를 조사하고 정리해요.',
         roles: ['개발'],
-        capacity: 4,
+        capacity: 3,
         recruitmentDeadline: '2026-11-01',
-        interests: [],
-        kind: 'preparation',
+        interests: ['디자인', '사회·문화'],
       }),
     );
   });
@@ -821,7 +749,7 @@ describe('design preview account flows', () => {
     );
   });
 
-  it('distinguishes no experience and saves optional skill details and portfolio title', async () => {
+  it('distinguishes no experience, removes other choices and saves optional skills and portfolio title', async () => {
     const state = renderAccount('/design-preview/profile?edit=details');
     const user = userEvent.setup();
     await user.selectOptions(
@@ -831,11 +759,17 @@ describe('design preview account flows', () => {
     expect(screen.getByLabelText('관련 경험 (선택)')).toBeDisabled();
     await user.click(screen.getByRole('checkbox', { name: '프로그래밍' }));
     const skills = screen.getByRole('group', { name: /보유 역량/ });
-    await user.click(within(skills).getByRole('checkbox', { name: '기타' }));
-    await user.type(
-      screen.getByLabelText('기타 역량 설명 (선택)'),
-      '3D 모델링',
-    );
+    expect(
+      within(skills).queryByRole('checkbox', { name: '기타' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('기타 역량 설명 (선택)'),
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText('학적 상태 (선택)')).queryByRole('option', {
+        name: '기타',
+      }),
+    ).not.toBeInTheDocument();
     await user.type(
       screen.getByLabelText('포트폴리오 링크 (선택)'),
       'https://example.com/work',
@@ -849,8 +783,7 @@ describe('design preview account flows', () => {
       expect.objectContaining({
         experienceState: 'none',
         experience: '',
-        skills: ['프로그래밍', '기타'],
-        skillOther: '3D 모델링',
+        skills: ['프로그래밍'],
         portfolioTitle: '나의 작업',
       }),
     );
@@ -868,5 +801,178 @@ describe('design preview account flows', () => {
       screen.getByText('이동한 경로: /design-preview/teams/makers'),
     ).toBeInTheDocument();
     expect(state.apply).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['이름 (필수)', 50, '이름은 50자 이내로 입력해 주세요.'],
+    ['자기소개 (선택)', 300, '자기소개는 300자 이내로 입력해 주세요.'],
+    ['관련 경험 (선택)', 500, '관련 경험은 500자 이내로 입력해 주세요.'],
+    [
+      '포트폴리오 제목 (선택)',
+      50,
+      '포트폴리오 제목은 50자 이내로 입력해 주세요.',
+    ],
+  ])(
+    'preserves over-limit %s text and explains the error instead of truncating',
+    async (label, max, message) => {
+      const state = renderAccount('/design-preview/profile?edit=details');
+      const user = userEvent.setup();
+      const field = screen.getByLabelText(label);
+      const oversized = '가'.repeat(max + 1);
+      fireEvent.change(field, { target: { value: oversized } });
+      await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+      expect(await screen.findByText(message)).toBeVisible();
+      expect(field).toHaveValue(oversized);
+      expect(field).toHaveAttribute('aria-invalid', 'true');
+      expect(state.saveProfile).not.toHaveBeenCalled();
+    },
+  );
+
+  it('validates profile selection maximums and keeps all invalid choices for correction', async () => {
+    const state = renderAccount('/design-preview/profile?edit=details');
+    const user = userEvent.setup();
+    const roles = screen.getByRole('group', { name: /희망 역할/ });
+    await user.click(within(roles).getByLabelText('개발'));
+    await user.click(within(roles).getByLabelText('발표'));
+    const interests = screen.getByRole('group', { name: /관심 분야/ });
+    await user.click(within(interests).getByLabelText('환경'));
+    await user.click(within(interests).getByLabelText('디자인'));
+    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+    expect(
+      await screen.findByText('희망 역할은 최대 2개까지 선택해 주세요.'),
+    ).toBeVisible();
+    expect(
+      screen.getByText('관심 분야는 최대 3개까지 선택해 주세요.'),
+    ).toBeVisible();
+    expect(
+      within(roles).getAllByRole('checkbox', { checked: true }),
+    ).toHaveLength(3);
+    expect(
+      within(interests).getAllByRole('checkbox', { checked: true }),
+    ).toHaveLength(4);
+    expect(state.saveProfile).not.toHaveBeenCalled();
+    await user.click(within(roles).getByLabelText('발표'));
+    await user.click(within(interests).getByLabelText('디자인'));
+    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+    expect(state.saveProfile).toHaveBeenCalledOnce();
+  });
+
+  it('treats blank experience as unspecified, trims saved text and permits omitted academics', async () => {
+    const state = renderAccount('/design-preview/profile?edit=details', {
+      profile: {
+        ...initialProfile,
+        experienceState: 'provided',
+        experience: '이전 경험',
+      },
+    });
+    const user = userEvent.setup();
+    fireEvent.change(screen.getByLabelText('이름 (필수)'), {
+      target: { value: '  김지우  ' },
+    });
+    fireEvent.change(screen.getByLabelText('관련 경험 (선택)'), {
+      target: { value: '   ' },
+    });
+    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+    expect(state.saveProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '김지우',
+        experience: '',
+        experienceState: 'unspecified',
+        academicStatus: '',
+        grade: '',
+      }),
+    );
+  });
+
+  it('preserves valid academic descendants when the same parent relationship is selected', async () => {
+    const state = renderAccount('/design-preview/profile?edit=details', {
+      profile: {
+        ...initialProfile,
+        college: '인문사회과학대학',
+        department: '경영학부',
+        major: '경영학전공',
+      },
+    });
+    const user = userEvent.setup();
+    await user.selectOptions(
+      screen.getByLabelText('단과대학 (선택)'),
+      '인문사회과학대학',
+    );
+    await user.selectOptions(
+      screen.getByLabelText('학부·학과 (선택)'),
+      '경영학부',
+    );
+    expect(screen.getByLabelText('세부전공 (선택)')).toHaveValue('경영학전공');
+    await user.selectOptions(
+      screen.getByLabelText('학부·학과 (선택)'),
+      '공공인재학부',
+    );
+    expect(screen.getByLabelText('세부전공 (선택)')).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: '취소' }));
+    expect(state.saveProfile).not.toHaveBeenCalled();
+  });
+
+  it('supports the application visibility button and keeps a failed save open for retry', async () => {
+    const onConfirm = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('save failed'))
+      .mockResolvedValueOnce(undefined);
+    render(
+      <ProfileVisibilityControl
+        checked={false}
+        onConfirm={onConfirm}
+        triggerLabel="프로필 공개하기"
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '프로필 공개하기' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAccessibleDescription(
+      /공개 전환만으로 지원이 접수되지는 않아요/,
+    );
+    await user.click(
+      within(dialog).getByRole('button', { name: '공개로 전환' }),
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '공개 설정을 저장하지 못했어요',
+    );
+    expect(dialog).toBeInTheDocument();
+    await user.click(
+      within(dialog).getByRole('button', { name: '공개로 전환' }),
+    );
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(onConfirm).toHaveBeenNthCalledWith(1, true);
+    expect(onConfirm).toHaveBeenNthCalledWith(2, true);
+  });
+  it('normalizes duplicate signup IDs and preserves pasted over-limit passwords for correction', async () => {
+    const state = renderAccount('/design-preview/signup');
+    const user = userEvent.setup();
+    const username = screen.getByLabelText('아이디 (필수)');
+    await user.click(username);
+    await user.paste('  DREAMONDEMO  ');
+    expect(await screen.findByText('이미 사용 중인 아이디예요.')).toBeVisible();
+    const password = screen.getByLabelText('비밀번호 (필수)');
+    const oversized = '한'.repeat(129);
+    await user.click(password);
+    await user.paste(oversized);
+    expect(
+      await screen.findByText(
+        '비밀번호는 공백을 포함해 15~128자로 입력해 주세요.',
+      ),
+    ).toBeVisible();
+    expect(password).toHaveValue(oversized);
+    expect(password).toHaveAttribute('autocomplete', 'new-password');
+    await user.click(screen.getByRole('button', { name: '비밀번호 보기' }));
+    expect(password).toHaveAttribute('type', 'text');
+    expect(password).toHaveValue(oversized);
+    await user.click(screen.getByRole('button', { name: '비밀번호 숨기기' }));
+    expect(password).toHaveAttribute('type', 'password');
+    await user.clear(password);
+    await user.paste('passwordpassword');
+    expect(
+      await screen.findByText(
+        '쉽게 추측할 수 있는 비밀번호예요. 다른 비밀번호를 선택해 주세요.',
+      ),
+    ).toBeVisible();
+    expect(state.saveProfile).not.toHaveBeenCalled();
   });
 });

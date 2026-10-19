@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { Applicant, Application, Profile, Team } from './data';
 import type { NewTeam } from './team-state';
+import type { PreviewNotification } from './notification-state';
 
 export type PreviewState = {
   signedIn: boolean;
@@ -8,6 +9,8 @@ export type PreviewState = {
   teams: Team[];
   applications: Application[];
   applicants: Applicant[];
+  notifications: PreviewNotification[];
+  markNotificationsRead: (ids: string[]) => void;
   signIn: () => void;
   signOut: () => void;
   saveProfile: (profile: Profile) => void;

@@ -206,7 +206,7 @@ export const academicCatalog = [
   },
 ] as const;
 
-export const academicStatuses = ['재학', '휴학', '졸업', '기타'];
+export const academicStatuses = ['재학', '휴학', '졸업'];
 export const grades = ['1학년', '2학년', '3학년', '4학년 이상', '해당 없음'];
 export const skillOptions = [
   '프로그래밍',
@@ -222,16 +222,27 @@ export const skillOptions = [
   'SNS 마케팅',
   '콘텐츠 기획',
   '발표·스피치',
-  '기타',
 ];
+
+export const weeklyAvailabilityOptions = [
+  '5시간 미만',
+  '5~10시간 미만',
+  '10~20시간 미만',
+  '20시간 이상',
+];
+
+// Preview counting convention; the production non-password Unicode contract
+// remains TBD. Leading/trailing whitespace is omitted, internal whitespace counts.
+export const profileTextLength = (value: string) =>
+  Array.from(value.trim()).length;
 
 export function missingProfileFields(
   profile: Pick<Profile, 'name' | 'roles' | 'interests'>,
 ) {
   return [
-    !profile.name.trim() && '이름',
-    !profile.roles.length && '희망 역할',
-    !profile.interests.length && '관심 분야',
+    (!profile.name.trim() || profileTextLength(profile.name) > 50) && '이름',
+    (!profile.roles.length || profile.roles.length > 2) && '희망 역할',
+    (!profile.interests.length || profile.interests.length > 3) && '관심 분야',
   ].filter((field): field is string => !!field);
 }
 

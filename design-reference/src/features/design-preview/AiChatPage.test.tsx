@@ -8,10 +8,29 @@ import { PreviewProvider } from './PreviewProvider';
 import { usePreview } from './preview-context';
 
 function TestNavigation() {
-  const { signIn, signOut } = usePreview();
+  const { signIn, signOut, emptyWorkspace, saveProfile, profile, apply } =
+    usePreview();
   const location = useLocation();
   return (
     <nav aria-label="테스트 탐색">
+      <button onClick={emptyWorkspace}>참여 초기화</button>
+      <button onClick={() => apply('greenwave', '개발', '')}>
+        추천 팀에 지원
+      </button>
+      <button
+        onClick={() =>
+          saveProfile({ ...profile, visibility: { discoverable: false } })
+        }
+      >
+        프로필 비공개
+      </button>
+      <button
+        onClick={() =>
+          saveProfile({ ...profile, visibility: { discoverable: true } })
+        }
+      >
+        프로필 공개
+      </button>
       <button onClick={signIn}>테스트 로그인</button>
       <span aria-label="현재 경로">
         {location.pathname}
@@ -26,7 +45,11 @@ function TestNavigation() {
   );
 }
 
-function renderChat(path = '/design-preview/ai', signedIn = true) {
+function renderChat(
+  path = '/design-preview/ai',
+  signedIn = true,
+  ownWorkspace = false,
+) {
   render(
     <MemoryRouter initialEntries={[path]}>
       <PreviewProvider>
@@ -45,6 +68,8 @@ function renderChat(path = '/design-preview/ai', signedIn = true) {
     </MemoryRouter>,
   );
   if (signedIn) {
+    if (!ownWorkspace)
+      fireEvent.click(screen.getByRole('button', { name: '참여 초기화' }));
     fireEvent.click(screen.getByRole('button', { name: '테스트 로그인' }));
   }
   return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -94,6 +119,57 @@ describe('design preview AI chat', () => {
       'href',
       '/design-preview/contests/local?from=%2Fdesign-preview%2Fai',
     );
+  });
+
+  it('preserves oversized pasted input, explains the limit and permits editing before sending', async () => {
+    const user = renderChat();
+    const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
+    const oversized = '가'.repeat(1001);
+    await user.click(input);
+    await user.paste(oversized);
+    expect(input).toHaveValue(oversized);
+    expect(screen.getByRole('alert')).toHaveTextContent('메시지는 1,000자까지');
+    expect(
+      screen.getByRole('button', { name: '메시지 보내기' }),
+    ).toBeDisabled();
+    await user.keyboard('{Enter}');
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    expect(input).toHaveValue(oversized);
+    fireEvent.change(input, { target: { value: '공모전 찾아줘' } });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.keyboard('{Enter}');
+    expect(input).toHaveValue('');
+    await finishReply();
+    expect(within(screen.getByRole('log')).getAllByRole('link')).toHaveLength(
+      3,
+    );
+  });
+
+  it('allows a private user to search while excluding owned teams and their private profile', async () => {
+    const user = renderChat('/design-preview/ai', true, true);
+    await user.click(screen.getByRole('button', { name: '프로필 비공개' }));
+    await user.click(
+      screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
+    );
+    await finishReply();
+    expect(
+      within(screen.getByRole('log')).queryByRole('link', {
+        name: /그린웨이브/,
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('log')).toHaveTextContent(
+      '일치하는 모집 팀이 없어요',
+    );
+    const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
+    await user.type(input, '사람 전체 보기');
+    await user.keyboard('{Enter}');
+    await finishReply();
+    expect(
+      within(screen.getByRole('log')).queryByRole('link', { name: /김지우/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole('log')).getByRole('link', { name: /정수아/ }),
+    ).toBeInTheDocument();
   });
 
   it('uses a quick question to recommend matching teams and offers follow-up questions', async () => {
@@ -270,7 +346,7 @@ describe('design preview AI chat', () => {
     expect(copiedText).toContain(replyText);
     expect(copiedText).toContain('그린웨이브');
     expect(copiedText).toContain('현재 개발 · 디자인 역할을 모집하고 있어요.');
-    expect(copiedText).toContain('2/4명 · 2026-10-24 마감.');
+    expect(copiedText).toContain('1/4명 · 2026-10-24 마감.');
     expect(copiedText).not.toContain('개발자를 모집하는 팀 찾아줘');
     expect(copiedText).not.toContain('아직 보내지 않은 질문');
     expect(await screen.findByRole('status')).toHaveTextContent(
@@ -278,6 +354,57 @@ describe('design preview AI chat', () => {
     );
     expect(copyButton).toHaveTextContent('복사됨');
     expect(input).toHaveValue('아직 보내지 않은 질문');
+  });
+
+  it('removes an already-applied team from old cards and copied answers', async () => {
+    const user = renderChat();
+    await user.click(screen.getByRole('button', { name: '프로필 공개' }));
+    const writeText = vi
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockResolvedValue(undefined);
+    await user.click(
+      screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
+    );
+    await finishReply();
+    expect(
+      within(screen.getByRole('log')).getByRole('link', { name: /그린웨이브/ }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '추천 팀에 지원' }));
+    expect(
+      within(screen.getByRole('log')).queryByRole('link', {
+        name: /그린웨이브/,
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('log')).toHaveTextContent(
+      '이 추천의 정보가 변경되었어요',
+    );
+    await user.click(screen.getByRole('button', { name: '답변 복사' }));
+    expect(writeText.mock.calls[0]?.[0]).not.toContain('그린웨이브');
+    expect(writeText.mock.calls[0]?.[0]).not.toContain('현재 개발');
+  });
+
+  it('removes a newly private profile from old cards and copied answers', async () => {
+    const user = renderChat();
+    await user.click(screen.getByRole('button', { name: '프로필 공개' }));
+    const writeText = vi
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockResolvedValue(undefined);
+    await user.type(
+      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
+      '기획 역할 사람 찾아줘',
+    );
+    await user.keyboard('{Enter}');
+    await finishReply();
+    expect(
+      within(screen.getByRole('log')).getByRole('link', { name: /김지우/ }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '프로필 비공개' }));
+    expect(
+      within(screen.getByRole('log')).queryByRole('link', { name: /김지우/ }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '답변 복사' }));
+    expect(writeText.mock.calls[0]?.[0]).not.toContain('김지우');
+    expect(writeText.mock.calls[0]?.[0]).not.toContain('공개한 관심 분야');
   });
 
   it('announces a clipboard failure and allows copying the same answer again', async () => {
@@ -327,8 +454,8 @@ describe('design preview AI chat', () => {
       `/design-preview/login?returnTo=${encodeURIComponent(path)}`,
     );
     await user.click(login);
-    await user.type(screen.getByLabelText('아이디'), 'dreamon-demo');
-    await user.type(screen.getByLabelText('비밀번호'), 'dreamon-demo');
+    await user.type(screen.getByLabelText('아이디'), 'dreamondemo');
+    await user.type(screen.getByLabelText('비밀번호'), 'DreamonReview2026!');
     await user.click(screen.getByRole('button', { name: '로그인' }));
     expect(
       await screen.findByRole('textbox', { name: 'AI에게 보낼 메시지' }),
@@ -356,6 +483,29 @@ describe('design preview AI chat', () => {
     ).toHaveAttribute(
       'href',
       '/design-preview/people/sua?from=%2Fdesign-preview%2Fai',
+    );
+  });
+
+  it('retains an unsent oversized draft when retrying a previously failed request', async () => {
+    const user = renderChat('/design-preview/ai?scenario=error');
+    await user.click(
+      screen.getByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
+    );
+    await finishReply();
+    const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
+    const draft = '가'.repeat(1001);
+    fireEvent.change(input, { target: { value: draft } });
+    await user.click(screen.getByRole('button', { name: '다시 시도' }));
+    await finishReply();
+    expect(input).toHaveValue(draft);
+    expect(screen.getByRole('alert')).toHaveTextContent('메시지는 1,000자까지');
+    expect(
+      within(screen.getByRole('log')).getAllByText(
+        '마감이 가까운 공모전 찾아줘',
+      ),
+    ).toHaveLength(1);
+    expect(within(screen.getByRole('log')).getAllByRole('link')).toHaveLength(
+      3,
     );
   });
 

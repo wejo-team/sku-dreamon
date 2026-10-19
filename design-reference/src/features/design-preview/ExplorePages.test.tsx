@@ -34,6 +34,8 @@ function renderExplore(path: string, overrides: Partial<PreviewState> = {}) {
     teams: initialTeams,
     applications: [],
     applicants: [],
+    notifications: [],
+    markNotificationsRead: vi.fn(),
     signIn: vi.fn(),
     signOut: vi.fn(),
     saveProfile: vi.fn(),
@@ -77,12 +79,10 @@ const publicProfile: Profile = {
   department: '디지털미디어학과',
   major: '콘텐츠공학전공',
   skills: ['프로토타이핑'],
-  interestOther: '로컬브랜드',
-  skillOther: '웹접근성검수',
   intro: '사용자인터뷰를 함께 진행하고 싶어요.',
   experience: '졸업전시기획 프로젝트',
   experienceState: 'provided',
-  availability: '토 14:00~18:00',
+  availability: '5~10시간 미만',
   portfolioTitle: '캠퍼스작업집',
   portfolio: 'https://portfolio.example.com/jiwoo',
   visibility: { discoverable: true },
@@ -105,7 +105,7 @@ describe('official reference public exploration', () => {
     await user.click(screen.getByRole('button', { name: '탐색 필터' }));
     await user.click(screen.getByRole('radio', { name: '교육' }));
     await user.click(screen.getByRole('button', { name: '필터 적용' }));
-    expect(screen.getByRole('status')).toHaveTextContent('검색 결과 1개');
+    expect(screen.getByRole('status')).toHaveTextContent('검색 결과 2개');
     expect(
       screen.getByRole('heading', { name: contests[0]!.title }),
     ).toBeInTheDocument();
@@ -386,11 +386,9 @@ describe('official reference public exploration', () => {
     '디지털미디어학과',
     '콘텐츠공학전공',
     '프로토타이핑',
-    '로컬브랜드',
-    '웹접근성검수',
     '사용자인터뷰',
     '졸업전시기획',
-    '토 14:00~18:00',
+    '5~10시간 미만',
     '캠퍼스작업집',
     'portfolio.example.com',
   ])(
@@ -425,8 +423,6 @@ describe('official reference public exploration', () => {
       publicProfile.major!,
       ...publicProfile.skills,
       ...publicProfile.interests,
-      publicProfile.interestOther,
-      publicProfile.skillOther,
       publicProfile.intro,
       publicProfile.experience,
       publicProfile.availability,
@@ -469,7 +465,7 @@ describe('official reference public exploration', () => {
 
   it('shows the official entry size, submission material and dates separately from team recruitment', () => {
     renderExplore('/design-preview/contests/campus');
-    const facts = screen.getByText('공식 팀 인원').closest('dl')!;
+    const facts = screen.getByText('공식 참가 인원').closest('dl')!;
     expect(within(facts).getByText('2~5명')).toBeInTheDocument();
     expect(
       within(facts).getByText('아이디어 제안서 PDF · 발표 자료'),
@@ -524,8 +520,8 @@ describe('official reference public exploration', () => {
     },
     {
       contestId: 'local',
-      action: '준비 모임 만들기',
-      prompt: '첫 준비 모임을 만들어 함께 도전해 보세요.',
+      action: '팀 만들기',
+      prompt: '첫 팀을 만들어 함께 도전해 보세요.',
     },
   ])(
     'invites users to create the first group when $contestId has no teams',
@@ -589,21 +585,58 @@ describe('official reference public exploration', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('makes individual-contest collaboration a preparation group and marks missing submission information', () => {
+  it('preserves the existing local team under official capacity rules without a preparation exception', () => {
     renderExplore('/design-preview/contests/local');
-    expect(screen.getByText('개인 참가')).toBeInTheDocument();
+    expect(screen.getByText('2~3명')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '팀 만들기' })).toHaveAttribute(
+      'href',
+      '/design-preview/teams/new?contest=local',
+    );
+    expect(screen.queryByText('개인 참가')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /로컬 크루/ })).toBeInTheDocument();
+  });
+
+  it('counts every linked team including full and closed teams', () => {
+    renderExplore('/design-preview/explore');
+    const local = screen.getByRole('link', { name: /우리 동네를 새롭게/ });
+    expect(local).toHaveTextContent('연결된 팀 1개');
+  });
+
+  it('applies recruitment filters to capacity and dates as well as raw team state', () => {
+    const base = initialTeams[0]!;
+    renderExplore('/design-preview/explore?tab=teams&open=true', {
+      teams: [
+        {
+          ...base,
+          id: 'available',
+          name: '검토 중 지원 가능',
+          status: '지원자검토',
+        },
+        { ...base, id: 'full', name: '가득 찬 팀', members: 4 },
+        {
+          ...base,
+          id: 'expired',
+          name: '기한 지난 팀',
+          recruitmentDeadline: '2026-10-17',
+        },
+        { ...base, id: 'future', name: '시작 전 팀', contestId: 'upcoming' },
+      ],
+    });
     expect(
-      screen.getByText(
-        '개인 참가 공모전이에요. 준비 모임에서 함께 준비하고 접수는 각자 진행해요.',
-      ),
+      screen.getByRole('heading', { name: '검토 중 지원 가능' }),
     ).toBeInTheDocument();
-    expect(screen.queryByText('공식 팀 인원')).not.toBeInTheDocument();
-    expect(screen.getByText('공식 공고 확인 필요')).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: '준비 모임 만들기' }),
-    ).toHaveAttribute('href', '/design-preview/teams/new?contest=local');
+    for (const name of ['가득 찬 팀', '기한 지난 팀', '시작 전 팀'])
+      expect(screen.queryByRole('heading', { name })).not.toBeInTheDocument();
+  });
+
+  it('shows upcoming public contests without allowing team creation', () => {
+    renderExplore('/design-preview/contests/upcoming');
+    expect(screen.getByText('접수 예정')).toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: '팀 만들기' }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('접수가 시작되면 팀을 만들거나 지원할 수 있어요.'),
+    ).toBeInTheDocument();
   });
 });

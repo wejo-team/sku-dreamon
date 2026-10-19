@@ -7,19 +7,18 @@ export type Contest = {
   id: string;
   title: string;
   organizer: string;
-  category: string;
   cover?: string;
   deadline: string;
-  days: number;
-  audience: string;
+  audience: string[];
+  audienceOriginal: string;
   description: string;
-  teamCount: number;
   startsAt: string;
   officialUrl: string;
-  participation: 'team' | 'individual' | 'both';
+  memberLimit: 'range' | 'unlimited' | 'unknown';
+  deadlineTimeZone?: string;
+  startsAtTimeZone?: string;
   minMembers?: number;
   maxMembers?: number;
-  status: 'open' | 'closed';
   deliverables: string[];
   verifiedOn: string;
   interests: string[];
@@ -35,7 +34,6 @@ export type Team = {
   owner: boolean;
   capacity: number;
   recruitmentDeadline: string;
-  kind: 'entry' | 'preparation';
   interests: string[];
   memberProfiles: { id: string; name: string; role: string }[];
 };
@@ -53,8 +51,6 @@ export type Person = {
   department?: string;
   major?: string;
   skills?: string[];
-  interestOther?: string;
-  skillOther?: string;
   experienceState?: Profile['experienceState'];
   availability?: string;
   portfolio?: string;
@@ -93,8 +89,6 @@ export type Profile = {
   skills: string[];
   experienceState: 'unspecified' | 'none' | 'provided';
   portfolioTitle: string;
-  interestOther: string;
-  skillOther: string;
   roles: string[];
   interests: string[];
   intro: string;
@@ -125,8 +119,6 @@ export function profileToPerson(profile: Profile, id = 'me'): Person {
     department: profile.department,
     major: profile.major,
     skills: [...profile.skills],
-    interestOther: profile.interestOther,
-    skillOther: profile.skillOther,
     availability: profile.availability,
     portfolio: /^https?:\/\//i.test(profile.portfolio) ? profile.portfolio : '',
     portfolioTitle: profile.portfolioTitle,
@@ -142,64 +134,110 @@ export const contests: Contest[] = [
     id: 'campus',
     startsAt: '2026-10-01',
     officialUrl: '/design-preview/reference/notices/campus',
-    participation: 'team',
+    memberLimit: 'range',
     minMembers: 2,
     maxMembers: 5,
-    status: 'open',
     deliverables: ['아이디어 제안서 PDF', '발표 자료'],
     verifiedOn: '2026-10-18',
     interests: ['교육', 'IT·기술'],
     cover: '/contest-covers/campus.webp',
     title: '더 나은 캠퍼스 아이디어 공모전',
     organizer: '드림온 운영팀',
-    category: '교육',
     deadline: '2026.11.08',
-    days: 21,
-    audience: '대학생 누구나',
+    audience: ['대학생'],
+    audienceOriginal: '대학생 누구나',
     description:
       '우리가 매일 지나는 캠퍼스를 더 편리하게 만드는 아이디어를 제안해요. 문제 발견부터 해결 방향까지, 다양한 전공의 관점을 모아보세요.',
-    teamCount: 3,
   },
   {
     id: 'green',
     startsAt: '2026-10-01',
     officialUrl: '/design-preview/reference/notices/green',
-    participation: 'team',
+    memberLimit: 'range',
     minMembers: 2,
     maxMembers: 4,
-    status: 'open',
     deliverables: ['기획서', '프로토타입 소개 영상'],
     verifiedOn: '2026-10-18',
     interests: ['환경', 'IT·기술'],
     cover: '/contest-covers/green.webp',
     title: '일상 속 그린테크 챌린지',
     organizer: '드림온 운영팀',
-    category: 'IT·기술',
     deadline: '2026.10.25',
-    days: 7,
-    audience: '대학생·대학원생',
+    audience: ['대학생'],
+    audienceOriginal: '대학생·대학원생',
     description:
       '일상에서 시작할 수 있는 환경 문제를 찾고, 기술로 해결 방법을 제안해요. 작지만 실현할 수 있는 변화를 함께 만들어보세요.',
-    teamCount: 2,
   },
   {
     id: 'local',
     startsAt: '2026-10-01',
     officialUrl: '/design-preview/reference/notices/local',
-    participation: 'individual',
-    status: 'open',
-    deliverables: [],
+    memberLimit: 'range',
+    minMembers: 2,
+    maxMembers: 3,
+    deliverables: ['브랜드 제안서', '시각 디자인 시안'],
     verifiedOn: '2026-10-18',
     interests: ['디자인', '사회·문화'],
     title: '우리 동네를 새롭게, 로컬 브랜딩',
     organizer: '드림온 운영팀',
-    category: '디자인',
     deadline: '2026.11.15',
-    days: 28,
-    audience: '대학생 누구나',
+    audience: ['대학생'],
+    audienceOriginal: '대학생 누구나',
     description:
       '지역의 고유한 이야기를 발견하고 새로운 시각으로 표현해요. 브랜드 기획과 시각 디자인을 연결하는 팀을 기다립니다.',
-    teamCount: 1,
+  },
+  {
+    id: 'solo',
+    title: '한 장으로 전하는 캠퍼스 이야기',
+    organizer: '드림온 운영팀',
+    startsAt: '2026-10-01',
+    deadline: '2026-11-20T18:00:00',
+    deadlineTimeZone: 'Asia/Seoul',
+    officialUrl: '/design-preview/reference/notices/solo',
+    memberLimit: 'range',
+    minMembers: 1,
+    maxMembers: 1,
+    audience: ['대학생'],
+    audienceOriginal: '대학생 개인 참가',
+    interests: ['디자인', '미디어·콘텐츠'],
+    description: '나만의 시선으로 캠퍼스 이야기를 한 장의 포스터에 담아보세요.',
+    deliverables: ['포스터 이미지'],
+    verifiedOn: '2026-10-18',
+  },
+  {
+    id: 'open-lab',
+    title: '함께 만드는 열린 아이디어 실험실',
+    organizer: '드림온 운영팀',
+    startsAt: '2026-10-01',
+    deadline: '2026-11-25',
+    officialUrl: '/design-preview/reference/notices/open-lab',
+    memberLimit: 'unlimited',
+    minMembers: 1,
+    audience: ['대학생', '일반인'],
+    audienceOriginal: '대학생 및 일반인, 팀 인원 상한 없음',
+    interests: ['IT·기술', '사회·문화'],
+    description:
+      '여러 사람의 관점을 모아 일상 속 아이디어를 작은 실험으로 만들어보세요.',
+    deliverables: ['프로젝트 소개서'],
+    verifiedOn: '2026-10-18',
+  },
+  {
+    id: 'upcoming',
+    title: '다음 캠퍼스를 상상하는 공모전',
+    organizer: '드림온 운영팀',
+    startsAt: '2026-11-01',
+    deadline: '2026-12-01',
+    officialUrl: '/design-preview/reference/notices/upcoming',
+    memberLimit: 'range',
+    minMembers: 2,
+    maxMembers: 4,
+    audience: ['제한 없음'],
+    audienceOriginal: '참가 대상 제한 없음',
+    interests: ['교육', '환경'],
+    description:
+      '더 나은 캠퍼스를 위한 새로운 제안을 기다립니다. 접수 시작 전 공고를 먼저 확인해 보세요.',
+    deliverables: ['제안서'],
+    verifiedOn: '2026-10-18',
   },
 ];
 export const initialTeams: Team[] = [
@@ -207,7 +245,6 @@ export const initialTeams: Team[] = [
     id: 'makers',
     capacity: 4,
     recruitmentDeadline: '2026-11-05',
-    kind: 'entry',
     interests: ['교육', 'IT·기술'],
     memberProfiles: [
       { id: 'minjun', name: '박민준', role: '팀장 · 기획' },
@@ -226,7 +263,6 @@ export const initialTeams: Team[] = [
     id: 'greenwave',
     capacity: 4,
     recruitmentDeadline: '2026-10-24',
-    kind: 'entry',
     interests: ['환경', 'IT·기술'],
     memberProfiles: [
       { id: 'me', name: '김지우', role: '팀장 · 기획' },
@@ -244,7 +280,6 @@ export const initialTeams: Team[] = [
     id: 'localcrew',
     capacity: 3,
     recruitmentDeadline: '2026-11-10',
-    kind: 'preparation',
     interests: ['디자인', '사회·문화'],
     memberProfiles: [
       { id: 'jiho', name: '서지호', role: '팀장 · 디자인' },
@@ -271,8 +306,6 @@ export const initialProfile: Profile = {
   skills: [],
   experienceState: 'unspecified',
   portfolioTitle: '',
-  interestOther: '',
-  skillOther: '',
   roles: ['기획'],
   interests: ['IT·기술', '교육'],
   intro: '다양한 전공의 사람들과 의미 있는 프로젝트를 완성하고 싶어요.',
@@ -282,7 +315,7 @@ export const initialProfile: Profile = {
   },
   portfolio: '',
 
-  availability: '월 18:00~21:00; 목 18:00~21:00',
+  availability: '',
 };
 export const roleOptions = [
   '기획',
@@ -303,12 +336,12 @@ export const interestOptions = [
   '보건·의료',
   '정책',
   '공공',
-  '기타',
 ];
 
 export const initialApplicants: Applicant[] = [
   {
     id: 'app-seoyeon',
+    status: '검토중',
     personId: 'seoyeon',
     profile: {
       ...initialProfile,
@@ -335,10 +368,10 @@ export const initialApplicants: Applicant[] = [
     interests: ['IT·기술', '환경'],
     message:
       '환경 문제를 해결하는 서비스에 관심이 있어요. 프론트엔드 개발을 맡고, 기획도 함께 고민하고 싶습니다.',
-    status: '검토중',
   },
   {
     id: 'app-sua',
+    status: '검토중',
     personId: 'sua',
     profile: {
       ...initialProfile,
@@ -360,17 +393,16 @@ export const initialApplicants: Applicant[] = [
     interests: ['디자인', '환경'],
     message:
       '사용자 리서치부터 화면 설계까지 함께하고 싶어요. 환경을 위한 작은 행동을 쉽게 만드는 경험에 관심이 있습니다.',
-    status: '검토중',
   },
 ];
 
 export const initialApplications: Application[] = [
   {
     id: 'application-localcrew',
+    status: '선발',
     personId: 'me',
     teamId: 'localcrew',
     role: '기획',
-    status: '선발',
     message: '브랜드 기획을 함께하고 싶어요.',
   },
 ];
@@ -382,10 +414,7 @@ export const archivedContest: Contest = {
   title: '지난 캠퍼스 아이디어 공모전',
   startsAt: '2026-08-01',
   deadline: '2026.09.30',
-  days: -18,
-  status: 'closed',
   officialUrl: '/design-preview/reference/notices/archive',
-  teamCount: 0,
 };
 
 // Directory and applicant views share one profile's global visibility flags.

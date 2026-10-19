@@ -1,20 +1,112 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Link, MemoryRouter, useLocation } from 'react-router';
+import { Link, MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
+import { useState, type ReactNode } from 'react';
 import { Notifications } from './Notifications';
-import { initialApplicants, initialProfile, initialTeams } from './data';
-import { PreviewContext, type PreviewState } from './preview-context';
+import {
+  initialApplicants,
+  initialApplications,
+  initialProfile,
+  initialTeams,
+} from './data';
+import {
+  PreviewContext,
+  type PreviewState,
+  usePreview,
+} from './preview-context';
+import { PreviewProvider } from './PreviewProvider';
+import { initialNotifications } from './notification-state';
 
 function Navigation() {
   const location = useLocation();
+  const navigate = useNavigate();
   return (
     <>
       <p>
         현재 경로: {location.pathname}
         {location.search}
       </p>
+      <button onClick={() => navigate(-1)}>브라우저 뒤로</button>
       <Link to="/design-preview/profile">프로필로</Link>
+    </>
+  );
+}
+
+function RoutedInbox() {
+  const location = useLocation();
+  return <Notifications key={location.pathname} />;
+}
+
+function InboxState({
+  initial,
+  children,
+}: {
+  initial: PreviewState;
+  children: ReactNode;
+}) {
+  const [notifications, setNotifications] = useState(initial.notifications);
+  return (
+    <PreviewContext
+      value={{
+        ...initial,
+        notifications,
+        markNotificationsRead: (ids) =>
+          setNotifications((items) =>
+            items.map((item) =>
+              ids.includes(item.id) ? { ...item, read: true } : item,
+            ),
+          ),
+      }}
+    >
+      {children}
+    </PreviewContext>
+  );
+}
+
+function ActivityControls() {
+  const {
+    signIn,
+    saveProfile,
+    profile,
+    apply,
+    applications,
+    cancelApplication,
+  } = usePreview();
+  return (
+    <>
+      <button
+        onClick={() => {
+          signIn();
+          saveProfile({ ...profile, visibility: { discoverable: true } });
+        }}
+      >
+        지원 준비
+      </button>
+      <button onClick={() => apply('makers', '기획', '')}>
+        공개 팀에 지원
+      </button>
+      <button onClick={() => apply('greenwave', '개발', '')}>
+        내 팀에 지원 시도
+      </button>
+      <button
+        onClick={() => {
+          const latest = applications
+            .filter(
+              (item) => item.teamId === 'makers' && item.status !== '지원취소',
+            )
+            .at(-1);
+          if (latest) cancelApplication(latest.id);
+        }}
+      >
+        방금 지원 취소
+      </button>
     </>
   );
 }
@@ -27,8 +119,14 @@ function renderInbox(
     signedIn: true,
     profile: initialProfile,
     teams: initialTeams,
-    applications: [],
+    applications: initialApplications,
     applicants: initialApplicants,
+    notifications: initialNotifications({
+      teams: initialTeams,
+      applications: initialApplications,
+      applicants: initialApplicants,
+    }),
+    markNotificationsRead: vi.fn(),
     signIn: vi.fn(),
     signOut: vi.fn(),
     saveProfile: vi.fn(),
@@ -43,10 +141,10 @@ function renderInbox(
   };
   render(
     <MemoryRouter initialEntries={[path]}>
-      <PreviewContext value={state}>
-        <Notifications />
+      <InboxState initial={state}>
+        <RoutedInbox />
         <Navigation />
-      </PreviewContext>
+      </InboxState>
     </MemoryRouter>,
   );
   return userEvent.setup();
@@ -170,8 +268,76 @@ describe('official reference notifications', () => {
     ).not.toHaveAttribute('data-unread');
   });
 
+  it('closes only the inbox on browser Back and keeps its underlying route and read history', async () => {
+    const user = renderInbox('/design-preview/explore?tab=teams');
+    const back = screen.getByRole('button', { name: '브라우저 뒤로' });
+    const drawer = await openInbox(user);
+    await user.click(within(drawer).getByRole('button', { name: '모두 읽음' }));
+    fireEvent.click(back);
+    await waitFor(() => expect(drawer).not.toBeInTheDocument());
+    expect(
+      screen.getByText('현재 경로: /design-preview/explore?tab=teams'),
+    ).toBeInTheDocument();
+    const reopened = await openInbox(user);
+    expect(within(reopened).getByRole('status')).toHaveTextContent(
+      '읽지 않은 알림 0개',
+    );
+    expect(within(reopened).getAllByRole('listitem')).toHaveLength(3);
+  });
+
+  it('records successful application transitions, preserves read history, and creates a new arrival after reapplication', async () => {
+    render(
+      <MemoryRouter initialEntries={['/design-preview/explore']}>
+        <PreviewProvider>
+          <Notifications />
+          <ActivityControls />
+        </PreviewProvider>
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '지원 준비' }));
+    const initial = await openInbox(user);
+    await user.click(
+      within(initial).getByRole('button', { name: '모두 읽음' }),
+    );
+    await user.click(
+      within(initial).getByRole('button', { name: '알림 닫기' }),
+    );
+    await waitFor(() => expect(initial).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: '공개 팀에 지원' }));
+    expect(
+      screen.getByRole('button', { name: '알림, 읽지 않은 알림 1개' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '공개 팀에 지원' }));
+    await user.click(screen.getByRole('button', { name: '내 팀에 지원 시도' }));
+    expect(
+      screen.getByRole('button', { name: '알림, 읽지 않은 알림 1개' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '방금 지원 취소' }));
+    expect(
+      screen.getByRole('button', { name: '알림, 읽지 않은 알림 2개' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '방금 지원 취소' }));
+    await user.click(screen.getByRole('button', { name: '공개 팀에 지원' }));
+    const history = await openInbox(user);
+    expect(within(history).getByRole('status')).toHaveTextContent(
+      '읽지 않은 알림 3개',
+    );
+    expect(within(history).getAllByRole('listitem')).toHaveLength(6);
+    expect(
+      within(history).getAllByRole('link', { name: /지원이 접수됐어요/ }),
+    ).toHaveLength(2);
+    expect(
+      within(history).getByRole('link', { name: /지원이 취소됐어요/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(history).getByRole('link', { name: /지원한 팀에서 선발됐어요/ }),
+    ).not.toHaveAttribute('data-unread');
+  });
+
   it('shows the no-notifications state for an account with no relevant activity', async () => {
     const user = renderInbox('/design-preview/explore', {
+      notifications: [],
       teams: [],
       applicants: [],
       applications: [],

@@ -1,5 +1,6 @@
-import type { Contest, Person, Team } from './data';
-import { dateValue, referenceDate } from './team-state';
+import type { Application, Contest, Person, Team } from './data';
+import { contestDeadline, deadlineLabel, isContestOpen } from './contest-state';
+import { isTeamMember, recruitmentIssue } from './team-state';
 
 export type ChatSearchState = {
   kind: 'contests' | 'teams' | 'people';
@@ -7,6 +8,7 @@ export type ChatSearchState = {
   category?: string;
   deadlineFirst?: boolean;
   keyword?: string;
+  shownIds?: string[];
 };
 
 export type ChatRecommendation = {
@@ -22,7 +24,25 @@ export type ChatReply = {
   search: ChatSearchState;
 };
 
-type SearchData = { contests: Contest[]; teams: Team[]; people: Person[] };
+type SearchData = {
+  contests: Contest[];
+  teams: Team[];
+  people: Person[];
+  applications?: Application[];
+};
+
+function availableTeam(team: Team, data: SearchData) {
+  const contest = data.contests.find((item) => item.id === team.contestId);
+  return Boolean(
+    contest &&
+    isContestOpen(contest) &&
+    !recruitmentIssue(team) &&
+    !isTeamMember(team) &&
+    !data.applications?.some(
+      (item) => item.teamId === team.id && item.status !== '지원취소',
+    ),
+  );
+}
 
 const startingQuestions = [
   '마감이 가까운 공모전 찾아줘',
@@ -95,13 +115,12 @@ function hasUnknownWords(message: string) {
 
 function contestText(contest: Contest) {
   return normalize(
-    `${contest.title} ${contest.organizer} ${contest.description} ${contest.category}`,
+    `${contest.title} ${contest.organizer} ${contest.description} ${contest.interests.join(' · ')}`,
   );
 }
 
 function deadlineKey(contest: Contest | undefined) {
-  const date = contest?.deadline.match(/^(\d{4})[.\-/](\d{2})[.\-/](\d{2})$/);
-  return date ? `${date[1]}${date[2]}${date[3]}` : '99999999';
+  return contest ? contestDeadline(contest) : Infinity;
 }
 
 export function createDemoReply(
@@ -110,11 +129,15 @@ export function createDemoReply(
   data: SearchData,
 ): ChatReply {
   const query = normalize(message);
+  const more =
+    /^(?:다른추천도|다른결과도|더|추가로|계속)(?:보여줘|추천해줘|찾아줘)?$/.test(
+      query,
+    );
   const unchanged = { ...(previous ?? { kind: 'contests' as const }) };
 
   if (/모집마감|모집종료|마감된|마감이지난|마감지난|종료된/.test(query)) {
     return clarification(
-      '모집 중인 팀을 찾아드릴 수 있어요. 공모전의 모집 종료 여부는 여기서 판단하지 않으며, 등록된 마감일 순으로 찾아볼 수 있어요.',
+      '접수 중인 공모전과 모집 중인 팀을 찾아드려요. 접수 마감 공고와 모집이 끝난 팀은 추천에서 제외하며, 등록된 공모전 마감일 순으로 찾아볼 수 있어요.',
       unchanged,
     );
   }
@@ -131,7 +154,7 @@ export function createDemoReply(
   }
   if (/포트폴리오|주말|평일|요일|오전|오후|야간|시간|일정/.test(query)) {
     return clarification(
-      '공개 프로필의 활동 가능 시간과 포트폴리오는 프로필 상세에서 확인할 수 있어요. 현재 채팅에서는 시간 조건 검색·외부 포트폴리오 분석·일정 추정을 지원하지 않아요. 역할이나 관심 분야로 사람을 찾아볼 수 있어요.',
+      '공개 프로필의 주당 참여 가능 시간(전체 프로젝트 합산)과 포트폴리오는 프로필 상세에서 확인할 수 있어요. 현재 채팅에서는 시간 조건 검색·외부 포트폴리오 분석·일정 추정을 지원하지 않아요. 역할이나 관심 분야로 사람을 찾아볼 수 있어요.',
       unchanged,
     );
   }
@@ -186,7 +209,7 @@ export function createDemoReply(
     );
   }
   if (
-    hasUnknownWords(query) ||
+    (!more && hasUnknownWords(query)) ||
     unhandledRole ||
     (!explicitKind && !previous && !deadlineFirst) ||
     (!explicitKind &&
@@ -194,7 +217,8 @@ export function createDemoReply(
       !categories.length &&
       !keyword &&
       !deadlineFirst &&
-      !reset)
+      !reset &&
+      !more)
   ) {
     return clarification(
       '공개된 공모전, 모집 팀, 사람을 역할·관심 분야·마감일로 찾아볼 수 있어요. 아래 질문을 선택하거나 찾을 대상과 조건을 알려주세요.',
@@ -227,21 +251,20 @@ export function createDemoReply(
   if (kind === 'contests') {
     const matches = data.contests.filter(
       (contest) =>
-        contest.status === 'open' &&
-        dateValue(contest.deadline) >= referenceDate &&
-        (!search.category || contest.category === search.category) &&
+        isContestOpen(contest) &&
+        (!search.category || contest.interests.includes(search.category)) &&
         (!search.keyword ||
           contestText(contest).includes(normalize(search.keyword))),
     );
     if (search.deadlineFirst)
-      matches.sort((a, b) => deadlineKey(a).localeCompare(deadlineKey(b)));
+      matches.sort((a, b) => deadlineKey(a) - deadlineKey(b));
     for (const contest of matches) {
-      const reasons = [`${contest.category} 분야 공모전이에요.`];
+      const reasons = [`${contest.interests.join(' · ')} 분야 공모전이에요.`];
       if (search.keyword)
         reasons.push(
           `공개된 공모전 정보에 ‘${search.keyword}’이 포함되어 있어요.`,
         );
-      reasons.push(`등록된 마감일은 ${contest.deadline}이에요.`);
+      reasons.push(`등록된 마감일은 ${deadlineLabel(contest)}이에요.`);
       recommendations.push({
         kind: 'contest',
         id: contest.id,
@@ -258,21 +281,17 @@ export function createDemoReply(
         normalize(`${team.name} ${team.summary}`) +
         (contest ? contestText(contest) : '');
       return (
-        ['모집중', '지원자검토'].includes(team.status) &&
-        team.members < team.capacity &&
-        contest?.status === 'open' &&
-        dateValue(contest.deadline) >= referenceDate &&
-        dateValue(team.recruitmentDeadline) >= referenceDate &&
+        availableTeam(team, data) &&
         (!search.role || team.roles.includes(search.role)) &&
-        (!search.category || contest?.category === search.category) &&
+        (!search.category || contest?.interests.includes(search.category)) &&
         (!search.keyword || searchable.includes(normalize(search.keyword)))
       );
     });
     if (search.deadlineFirst)
-      matches.sort((a, b) =>
-        deadlineKey(contestById.get(a.contestId)).localeCompare(
+      matches.sort(
+        (a, b) =>
+          deadlineKey(contestById.get(a.contestId)) -
           deadlineKey(contestById.get(b.contestId)),
-        ),
       );
     for (const team of matches) {
       const reasons = [
@@ -288,7 +307,7 @@ export function createDemoReply(
         );
       const contest = contestById.get(team.contestId);
       if (search.deadlineFirst && contest)
-        reasons.push(`참여 공모전 마감일은 ${contest.deadline}이에요.`);
+        reasons.push(`참여 공모전 마감일은 ${deadlineLabel(contest)}이에요.`);
       recommendations.push({
         kind: 'team',
         id: team.id,
@@ -327,10 +346,18 @@ export function createDemoReply(
       : kind === 'teams'
         ? '모집 팀'
         : '사람 프로필';
-  const visible = recommendations.slice(0, 3);
+  const alreadyShown = more ? (previous?.shownIds ?? []) : [];
+  const remaining = recommendations.filter(
+    (item) => !alreadyShown.includes(`${item.kind}:${item.id}`),
+  );
+  const visible = remaining.slice(0, 3);
+  search.shownIds = [
+    ...alreadyShown,
+    ...visible.map((item) => `${item.kind}:${item.id}`),
+  ];
   const countText =
-    recommendations.length > 3
-      ? `${recommendations.length}개 중 3개`
+    remaining.length > 3
+      ? `${remaining.length}개 중 3개`
       : `${visible.length}개`;
   const orderText = search.deadlineFirst
     ? ' 등록된 공모전 마감일이 빠른 순서예요.'
@@ -338,9 +365,14 @@ export function createDemoReply(
   return {
     text: visible.length
       ? `현재 목록에서 조건에 맞는 ${label} ${countText}를 찾았어요.${orderText}`
-      : `현재 목록에는 이 조건과 일치하는 ${label}이 없어요. 전체 보기로 조건을 지우거나 다른 조건을 선택해 주세요.`,
+      : more
+        ? `이 조건으로 더 보여드릴 ${label}이 없어요. 다른 조건으로 다시 찾아볼 수 있어요.`
+        : `현재 목록에는 이 조건과 일치하는 ${label}이 없어요. 전체 보기로 조건을 지우거나 다른 조건을 선택해 주세요.`,
     recommendations: visible,
-    suggestions: suggestionsFor(kind),
+    suggestions:
+      remaining.length > 3
+        ? ['다른 추천도 보여줘', ...suggestionsFor(kind).slice(0, 2)]
+        : suggestionsFor(kind),
     search,
   };
 }
@@ -361,24 +393,11 @@ export function currentRecommendation(
   }
   const contest = data.contests.find((value) => value.id === item.id);
   if (item.kind === 'contest')
-    return contest?.status === 'open' &&
-      dateValue(contest.deadline) >= referenceDate
+    return contest && isContestOpen(contest)
       ? { title: contest.title, reason: item.reason }
       : null;
   const team = data.teams.find((value) => value.id === item.id);
-  const teamContest = data.contests.find(
-    (value) => value.id === team?.contestId,
-  );
-  if (
-    !team ||
-    !teamContest ||
-    teamContest.status !== 'open' ||
-    dateValue(teamContest.deadline) < referenceDate ||
-    dateValue(team.recruitmentDeadline) < referenceDate ||
-    team.members >= team.capacity ||
-    !['모집중', '지원자검토'].includes(team.status)
-  )
-    return null;
+  if (!team || !availableTeam(team, data)) return null;
   return {
     title: team.name,
     reason: `현재 ${team.roles.join(' · ')} 역할을 모집하고 있어요. ${team.members}/${team.capacity}명 · ${team.recruitmentDeadline} 마감.`,

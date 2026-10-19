@@ -10,3 +10,10 @@
 .preview-form-section [data-slot='native-select'] {
   min-height: 44px;
 }
+
+.preview-field-count {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  text-align: right;
+  margin: 0;
+}

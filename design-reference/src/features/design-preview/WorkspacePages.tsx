@@ -10,7 +10,6 @@ import {
   FileText,
   LoaderCircle,
   Plus,
-  Sparkles,
 } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router';
 import { z } from 'zod';
@@ -49,8 +48,11 @@ import {
   TeamStatusBadge,
 } from './PreviewUi';
 import { ProfileDetails } from './ProfileDetails';
+import { ProfileVisibilityControl } from './AccountPages';
+import { ApplicantReview } from './ApplicantReview';
+import { contestStatus, deadlineLabel } from './contest-state';
 import { usePreview } from './preview-context';
-import { missingProfileFields } from './profile-fields';
+import { missingProfileFields, profileTextLength } from './profile-fields';
 import {
   applicantVisibleProfile,
   isTeamMember,
@@ -66,7 +68,10 @@ const applicationSchema = z.object({
   message: z
     .string()
     .trim()
-    .max(1000, '팀에 전할 말은 1,000자까지 입력할 수 있어요.'),
+    .refine(
+      (value) => profileTextLength(value) <= 1000,
+      '팀에 전할 말은 1,000자까지 입력할 수 있어요.',
+    ),
 });
 type ApplicationFields = z.infer<typeof applicationSchema>;
 
@@ -285,6 +290,19 @@ export function WorkspacePage() {
                           ?.title
                       }
                     </p>
+                    <details className="workspace-application-message group">
+                      <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                        <span>내가 전한 말</span>
+                        <ChevronRight
+                          size={18}
+                          aria-hidden="true"
+                          className="group-open:rotate-90"
+                        />
+                      </summary>
+                      <p className="whitespace-pre-wrap break-words">
+                        {application.message || '작성한 메시지가 없어요.'}
+                      </p>
+                    </details>
                     {selected && (
                       <p>
                         선발되어 팀원이 됐어요. 팀 공간에서 함께할 멤버를
@@ -455,13 +473,6 @@ function TeamOverview({
       >
         <h2 id="team-goal-title">팀 목표</h2>
         <p>{team.summary}</p>
-        {team.kind === 'preparation' && (
-          <Alert role="note">
-            <AlertDescription>
-              함께 준비하는 팀이에요. 공모전 출전과 제출은 각자 진행해요.
-            </AlertDescription>
-          </Alert>
-        )}
       </section>
       <section
         className="preview-panel preview-stack"
@@ -473,7 +484,15 @@ function TeamOverview({
             <Badge key={role}>{role}</Badge>
           ))}
         </div>
-        <p className="preview-muted">안내한 역할과 달라도 지원할 수 있어요.</p>
+        {team.capacity > 1 ? (
+          <p className="preview-muted">
+            안내한 역할과 달라도 지원할 수 있어요.
+          </p>
+        ) : (
+          <p className="preview-muted">
+            1명으로 참가하는 팀으로 추가 모집하지 않아요.
+          </p>
+        )}
         <dl className="workspace-detail-facts">
           <div>
             <dt>총 정원</dt>
@@ -507,12 +526,12 @@ function TeamOverview({
           <h2 id="team-contest-title">참여 공모전</h2>
           <h3>{contest.title}</h3>
           <p className="preview-inline-fact">
-            {contest.status === 'closed' ? (
+            {contestStatus(contest) === 'closed' ? (
               '접수 마감됨'
             ) : (
               <>
                 <span>접수 마감</span>
-                <strong>{contest.deadline}</strong>
+                <strong>{deadlineLabel(contest)}</strong>
               </>
             )}
           </p>
@@ -845,7 +864,7 @@ function TeamDetail({
             <Alert role="note">
               <AlertTitle>지원 전에 프로필을 완성해 주세요</AlertTitle>
               <AlertDescription>
-                아직 입력하지 않은 정보: {missing.join(', ')}
+                보완이 필요한 정보: {missing.join(', ')}
               </AlertDescription>
             </Alert>
             <ActionLink
@@ -856,6 +875,26 @@ function TeamDetail({
             <p className="preview-muted">
               저장 후 이 팀으로 돌아와 지원할 수 있어요.
             </p>
+          </>
+        ) : !preview.profile.visibility.discoverable ? (
+          <>
+            <Alert role="note">
+              <AlertTitle>프로필을 공개한 뒤 지원할 수 있어요</AlertTitle>
+              <AlertDescription>
+                공개하면 사람 검색과 AI 사람 추천에서 등록한 프로필을 볼 수
+                있어요. 공개 전환 후 지원할 역할과 메시지를 작성해 주세요.
+              </AlertDescription>
+            </Alert>
+            <ProfileVisibilityControl
+              checked={false}
+              triggerLabel="프로필 공개하기"
+              onConfirm={(discoverable) =>
+                preview.saveProfile({
+                  ...preview.profile,
+                  visibility: { discoverable },
+                })
+              }
+            />
           </>
         ) : (
           <form
@@ -918,7 +957,6 @@ function TeamDetail({
               <Textarea
                 id="application-message"
                 rows={4}
-                maxLength={1000}
                 {...register('message')}
                 aria-describedby="application-message-help application-message-error"
                 aria-invalid={!!errors.message}
@@ -937,11 +975,15 @@ function TeamDetail({
             <Alert role="note">
               <AlertTitle>팀장에게 전달되는 정보</AlertTitle>
               <AlertDescription>
-                프로필이 비공개여도 지원받은 팀장에게는 등록한 전체 프로필이
-                보여요. 학사 정보, 활동 가능 시간, 포트폴리오와 팀에 전할 말도
-                함께 전달돼요.
+                지원받은 팀장은 등록한 전체 프로필과 팀에 전할 말을 확인하고 AI
+                검토에 최신 프로필을 사용할 수 있어요. 이후 프로필을 비공개로
+                바꾸어도 기존 지원과 해당 팀장의 검토는 유지돼요.
               </AlertDescription>
             </Alert>
+            <p className="preview-muted">
+              참가 자격은 공모전 원문에서 확인해 주세요. 입력한 정보가 부족해도
+              지원할 수 있지만, 접수 완료가 참가 자격을 보장하지는 않아요.
+            </p>
             {submitError && (
               <Alert variant="destructive" role="alert">
                 <AlertDescription>{submitError}</AlertDescription>
@@ -1054,27 +1096,8 @@ function ApplicantDetail({
         </div>
         <p>{applicant.message || '작성한 메시지가 없어요.'}</p>
       </section>
-      {pending && scenario === 'ready' && (
-        <section
-          className="preview-panel preview-stack"
-          aria-labelledby="applicant-recommendation-title"
-        >
-          <div className="preview-row">
-            <Sparkles size={20} aria-hidden="true" />
-            <h2 id="applicant-recommendation-title">AI 검토 도움</h2>
-          </div>
-          <p>
-            {applicant.id === 'app-seoyeon'
-              ? '개발 역할을 희망하고, 지원서에서 환경 문제를 해결하는 서비스에 대한 관심을 밝혔어요. 팀의 기술 구현을 함께 이야기해 보세요.'
-              : applicant.id === 'app-sua'
-                ? '지원서에서 사용자 리서치와 화면 설계에 참여하고 싶다고 밝혔어요. 팀이 해결할 문제를 함께 구체화해 보세요.'
-                : '지원서의 희망 역할과 팀에 전한 말을 바탕으로 함께할 방향을 확인해 보세요.'}
-          </p>
-          <p className="preview-muted">
-            추천 이유를 참고하고, 최종 선발은 팀장이 판단해요.
-          </p>
-        </section>
-      )}
+      <ApplicantReview applicant={applicant} profile={visible} />
+
       <section
         className="preview-panel preview-stack preview-sticky-action"
         aria-labelledby="applicant-decision-title"

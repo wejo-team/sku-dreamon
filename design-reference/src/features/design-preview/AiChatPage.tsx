@@ -49,6 +49,8 @@ import { LoginGate } from './AccountPages';
 import { ContestCover } from './ContestCover';
 import { contests, getPublicProfile, people, previewPath } from './data';
 import { usePreview } from './preview-context';
+import { contestBadgeLabel } from './contest-state';
+import { profileTextLength } from './profile-fields';
 import {
   createDemoReply,
   currentRecommendation,
@@ -78,7 +80,7 @@ export function AiChatProvider({ children }: { children: ReactNode }) {
 }
 
 function ChatSession({ children }: { children: ReactNode }) {
-  const { teams, signedIn, profile } = usePreview();
+  const { teams, signedIn, profile, applications } = usePreview();
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(false);
@@ -114,12 +116,13 @@ function ChatSession({ children }: { children: ReactNode }) {
   };
   const send = (input: string, retry = false) => {
     const text = input.trim();
-    if (!text || text.length > 1000 || timer.current !== null) return;
+    if (!text || profileTextLength(text) > 1000 || timer.current !== null)
+      return;
     if (!retry) {
       const message: Message = { id: nextId.current++, role: 'user', text };
       setMessages((current) => [...current, message]);
     }
-    setDraft('');
+    if (!retry) setDraft('');
     setFailedRequest(null);
     setPending(true);
     const mine = signedIn ? getPublicProfile(profile) : null;
@@ -136,6 +139,7 @@ function ChatSession({ children }: { children: ReactNode }) {
         const reply = createDemoReply(text, search.current, {
           contests,
           teams,
+          applications,
           people: visiblePeople,
         });
         search.current = reply.search;
@@ -179,7 +183,7 @@ function ChatSession({ children }: { children: ReactNode }) {
 }
 
 function RecommendationCard({ item }: { item: ChatRecommendation }) {
-  const { teams, signedIn, profile } = usePreview();
+  const { teams, signedIn, profile, applications } = usePreview();
   const mine = signedIn ? getPublicProfile(profile) : null;
   const person =
     item.kind === 'person' && signedIn
@@ -198,6 +202,7 @@ function RecommendationCard({ item }: { item: ChatRecommendation }) {
   const current = currentRecommendation(item, {
     contests,
     teams,
+    applications,
     people: signedIn ? (mine ? [...people, mine] : people) : [],
   });
   if (!current || (!person && !contest && !team))
@@ -210,7 +215,7 @@ function RecommendationCard({ item }: { item: ChatRecommendation }) {
   const metadata =
     person?.roles.join(' · ') ??
     (contest
-      ? `${contest.category} · D−${contest.days}`
+      ? `${contest.interests.join(' · ')} · ${contestBadgeLabel(contest)}`
       : `${team!.roles.join(' · ')} 모집 · ${team!.members}/${team!.capacity}명 · ${team!.recruitmentDeadline} 마감`);
   const path = person ? 'people' : contest ? 'contests' : 'teams';
   return (
@@ -249,7 +254,7 @@ function RecommendationCard({ item }: { item: ChatRecommendation }) {
 }
 
 function ReplyActions({ reply }: { reply: ChatReply }) {
-  const { teams, signedIn, profile } = usePreview();
+  const { teams, signedIn, profile, applications } = usePreview();
   const [status, setStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   useEffect(() => {
     if (status !== 'copied') return;
@@ -263,6 +268,7 @@ function ReplyActions({ reply }: { reply: ChatReply }) {
       const current = currentRecommendation(item, {
         contests,
         teams,
+        applications,
         people: publicPeople,
       });
       return current ? [`${current.title}\n${current.reason}`] : [];
@@ -341,6 +347,8 @@ function AiConversation() {
     clear,
   } = chat;
   const last = messages.at(-1);
+  const draftLength = profileTextLength(draft);
+  const tooLong = draftLength > 1000;
   return (
     <section className="preview-ai" aria-label="AI 탐색 대화">
       <h1 className="sr-only">AI</h1>
@@ -511,7 +519,8 @@ function AiConversation() {
             aria-label="AI에게 보낼 메시지"
             placeholder="어떤 도전을 찾고 있나요?"
             rows={1}
-            maxLength={1000}
+            aria-invalid={tooLong || undefined}
+            aria-describedby={tooLong ? 'chat-length-error' : undefined}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -557,13 +566,23 @@ function AiConversation() {
                 variant="default"
                 size="icon-sm"
                 aria-label="메시지 보내기"
-                disabled={!draft.trim()}
+                disabled={!draft.trim() || tooLong}
               >
                 <ArrowUp size={19} aria-hidden="true" />
               </InputGroupButton>
             )}
           </InputGroupAddon>
         </InputGroup>
+        {tooLong && (
+          <p
+            id="chat-length-error"
+            role="alert"
+            className="mt-2 px-2 text-sm text-destructive"
+          >
+            메시지는 1,000자까지 보낼 수 있어요. 현재{' '}
+            {draftLength.toLocaleString()}자이며, 입력한 내용은 그대로 보관돼요.
+          </p>
+        )}
       </form>
     </section>
   );

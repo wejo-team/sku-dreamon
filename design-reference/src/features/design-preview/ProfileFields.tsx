@@ -6,7 +6,6 @@ import {
   type UseFormSetValue,
 } from 'react-hook-form';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   NativeSelect,
@@ -19,6 +18,7 @@ import {
   academicStatuses,
   grades,
   skillOptions,
+  profileTextLength,
 } from './profile-fields';
 
 function SelectOptions({
@@ -65,7 +65,8 @@ export function AcademicFields({
         학사 정보
       </h2>
       <p className="preview-muted">
-        공고에 학적·학년 조건이 있으면 지원할 때 필요한 정보를 확인해요.
+        선택 입력이에요. 비워 두어도 지원할 수 있으며, 참가 자격은 공고 원문을
+        확인해 주세요.
       </p>
       <div className="profile-academic-fields">
         {(
@@ -75,7 +76,7 @@ export function AcademicFields({
           ] as const
         ).map(([name, label, choices]) => (
           <div className="preview-field" key={name}>
-            <Label htmlFor={`profile-${name}`}>{label}</Label>
+            <Label htmlFor={`profile-${name}`}>{label} (선택)</Label>
             <Controller
               control={control}
               name={name}
@@ -103,9 +104,14 @@ export function AcademicFields({
               value={college}
               id="profile-college"
               onChange={(event) => {
+                const nextCollege = event.target.value;
                 field.onChange(event);
-                setValue('department', '', { shouldDirty: true });
-                setValue('major', '', { shouldDirty: true });
+                // Display names alone cannot prove identity across colleges.
+                // Keep the existing relationship when it remains the same.
+                if (nextCollege !== college) {
+                  setValue('department', '', { shouldDirty: true });
+                  setValue('major', '', { shouldDirty: true });
+                }
               }}
             >
               <SelectOptions options={options.colleges} value={college} />
@@ -125,8 +131,11 @@ export function AcademicFields({
               disabled={!college}
               id="profile-department"
               onChange={(event) => {
+                const nextDepartment = event.target.value;
                 field.onChange(event);
-                setValue('major', '', { shouldDirty: true });
+                if (nextDepartment !== department) {
+                  setValue('major', '', { shouldDirty: true });
+                }
               }}
             >
               <SelectOptions options={options.departments} value={department} />
@@ -154,25 +163,18 @@ export function AcademicFields({
         </div>
       )}
       <p className="preview-muted">
-        소속을 바꾸면 하위 학부·전공을 다시 선택해 주세요. 기존 소속은 변경하기
-        전까지 유지돼요.
+        소속을 바꾸면 새 소속에 맞지 않는 하위 항목만 비워요. 저장 전까지는 기존
+        프로필이 유지돼요.
       </p>
     </section>
   );
 }
 
-export function SkillFields({
-  control,
-  register,
-}: {
-  control: Control<Profile>;
-  register: UseFormRegister<Profile>;
-}) {
-  const skills = useWatch({ control, name: 'skills' });
+export function SkillFields({ control }: { control: Control<Profile> }) {
   return (
     <fieldset className="preview-field">
       <legend>
-        보유 역량 <span className="preview-muted">(권장 · 복수 선택)</span>
+        보유 역량 <span className="preview-muted">(선택 · 복수 선택)</span>
       </legend>
       <Controller
         control={control}
@@ -202,16 +204,6 @@ export function SkillFields({
           </div>
         )}
       />
-      {skills.includes('기타') && (
-        <div className="preview-field">
-          <Label htmlFor="profile-skill-other">기타 역량 설명 (선택)</Label>
-          <Input
-            id="profile-skill-other"
-            {...register('skillOther')}
-            placeholder="목록에 없는 역량을 알려 주세요."
-          />
-        </div>
-      )}
     </fieldset>
   );
 }
@@ -220,11 +212,14 @@ export function ExperienceFields({
   control,
   register,
   setValue,
+  error,
 }: {
   control: Control<Profile>;
   register: UseFormRegister<Profile>;
   setValue: UseFormSetValue<Profile>;
+  error?: string;
 }) {
+  const experience = useWatch({ control, name: 'experience' });
   const experienceState = useWatch({ control, name: 'experienceState' });
   return (
     <div className="preview-field">
@@ -239,7 +234,10 @@ export function ExperienceFields({
             onChange={(event) => {
               field.onChange(event);
               if (event.target.value !== 'provided')
-                setValue('experience', '', { shouldDirty: true });
+                setValue('experience', '', {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
             }}
           >
             <NativeSelectOption value="unspecified">
@@ -254,6 +252,8 @@ export function ExperienceFields({
       <Textarea
         id="profile-experience"
         rows={3}
+        aria-invalid={!!error}
+        aria-describedby="profile-experience-help profile-experience-count profile-experience-error"
         disabled={experienceState === 'none'}
         {...register('experience', {
           onChange: (event: { target: { value: string } }) =>
@@ -265,7 +265,15 @@ export function ExperienceFields({
         })}
         placeholder="프로젝트나 공모전에서 맡았던 역할"
       />
-      <p className="preview-muted">
+      <p id="profile-experience-count" className="preview-field-count">
+        {profileTextLength(experience)} / 500자
+      </p>
+      {error && (
+        <p id="profile-experience-error" className="preview-error" role="alert">
+          {error}
+        </p>
+      )}
+      <p id="profile-experience-help" className="preview-muted">
         경험이 없어도 참여할 수 있어요. 미입력과 경험 없음은 구분해서 저장해요.
       </p>
     </div>

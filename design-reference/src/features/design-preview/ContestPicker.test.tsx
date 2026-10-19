@@ -16,21 +16,18 @@ function contest(id: string, overrides: Partial<Contest> = {}): Contest {
     id,
     startsAt: '2026-10-01',
     officialUrl: 'https://example.org',
-    participation: 'team',
+    memberLimit: 'range',
     minMembers: 2,
     maxMembers: 5,
-    status: 'open',
     deliverables: [],
     verifiedOn: '2026-10-18',
     interests: ['교육'],
     title: `공모전 ${id}`,
     organizer: '드림온 운영팀',
-    category: '기획·아이디어',
     deadline: '2026.11.30',
-    days: 30,
-    audience: '대학생 누구나',
+    audience: ['대학생'],
+    audienceOriginal: '대학생 누구나',
     description: '함께 도전하는 아이디어 공모전입니다.',
-    teamCount: 2,
     ...overrides,
   };
 }
@@ -43,12 +40,12 @@ const fixtures = [
   contest('craft', {
     title: 'Local Craft Contest',
     organizer: '지역 문화 센터',
-    category: '디자인',
+    interests: ['디자인'],
   }),
   contest('project', {
     title: 'Local Project Challenge',
     organizer: '지역 청년 재단',
-    category: 'IT·기술',
+    interests: ['IT·기술'],
   }),
 ];
 

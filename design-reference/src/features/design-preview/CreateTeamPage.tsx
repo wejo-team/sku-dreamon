@@ -10,32 +10,61 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { contests, interestOptions, previewPath, roleOptions } from './data';
+import { contests, previewPath, roleOptions } from './data';
+import {
+  isContestOpen,
+  memberLimitLabel,
+  deadlineLabel,
+} from './contest-state';
 import { ContestPicker } from './ContestPicker';
 import { ActionLink, BackLink, PageIntro } from './PreviewUi';
 import { usePreview } from './preview-context';
+import { profileTextLength } from './profile-fields';
 import { createTeamIssue, dateValue, referenceDate } from './team-state';
 
-const teamSchema = z.object({
-  contestId: z.string().min(1, '참여할 공모전을 선택해 주세요.'),
-  name: z
-    .string()
-    .trim()
-    .min(2, '팀 이름을 2자 이상 입력해 주세요.')
-    .max(40, '팀 이름은 40자까지 입력할 수 있어요.'),
-  summary: z
-    .string()
-    .trim()
-    .min(10, '팀 소개와 목표를 10자 이상 적어 주세요.')
-    .max(1000, '팀 소개는 1,000자까지 입력할 수 있어요.'),
-  roles: z.array(z.string()).min(1, '모집할 역할을 선택해 주세요.'),
-  interests: z.array(z.string()),
-  capacity: z
-    .number({ invalid_type_error: '총 정원을 숫자로 입력해 주세요.' })
-    .int()
-    .min(1, '총 정원은 1명 이상이어야 해요.'),
-  recruitmentDeadline: z.string().min(1, '모집 마감을 설정해 주세요.'),
-});
+const teamSchema = z
+  .object({
+    contestId: z.string().min(1, '참여할 공모전을 선택해 주세요.'),
+    name: z
+      .string()
+      .trim()
+      .refine(
+        (value) => profileTextLength(value) >= 2,
+        '팀 이름을 2자 이상 입력해 주세요.',
+      )
+      .refine(
+        (value) => profileTextLength(value) <= 40,
+        '팀 이름은 40자까지 입력할 수 있어요.',
+      ),
+    summary: z
+      .string()
+      .trim()
+      .refine(
+        (value) => profileTextLength(value) >= 10,
+        '팀 소개와 목표를 10자 이상 적어 주세요.',
+      )
+      .refine(
+        (value) => profileTextLength(value) <= 1000,
+        '팀 소개는 1,000자까지 입력할 수 있어요.',
+      ),
+    roles: z.array(z.string()),
+    capacity: z
+      .number({ invalid_type_error: '총 정원을 숫자로 입력해 주세요.' })
+      .int()
+      .min(1, '총 정원은 1명 이상이어야 해요.'),
+    recruitmentDeadline: z.string().min(1, '모집 마감을 설정해 주세요.'),
+  })
+  .superRefine((values, context) => {
+    if (
+      values.capacity >= 2 &&
+      (values.roles.length < 1 || values.roles.length > 6)
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['roles'],
+        message: '모집할 역할을 1~6개 선택해 주세요.',
+      });
+  });
 type Fields = z.infer<typeof teamSchema>;
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -52,8 +81,10 @@ export function CreateTeamPage() {
   const [search] = useSearchParams();
   const [submitError, setSubmitError] = useState('');
   const contestId = search.get('contestId') ?? search.get('contest') ?? '';
+  const initialContest = contests.find((item) => item.id === contestId);
   const {
     register,
+    setValue,
     control,
     handleSubmit,
     formState: { errors, isSubmitting },
@@ -66,13 +97,20 @@ export function CreateTeamPage() {
       name: '',
       summary: '',
       roles: [],
-      interests: [],
-      capacity: 4,
+      capacity:
+        initialContest?.memberLimit === 'range' &&
+        initialContest.minMembers === initialContest.maxMembers
+          ? initialContest.minMembers
+          : undefined,
       recruitmentDeadline: '',
     },
   });
   const selectedId = useWatch({ control, name: 'contestId' });
   const selected = contests.find((contest) => contest.id === selectedId);
+  const capacity = useWatch({ control, name: 'capacity' });
+  const fixedCapacity =
+    selected?.memberLimit === 'range' &&
+    selected.minMembers === selected.maxMembers;
   const returnTo = `${previewPath('/teams/new')}${search.size ? `?${search.toString()}` : ''}`;
   if (!signedIn)
     return (
@@ -101,10 +139,8 @@ export function CreateTeamPage() {
         onSubmit={handleSubmit((values) => {
           const team = {
             ...values,
-            kind:
-              selected?.participation === 'individual'
-                ? ('preparation' as const)
-                : ('entry' as const),
+            roles: values.capacity === 1 ? [] : values.roles,
+            interests: [...(selected?.interests ?? [])],
           };
           const issue = createTeamIssue(team, teams);
           if (issue) {
@@ -129,11 +165,20 @@ export function CreateTeamPage() {
             render={({ field }) => (
               <ContestPicker
                 id="team-contest"
-                contests={contests.filter(
-                  (contest) => contest.status !== 'closed',
-                )}
+                contests={contests.filter((contest) => isContestOpen(contest))}
                 value={field.value}
-                onChange={field.onChange}
+                onChange={(id) => {
+                  field.onChange(id);
+                  const contest = contests.find((item) => item.id === id);
+                  setValue(
+                    'capacity',
+                    contest?.memberLimit === 'range' &&
+                      contest.minMembers === contest.maxMembers
+                      ? contest.minMembers!
+                      : Number.NaN,
+                  );
+                  setValue('roles', []);
+                }}
                 onBlur={field.onBlur}
                 ref={field.ref}
                 invalid={!!errors.contestId}
@@ -148,21 +193,12 @@ export function CreateTeamPage() {
             id="team-contest-error"
             message={errors.contestId?.message}
           />
-          {selected?.participation === 'individual' && (
-            <Alert role="note">
-              <AlertDescription>
-                개인 참가 공모전이에요. 함께 준비하는 팀을 만들고, 출전과 제출은
-                각자 진행해요.
-              </AlertDescription>
-            </Alert>
-          )}
         </div>
         <div className="preview-field">
           <Label htmlFor="team-name">팀 이름</Label>
           <Input
             id="team-name"
             {...register('name')}
-            maxLength={40}
             placeholder="우리 팀을 소개할 이름"
             aria-invalid={!!errors.name}
             aria-describedby={errors.name ? 'team-name-error' : undefined}
@@ -175,7 +211,6 @@ export function CreateTeamPage() {
             id="team-summary"
             rows={4}
             {...register('summary')}
-            maxLength={1000}
             placeholder="어떤 아이디어를 누구와 함께 만들고 싶나요?"
             aria-invalid={!!errors.summary}
             aria-describedby={errors.summary ? 'team-summary-error' : undefined}
@@ -185,84 +220,82 @@ export function CreateTeamPage() {
             message={errors.summary?.message}
           />
         </div>
-        <fieldset className="preview-field">
-          <legend>모집할 역할</legend>
-          <p className="preview-muted">
-            팀에서 필요한 역할을 알려주세요. 다른 역할의 지원자도 지원할 수
-            있어요.
-          </p>
-          <Controller
-            control={control}
-            name="roles"
-            render={({ field }) => (
-              <div className="preview-choice-grid">
-                {roleOptions.map((role) => (
-                  <Label className="preview-choice" key={role}>
-                    <Checkbox
-                      checked={field.value.includes(role)}
-                      onCheckedChange={(checked) =>
-                        field.onChange(
-                          checked
-                            ? [...field.value, role]
-                            : field.value.filter((item) => item !== role),
-                        )
-                      }
-                    />
-                    <span>{role}</span>
-                  </Label>
-                ))}
-              </div>
-            )}
-          />
-          <FieldError id="team-roles-error" message={errors.roles?.message} />
-        </fieldset>
         <div className="preview-field">
           <Label htmlFor="team-capacity">팀장 포함 총 정원</Label>
           <Input
             id="team-capacity"
             type="number"
-            min={
-              selected?.participation === 'individual'
-                ? 1
-                : (selected?.minMembers ?? 1)
-            }
+            min={selected?.minMembers ?? 1}
             max={
-              selected?.participation === 'individual'
-                ? undefined
-                : selected?.maxMembers
+              selected?.memberLimit === 'range'
+                ? selected.maxMembers
+                : undefined
             }
+            readOnly={fixedCapacity}
+            placeholder="총 정원을 입력해 주세요"
             {...register('capacity', { valueAsNumber: true })}
             aria-invalid={!!errors.capacity}
             aria-describedby="team-capacity-help team-capacity-error"
           />
           <p id="team-capacity-help" className="preview-muted">
-            팀장인 나를 포함한 전체 인원이에요.
-            {selected &&
-            selected.participation !== 'individual' &&
-            selected.minMembers != null &&
-            selected.maxMembers != null
-              ? ` 공식 참가 인원: ${selected.minMembers}~${selected.maxMembers}명.`
-              : ''}
+            {selected
+              ? `공식 참가 인원: ${memberLimitLabel(selected)}. ${fixedCapacity ? '공식 인원으로 고정돼요.' : '팀장을 포함한 목표 정원을 입력해 주세요.'}`
+              : '공모전을 선택한 뒤 목표 정원을 입력해 주세요.'}
           </p>
           <FieldError
             id="team-capacity-error"
             message={errors.capacity?.message}
           />
         </div>
+        {capacity >= 2 && (
+          <fieldset className="preview-field">
+            <legend>모집할 역할</legend>
+            <p className="preview-muted">
+              팀에서 필요한 역할을 알려주세요. 다른 역할의 지원자도 지원할 수
+              있어요.
+            </p>
+            <Controller
+              control={control}
+              name="roles"
+              render={({ field }) => (
+                <div className="preview-choice-grid">
+                  {roleOptions.map((role) => (
+                    <Label className="preview-choice" key={role}>
+                      <Checkbox
+                        checked={field.value.includes(role)}
+                        onCheckedChange={(checked) =>
+                          field.onChange(
+                            checked
+                              ? [...field.value, role]
+                              : field.value.filter((item) => item !== role),
+                          )
+                        }
+                      />
+                      <span>{role}</span>
+                    </Label>
+                  ))}
+                </div>
+              )}
+            />
+            <FieldError id="team-roles-error" message={errors.roles?.message} />
+          </fieldset>
+        )}
         <div className="preview-field">
           <Label htmlFor="team-deadline">팀 모집 마감</Label>
           <Input
             id="team-deadline"
             type="date"
             min={referenceDate}
-            max={selected ? dateValue(selected.deadline) : undefined}
+            max={
+              selected ? dateValue(selected.deadline).slice(0, 10) : undefined
+            }
             {...register('recruitmentDeadline')}
             aria-invalid={!!errors.recruitmentDeadline}
             aria-describedby="team-deadline-help team-deadline-error"
           />
           <p id="team-deadline-help" className="preview-muted">
             {selected
-              ? `공모전 마감일 ${selected.deadline}까지 설정할 수 있어요.`
+              ? `공모전 마감일 ${deadlineLabel(selected)}까지 설정할 수 있어요. 해당 날짜 끝까지 모집하며 공모전이 먼저 마감되면 함께 마감돼요.`
               : '공모전을 선택한 뒤 모집 마감일을 정해 주세요.'}
           </p>
           <FieldError
@@ -270,34 +303,13 @@ export function CreateTeamPage() {
             message={errors.recruitmentDeadline?.message}
           />
         </div>
-        <fieldset className="preview-field">
-          <legend>
-            팀 관심 분야 <span className="preview-muted">선택</span>
-          </legend>
-          <Controller
-            control={control}
-            name="interests"
-            render={({ field }) => (
-              <div className="preview-choice-grid">
-                {interestOptions.map((interest) => (
-                  <Label className="preview-choice" key={interest}>
-                    <Checkbox
-                      checked={field.value.includes(interest)}
-                      onCheckedChange={(checked) =>
-                        field.onChange(
-                          checked
-                            ? [...field.value, interest]
-                            : field.value.filter((item) => item !== interest),
-                        )
-                      }
-                    />
-                    <span>{interest}</span>
-                  </Label>
-                ))}
-              </div>
-            )}
-          />
-        </fieldset>
+        {selected && (
+          <div className="preview-field">
+            <Label>관심 분야</Label>
+            <p>{selected.interests.join(' · ')}</p>
+            <p className="preview-muted">공모전의 관심 분야를 사용해요.</p>
+          </div>
+        )}
         {submitError && (
           <Alert variant="destructive" role="alert">
             <AlertDescription>{submitError}</AlertDescription>

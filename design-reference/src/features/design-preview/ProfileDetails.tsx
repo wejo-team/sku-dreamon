@@ -57,9 +57,6 @@ export function ProfileDetails({
             ) : (
               <p className="preview-muted">아직 입력하지 않았어요.</p>
             )}
-            {profile.skillOther && (
-              <p className="preview-info-copy">{profile.skillOther}</p>
-            )}
           </dd>
         </div>
       )}
@@ -72,9 +69,6 @@ export function ProfileDetails({
                 <Badge key={interest}>{interest}</Badge>
               ))}
             </div>
-            {profile.interestOther && (
-              <p className="preview-info-copy">{profile.interestOther}</p>
-            )}
           </dd>
         </div>
       )}
@@ -96,9 +90,13 @@ export function ProfileDetails({
       )}
       {profile.availability !== undefined && (
         <div>
-          <dt>활동 가능 시간</dt>
+          <dt>주당 참여 가능 시간</dt>
           <dd className="preview-info-copy">
-            {profile.availability || '아직 시간을 선택하지 않았어요.'}
+            {profile.availability || '미입력'}
+            <p className="preview-muted">
+              모든 참여 프로젝트를 합산한 예상 시간으로, 팀별 약속이나 남은
+              시간이 아니에요.
+            </p>
           </dd>
         </div>
       )}

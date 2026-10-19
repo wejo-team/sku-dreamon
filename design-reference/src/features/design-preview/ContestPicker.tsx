@@ -20,6 +20,7 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import type { Contest } from './data';
+import { deadlineLabel } from './contest-state';
 import { ContestCover } from './ContestCover';
 
 const pageSize = 20;
@@ -63,7 +64,7 @@ export function ContestPicker({
       .filter(Boolean);
     return contests.filter((contest) => {
       const source = normalizeSearch(
-        `${contest.title} ${contest.organizer} ${contest.category}`,
+        `${contest.title} ${contest.organizer} ${contest.interests.join(' ')}`,
       );
       return terms.every((term) => source.includes(term));
     });
@@ -99,8 +100,8 @@ export function ContestPicker({
             <strong>{selected?.title ?? '공모전 검색해서 선택'}</strong>
             {selected && (
               <span>
-                {selected.organizer} · {selected.category} · 마감{' '}
-                {selected.deadline}
+                {selected.organizer} · {selected.interests.join(' · ')} · 마감{' '}
+                {deadlineLabel(selected)}
               </span>
             )}
           </span>
@@ -150,7 +151,7 @@ export function ContestPicker({
                     value={contest.id}
                     className="preview-contest-option"
                     data-current={contest.id === value}
-                    aria-label={`${contest.title}, ${contest.organizer}, ${contest.category}, 마감 ${contest.deadline}${contest.id === value ? ', 현재 선택됨' : ''}`}
+                    aria-label={`${contest.title}, ${contest.organizer}, ${contest.interests.join(' ')}, 마감 ${deadlineLabel(contest)}${contest.id === value ? ', 현재 선택됨' : ''}`}
                     onSelect={() => {
                       onChange(contest.id);
                       setOpen(false);
@@ -166,7 +167,8 @@ export function ContestPicker({
                         {contest.organizer}
                       </span>
                       <span className="preview-contest-option-meta">
-                        {contest.category} · 마감 {contest.deadline}
+                        {contest.interests.join(' · ')} · 마감{' '}
+                        {deadlineLabel(contest)}
                       </span>
                     </span>
                     {contest.id === value && (
