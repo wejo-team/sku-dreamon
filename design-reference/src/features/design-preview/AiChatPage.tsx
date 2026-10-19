@@ -577,7 +577,7 @@ function AiConversation() {
           <p
             id="chat-length-error"
             role="alert"
-            className="mt-2 px-2 text-sm text-destructive"
+            className="px-2 pt-2 text-sm text-destructive"
           >
             메시지는 1,000자까지 보낼 수 있어요. 현재{' '}
             {draftLength.toLocaleString()}자이며, 입력한 내용은 그대로 보관돼요.
