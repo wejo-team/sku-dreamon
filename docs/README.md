@@ -23,6 +23,7 @@
 - 처음 실행할 때: [로컬 실행](development/local-development.md)
 - 제품 화면을 구현할 때: [공식 디자인 레퍼런스](design/README.md)
 - 명세·계획·PR을 검토할 때: [팀 작업 흐름](development/workflow.md)
+- 공식 모바일 디자인을 참고할 때: [디자인 앱 PR](https://github.com/wejo-team/sku-dreamon/pull/74)과 [버전·검증 기록](specs/prototype-alignment.md)
 - 현재 프로토타입과 기능 명세를 대조할 때: [디자인 기능·명세 대조](specs/prototype-alignment.md)
 - 문서를 추가하거나 게시할 때: [문서 관리](development/documentation.md)
 
