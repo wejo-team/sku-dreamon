@@ -1,0 +1,68 @@
+/* 서경대의 에메랄드 강조색과 shadcn/ui의 표면·상태 역할을 사용하는 모바일 디자인. */
+.dreamon-mobile-viewport,
+.dreamon-preview {
+  --background: #ffffff;
+  --foreground: #18352b;
+  --card: #ffffff;
+  --primary: #007a55;
+  --primary-foreground: #ffffff;
+  --muted: #f2f7f4;
+  --muted-foreground: #52675d;
+  --accent: #e1efe7;
+  --accent-foreground: #00573a;
+  --border: #d5e2da;
+  --ring: #007a55;
+  --input: #71897c;
+  --primary-hover: #00573a;
+  --secondary: #d9e9df;
+  --secondary-foreground: #365f4d;
+  --card-foreground: var(--foreground);
+  --destructive: var(--coral-ink);
+  --surface-control: var(--card);
+  --surface-chrome: var(--card);
+  --surface-canvas: #f1f1f3;
+  --surface-card: #ffffff;
+  --surface-card-hover: #bdd9c7;
+  --surface-card-pressed: #b2d0bd;
+  --card-muted-foreground: #40594a;
+  --radius: 0.625rem;
+  --surface-sunken: #dfeae3;
+  --ai-soft: #f0edf8;
+  --ai-ink: #453587;
+  --leaf-soft: #f0fdf4;
+  --leaf-ink: #166534;
+  --warning-soft: #fffbeb;
+  --warning-ink: #92400e;
+  --coral-soft: #fef2f2;
+  --coral-ink: #b91c1c;
+  --card-shadow:
+    0 3px 5px -2px color-mix(in srgb, var(--foreground) 18%, transparent),
+    0 12px 24px -10px color-mix(in srgb, var(--foreground) 30%, transparent);
+  --card-hover-shadow:
+    0 4px 7px -2px color-mix(in srgb, var(--foreground) 18%, transparent),
+    0 16px 28px -10px color-mix(in srgb, var(--foreground) 32%, transparent);
+  --panel-shadow:
+    0 2px 4px -2px color-mix(in srgb, var(--foreground) 16%, transparent),
+    0 7px 16px -7px color-mix(in srgb, var(--foreground) 24%, transparent);
+  --raised-shadow: 0 6px 18px
+    color-mix(in srgb, var(--foreground) 8%, transparent);
+  --action-shadow: none;
+  --overlay: color-mix(in srgb, var(--foreground) 40%, transparent);
+  --display-font: 'DreamOn Noto', 'Noto Sans KR', sans-serif;
+  --preview-radius-control: 8px;
+  --preview-radius-button: 8px;
+  --preview-radius-card: 12px;
+  --preview-radius-panel: 12px;
+  --preview-page-gutter: 20px;
+  --preview-section-gap: 20px;
+  --preview-card-padding: 20px;
+  --preview-title-size: 26px;
+}
+
+@container dreamon (max-width: 699px) {
+  .dreamon-preview {
+    --preview-page-gutter: 20px;
+    --preview-card-padding: 16px;
+    --preview-title-size: 26px;
+  }
+}

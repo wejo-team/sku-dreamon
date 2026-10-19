@@ -1,0 +1,2100 @@
+.dreamon-preview {
+  --school-unverified: #b42318;
+  --school-unverified-hover: #912018;
+  --school-verified: #1d4ed8;
+  --school-status-foreground: #ffffff;
+  --recruiting-background: #cce9d7;
+  --recruiting-foreground: #164c35;
+  --closed-background: #e4e4e7;
+  --closed-foreground: #52525b;
+  font-family: 'DreamOn Noto', 'Noto Sans KR', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  letter-spacing: -0.015em;
+  accent-color: var(--ring);
+  caret-color: var(--ring);
+  scrollbar-color: var(--input) var(--surface-sunken);
+}
+.dreamon-preview ::selection {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.dreamon-preview :focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.dreamon-preview .preview-main:focus {
+  outline: none;
+}
+.dreamon-preview [data-slot='button'] {
+  --tw-ring-offset-color: var(--background);
+}
+.dreamon-preview :is(h1, h2, h3) {
+  font-family: var(--display-font);
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+.dreamon-preview h1 {
+  font-size: var(--preview-title-size);
+  line-height: 1.2;
+}
+.dreamon-preview h2 {
+  font-size: 20px;
+  line-height: 1.35;
+}
+.dreamon-preview h3 {
+  font-size: 18px;
+  line-height: 1.4;
+}
+.dreamon-preview .preview-header {
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+.dreamon-preview .preview-header-inner,
+.dreamon-preview .preview-main {
+  max-width: 1280px;
+  padding-inline: var(--preview-page-gutter);
+}
+.dreamon-preview .preview-header-inner {
+  gap: 20px;
+  height: 88px;
+}
+.dreamon-preview .preview-brand {
+  min-height: 44px;
+  flex-shrink: 0;
+}
+.dreamon-preview .preview-wordmark {
+  display: block;
+  width: 140px;
+  height: auto;
+}
+.dreamon-preview .preview-auth-home {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.dreamon-preview .preview-brand-mark {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: transparent;
+}
+.dreamon-preview .preview-brand-mark img,
+.service-loading-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.dreamon-preview .preview-notification-trigger {
+  position: relative;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+.dreamon-preview .preview-notification-trigger svg {
+  width: 21px;
+  height: 21px;
+}
+.dreamon-preview .preview-notification-dot {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--background);
+  border-radius: 50%;
+  background: var(--primary);
+  box-sizing: content-box;
+}
+.dreamon-preview .preview-main {
+  min-height: calc(100dvh - 88px);
+  padding-top: 40px;
+  padding-bottom: 64px;
+}
+.dreamon-preview .preview-page-intro {
+  margin-bottom: 32px;
+}
+.dreamon-preview .preview-page-intro h1 {
+  font-size: var(--preview-title-size);
+}
+.dreamon-preview .preview-page-intro p {
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-desktop-nav {
+  gap: 8px;
+}
+.dreamon-preview .preview-desktop-nav a {
+  min-height: 56px;
+  padding: 12px 20px;
+  border-radius: var(--preview-radius-button);
+  color: var(--muted-foreground);
+  font-size: 16px;
+}
+.dreamon-preview .preview-desktop-nav a[aria-current],
+.dreamon-preview .preview-mobile-nav a[aria-current] {
+  background: var(--accent);
+  color: var(--primary);
+  font-weight: 600;
+}
+.dreamon-preview .preview-desktop-nav a:hover {
+  background: var(--card);
+}
+.dreamon-preview .preview-desktop-nav svg,
+.dreamon-preview .preview-mobile-nav svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 1.75px;
+}
+.dreamon-preview .preview-tabs {
+  width: min(100%, 480px);
+  gap: 2px;
+  padding: 3px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-sunken);
+  margin-bottom: 24px;
+}
+.dreamon-preview .preview-tabs a {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--preview-radius-button);
+  color: var(--muted-foreground);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.dreamon-preview .preview-tabs a[aria-current] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 600;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+.dreamon-preview .preview-search {
+  min-height: 46px;
+  border-color: var(--input);
+  border-radius: var(--preview-radius-button);
+  background: var(--surface-control);
+}
+.dreamon-preview .preview-search input {
+  height: 44px;
+  padding: 0;
+  box-shadow: none;
+  font-size: 16px;
+  color: var(--foreground);
+}
+.dreamon-preview .preview-search button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+.dreamon-preview .preview-search:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.dreamon-preview .preview-search svg {
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-filters {
+  color: var(--muted-foreground);
+  gap: 12px;
+  font-size: 16px;
+}
+.dreamon-preview .preview-compact-action {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: var(--preview-radius-button);
+  color: var(--accent-foreground);
+}
+.dreamon-preview .preview-compact-action svg {
+  width: 20px;
+  height: 20px;
+}
+.dreamon-preview .preview-ai-shortcut {
+  color: var(--ai-ink);
+  background: var(--ai-soft);
+  border-color: transparent;
+}
+.dreamon-preview .preview-explore .preview-search {
+  gap: 4px;
+  padding: 4px 4px 4px 12px;
+}
+.dreamon-preview .preview-explore .preview-search > svg {
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.dreamon-preview .preview-explore .preview-search input {
+  flex: 1;
+}
+.dreamon-preview .preview-explore .preview-search button {
+  margin-right: 0;
+}
+.dreamon-preview .preview-ai-shortcut svg {
+  color: inherit;
+}
+.dreamon-preview .preview-compact-action[data-variant='default'] {
+  color: var(--primary-foreground);
+}
+.dreamon-preview .preview-pagination-list {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dreamon-preview .preview-page-link {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+.dreamon-preview .preview-page-link[aria-current='page'] {
+  color: var(--primary-foreground);
+}
+.dreamon-preview .preview-pagination-summary {
+  margin: 8px 0 0;
+  color: var(--muted-foreground);
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dreamon-preview .preview-results-heading h2,
+.dreamon-preview .preview-contest-teams-title h2 {
+  scroll-margin-top: 88px;
+}
+.dreamon-preview .preview-contest-teams-section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 20px;
+}
+.dreamon-preview .preview-contest-teams-heading,
+.dreamon-preview .preview-contest-teams-title,
+.dreamon-preview .preview-contest-team-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dreamon-preview .preview-contest-teams-heading {
+  justify-content: space-between;
+  gap: 12px;
+}
+.dreamon-preview .preview-contest-teams-title {
+  min-width: 0;
+}
+.dreamon-preview .preview-contest-teams-title h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.5;
+}
+.dreamon-preview .preview-contest-team-actions {
+  flex-shrink: 0;
+}
+.dreamon-preview .preview-contest-team-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+.dreamon-preview .preview-team-card h3 {
+  overflow-wrap: anywhere;
+}
+.dreamon-preview .preview-team-card-roles > svg {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.dreamon-preview .preview-filter-trigger[data-active='true'] {
+  background: var(--accent);
+  border-color: var(--primary);
+}
+.dreamon-preview .preview-filter-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding-inline: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 11px;
+  font-weight: 600;
+}
+.dreamon-preview .preview-explore-filter-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.dreamon-preview .preview-explore-filter-body {
+  display: grid;
+  gap: 24px;
+}
+.dreamon-preview .preview-filters select,
+.dreamon-preview .preview-results-heading select {
+  min-height: 44px;
+  padding: 8px 36px 8px 12px;
+  border-color: var(--input);
+  border-radius: var(--preview-radius-control);
+  background: var(--surface-control);
+  color: var(--muted-foreground);
+  font-size: 16px;
+}
+.dreamon-preview .preview-inline-check {
+  min-height: 44px;
+  line-height: 1.5;
+  cursor: pointer;
+  font-size: 14px;
+}
+.dreamon-preview .preview-results-heading h2 {
+  font-size: 19px;
+}
+.dreamon-preview .preview-results-heading h2 span {
+  font-size: 16px;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-explore {
+  display: flex;
+  flex-direction: column;
+  gap: var(--preview-section-gap);
+}
+.dreamon-preview
+  .preview-explore
+  :is(
+    .preview-page-intro,
+    .preview-tabs,
+    .preview-filters,
+    .preview-results-heading
+  ) {
+  margin: 0;
+}
+.dreamon-preview .preview-explore .preview-page-intro h1 {
+  line-height: 1.375;
+}
+.dreamon-preview .preview-explore .preview-filters > .preview-filter-control {
+  flex: 1;
+  min-width: 0;
+  max-width: 180px;
+}
+.dreamon-preview .preview-explore .preview-filters select {
+  width: 100%;
+  padding-inline: 12px 36px;
+  color: var(--foreground);
+}
+.dreamon-preview .preview-explore .preview-results-heading h2 {
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: inherit;
+}
+.dreamon-preview .preview-explore .preview-results-heading {
+  gap: 8px;
+}
+.dreamon-preview .preview-result-count {
+  margin-left: auto;
+  font-size: 14px;
+  line-height: 24px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.dreamon-preview .preview-explore .preview-contest-card {
+  display: grid;
+  grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.dreamon-preview .preview-explore .preview-contest-card h3 {
+  margin: 0;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.dreamon-preview .preview-explore .preview-contest-card .preview-muted,
+.dreamon-preview .preview-explore .preview-card-facts,
+.dreamon-preview .preview-explore .preview-deadline {
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 400;
+}
+.dreamon-preview .preview-explore .preview-card-facts {
+  margin: 0;
+  gap: 8px;
+}
+.dreamon-preview .preview-contest-cover {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-contest-cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.dreamon-preview .preview-contest-cover .preview-deadline {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--foreground) 8%, transparent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+}
+.dreamon-preview .preview-contest-cover .preview-deadline--soon {
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+}
+.dreamon-preview .preview-contest-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px;
+}
+.dreamon-preview .preview-explore .preview-contest-copy .preview-muted {
+  font-size: 12px;
+  line-height: 18px;
+}
+.dreamon-preview .preview-contest-teams {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-end;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 8px;
+  color: var(--accent-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.dreamon-preview .preview-explore .preview-card-footer {
+  line-height: 24px;
+}
+.dreamon-preview .preview-explore-grid {
+  gap: 32px;
+}
+.dreamon-preview .preview-card {
+  --muted-foreground: var(--card-muted-foreground);
+  border: 1px solid transparent;
+  border-radius: var(--preview-radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--card-shadow);
+  padding: var(--preview-card-padding);
+}
+.dreamon-preview .preview-card:is(a) {
+  transition:
+    background-color 160ms ease-out,
+    box-shadow 160ms ease-out,
+    transform 160ms ease-out;
+}
+.dreamon-preview .preview-card:is(a):focus-visible {
+  background: var(--surface-card-hover);
+  border-color: var(--primary);
+}
+@media (hover: hover) and (pointer: fine) {
+  .dreamon-preview .preview-card:is(a):hover {
+    background: var(--surface-card-hover);
+    border-color: var(--primary);
+    box-shadow: var(--card-hover-shadow);
+    transform: translateY(-2px);
+  }
+}
+.dreamon-preview .preview-card:is(a):active {
+  background: var(--surface-card-pressed);
+  border-color: var(--primary);
+  box-shadow: var(--panel-shadow);
+  transform: translateY(1px);
+}
+.dreamon-preview .preview-card h3 {
+  color: var(--foreground);
+  font-size: 18px;
+  max-width: none;
+}
+.dreamon-preview .preview-card .preview-muted,
+.dreamon-preview .preview-card-description {
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-card-facts {
+  margin: 8px 0;
+  gap: 12px;
+  font-size: 16px;
+}
+.dreamon-preview .preview-card-footer {
+  color: var(--accent-foreground);
+  border-top-color: var(--border);
+  font-size: 14px;
+}
+.dreamon-preview .preview-deadline {
+  font-size: 16px;
+}
+.dreamon-preview .preview-deadline--soon {
+  color: var(--warning-ink);
+}
+.dreamon-preview .preview-badge {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  border-radius: 6px;
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.dreamon-preview .preview-badge--lime {
+  background: var(--leaf-soft);
+  color: var(--leaf-ink);
+}
+.dreamon-preview .preview-badge--warm {
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+}
+.dreamon-preview .preview-badge--dark {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.dreamon-preview .preview-badge--recruiting {
+  background: var(--recruiting-background);
+  color: var(--recruiting-foreground);
+}
+.dreamon-preview .preview-badge--closed {
+  background: var(--closed-background);
+  color: var(--closed-foreground);
+}
+.dreamon-preview .preview-avatar {
+  width: 56px;
+  height: 56px;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  font-size: 18px;
+  overflow: hidden;
+}
+.dreamon-preview .preview-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dreamon-preview .preview-avatar--large {
+  width: 80px;
+  height: 80px;
+  font-size: 24px;
+}
+.dreamon-preview .preview-person-card {
+  gap: 16px;
+}
+.dreamon-preview .preview-person-card h3 {
+  font-size: 18px;
+}
+.dreamon-preview .preview-panel,
+.dreamon-preview .preview-empty {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--preview-radius-panel);
+  box-shadow: none;
+}
+.dreamon-preview .preview-panel {
+  padding: var(--preview-card-padding);
+  box-shadow: var(--panel-shadow);
+}
+.dreamon-preview .preview-panel:not(.preview-form) {
+  --muted-foreground: var(--card-muted-foreground);
+  background: var(--surface-card);
+  border-color: transparent;
+}
+.dreamon-preview .preview-panel.preview-form {
+  box-shadow: none;
+}
+.dreamon-preview .preview-panel p {
+  line-height: 1.6;
+}
+.dreamon-preview .preview-panel summary {
+  min-height: 56px;
+}
+.dreamon-preview .preview-empty {
+  gap: 20px;
+}
+.dreamon-preview .preview-muted,
+.dreamon-preview .preview-card-facts dt,
+.dreamon-preview .preview-detail-facts dt,
+.dreamon-preview .preview-empty p,
+.dreamon-preview .preview-empty > svg {
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-detail-facts > div {
+  border-top-color: var(--border);
+}
+.dreamon-preview .preview-button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: var(--preview-radius-button);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 500;
+  box-shadow: var(--action-shadow);
+  transition:
+    background-color 160ms ease-out,
+    border-color 160ms ease-out;
+}
+.dreamon-preview .preview-button:hover {
+  background: var(--primary-hover);
+  color: var(--primary-foreground);
+  box-shadow: var(--action-shadow);
+}
+.dreamon-preview .preview-button:active {
+  background: var(--primary-hover);
+}
+.dreamon-preview .preview-button[data-variant='outline'] {
+  min-height: 44px;
+  padding: 10px 14px;
+  background: var(--surface-control);
+  color: var(--accent-foreground);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  font-size: 14px;
+}
+.dreamon-preview .preview-button[data-variant='outline']:hover {
+  background: var(--accent);
+  border-color: var(--input);
+}
+.dreamon-preview .preview-button:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+  transform: none;
+}
+.dreamon-preview .preview-text-link,
+.dreamon-preview .preview-text-button,
+.dreamon-preview .preview-back {
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--accent-foreground) !important;
+}
+.dreamon-preview .preview-icon-button {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--preview-radius-button);
+}
+.dreamon-preview .preview-icon-button:hover {
+  background: var(--accent);
+}
+.dreamon-preview .preview-notice {
+  color: var(--muted-foreground);
+  background: var(--surface-sunken);
+  border: 0;
+  border-radius: var(--preview-radius-card);
+  font-size: 14px;
+}
+.dreamon-preview .preview-panel > svg.lucide-circle-check-big {
+  color: var(--leaf-ink);
+  width: 48px;
+  height: 48px;
+}
+.dreamon-preview
+  .preview-field
+  :is(input:not([type='checkbox']):not([type='radio']), textarea, select),
+.dreamon-preview .dreamon-login-field input {
+  padding: 10px 12px;
+  border: 1px solid var(--input);
+  border-radius: var(--preview-radius-control);
+  background: var(--surface-control);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--foreground);
+}
+.dreamon-preview
+  .preview-field
+  input:not([type='checkbox']):not([type='radio']),
+.dreamon-preview .preview-field select,
+.dreamon-preview .dreamon-login-field input {
+  min-height: 48px;
+}
+.dreamon-preview .preview-field textarea {
+  min-height: 112px;
+}
+.dreamon-preview .preview-field :is(input, textarea)::placeholder,
+.dreamon-preview .dreamon-login-field input::placeholder,
+.dreamon-preview .preview-search input::placeholder {
+  color: var(--muted-foreground);
+  opacity: 1;
+}
+.dreamon-preview
+  .preview-field
+  :is(input:not([type='checkbox']):not([type='radio']), textarea, select):focus,
+.dreamon-preview .dreamon-login-field input:focus {
+  outline: none;
+  border-color: var(--ring);
+  outline: 2px solid var(--ring);
+  outline-offset: 0;
+  box-shadow: none;
+}
+.dreamon-preview .preview-field > :is(p, small),
+.dreamon-preview .preview-field > label,
+.dreamon-preview .preview-form legend,
+.dreamon-preview .dreamon-login-field > label {
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-field > label,
+.dreamon-preview .preview-form legend,
+.dreamon-preview .dreamon-login-field > label {
+  color: var(--foreground);
+}
+.dreamon-preview .preview-choice {
+  min-height: 44px;
+  padding: 10px 12px;
+  border-color: var(--border);
+  border-radius: var(--preview-radius-control);
+  background: var(--surface-control);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.dreamon-preview .preview-choice:has([data-state='checked']) {
+  background: var(--accent);
+  border-color: var(--ring);
+  color: var(--accent-foreground);
+}
+.dreamon-preview .preview-choice input,
+.dreamon-preview .preview-inline-check input {
+  width: 20px;
+  height: 20px;
+}
+.dreamon-preview .preview-field :is(input, textarea)[aria-invalid='true'],
+.dreamon-preview .dreamon-login-field input[aria-invalid='true'] {
+  border-color: var(--coral-ink);
+  background: var(--coral-soft);
+}
+.dreamon-preview .preview-error {
+  color: var(--coral-ink) !important;
+  font-size: 16px;
+}
+.dreamon-preview [data-slot='native-select-wrapper'] {
+  width: 100%;
+  min-width: 0;
+}
+.dreamon-preview [data-slot='native-select-icon'] {
+  opacity: 1;
+}
+.dreamon-preview [data-slot='label'] {
+  line-height: 1.5;
+}
+.dreamon-preview :is([data-slot='checkbox'], [data-slot='radio-group-item']) {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--input);
+  background: var(--background);
+}
+.dreamon-preview [data-slot='checkbox'][data-state='checked'] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.dreamon-preview [data-slot='radio-group-item'][data-state='checked'] {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.dreamon-preview .preview-control-switch {
+  width: 44px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid transparent;
+  background: var(--input);
+}
+.dreamon-preview .preview-control-switch[data-state='checked'] {
+  background: var(--primary);
+}
+.dreamon-preview .preview-control-switch [data-slot='switch-thumb'] {
+  width: 20px;
+  height: 20px;
+  background: var(--surface-control);
+  transition: translate 140ms ease-out;
+}
+.dreamon-preview .preview-control-switch [data-state='checked'] {
+  translate: 18px 0;
+}
+.dreamon-preview .preview-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.dreamon-preview .preview-form-section > .preview-section-title {
+  margin: 0;
+  font-size: 18px;
+}
+.dreamon-preview .preview-form-separator {
+  background: var(--border);
+  margin: 4px 0;
+}
+.dreamon-preview .preview-portfolio-visibility {
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--preview-radius-control);
+  background: var(--surface-sunken);
+}
+.dreamon-preview .preview-field > :is(p, small),
+.dreamon-preview .preview-form > .preview-muted,
+.dreamon-preview .dreamon-privacy-settings > p {
+  font-size: 14px;
+}
+.dreamon-preview .preview-notice [data-slot='alert-description'] {
+  font-size: 14px;
+  color: inherit;
+  line-height: 1.65;
+}
+.dreamon-preview [data-slot='alert'].preview-error {
+  background: var(--coral-soft);
+  border-color: var(--coral-ink);
+}
+.dreamon-preview .preview-action-panel {
+  border-radius: var(--preview-radius-panel);
+  background: var(--accent);
+  color: var(--foreground);
+}
+.dreamon-preview .preview-action-panel :is(p, .preview-muted) {
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-action-panel .preview-list a:hover {
+  color: var(--accent-foreground);
+}
+.dreamon-preview .preview-dialog {
+  border-color: var(--border);
+  border-radius: var(--preview-radius-panel);
+  box-shadow: var(--raised-shadow);
+  background: var(--surface-control);
+  color: var(--foreground);
+}
+.dreamon-preview .preview-dialog::backdrop {
+  background: var(--overlay);
+  backdrop-filter: blur(3px);
+}
+.dreamon-preview .preview-dialog > p {
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-sticky-action {
+  border-radius: var(--preview-radius-card);
+}
+.dreamon-preview .workspace-action {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: var(--preview-radius-button);
+  font-size: 14px;
+  color: var(--accent-foreground);
+  background: var(--surface-control);
+}
+.dreamon-preview .workspace-action svg {
+  width: 20px;
+  height: 20px;
+}
+.dreamon-preview .workspace-action.workspace-create-action,
+.dreamon-preview .workspace-action[aria-current='page'] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.dreamon-preview .workspace-action.workspace-create-action:hover,
+.dreamon-preview .workspace-action[aria-current='page']:hover {
+  background: var(--primary-hover);
+}
+.dreamon-preview .workspace-team-card {
+  padding: var(--preview-card-padding);
+  gap: 16px;
+}
+.dreamon-preview .workspace-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.dreamon-preview .workspace-section-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.dreamon-preview .workspace-section-summary h2 {
+  font-size: 20px;
+  line-height: 1.4;
+}
+.dreamon-preview .workspace-section-summary > span {
+  font-size: 14px;
+}
+.dreamon-preview .workspace-pending {
+  color: var(--accent-foreground);
+  font-weight: 400;
+}
+.dreamon-preview .workspace-team-facts dd {
+  font-size: 16px;
+  font-weight: 400;
+}
+.dreamon-preview .workspace-team-card h3 {
+  font-size: 18px;
+}
+.dreamon-preview .workspace-pending,
+.dreamon-preview .workspace-team-facts dt {
+  font-size: 14px;
+}
+.dreamon-preview .workspace-team-enter {
+  color: var(--accent-foreground);
+  margin: 0;
+  flex-shrink: 0;
+}
+.dreamon-preview .workspace-team-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.dreamon-preview .workspace-team-tabs {
+  gap: 24px;
+}
+.dreamon-preview .workspace-team-tabs a {
+  min-height: 56px;
+  min-width: 56px;
+  font-size: 16px;
+}
+.dreamon-preview .workspace-team-tabs a[aria-current='page'] {
+  color: var(--accent-foreground);
+  border-bottom-color: var(--primary);
+}
+.dreamon-preview .workspace-applicant-row {
+  --muted-foreground: var(--card-muted-foreground);
+  border: 1px solid transparent;
+  border-radius: var(--preview-radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--panel-shadow);
+  transition: background-color 160ms ease-out;
+}
+.dreamon-preview .workspace-applicant-row:focus-visible {
+  background: var(--surface-card-hover);
+  border-color: var(--primary);
+}
+@media (hover: hover) and (pointer: fine) {
+  .dreamon-preview .workspace-applicant-row:hover {
+    background: var(--surface-card-hover);
+    border-color: var(--primary);
+  }
+}
+.dreamon-preview .workspace-applicant-row:active {
+  background: var(--surface-card-pressed);
+  border-color: var(--primary);
+}
+.dreamon-preview .workspace-team-enter,
+.dreamon-preview .preview-action-panel .preview-list a:hover {
+  color: var(--accent-foreground);
+}
+.dreamon-preview .workspace-applicant-name p {
+  font-size: 16px;
+}
+.dreamon-preview .dreamon-privacy-settings legend {
+  font-family: var(--display-font);
+  font-size: 18px;
+}
+.dreamon-preview .preview-own-profile:not(.preview-account-page) {
+  gap: var(--preview-section-gap);
+}
+.dreamon-preview .preview-own-profile > .preview-page-intro {
+  margin: 0;
+}
+.dreamon-preview .preview-profile-summary {
+  gap: 20px;
+  border: 0;
+}
+.dreamon-preview .preview-profile-summary > .preview-row {
+  gap: 12px;
+}
+.dreamon-preview .preview-profile-heading,
+.dreamon-preview .preview-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.dreamon-preview .preview-profile-heading {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.dreamon-preview .preview-profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.dreamon-preview .preview-profile-visibility {
+  min-height: 44px;
+  padding-inline: 8px;
+  gap: 8px;
+  color: var(--accent-foreground);
+  cursor: pointer;
+}
+.dreamon-preview .preview-profile-visibility > span {
+  min-width: 36px;
+  font-size: 12px;
+}
+.dreamon-preview .preview-school-badge {
+  gap: 4px;
+  border: 0;
+  background: var(--school-unverified);
+  color: var(--school-status-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.dreamon-preview .preview-school-badge[data-verified='true'] {
+  background: var(--school-verified);
+}
+.dreamon-preview .preview-school-trigger {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.dreamon-preview
+  .preview-school-trigger:is(:hover, :active)
+  .preview-school-badge {
+  background: var(--school-unverified-hover);
+}
+.dreamon-preview .preview-profile-identity > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dreamon-preview .preview-profile-edit {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0;
+  color: var(--accent-foreground);
+}
+.dreamon-preview .preview-profile-edit svg {
+  width: 20px;
+  height: 20px;
+}
+.dreamon-preview .preview-profile-summary .preview-avatar {
+  border: 0;
+  box-shadow: none;
+  font-size: 20px;
+  font-weight: 400;
+}
+.dreamon-preview .preview-profile-summary h3 {
+  margin: 0;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: inherit;
+}
+.dreamon-preview .preview-profile-summary > div:not(:first-child) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dreamon-preview .preview-profile-summary > div > .preview-row {
+  justify-content: space-between;
+}
+.dreamon-preview .preview-profile-summary .preview-badge {
+  font-weight: 400;
+}
+.dreamon-preview .dreamon-privacy-settings > p {
+  font-size: 16px;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .dreamon-privacy-switch {
+  min-height: 52px;
+  gap: 8px;
+  font-size: 14px;
+}
+.dreamon-preview .dreamon-privacy-switch > span:first-child {
+  min-width: 0;
+}
+.dreamon-preview .dreamon-privacy-state {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.dreamon-preview .preview-mobile-nav {
+  width: min(100%, 480px);
+  margin-inline: auto;
+  background: var(--surface-chrome);
+  padding-inline: 8px;
+  gap: 4px;
+  box-shadow: none;
+  border-top: 1px solid var(--border);
+}
+.dreamon-preview .preview-mobile-nav svg {
+  width: 21px;
+  height: 21px;
+}
+.dreamon-preview .preview-mobile-nav a {
+  min-height: 56px;
+  border-radius: var(--preview-radius-button);
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.dreamon-preview .preview-auth-home {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+.dreamon-preview .preview-main-auth {
+  max-width: 1280px;
+}
+.dreamon-preview .dreamon-login-story {
+  border-radius: var(--preview-radius-panel);
+  background: var(--accent);
+  color: var(--foreground);
+}
+.dreamon-preview .dreamon-login-story h2 {
+  font-size: 40px;
+  line-height: 1.25;
+  color: var(--accent-foreground);
+}
+.dreamon-preview .dreamon-login-story-summary,
+.dreamon-preview .dreamon-login-story-signature {
+  font-size: 18px;
+  color: var(--accent-foreground);
+}
+.dreamon-preview .dreamon-login-heading h1 {
+  font-size: 40px;
+}
+.dreamon-preview .dreamon-login-heading p {
+  font-size: 18px;
+  line-height: 1.6;
+}
+.dreamon-preview .dreamon-login-field input {
+  height: 48px;
+}
+.dreamon-preview .dreamon-login-password input {
+  padding-right: 56px;
+}
+.dreamon-preview .dreamon-login-reveal {
+  width: 44px;
+  height: 44px;
+  inset: 2px 2px auto auto;
+  border-radius: var(--preview-radius-control);
+}
+.dreamon-preview .dreamon-login .dreamon-login-submit {
+  height: 48px;
+}
+.dreamon-preview .dreamon-login-signup {
+  font-size: 14px;
+}
+.dreamon-preview .dreamon-login-signup a {
+  min-height: 44px;
+  color: var(--accent-foreground);
+}
+.service-loading {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 56px;
+}
+.service-loading-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+.service-loading-mark {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  background: transparent;
+}
+.dreamon-preview.service-loading h1 {
+  margin: 0;
+}
+.service-loading-wordmark {
+  display: block;
+  width: 240px;
+  max-width: calc(100vw - 40px);
+  height: auto;
+}
+.dreamon-preview .dreamon-login-story-signature img {
+  display: block;
+  width: 180px;
+  height: auto;
+}
+.service-loading-status {
+  display: flex;
+  gap: 8px;
+  height: 16px;
+  align-items: center;
+}
+.service-loading-status span {
+  width: 8px;
+  height: 8px;
+  background: var(--primary);
+  border-radius: 50%;
+  animation: service-loading-pulse 900ms ease-in-out infinite alternate;
+}
+.service-loading-status span:nth-child(2) {
+  animation-delay: 120ms;
+}
+.service-loading-status span:nth-child(3) {
+  animation-delay: 240ms;
+}
+@keyframes service-loading-pulse {
+  from {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+@container dreamon (max-width: 1050px) {
+  .dreamon-preview .preview-desktop-nav {
+    gap: 4px;
+  }
+  .dreamon-preview .preview-desktop-nav a {
+    padding: 12px;
+  }
+  .dreamon-preview .dreamon-login-story h2 {
+    font-size: 32px;
+  }
+  .dreamon-preview .preview-explore-grid {
+    gap: 20px;
+  }
+}
+@container dreamon (max-width: 699px) {
+  .dreamon-preview
+    .preview-own-profile:not(.preview-account-page)
+    > .preview-page-intro {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  .dreamon-preview .preview-own-profile .preview-page-intro h1 {
+    font-size: var(--preview-title-size);
+    line-height: 33px;
+  }
+  .dreamon-preview {
+    font-size: 15px;
+  }
+  .dreamon-preview .preview-header-inner,
+  .dreamon-preview .preview-main {
+    padding-inline: var(--preview-page-gutter);
+  }
+  .dreamon-preview .preview-header-inner {
+    height: 64px;
+    gap: 12px;
+  }
+  .dreamon-preview .preview-main {
+    min-height: calc(100dvh - 64px);
+    padding-top: 24px;
+    padding-bottom: 112px;
+  }
+  .dreamon-preview .preview-page-intro h1,
+  .dreamon-preview .dreamon-login-heading h1 {
+    font-size: var(--preview-title-size);
+    line-height: 1.25;
+  }
+  .dreamon-preview .preview-page-intro {
+    margin-bottom: 24px;
+  }
+  .dreamon-preview .preview-page-intro p {
+    font-size: 14px;
+  }
+  .dreamon-preview .preview-main-auth {
+    padding-bottom: 40px;
+  }
+  .dreamon-preview .preview-tabs {
+    margin-bottom: 20px;
+  }
+  .dreamon-preview .preview-tabs a {
+    font-size: 14px;
+  }
+  .dreamon-preview .preview-explore-grid {
+    gap: 20px;
+  }
+  .dreamon-preview .preview-card,
+  .dreamon-preview .preview-panel,
+  .dreamon-preview .workspace-team-card {
+    padding: var(--preview-card-padding);
+  }
+  .dreamon-preview .preview-card h3 {
+    font-size: 18px;
+  }
+  .dreamon-preview .preview-card-facts {
+    font-size: 14px;
+  }
+  .dreamon-preview .preview-results-heading h2 {
+    font-size: 18px;
+  }
+  .dreamon-preview .preview-results-heading {
+    flex-wrap: wrap;
+  }
+  .dreamon-preview .workspace-applicant-row {
+    gap: 8px;
+    padding: 16px 12px;
+  }
+  .dreamon-preview .workspace-applicant-row > .preview-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+  .dreamon-preview .workspace-applicant-row > .preview-badge {
+    padding: 4px 8px;
+    font-size: 13px;
+  }
+  .dreamon-preview .preview-panel h2 {
+    font-size: 20px;
+  }
+  .dreamon-preview .dreamon-privacy-settings legend {
+    font-size: 18px;
+  }
+}
+.dreamon-preview.preview-drawer {
+  min-height: 0;
+  width: min(100%, 480px);
+  max-height: 90dvh;
+  margin-inline: auto;
+  border-color: var(--border);
+  border-radius: 16px 16px 0 0;
+  background: var(--background);
+  overflow: hidden;
+}
+.dreamon-preview.preview-drawer [data-slot='drawer-handle'] {
+  width: 40px;
+  height: 4px;
+  margin-top: 12px;
+  background: var(--border);
+}
+.dreamon-preview.preview-drawer [data-slot='drawer-header'] {
+  flex-shrink: 0;
+  gap: 8px;
+  padding: 20px;
+  text-align: left;
+}
+.dreamon-preview.preview-drawer [data-slot='drawer-title'] {
+  font-size: 20px;
+  line-height: 1.4;
+}
+.dreamon-preview.preview-drawer [data-slot='drawer-description'] {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.dreamon-preview .preview-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+  padding: 0 20px 24px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+.dreamon-preview.preview-drawer fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.dreamon-preview.preview-drawer legend {
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.dreamon-preview .preview-drawer-body .preview-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.dreamon-preview .preview-drawer-body > .preview-button {
+  align-self: flex-start;
+}
+.dreamon-preview.preview-drawer [data-slot='drawer-footer'] {
+  flex-shrink: 0;
+  padding: 16px 20px max(20px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--background);
+}
+.dreamon-preview .preview-availability-summary > .preview-button {
+  align-self: flex-start;
+}
+.dreamon-preview.preview-notifications [data-slot='drawer-header'] {
+  padding: 10px 20px 8px;
+  gap: 0;
+}
+.dreamon-preview .preview-notifications-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.dreamon-preview .preview-notifications-close {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  margin-right: -10px;
+}
+.dreamon-preview .preview-notifications-close svg {
+  width: 20px;
+  height: 20px;
+}
+.dreamon-preview .preview-notifications-tools {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 20px 16px;
+}
+.dreamon-preview .preview-notifications-filters {
+  display: flex;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--muted);
+}
+.dreamon-preview .preview-notifications-filters button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 10px;
+  gap: 5px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-notifications-filters button[aria-pressed='true'] {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+.dreamon-preview .preview-notifications-filters button span {
+  font-variant-numeric: tabular-nums;
+}
+.dreamon-preview .preview-notifications-read-all {
+  min-height: 44px;
+  padding: 8px 0;
+  gap: 4px;
+  font-size: 12px;
+}
+.dreamon-preview .preview-notifications-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 4px 12px max(24px, env(safe-area-inset-bottom));
+}
+.dreamon-preview .preview-notifications-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dreamon-preview .preview-notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 12px;
+  border-radius: 12px;
+  transition: background-color 160ms ease;
+}
+.dreamon-preview .preview-notification-item[data-unread] {
+  background: var(--muted);
+}
+.dreamon-preview .preview-notification-item:hover {
+  background: var(--surface-sunken);
+}
+.dreamon-preview .preview-notification-item:focus-visible {
+  outline-offset: 0;
+}
+.dreamon-preview .preview-notification-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  background: var(--card);
+  border-radius: 50%;
+}
+.dreamon-preview .preview-notification-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 6px;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.dreamon-preview .preview-notification-copy strong {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+.dreamon-preview .preview-notification-item[data-unread] strong {
+  font-weight: 600;
+}
+.dreamon-preview .preview-notification-copy > span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.dreamon-preview .preview-notification-trailing {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  gap: 10px;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-notification-unread {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.dreamon-preview .preview-notifications-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 20px max(48px, env(safe-area-inset-bottom));
+  text-align: center;
+}
+.dreamon-preview .preview-notifications-empty > svg {
+  color: var(--muted-foreground);
+  margin-bottom: 20px;
+}
+.dreamon-preview .preview-notifications-empty h3 {
+  font-size: 17px;
+}
+.dreamon-preview .preview-notifications-empty p {
+  max-width: 260px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-notifications-empty [data-slot='button'] {
+  min-width: 160px;
+  margin-top: 24px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dreamon-preview .preview-notification-item {
+    transition: none;
+  }
+}
+.dreamon-preview .preview-contest-picker-trigger {
+  width: 100%;
+  min-height: 52px;
+  height: auto;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  white-space: normal;
+  border-color: var(--input);
+}
+.dreamon-preview .preview-contest-picker-trigger[aria-invalid='true'] {
+  border-color: var(--destructive);
+  background: var(--coral-soft);
+}
+.dreamon-preview .preview-contest-picker-value {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.dreamon-preview .preview-contest-picker-value strong {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.dreamon-preview .preview-contest-picker-value > span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.dreamon-preview.preview-contest-picker {
+  height: min(90dvh, 760px);
+}
+.dreamon-preview .preview-contest-command {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  border-radius: 0;
+  overflow: hidden;
+}
+.dreamon-preview .preview-contest-command [data-slot='command-input-wrapper'] {
+  flex-shrink: 0;
+  height: 48px;
+  margin-inline: 20px;
+  border: 1px solid var(--input);
+  border-radius: var(--preview-radius-control);
+  padding: 0 12px;
+}
+.dreamon-preview
+  .preview-contest-command
+  [data-slot='command-input-wrapper']:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 0;
+}
+.dreamon-preview .preview-contest-command [data-slot='command-input'] {
+  height: 46px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-size: 16px;
+  line-height: 1.5;
+  outline: none;
+  box-shadow: none;
+}
+.dreamon-preview
+  .preview-contest-command
+  [data-slot='command-input-wrapper']
+  svg {
+  opacity: 1;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-contest-picker-count {
+  flex-shrink: 0;
+  padding: 14px 20px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.dreamon-preview .preview-contest-picker-list {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding: 0 12px 12px;
+  overscroll-behavior-y: contain;
+}
+.dreamon-preview .preview-contest-picker-list [data-slot='command-group'] {
+  padding: 0;
+}
+.dreamon-preview .preview-contest-option {
+  min-height: 88px;
+  gap: 12px;
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--preview-radius-control);
+  cursor: pointer;
+}
+.dreamon-preview .preview-contest-option[data-selected='true'] {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.dreamon-preview .preview-contest-option-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.dreamon-preview .preview-contest-option-copy strong {
+  font-size: 15px;
+  line-height: 1.6;
+  font-weight: 500;
+}
+.dreamon-preview .preview-contest-option-cover {
+  width: 48px;
+  height: 56px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.dreamon-preview .preview-contest-option-organizer,
+.dreamon-preview .preview-contest-option-meta {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-contest-option[data-current='true'] svg {
+  color: var(--foreground);
+}
+.dreamon-preview .preview-contest-picker-empty {
+  padding: 36px 12px;
+}
+.dreamon-preview .preview-contest-picker-empty p:first-child {
+  font-size: 16px;
+  font-weight: 500;
+}
+.dreamon-preview .preview-contest-picker-empty p + p {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.dreamon-preview.preview-ai-shell {
+  height: var(--preview-ai-viewport-height, 100dvh);
+  container: ai-chat-shell / size;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dreamon-preview.preview-ai-shell .preview-header {
+  flex-shrink: 0;
+}
+.dreamon-preview.preview-ai-shell .preview-main {
+  flex: 1;
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+}
+.dreamon-preview.preview-ai-shell .preview-mobile-nav {
+  position: static;
+  flex-shrink: 0;
+}
+.dreamon-preview .preview-ai {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+}
+.dreamon-preview .preview-ai-conversation {
+  flex: 1;
+  min-height: 0;
+  container: ai-conversation / size;
+}
+.dreamon-preview .preview-ai-scroll {
+  min-height: 0;
+  padding: 24px 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.dreamon-preview .preview-ai-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding-block: 24px;
+  text-align: center;
+}
+.dreamon-preview .preview-ai-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 20px;
+  border-radius: 14px;
+  background: var(--ai-soft);
+  color: var(--ai-ink);
+}
+.dreamon-preview .preview-ai-welcome h2 {
+  font-size: 24px;
+  line-height: 1.4;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.dreamon-preview .preview-ai-welcome > p {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-ai-starters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 28px;
+}
+.dreamon-preview .preview-ai-starters button {
+  min-height: 44px;
+  height: auto;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 500;
+}
+.dreamon-preview .preview-ai-starters button > svg {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-ai-messages {
+  gap: 28px;
+}
+.dreamon-preview .preview-ai-user-message {
+  max-width: 88%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dreamon-preview .preview-ai-user-message [data-slot='bubble-content'] {
+  background: var(--surface-sunken);
+  border-radius: 16px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.dreamon-preview .preview-ai-assistant-message {
+  font-size: 14px;
+  line-height: 1.75;
+}
+.dreamon-preview .preview-ai-assistant-message [data-slot='message-content'] {
+  gap: 12px;
+}
+.dreamon-preview .preview-ai-response {
+  white-space: pre-wrap;
+}
+.dreamon-preview .preview-ai-speaker {
+  gap: 8px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.dreamon-preview .preview-ai-results {
+  display: grid;
+  gap: 10px;
+  padding-block: 2px 0;
+}
+.dreamon-preview .preview-ai-result {
+  gap: 10px;
+  padding: 12px;
+  box-shadow: var(--panel-shadow);
+}
+.dreamon-preview .preview-ai-result-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dreamon-preview .preview-ai-result-heading > div {
+  min-width: 0;
+  flex: 1;
+}
+.dreamon-preview .preview-ai-result-heading > svg {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-ai-result h3 {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.dreamon-preview .preview-ai-result-heading p {
+  margin-top: 3px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.dreamon-preview .preview-ai-result-cover,
+.dreamon-preview .preview-ai-result-icon,
+.dreamon-preview .preview-ai-result .preview-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+.dreamon-preview .preview-ai-result-cover {
+  object-fit: cover;
+  border-radius: 6px;
+}
+.dreamon-preview .preview-ai-result-icon {
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-ai-result-reason {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.dreamon-preview .preview-ai-actions {
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0;
+}
+.dreamon-preview .preview-ai-actions button {
+  min-height: 44px;
+  gap: 6px;
+  padding: 8px;
+  margin-left: -8px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.dreamon-preview .preview-ai-copy-error {
+  font-size: 12px;
+}
+.dreamon-preview .preview-ai-pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.dreamon-preview .preview-ai-pending-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.dreamon-preview .preview-ai-followups {
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 4px 4px 8px;
+  margin-inline: -4px;
+  scrollbar-width: thin;
+}
+.dreamon-preview .preview-ai-followups button {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.dreamon-preview .preview-ai-error button {
+  min-height: 44px;
+  margin-top: 12px;
+}
+.dreamon-preview .preview-ai-scroll-button {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 999px;
+  box-shadow: var(--raised-shadow);
+  z-index: 1;
+}
+.dreamon-preview .preview-ai-composer {
+  flex-shrink: 0;
+  padding: 8px 16px 10px;
+  background: var(--card);
+}
+.dreamon-preview .preview-ai-prompt {
+  border-radius: 16px;
+  background: var(--muted);
+  border-color: var(--border);
+  box-shadow: none;
+}
+.dreamon-preview .preview-ai-prompt:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.dreamon-preview .preview-ai-prompt textarea {
+  min-height: 56px;
+  max-height: 120px;
+  padding: 14px 16px 8px;
+  resize: none;
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  font-size: 16px;
+  line-height: 24px;
+  background: transparent;
+  box-shadow: none;
+}
+.dreamon-preview .preview-ai-prompt textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.dreamon-preview .preview-ai-prompt-toolbar {
+  justify-content: space-between;
+  padding: 0 8px 8px 16px;
+  gap: 8px;
+}
+.dreamon-preview .preview-ai-prompt-toolbar button {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 999px;
+}
+@container ai-chat-shell (max-height: 600px) {
+  .dreamon-preview .preview-header {
+    display: none;
+  }
+  .dreamon-preview .preview-ai-prompt textarea {
+    min-height: 48px;
+    max-height: 80px;
+  }
+}
+@container ai-conversation (max-height: 300px) {
+  .dreamon-preview .preview-ai-scroll {
+    padding-block: 12px;
+  }
+  .dreamon-preview .preview-ai-welcome {
+    min-height: 0;
+    padding-block: 0;
+    justify-content: flex-start;
+  }
+  .dreamon-preview .preview-ai-mark {
+    display: none;
+  }
+  .dreamon-preview .preview-ai-welcome h2 {
+    font-size: 20px;
+  }
+  .dreamon-preview .preview-ai-welcome > p {
+    margin-top: 8px;
+    font-size: 12px;
+  }
+  .dreamon-preview .preview-ai-starters {
+    margin-top: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dreamon-preview .preview-ai-scroll-button {
+    transition: none;
+  }
+  .dreamon-preview.service-loading * {
+    animation: none;
+  }
+  .dreamon-preview .preview-card:is(a):hover,
+  .dreamon-preview .preview-card:is(a):active,
+  .dreamon-preview .preview-button:active {
+    transform: none;
+  }
+  .dreamon-preview .preview-card:is(a) {
+    transition: none;
+  }
+}

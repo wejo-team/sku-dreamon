@@ -1,6 +1,6 @@
 # 테스트·CI 기준
 
-문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `main`에 병합된 뒤에는 전체를 검사합니다. 현재 실행 기반에 대한 검사가 있으며 도메인 기능과 E2E 검사는 기능이 생길 때 추가합니다. 앱 실행 명령은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다.
+문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `main`에 병합된 뒤에는 전체를 검사합니다. 현재 실행 기반에 대한 검사가 있으며 도메인 기능과 E2E 검사는 기능이 생길 때 추가합니다. 앱 실행 명령은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 공식 디자인 앱은 필요할 때 아래 [수동 확인](#design-reference)을 수행합니다.
 
 ## 의미 있는 테스트
 
@@ -45,6 +45,7 @@
 | --- | --- |
 | `frontend/` 내부 코드·설정·의존성 | 프론트 |
 | `backend/` 내부 코드·설정·의존성 | 백엔드 |
+| `design-reference/` 내부 화면·설정·자산 | 문서 검사만 실행; 디자인 앱 검사는 필요할 때 로컬에서 수행 |
 | `docs/`, 루트 `README.md`·`AGENTS.md`, 문서 검사 스크립트와 해당 테스트 | 문서 전체 검사 |
 | 루트 `package.json`·`package-lock.json`·`.nvmrc` | 문서 전체 검사; 현재 이 파일들은 문서 도구 전용 |
 | CI workflow·분류기·공통 설정 등 위 규칙에 없는 경로 | 전체 검사 |
@@ -62,6 +63,28 @@
 - `main`의 push는 변경 경로와 관계없이 프론트·백엔드·문서 전체 검사를 실행합니다. 수동 문서 workflow도 전체 문서 검사를 실행합니다.
 - PR의 새 실행은 오래된 실행을 취소합니다. `main` 검사는 커밋별 concurrency 그룹을 사용해 다른 병합의 검사와 취소·대기 슬롯을 공유하지 않습니다. PR의 대상 브랜치 변경도 다시 판별하도록 `edited` 이벤트를 처리하므로 제목·본문 수정 시에도 재검사합니다.
 - `main` 검사는 병합 **후** 검증입니다. 최신 기본 브랜치 반영과 PR 필수 검사 조건은 유지하며, 병합 직전 전체 조합 검증을 보장하는 Merge Queue는 이번 범위에 포함하지 않습니다.
+
+<a id="design-reference"></a>
+
+## 공식 디자인 앱의 수동 확인
+
+`design-reference/`는 제품에서 실행하지 않는 [공식 모바일 디자인 참고 앱](../design/README.md)입니다. 전용 CI는 두지 않으며, 디자인을 수정하거나 공유하기 전에 변경한 화면을 로컬에서 확인합니다. 이 폴더만 바뀐 PR은 문서 링크·게시 검사를 실행하고 제품 프론트·백엔드 검사는 생략합니다. 제품 코드도 바뀌면 해당 영역의 검사를 함께 실행합니다.
+
+필요한 검사를 골라 실행할 수 있도록 기존 명령은 유지합니다.
+
+```bash
+cd design-reference
+npm ci
+npm run dev
+# 빌드 확인이 필요할 때
+npm run build
+# 동작·폼·상태 전환을 수정했을 때
+npm test
+```
+
+포맷·정적 검사는 `npm run format:check`, `npm run lint`, `npm run typecheck`로 실행합니다. 모바일 브라우저 흐름을 다시 확인하려면 5174 개발 서버를 실행한 상태에서 `npx playwright install chromium` 후 `npm run check:ui`를 실행합니다. 자세한 범위는 [디자인 개발 인계](../design/handoff.md)를 따릅니다.
+
+설치에는 이 폴더의 `.nvmrc`·package manager 버전·lockfile을 사용합니다. 모의 UI 확인을 제품 인증·API·LLM·동시성 검증의 완료 근거로 사용하지 않습니다. 기존 `Frontend`·`Backend`·`Validate docs` 필수 검사와 `main`의 전체 검사 정책은 유지합니다.
 
 ## PR 완료 확인
 
