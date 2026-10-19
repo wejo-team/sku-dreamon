@@ -134,6 +134,7 @@ function renderInbox(
     selectApplicant: vi.fn(() => true),
     cancelApplication: vi.fn(() => true),
     closeRecruitment: vi.fn(() => true),
+    reopenRecruitment: vi.fn(() => true),
     createTeam: vi.fn(() => 'new-team'),
     reset: vi.fn(),
     emptyWorkspace: vi.fn(),

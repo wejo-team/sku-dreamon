@@ -43,6 +43,7 @@ const applicationTitles: Record<ApplicationStatus, string> = {
   검토중: '팀에서 지원서를 검토하고 있어요',
   선발: '지원한 팀에서 선발됐어요',
   미선발: '이번 모집에서는 선발되지 않았어요',
+  폐기: '다른 팀 선발로 대기 지원이 폐기됐어요',
 };
 
 export function Notifications() {

@@ -16,14 +16,242 @@ import {
   isTeamMember,
   selectTeamApplicant,
   recruitmentIssue,
+  recruitmentReopeningIssue,
+  reopenTeamRecruitment,
   teamRecruitmentDeadline,
   type TeamActivity,
 } from './team-state';
+import { lifecycleReferenceActivity } from './lifecycle-fixtures';
+import {
+  appendNotifications,
+  transitionNotifications,
+} from './notification-state';
 const publicProfile = { ...initialProfile, visibility: { discoverable: true } };
 const state = (): TeamActivity => ({
   teams: structuredClone(initialTeams),
   applications: structuredClone(initialApplications),
   applicants: structuredClone(initialApplicants),
+});
+
+describe('explicit recruitment reopening and parallel applications', () => {
+  it('allows parallel applications to different teams of the same contest without consuming seats', () => {
+    const before = state();
+    before.teams.push({ ...before.teams[0]!, id: 'other-campus-team' });
+    const first = applyToTeam(
+      before,
+      publicProfile,
+      'makers',
+      '기획',
+      '',
+      'first',
+    )!;
+    const second = applyToTeam(
+      first,
+      publicProfile,
+      'other-campus-team',
+      '기획',
+      '',
+      'second',
+    )!;
+    expect(second.applications.slice(-2).map((item) => item.status)).toEqual([
+      '지원완료',
+      '지원완료',
+    ]);
+    expect(second.teams).toEqual(before.teams);
+    expect(
+      applyToTeam(second, publicProfile, 'makers', '기획', '', 'duplicate'),
+    ).toBeNull();
+  });
+
+  it('only discards the selected person’s other pending applications for the same contest, including mirrored records', () => {
+    const before = state();
+    const applicant = before.applicants[0]!;
+    before.teams.push({
+      ...before.teams[1]!,
+      id: 'other-green-team',
+      owner: false,
+    });
+    const other = {
+      ...applicant,
+      id: 'other-pending',
+      teamId: 'other-green-team',
+      status: '지원완료' as const,
+    };
+    const records = [
+      other,
+      { ...other, id: 'other-reviewing', status: '검토중' as const },
+      { ...other, id: 'other-contest', teamId: 'makers' },
+      ...(['지원취소', '미선발', '폐기'] as const).map((status) => ({
+        ...other,
+        id: `history-${status}`,
+        status,
+      })),
+      { ...other, id: 'another-person', personId: 'sua' },
+    ];
+    before.applicants.push(...records);
+    before.applications.push(...records);
+    const next = selectTeamApplicant(before, applicant.id, initialProfile)!;
+    for (const collection of [next.applicants, next.applications]) {
+      expect(
+        collection.find((item) => item.id === 'other-pending')?.status,
+      ).toBe('폐기');
+      expect(
+        collection.find((item) => item.id === 'other-reviewing')?.status,
+      ).toBe('폐기');
+      for (const old of records.slice(2)) {
+        expect(collection.find((item) => item.id === old.id)).toEqual(old);
+      }
+    }
+    expect(selectTeamApplicant(next, other.id, initialProfile)).toBeNull();
+    const notifications = transitionNotifications(
+      before,
+      next,
+      'selection-event',
+      '2026-10-19T00:00:00Z',
+    );
+    expect(
+      notifications.map((item) => [item.applicationId, item.status]),
+    ).toEqual([
+      ['other-pending', '폐기'],
+      ['other-reviewing', '폐기'],
+      [applicant.id, '선발'],
+    ]);
+    expect(
+      notifications.every(
+        (item) =>
+          item.recipient.kind === 'person' &&
+          item.recipient.personId === applicant.personId,
+      ),
+    ).toBe(true);
+    expect(appendNotifications(notifications, notifications)).toEqual(
+      notifications,
+    );
+    expect(
+      transitionNotifications(next, next, 'retry', '2026-10-19T00:00:01Z'),
+    ).toEqual([]);
+    const full = {
+      ...before,
+      teams: before.teams.map((team) =>
+        team.id === 'greenwave' ? { ...team, members: team.capacity } : team,
+      ),
+    };
+    expect(selectTeamApplicant(full, applicant.id, initialProfile)).toBeNull();
+    expect(
+      before.applications.find((item) => item.id === other.id)?.status,
+    ).toBe('지원완료');
+  });
+
+  it('closes on the last selected seat and keeps it closed when that seat is returned', () => {
+    const before = state();
+    before.teams = before.teams.map((team) =>
+      team.id === 'greenwave'
+        ? { ...team, capacity: 3, status: '지원자검토' }
+        : team,
+    );
+    const selected = selectTeamApplicant(
+      before,
+      'app-seoyeon',
+      initialProfile,
+    )!;
+    expect(selected.teams.find((team) => team.id === 'greenwave')?.status).toBe(
+      '모집마감',
+    );
+    const memberView = {
+      ...selected,
+      teams: selected.teams.map((team) =>
+        team.id === 'greenwave'
+          ? {
+              ...team,
+              owner: false,
+              memberProfiles: team.memberProfiles.map((member) => ({
+                ...member,
+                id:
+                  member.id === 'seoyeon'
+                    ? 'me'
+                    : member.id === 'me'
+                      ? 'leader'
+                      : member.id,
+              })),
+            }
+          : team,
+      ),
+      applications: [{ ...selected.applicants[0]!, personId: 'me' }],
+    };
+    const cancelled = cancelTeamApplication(memberView, 'app-seoyeon')!;
+    const team = cancelled.teams.find((item) => item.id === 'greenwave')!;
+    expect(team.members).toBe(2);
+    expect(team.status).toBe('모집마감');
+    expect(recruitmentIssue(team)).toMatch(/모집이 마감/);
+    expect(reopenTeamRecruitment(cancelled, team.id)).toBeNull();
+    const leaderView = {
+      ...cancelled,
+      teams: cancelled.teams.map((item) =>
+        item.id === team.id ? { ...item, owner: true } : item,
+      ),
+    };
+    const reopened = reopenTeamRecruitment(leaderView, team.id)!;
+    expect(
+      recruitmentIssue(reopened.teams.find((item) => item.id === team.id)!),
+    ).toBeNull();
+    expect(reopened.applications).toEqual(cancelled.applications);
+  });
+
+  it('keeps discarded history unchanged after selected cancellation and explicit reopening', () => {
+    const before = lifecycleReferenceActivity();
+    const cancelled = cancelTeamApplication(before, 'application-localcrew')!;
+    expect(
+      cancelled.applications.find((item) => item.status === '폐기'),
+    ).toEqual(before.applications.find((item) => item.status === '폐기'));
+    const reopened = reopenTeamRecruitment(cancelled, 'greenwave')!;
+    expect(reopened.applicants).toEqual(cancelled.applicants);
+    expect(reopened.applications).toEqual(cancelled.applications);
+    expect(reopenTeamRecruitment(reopened, 'greenwave')).toBeNull();
+  });
+
+  it('does not reinterpret the unresolved team-finalized state when a member cancels', () => {
+    const before = state();
+    before.teams = before.teams.map((team) =>
+      team.id === 'localcrew' ? { ...team, status: '팀원확정' } : team,
+    );
+    const next = cancelTeamApplication(before, 'application-localcrew')!;
+    expect(next.teams.find((team) => team.id === 'localcrew')?.status).toBe(
+      '팀원확정',
+    );
+  });
+
+  it('checks authority, seats and exact time boundaries when reopening', () => {
+    const team = {
+      ...initialTeams[1]!,
+      status: '모집마감' as const,
+      recruitmentDeadline: '2026-10-18',
+    };
+    const cutoff = Date.parse('2026-10-18T15:00:00Z');
+    expect(recruitmentReopeningIssue(team, cutoff - 1)).toBeNull();
+    expect(recruitmentReopeningIssue(team, cutoff)).toMatch(/기한/);
+    expect(
+      recruitmentReopeningIssue({ ...team, owner: false }, cutoff - 1),
+    ).toMatch(/팀장만/);
+    expect(
+      recruitmentReopeningIssue(
+        { ...team, members: team.capacity },
+        cutoff - 1,
+      ),
+    ).toMatch(/정원/);
+    expect(
+      recruitmentReopeningIssue({ ...team, contestId: 'upcoming' }),
+    ).toMatch(/접수가 시작/);
+    expect(
+      recruitmentReopeningIssue({
+        ...team,
+        contestId: 'solo',
+        capacity: 1,
+        members: 1,
+      }),
+    ).toMatch(/정원/);
+    expect(
+      recruitmentReopeningIssue(team, Date.parse('2026-12-01T00:00:00Z')),
+    ).toMatch(/공모전 접수가 마감/);
+  });
 });
 
 describe('team reference transitions', () => {

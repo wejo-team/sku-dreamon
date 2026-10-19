@@ -7,6 +7,7 @@ import {
   initialTeams,
 } from './data';
 import { PreviewContext } from './preview-context';
+import { lifecycleReferenceActivity } from './lifecycle-fixtures';
 import {
   appendNotifications,
   initialNotifications,
@@ -17,22 +18,28 @@ import {
   applyToTeam,
   cancelTeamApplication,
   createTeamIssue,
+  reopenTeamRecruitment,
   selectTeamApplicant,
   type TeamActivity,
 } from './team-state';
 
-const initialState = () => ({
-  signedIn: false,
-  profile: initialProfile,
-  teams: initialTeams,
-  applications: initialApplications,
-  applicants: initialApplicants,
-  notifications: initialNotifications({
-    teams: initialTeams,
-    applications: initialApplications,
-    applicants: initialApplicants,
-  }),
-});
+const initialState = () => {
+  const activity =
+    new URLSearchParams(globalThis.location?.search).get('scenario') ===
+    'team-lifecycle'
+      ? lifecycleReferenceActivity()
+      : {
+          teams: initialTeams,
+          applications: initialApplications,
+          applicants: initialApplicants,
+        };
+  return {
+    signedIn: false,
+    profile: initialProfile,
+    ...activity,
+    notifications: initialNotifications(activity),
+  };
+};
 
 export function PreviewProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(initialState);
@@ -121,6 +128,14 @@ export function PreviewProvider({ children }: { children: ReactNode }) {
           });
           return true;
         },
+        reopenRecruitment: (id) => {
+          const current = latest.current;
+          if (!current.signedIn) return false;
+          const next = reopenTeamRecruitment(current, id);
+          if (!next) return false;
+          update({ ...current, ...next });
+          return true;
+        },
         createTeam: (team) => {
           const current = latest.current;
           if (!current.signedIn || createTeamIssue(team, current.teams))
@@ -143,7 +158,7 @@ export function PreviewProvider({ children }: { children: ReactNode }) {
                 memberProfiles: [
                   { id: 'me', name: current.profile.name, role: '팀장' },
                 ],
-                status: '모집중',
+                status: team.capacity === 1 ? '모집마감' : '모집중',
               },
             ],
           });

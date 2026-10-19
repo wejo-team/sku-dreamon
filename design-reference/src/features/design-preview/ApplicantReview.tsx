@@ -34,9 +34,11 @@ function reviewFacts(applicant: Applicant, profile: Person): Review {
 export function ApplicantReview({
   applicant,
   profile,
+  mayReviewExistingApplication,
 }: {
   applicant: Applicant;
   profile: Person;
+  mayReviewExistingApplication: boolean;
 }) {
   const [params] = useSearchParams();
   const session = useContext(ApplicantReviewContext);
@@ -49,12 +51,14 @@ export function ApplicantReview({
   const [failed, setFailed] = useState(false);
   const failedOnce = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latest = useRef({ applicant, profile });
-  const eligible = ['지원완료', '검토중'].includes(applicant.status);
+  const latest = useRef({ applicant, profile, mayReviewExistingApplication });
+  const isSelectionCandidate = ['지원완료', '검토중'].includes(
+    applicant.status,
+  );
 
   useEffect(() => {
-    latest.current = { applicant, profile };
-  }, [applicant, profile]);
+    latest.current = { applicant, profile, mayReviewExistingApplication };
+  }, [applicant, profile, mayReviewExistingApplication]);
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
@@ -63,14 +67,14 @@ export function ApplicantReview({
   );
 
   function requestReview() {
-    if (!eligible || timer.current) return;
+    if (!mayReviewExistingApplication || timer.current) return;
     setPending(true);
     setFailed(false);
     timer.current = setTimeout(() => {
       timer.current = null;
       setPending(false);
       const current = latest.current;
-      if (!['지원완료', '검토중'].includes(current.applicant.status)) return;
+      if (!current.mayReviewExistingApplication) return;
       if (params.get('scenario') === 'review-error' && !failedOnce.current) {
         failedOnce.current = true;
         setFailed(true);
@@ -81,6 +85,10 @@ export function ApplicantReview({
       else setLocalResult(next);
     }, 350);
   }
+
+  // The parent rechecks the current signed-in leader and application relation.
+  // A terminal application status removes candidacy, not this review permission.
+  if (!mayReviewExistingApplication) return null;
 
   return (
     <section
@@ -101,11 +109,11 @@ export function ApplicantReview({
             <Alert role="note">
               <AlertDescription>
                 검토 이후 프로필 정보가 변경됐어요. 아래는 이전 검토 결과예요.
-                {eligible && ' 최신 정보로 다시 검토해 주세요.'}
+                {' 최신 정보로 다시 검토해 주세요.'}
               </AlertDescription>
             </Alert>
           )}
-          <p>등록한 정보를 바탕으로 함께할 역할을 확인해 보세요.</p>
+          <p>지원서와 현재 프로필에 등록된 정보예요.</p>
           <dl className="workspace-detail-facts">
             {result.map((fact) => (
               <div key={fact.label}>
@@ -118,7 +126,7 @@ export function ApplicantReview({
           </dl>
           <p className="preview-muted">
             주당 시간은 모든 프로젝트를 합친 참고값이에요. 실제 일정이나 참가
-            자격을 보장하지 않으며 최종 선발은 팀장이 결정해요.
+            자격을 보장하지 않아요. 이 검토로 지원 상태가 바뀌지는 않아요.
           </p>
         </div>
       )}
@@ -129,37 +137,34 @@ export function ApplicantReview({
           </AlertDescription>
         </Alert>
       )}
-      {eligible ? (
-        <Button
-          variant="outline"
-          onClick={requestReview}
-          disabled={pending}
-          aria-busy={pending}
-        >
-          {pending ? (
-            <LoaderCircle
-              size={18}
-              className="animate-spin"
-              aria-hidden="true"
-            />
-          ) : result || failed ? (
-            <RotateCcw size={18} aria-hidden="true" />
-          ) : (
-            <Sparkles size={18} aria-hidden="true" />
-          )}
-          {pending
-            ? '검토하는 중…'
-            : failed
-              ? '검토 다시 시도'
-              : result
-                ? '다시 검토하기'
-                : 'AI 검토 요청'}
-        </Button>
-      ) : (
+      <Button
+        variant="outline"
+        onClick={requestReview}
+        disabled={pending}
+        aria-busy={pending}
+      >
+        {pending ? (
+          <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />
+        ) : result || failed ? (
+          <RotateCcw size={18} aria-hidden="true" />
+        ) : (
+          <Sparkles size={18} aria-hidden="true" />
+        )}
+        {pending
+          ? '검토하는 중…'
+          : failed
+            ? '검토 다시 시도'
+            : result
+              ? '다시 검토하기'
+              : 'AI 검토 요청'}
+      </Button>
+      {!isSelectionCandidate && (
         <p className="preview-muted">
           {applicant.status === '지원취소'
             ? '취소된 지원은 새 선발 후보 추천에서 제외돼요.'
-            : '결정이 끝난 지원은 새 선발 후보 추천에서 제외돼요.'}
+            : applicant.status === '폐기'
+              ? '다른 팀에서 선발되어 폐기된 지원은 새 선발 후보 추천에서 제외돼요.'
+              : '결정이 끝난 지원은 새 선발 후보 추천에서 제외돼요.'}
         </p>
       )}
     </section>

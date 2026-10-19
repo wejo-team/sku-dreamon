@@ -18,6 +18,7 @@ export type PreviewState = {
   selectApplicant: (id: string) => boolean;
   cancelApplication: (id: string) => boolean;
   closeRecruitment: (id: string) => boolean;
+  reopenRecruitment: (id: string) => boolean;
   createTeam: (team: NewTeam) => string;
   reset: () => void;
   emptyWorkspace: () => void;

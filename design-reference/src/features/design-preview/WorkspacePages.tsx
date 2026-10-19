@@ -10,6 +10,7 @@ import {
   FileText,
   LoaderCircle,
   Plus,
+  RotateCcw,
 } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router';
 import { z } from 'zod';
@@ -57,6 +58,7 @@ import {
   applicantVisibleProfile,
   isTeamMember,
   recruitmentIssue,
+  recruitmentReopeningIssue,
   selectionScenario,
 } from './team-state';
 import './workspace.css';
@@ -108,6 +110,7 @@ function applicationLabel(status: ApplicationStatus) {
     선발: '선발 · 팀원 확정',
     미선발: '미선발',
     지원취소: '지원 취소',
+    폐기: '폐기',
   }[status];
 }
 function LoginPrompt({ from }: { from: string }) {
@@ -313,6 +316,12 @@ export function WorkspacePage() {
                       <p className="preview-muted">
                         지원이 취소됐어요. 현재 모집 조건이 맞으면 다시 지원할
                         수 있어요.
+                      </p>
+                    )}
+                    {application.status === '폐기' && (
+                      <p className="preview-muted">
+                        같은 공모전의 다른 팀에서 선발되어 이 지원은 폐기됐어요.
+                        선발된 팀의 참여를 취소해도 자동으로 복원되지 않아요.
                       </p>
                     )}
                     {team && (
@@ -555,6 +564,70 @@ function TeamOverview({
   );
 }
 
+function RecruitmentControl({ team }: { team: Team }) {
+  const { closeRecruitment, reopenRecruitment } = usePreview();
+  const [feedback, setFeedback] = useState('');
+  if (!team.owner) return null;
+  const closed = team.status === '모집마감';
+  const issue = recruitmentReopeningIssue(team);
+  return (
+    <section className="preview-stack" aria-label="모집 관리">
+      {closed ? (
+        issue ? (
+          <>
+            <Button
+              className="preview-button"
+              variant="outline"
+              disabled
+              aria-describedby="recruitment-reopening-issue"
+            >
+              <RotateCcw size={18} aria-hidden="true" /> 다시 모집하기
+            </Button>
+            <p id="recruitment-reopening-issue" className="preview-muted">
+              {issue}
+            </p>
+          </>
+        ) : (
+          <ConfirmAction
+            title="모집을 다시 시작할까요?"
+            description="새로운 지원을 다시 받을 수 있어요. 기존 지원과 확정된 팀원은 유지되고, 폐기된 지원은 복원되지 않아요."
+            confirmLabel="모집 중으로 변경"
+            onConfirm={() => {
+              if (!reopenRecruitment(team.id)) return false;
+              setFeedback(
+                '모집을 다시 시작했어요. 새로운 지원을 받을 수 있어요.',
+              );
+              return true;
+            }}
+          >
+            <RotateCcw size={18} aria-hidden="true" /> 다시 모집하기
+          </ConfirmAction>
+        )
+      ) : !recruitmentIssue(team) ? (
+        <ConfirmAction
+          title="팀 모집을 종료할까요?"
+          description="새로운 지원을 받을 수 없게 돼요. 기존 지원과 팀원은 유지돼요. 기한과 정원 조건이 맞으면 직접 모집을 다시 시작할 수 있어요."
+          confirmLabel="모집 종료하기"
+          onConfirm={() => {
+            if (!closeRecruitment(team.id)) return false;
+            setFeedback(
+              '모집을 종료했어요. 기존 지원과 확정된 팀원은 유지돼요.',
+            );
+            return true;
+          }}
+        >
+          모집 종료
+        </ConfirmAction>
+      ) : null}
+      {feedback && (
+        <p role="status" className="preview-muted">
+          {feedback}
+        </p>
+      )}
+    </section>
+  );
+}
+
 function TeamSpace({
   team,
   from,
@@ -566,7 +639,7 @@ function TeamSpace({
   currentPath: string;
   management: boolean;
 }) {
-  const { applicants, closeRecruitment, profile } = usePreview();
+  const { applicants, profile } = usePreview();
   const teamApplicants = applicants.filter(
     (applicant) => applicant.teamId === team.id,
   );
@@ -626,6 +699,11 @@ function TeamSpace({
                       <div className="workspace-applicant-name">
                         <strong>{name}</strong>
                         <p className="preview-muted">{applicant.role} 지원</p>
+                        {applicant.status === '폐기' && (
+                          <p className="preview-muted">
+                            같은 공모전의 다른 팀에서 선발됨
+                          </p>
+                        )}
                       </div>
                       <Badge>{applicationLabel(applicant.status)}</Badge>
                       <ChevronRight size={18} aria-hidden="true" />
@@ -668,21 +746,12 @@ function TeamSpace({
             </ul>
           </section>
           <TeamOverview team={team} currentPath={currentPath} />
-          {team.owner && !recruitmentIssue(team) && (
-            <ConfirmAction
-              title="팀 모집을 종료할까요?"
-              description="새로운 지원을 받을 수 없게 돼요. 기존 지원 내역과 확정된 팀원은 유지돼요."
-              confirmLabel="모집 종료하기"
-              onConfirm={() => closeRecruitment(team.id)}
-            >
-              모집 종료
-            </ConfirmAction>
-          )}
           <ActionLink to={teamPath(team.id, workspacePath)} secondary>
             공개 모집글 보기
           </ActionLink>
         </>
       )}
+      <RecruitmentControl team={team} />
     </div>
   );
 }
@@ -849,7 +918,11 @@ function TeamDetail({
         ) : existingApplication ? (
           <>
             <Badge>{applicationLabel(existingApplication.status)}</Badge>
-            <p>이미 {existingApplication.role} 역할로 지원한 팀이에요.</p>
+            <p>
+              {existingApplication.status === '폐기'
+                ? '같은 공모전의 다른 팀에서 선발되어 이 지원은 폐기됐어요.'
+                : `이미 ${existingApplication.role} 역할로 지원한 팀이에요.`}
+            </p>
             <ActionLink to={applicationsPath}>내 지원 확인하기</ActionLink>
           </>
         ) : issue ? (
@@ -981,8 +1054,8 @@ function TeamDetail({
               </AlertDescription>
             </Alert>
             <p className="preview-muted">
-              참가 자격은 공모전 원문에서 확인해 주세요. 입력한 정보가 부족해도
-              지원할 수 있지만, 접수 완료가 참가 자격을 보장하지는 않아요.
+              참가 자격은 공모전 원문에서 확인해 주세요. 학적·학년·전공으로
+              지원을 제한하지 않으며, 접수 완료가 참가 자격을 보장하지는 않아요.
             </p>
             {submitError && (
               <Alert variant="destructive" role="alert">
@@ -1052,7 +1125,7 @@ function ApplicantDetail({
   applicant: Applicant;
   team: Team;
 }) {
-  const { selectApplicant, profile } = usePreview();
+  const { selectApplicant, profile, signedIn } = usePreview();
   const visible = applicantVisibleProfile(applicant, profile);
   const managementPath = teamViewPath(team.id, 'applicants');
   const pending = ['지원완료', '검토중'].includes(applicant.status);
@@ -1096,7 +1169,13 @@ function ApplicantDetail({
         </div>
         <p>{applicant.message || '작성한 메시지가 없어요.'}</p>
       </section>
-      <ApplicantReview applicant={applicant} profile={visible} />
+      <ApplicantReview
+        applicant={applicant}
+        profile={visible}
+        mayReviewExistingApplication={
+          signedIn && team.owner && applicant.teamId === team.id
+        }
+      />
 
       <section
         className="preview-panel preview-stack preview-sticky-action"
@@ -1140,7 +1219,7 @@ function ApplicantDetail({
             ) : (
               <ConfirmAction
                 title={`${visible.name} 님을 선발할까요?`}
-                description="선발하면 즉시 팀원이 확정되고 남은 자리가 한 자리 줄어요. 별도의 수락 단계는 없어요."
+                description="선발하면 즉시 팀원이 확정돼요. 이 지원자가 같은 공모전의 다른 팀에 낸 대기 지원은 폐기되며, 나중에 팀 참여를 취소해도 복원되지 않아요."
                 confirmLabel="선발하고 팀원 확정"
                 onConfirm={() => selectApplicant(applicant.id)}
               >
@@ -1153,7 +1232,9 @@ function ApplicantDetail({
           <p>
             {applicant.status === '지원취소'
               ? '지원자가 지원을 취소했어요.'
-              : '미선발된 지원서예요.'}
+              : applicant.status === '폐기'
+                ? '같은 공모전의 다른 팀에서 선발되어 폐기된 지원이에요. 지원 기록은 남지만 선발 대상에서는 제외돼요.'
+                : '미선발된 지원서예요.'}
           </p>
         )}
       </section>

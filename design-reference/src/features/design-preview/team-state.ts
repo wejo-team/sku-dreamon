@@ -4,6 +4,7 @@ import {
   roleOptions,
   type Applicant,
   type Application,
+  type ApplicationStatus,
   type Profile,
   type Team,
 } from './data';
@@ -67,6 +68,36 @@ export function recruitmentIssue(
     return '팀 모집 기한이 지나 지원할 수 없어요.';
   if (team.members >= team.capacity) return '팀 정원이 모두 찼어요.';
   return null;
+}
+
+export function recruitmentReopeningIssue(team: Team, now = referenceNow) {
+  if (!team.owner) return '팀장만 모집을 다시 시작할 수 있어요.';
+  if (team.status !== '모집마감') return '마감된 모집만 다시 시작할 수 있어요.';
+  if (team.members >= team.capacity)
+    return '팀 정원이 모두 차서 다시 모집할 수 없어요.';
+  const contest = contests.find((item) => item.id === team.contestId);
+  if (!contest || contestStatus(contest, now) === 'closed')
+    return '공모전 접수가 마감되어 다시 모집할 수 없어요.';
+  if (contestStatus(contest, now) === 'upcoming')
+    return '공모전 접수가 시작되면 다시 모집할 수 있어요.';
+  if (now >= teamRecruitmentDeadline(team))
+    return '팀 모집 기한이 지나 다시 모집할 수 없어요.';
+  return null;
+}
+
+export function reopenTeamRecruitment(
+  state: TeamActivity,
+  teamId: string,
+  now = referenceNow,
+): TeamActivity | null {
+  const team = state.teams.find((item) => item.id === teamId);
+  if (!team || recruitmentReopeningIssue(team, now)) return null;
+  return {
+    ...state,
+    teams: state.teams.map((item) =>
+      item.id === teamId ? { ...item, status: '모집중' } : item,
+    ),
+  };
 }
 
 // Selection after closing remains TEAM-02/03 TBD; AI review has separate access rules.
@@ -199,12 +230,28 @@ export function selectTeamApplicant(
     personId === 'me'
       ? profile.name
       : (applicant.profile?.name ?? applicant.name);
+  const applicationStatus = (
+    item: Application | Applicant,
+  ): ApplicationStatus => {
+    if (item.id === applicantId) return '선발';
+    const sameContest = state.teams.some(
+      (other) => other.id === item.teamId && other.contestId === team.contestId,
+    );
+    return (item.personId ?? 'me') === personId &&
+      item.teamId !== team.id &&
+      sameContest &&
+      ['지원완료', '검토중'].includes(item.status)
+      ? '폐기'
+      : item.status;
+  };
   return {
     teams: state.teams.map((item) =>
       item.id === team.id
         ? {
             ...item,
             members: item.members + 1,
+            status:
+              item.members + 1 >= item.capacity ? '모집마감' : item.status,
             memberProfiles: [
               ...(item.memberProfiles ?? []),
               { id: personId, name, role: applicant.role },
@@ -212,12 +259,14 @@ export function selectTeamApplicant(
           }
         : item,
     ),
-    applicants: state.applicants.map((item) =>
-      item.id === applicantId ? { ...item, status: '선발' } : item,
-    ),
-    applications: state.applications.map((item) =>
-      item.id === applicantId ? { ...item, status: '선발' } : item,
-    ),
+    applicants: state.applicants.map((item) => ({
+      ...item,
+      status: applicationStatus(item),
+    })),
+    applications: state.applications.map((item) => ({
+      ...item,
+      status: applicationStatus(item),
+    })),
   };
 }
 
@@ -242,6 +291,11 @@ export function cancelTeamApplication(
         ? {
             ...team,
             members: Math.max(1, team.members - 1),
+            status:
+              team.members >= team.capacity &&
+              ['모집중', '지원자검토'].includes(team.status)
+                ? '모집마감'
+                : team.status,
             memberProfiles: (team.memberProfiles ?? []).filter(
               (member) => member.id !== 'me',
             ),

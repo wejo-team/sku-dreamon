@@ -17,6 +17,7 @@ import {
 } from './preview-context';
 import { ApplicantPage, TeamPage, WorkspacePage } from './WorkspacePages';
 import { CreateTeamPage } from './CreateTeamPage';
+import { lifecycleReferenceActivity } from './lifecycle-fixtures';
 
 function TestControls() {
   const { signOut, signIn, emptyWorkspace, profile, saveProfile } =
@@ -86,6 +87,7 @@ function previewState(overrides: Partial<PreviewState> = {}): PreviewState {
     selectApplicant: vi.fn().mockReturnValue(false),
     cancelApplication: vi.fn().mockReturnValue(false),
     closeRecruitment: vi.fn().mockReturnValue(false),
+    reopenRecruitment: vi.fn().mockReturnValue(false),
     createTeam: vi.fn().mockReturnValue('new-team'),
     reset: vi.fn(),
     emptyWorkspace: vi.fn(),
@@ -490,5 +492,144 @@ describe('team creation', () => {
     );
     await user.type(screen.getByLabelText('팀장 포함 총 정원'), '3');
     expect(screen.getByText(/다른 역할/)).toBeInTheDocument();
+  });
+});
+
+describe('recruitment reopening and discarded history', () => {
+  it('requires confirmation to reopen, preserves cancellation and announces success', async () => {
+    const user = userEvent.setup();
+    renderPage(previewPath('/teams/greenwave?view=space'));
+    await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    await user.click(screen.getByRole('button', { name: '모집 종료' }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '모집 종료하기',
+      }),
+    );
+    expect(screen.getByText('모집 마감')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '다시 모집하기' }));
+    expect(
+      within(screen.getByRole('dialog')).getByText(
+        /폐기된 지원은 복원되지 않아요/,
+      ),
+    ).toBeInTheDocument();
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '돌아가기',
+      }),
+    );
+    expect(screen.getByText('모집 마감')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '다시 모집하기' }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '모집 중으로 변경',
+      }),
+    );
+    expect(screen.getByText('모집 중')).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('region', { name: '모집 관리' })).getByRole(
+        'status',
+      ),
+    ).toHaveTextContent('모집을 다시 시작했어요');
+    expect(
+      screen.queryByRole('button', { name: '다시 모집하기' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows why a full team cannot reopen and gives no management action to a member', () => {
+    const teams = initialTeams.map((team) =>
+      team.id === 'greenwave'
+        ? { ...team, status: '모집마감' as const, members: team.capacity }
+        : team,
+    );
+    const view = renderPage(
+      previewPath('/teams/greenwave?view=space'),
+      previewState({ teams }),
+    );
+    expect(
+      screen.getByRole('button', { name: '다시 모집하기' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText('팀 정원이 모두 차서 다시 모집할 수 없어요.'),
+    ).toBeInTheDocument();
+    view.unmount();
+    renderPage(previewPath('/teams/localcrew?view=space'), previewState());
+    expect(
+      screen.queryByRole('button', { name: '다시 모집하기' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '모집 종료' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('retains the closed state when a reopen request fails', async () => {
+    const user = userEvent.setup();
+    const mock = previewState(lifecycleReferenceActivity());
+    renderPage(previewPath('/teams/greenwave?view=applicants'), mock);
+    await user.click(screen.getByRole('button', { name: '다시 모집하기' }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '모집 중으로 변경',
+      }),
+    );
+    expect(mock.reopenRecruitment).toHaveBeenCalledExactlyOnceWith('greenwave');
+    expect(
+      within(screen.getByRole('dialog')).getByRole('alert'),
+    ).toHaveTextContent('처리하지 못했어요');
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '돌아가기',
+      }),
+    );
+    expect(screen.getByText('모집 마감')).toBeInTheDocument();
+  });
+
+  it('shows discarded history and reason in my applications without cancellation or team-space access', () => {
+    renderPage(
+      previewPath('/workspace?view=applications'),
+      previewState(lifecycleReferenceActivity()),
+    );
+    const discarded = screen.getByText('로컬 스튜디오').closest('li')!;
+    expect(within(discarded).getByText('폐기')).toBeInTheDocument();
+    expect(
+      within(discarded).getByText(/같은 공모전의 다른 팀에서 선발/),
+    ).toBeInTheDocument();
+    expect(
+      within(discarded).queryByRole('button', { name: '지원 취소' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(discarded).queryByRole('link', { name: '팀 공간으로' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps factual AI review for discarded applicants while excluding waiting counts and selection', async () => {
+    const user = userEvent.setup();
+    const state = previewState(lifecycleReferenceActivity());
+    const view = renderPage(
+      previewPath('/teams/greenwave?view=applicants'),
+      state,
+    );
+    expect(screen.getByText('검토 대기 1명')).toBeInTheDocument();
+    expect(
+      screen.getByText('같은 공모전의 다른 팀에서 선발됨'),
+    ).toBeInTheDocument();
+    view.unmount();
+    renderPage(previewPath('/applicants/app-seoyeon'), state);
+    expect(screen.getByText('폐기')).toBeInTheDocument();
+    expect(
+      screen.getByText(initialApplicants[0]!.profile!.experience),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '이 지원자 선발하기' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
+    expect(
+      await within(
+        screen.getByRole('region', { name: 'AI 검토 도움' }),
+      ).findByRole('status'),
+    ).toHaveTextContent(initialApplicants[0]!.message);
+    expect(
+      screen.getByText(/폐기된 지원은 새 선발 후보 추천에서 제외/),
+    ).toBeInTheDocument();
   });
 });

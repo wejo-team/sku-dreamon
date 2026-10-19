@@ -57,7 +57,7 @@ export type Person = {
   portfolioTitle?: string;
 };
 export type ApplicationStatus =
-  '지원완료' | '검토중' | '선발' | '미선발' | '지원취소';
+  '지원완료' | '검토중' | '선발' | '미선발' | '지원취소' | '폐기';
 export type Application = {
   id: string;
   personId?: string;

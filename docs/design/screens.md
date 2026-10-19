@@ -2,7 +2,7 @@
 
 경로의 공통 접두사는 `/design-preview`이며 로컬 기준 주소는 `http://127.0.0.1:5174`입니다. 경로의 모양이 제품의 최종 URL을 확정하지는 않습니다. 전체 화면 연결은 [라우트 원본](../../design-reference/src/pages/DesignPreviewPage.tsx), 공통 상단·하단 탐색은 [PreviewShell](../../design-reference/src/features/design-preview/PreviewShell.tsx)에서 확인합니다.
 
-[선행 문서 PR #93](https://github.com/wejo-team/sku-dreamon/pull/93)과 [#77 최신 결정](https://github.com/wejo-team/sku-dreamon/issues/77#issuecomment-6260435650)의 정책을 기준으로 화면을 갱신합니다. 아래 내용은 현재 저장소의 참고 구현과 확인할 동작이며, 서버·실제 AI·영구 저장 또는 배포 검증 완료를 뜻하지 않습니다.
+[선행 문서 PR #93](https://github.com/wejo-team/sku-dreamon/pull/93)과 [#77 최신 결정](https://github.com/wejo-team/sku-dreamon/issues/77#issuecomment-6260435650)의 정책과 2026-10-19의 [팀장 모집 재개](../specs/team-recruitment.md#recruitment-reopening)·[동시 지원과 폐기](../specs/team-recruitment.md#parallel-applications) 결정을 기준으로 화면을 갱신합니다. 아래 내용은 현재 저장소의 참고 구현과 확인할 동작이며, 서버·실제 AI·영구 저장 또는 배포 검증 완료를 뜻하지 않습니다.
 
 탐색·AI·워크스페이스·내 프로필 보기의 루트 제목은 하단 탐색과 중복되므로 `h1.sr-only`로 유지하고 화면 공간은 사용하지 않습니다. 공모전·팀·지원자 상세 제목과 `프로필 수정` 제목은 표시합니다. 로그인 안내와 필요한 복귀 링크도 유지합니다.
 
@@ -17,9 +17,9 @@
 | 공개 모집글 `/teams/:teamId` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-03~07·15·18·26](../specs/team-recruitment.md#acceptance-criteria): 지원·필수 프로필 보완·메시지·마감·중복·취소 후 재지원 |
 | 팀 만들기 `/teams/new` | [CreateTeamPage](../../design-reference/src/features/design-preview/CreateTeamPage.tsx), [ContestPicker](../../design-reference/src/features/design-preview/ContestPicker.tsx) | [팀 생성·정원 정책](../specs/team-recruitment.md#acceptance-criteria): 공모전 검색 선택, 팀명 2~40자·소개 10~1,000자·역할 1~6개, 모든 팀의 공식 인원 범위. 분야는 공모전 상속, 범위 정원 기본값 없음, 정원 1명은 역할/추가 모집 생략. 준비 모임 예외 없음 |
 | 워크스페이스 `/workspace` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access): 본인이 팀장이거나 현재 확정 팀원인 팀과 빈 상태. 내 팀·내 지원 콘텐츠 제목과 개수, 작업 아이콘을 한 줄에 배치하고 팀 카드 전체를 눌러 팀 공간 이동 |
-| 내 지원 `/workspace?view=applications` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-04·17~18](../specs/team-recruitment.md#acceptance-criteria): 현재 지원 상태·선발 후 취소·자리 반환·재지원 |
-| 팀 공간 `/teams/:teamId?view=space` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-09·13·20·25](../specs/team-recruitment.md#acceptance-criteria): 팀장·현재 팀원만 접근, 확정 인원·남은 자리·공고·모집 상태 |
-| 지원자 관리 `/teams/:teamId?view=applicants` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-05·14·16](../specs/team-recruitment.md#acceptance-criteria): 해당 팀장만 실제 지원자 검토·선발. 선발 성공 즉시 팀원 확정 |
+| 내 지원 `/workspace?view=applications` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-04·17~18](../specs/team-recruitment.md#acceptance-criteria): 현재 지원 상태·선발 후 취소·자리 반환·재지원, 다른 팀 선발에 따른 폐기 사유·이력 |
+| 팀 공간 `/teams/:teamId?view=space` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-09·13·20·25](../specs/team-recruitment.md#acceptance-criteria): 팀장·현재 팀원만 접근, 확정 인원·남은 자리·공고·모집 상태, 팀장 재개 확인·성공·불가 사유 |
+| 지원자 관리 `/teams/:teamId?view=applicants` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-05·14·16](../specs/team-recruitment.md#acceptance-criteria): 해당 팀장만 실제 지원자 검토·선발. 선발 성공 즉시 팀원 확정·같은 공모전의 다른 대기 지원 폐기. 폐기 지원은 이력에 남고 검토 대기 수에서 제외 |
 | 지원자 검토 `/applicants/:applicantId` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [프로필 공개 정책](../specs/profile.md#visibility), [팀 선발 정책](../specs/team-recruitment.md#membership-capacity): 지원한 팀장이 공개 상태와 관계없이 전체 현재 프로필을 확인. 일반 팀원은 이 예외를 갖지 않음 |
 | 내 프로필 `/profile` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx), [ProfileFields](../../design-reference/src/features/design-preview/ProfileFields.tsx) | [프로필 완료 조건](../specs/profile.md#acceptance-criteria): 학적·학년 선택, 이름/소개/경험/제목 길이·관심/역할 개수, 기타 제거, 주당 합산 시간 4구간 단일 선택, 전체 공개 전환 확인·기존 지원자 최신 프로필 검토, 선택형 마스코트 |
 | 본인 공개 화면 확인 `/profile/public` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx) | [사람 탐색과 공개 설정](../specs/profile.md#people-directory): 본인이 설정한 공개 결과 확인 |
@@ -71,15 +71,15 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 | --- | --- |
 | LLM 모델·제공자·검색·실행·검증·API·저장·캐시·운영 제한 | [MATCH-12](../specs/matching.md#open-questions) |
 | 기존 지원자 AI 검토의 실제 입력 필드·모델 전송 최소화, 대화 보존·삭제·일반 추천 우회 노출 방지 | [MATCH-10·13](../specs/matching.md#open-questions) |
-| 확인된 자격 미충족의 상세 판정·제출 제한과 자격 조건 변경의 기존 지원 영향 | [MATCH-08](../specs/matching.md#open-questions), [TEAM-06](../specs/team-recruitment.md#open-questions) |
+| 주최 측 공고 조건 변경의 기존 지원·선발·소속 영향(TBD). 개별 자격을 비즈니스 로직으로 제한하지 않음 | [MATCH-08](../specs/matching.md#open-questions), [TEAM-06](../specs/team-recruitment.md#open-questions) |
 | 계정 탈퇴의 세션·열람 효력·보존·복구, 팀 생성/개인화 추천의 프로필 완성 범위 | [PROFILE-03·04](../specs/profile.md#open-questions) |
-| 미선발 처리·선발 취소·팀장 위임·모집 재개·모집 정보 수정 범위 | [TEAM-02~08](../specs/team-recruitment.md#open-questions) |
-| 운영자 공고 수집·검수·등록 도구, 공고 요약 포함 여부, 공개 후 변경 재확인·운영 갱신 | [공고 미정 사항](../specs/contests.md#open-questions) |
+| 미선발 처리·선발 취소·폐기 후 재지원·팀 삭제·모집 정보 수정 범위. 팀장 변경·위임은 제공하지 않음 | [TEAM-02~08](../specs/team-recruitment.md#open-questions) |
+| 관리자의 공고 수집·검수·등록 도구와 관리자 페이지(TBD), 공고 요약 포함 여부, 공개 후 변경 재확인·운영 갱신 | [공고 미정 사항](../specs/contests.md#open-questions) |
 | 실제 학사 운영 목록·코드·관계, 기타/기존 시간 데이터 전환·구간 저장 ID | [학사 명세](../specs/academic-structure.md), [선택지 미정 사항](../specs/profile-options.md#open-questions) |
 | 로그인 세션·보안·복구·실제 유출 비밀번호 차단 목록 공급·갱신 | [인증 미정 사항](../specs/authentication.md#open-questions) |
 | 확정된 알림 중복 규칙의 저장·원자성·재시도 구현, 기기 동기화·보존 | [알림 미정 사항](../specs/notifications.md) |
 
-팀장이 선발하면 즉시 팀원 확정, 팀장 포함 총 정원, 선발 시 자리 차감, 취소 후 자리 반환·현재 조건에 따른 즉시 재지원은 이미 정해진 정책입니다. 학적·학년 선택, 정보 부족 시 원문 안내 후 일반 지원, 신규 지원 공개 필수, 모집 마감/정원 충족 후 기존 지원자 AI 검토도 확정됐습니다. 새 선발 후보는 유효한 지원 완료·검토 중만 포함합니다. 이를 별도 수락/자격 확인 대기나 새 TBD로 되돌리지 않습니다.
+팀장이 선발하면 즉시 팀원 확정, 팀장 포함 총 정원, 선발 시 자리 차감, 취소 후 자리 반환·현재 조건에 따른 즉시 재지원은 이미 정해진 정책입니다. 학적·학년 선택, 정보 부족 시 원문 안내 후 일반 지원, 신규 지원 공개 필수, 모집 마감/정원 충족 후 기존 지원자 AI 검토도 확정됐습니다. 같은 공모전의 다른 팀에 동시 지원할 수 있고 선발되면 다른 대기 지원은 폐기됩니다. 새 선발 후보는 유효한 지원 완료·검토 중만 포함합니다. 정원 충족으로 모집이 닫힌 후 자리 반환만으로 다시 열리지 않으며 팀장이 직접 재개합니다. 개별 참가 자격은 지원·선발의 자동 차단 조건이 아닙니다. 이를 별도 수락/자격 확인 대기나 새 TBD로 되돌리지 않습니다.
 
 ## 재현 경로
 
@@ -90,9 +90,13 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 - `/explore?scenario=notification-error`: 로그인한 상태에서 첫 읽음 처리 실패·재시도.
 - `/teams/greenwave?view=applicants`: 팀장 검토·선발·확정 팀원.
 - `/workspace?view=applications`: 기존 선발된 로컬 크루 지원 취소·접근 종료 확인.
+- `/teams/greenwave?view=space&scenario=team-lifecycle`: 새로 로드한 뒤 로그인하면 마감·여석 상태에서 다시 모집하기 → 확인 → 성공을 확인. 취소·닫기는 상태 유지.
+- `/teams/greenwave?view=applicants&scenario=team-lifecycle`: 폐기 상태·사유, 검토 대기 수에서 제외, 팀장의 재개 행동.
+- `/applicants/app-seoyeon?scenario=team-lifecycle`: 폐기된 지원의 전체 프로필·기존 지원서 AI 검토와 재요청 유지, 선발·새 AI 후보 추천 제외.
+- `/workspace?view=applications&scenario=team-lifecycle`: 로컬 스튜디오 폐기 이력·사유, 로컬 크루 선발 후 본인 지원 취소 시에도 폐기 이력 유지.
 - `/reference/notices/campus`, `/reference/portfolios/seoyeon`: 실제 기관·개인 사이트를 대신하는 로컬 링크 목적지.
 
-모든 경로에 `/design-preview` 접두사를 붙입니다. 현재 시각은 재현을 위해 2026-10-18로 고정한 예시이며 실제 운영 시계가 아닙니다. 마감 계산은 원문 시각·시간대를 우선하고, 누락 시 한국시간·해당 날짜 종료(다음 날 00:00)를 사용하며 서비스 보완 안내를 표시합니다. 기존 지원자의 AI 검토 결과 확인·재요청은 마감/정원 충족 후에도 허용하고 신규 지원·정원 초과 선발 제한과 구분합니다. 마감 후 실제 추가 선발 허용 범위는 팀 명세의 남은 정책을 따릅니다.
+모든 경로에 `/design-preview` 접두사를 붙입니다. `scenario=team-lifecycle`은 페이지를 새로 로드할 때만 예시 상태를 구성하며 로그인 권한을 우회하지 않습니다. 이후 내부 화면 이동 중에는 같은 상태를 유지하고, 기본 예시로 돌아가려면 쿼리 없는 주소로 새로 로드합니다. 현재 시각은 재현을 위해 2026-10-18로 고정한 예시이며 실제 운영 시계가 아닙니다. 마감 계산은 원문 시각·시간대를 우선하고, 누락 시 한국시간·해당 날짜 종료(다음 날 00:00)를 사용하며 서비스 보완 안내를 표시합니다. 기존 지원자의 AI 검토 결과 확인·재요청은 마감/정원 충족 후에도 허용하고 신규 지원·정원 초과 선발 제한과 구분합니다. 마감 후 실제 추가 선발 허용 범위는 팀 명세의 남은 정책을 따릅니다.
 
 ## 페이지 이동과 공모전별 팀 목록
 
