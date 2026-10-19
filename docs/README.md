@@ -21,6 +21,7 @@
 - 기획 팀원 등 GitHub가 처음인 팀원이 참여할 때: [문서 협업 시작하기](collaboration/README.md)
 - 처음 실행할 때: [로컬 실행](development/local-development.md)
 - 명세·계획·PR을 검토할 때: [팀 작업 흐름](development/workflow.md)
+- 현재 프로토타입과 기능 명세를 대조할 때: [프로토타입 v11 기능 대조](specs/prototype-alignment.md)
 - 문서를 추가하거나 게시할 때: [문서 관리](development/documentation.md)
 
 ## 읽기 원칙

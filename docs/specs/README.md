@@ -9,6 +9,7 @@
 | 작업 | 시작 문서 | 추가로 읽는 조건 |
 | --- | --- | --- |
 | 스프린트 범위·일정·주요 화면·시연 확인 | [스프린트 1](sprint-1.md) | 상세 정책은 해당 영역의 명세만 선택 |
+| 현재 프로토타입의 적용 기능·명세 일치·남은 차이 확인 | [프로토타입 v12 기능 대조](prototype-alignment.md) | 변경할 정책은 표에 연결된 담당 명세에서 수정; 화면만 있는 기능과 제품 구현 완료를 구분 |
 | 자체 가입·로그인·시연 계정·향후 소셜 연결 | [가입과 로그인](authentication.md) | 인증 정보 공개를 바꾸면 [프로필 공개 범위](profile.md#visibility) |
 | 프로필 입력·사람 탐색·공개·포트폴리오 | [프로필](profile.md) | 선택지를 바꾸면 [공통 선택지](profile-options.md#choices), 학사 입력이면 [학사 선택 흐름](academic-structure.md#selection-flow) |
 | 분야·역할·역량·시간 선택지 | [프로필 선택지](profile-options.md) | 필수 여부를 바꾸면 [프로필 입력 항목](profile.md#fields) |
