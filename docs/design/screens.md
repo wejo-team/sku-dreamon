@@ -2,7 +2,7 @@
 
 경로의 공통 접두사는 `/design-preview`이며 로컬 기준 주소는 `http://127.0.0.1:5174`입니다. 경로의 모양이 제품의 최종 URL을 확정하지는 않습니다. 전체 화면 연결은 [라우트 원본](../../design-reference/src/pages/DesignPreviewPage.tsx), 공통 상단·하단 탐색은 [PreviewShell](../../design-reference/src/features/design-preview/PreviewShell.tsx)에서 확인합니다.
 
-[선행 문서 PR #93](https://github.com/wejo-team/sku-dreamon/pull/93)과 [#77 최신 결정](https://github.com/wejo-team/sku-dreamon/issues/77#issuecomment-6260435650)의 정책과 2026-10-19의 [팀장 모집 재개](../specs/team-recruitment.md#recruitment-reopening)·[동시 지원과 폐기](../specs/team-recruitment.md#parallel-applications) 결정을 기준으로 화면을 갱신합니다. 아래 내용은 현재 저장소의 참고 구현과 확인할 동작이며, 서버·실제 AI·영구 저장 또는 배포 검증 완료를 뜻하지 않습니다.
+[선행 문서 PR #93](https://github.com/wejo-team/sku-dreamon/pull/93)과 [#77 최신 결정](https://github.com/wejo-team/sku-dreamon/issues/77#issuecomment-6260435650)의 정책과 [정책 PR #94](https://github.com/wejo-team/sku-dreamon/pull/94)의 [팀장 모집 재개](../specs/team-recruitment.md#recruitment-reopening)·[동시 지원과 폐기](../specs/team-recruitment.md#parallel-applications) 결정을 기준으로 화면을 갱신합니다. 아래 내용은 현재 저장소의 참고 구현과 확인할 동작이며, 서버·실제 AI·영구 저장 또는 배포 검증 완료를 뜻하지 않습니다.
 
 탐색·AI·워크스페이스·내 프로필 보기의 루트 제목은 하단 탐색과 중복되므로 `h1.sr-only`로 유지하고 화면 공간은 사용하지 않습니다. 공모전·팀·지원자 상세 제목과 `프로필 수정` 제목은 표시합니다. 로그인 안내와 필요한 복귀 링크도 유지합니다.
 
