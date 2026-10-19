@@ -207,7 +207,7 @@
   gap: 12px;
   font-size: 16px;
 }
-.dreamon-preview .preview-explore .preview-compact-action {
+.dreamon-preview .preview-compact-action {
   position: relative;
   flex-shrink: 0;
   width: 44px;
@@ -217,11 +217,11 @@
   border-radius: var(--preview-radius-button);
   color: var(--accent-foreground);
 }
-.dreamon-preview .preview-explore .preview-compact-action svg {
+.dreamon-preview .preview-compact-action svg {
   width: 20px;
   height: 20px;
 }
-.dreamon-preview .preview-explore .preview-ai-shortcut {
+.dreamon-preview .preview-ai-shortcut {
   color: var(--ai-ink);
   background: var(--ai-soft);
   border-color: transparent;
@@ -240,8 +240,79 @@
 .dreamon-preview .preview-explore .preview-search button {
   margin-right: 0;
 }
-.dreamon-preview .preview-explore .preview-ai-shortcut svg {
+.dreamon-preview .preview-ai-shortcut svg {
   color: inherit;
+}
+.dreamon-preview .preview-compact-action[data-variant='default'] {
+  color: var(--primary-foreground);
+}
+.dreamon-preview .preview-pagination-list {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dreamon-preview .preview-page-link {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+.dreamon-preview .preview-page-link[aria-current='page'] {
+  color: var(--primary-foreground);
+}
+.dreamon-preview .preview-pagination-summary {
+  margin: 8px 0 0;
+  color: var(--muted-foreground);
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dreamon-preview .preview-results-heading h2,
+.dreamon-preview .preview-contest-teams-title h2 {
+  scroll-margin-top: 88px;
+}
+.dreamon-preview .preview-contest-teams-section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 20px;
+}
+.dreamon-preview .preview-contest-teams-heading,
+.dreamon-preview .preview-contest-teams-title,
+.dreamon-preview .preview-contest-team-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dreamon-preview .preview-contest-teams-heading {
+  justify-content: space-between;
+  gap: 12px;
+}
+.dreamon-preview .preview-contest-teams-title {
+  min-width: 0;
+}
+.dreamon-preview .preview-contest-teams-title h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.5;
+}
+.dreamon-preview .preview-contest-team-actions {
+  flex-shrink: 0;
+}
+.dreamon-preview .preview-contest-team-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+.dreamon-preview .preview-team-card h3 {
+  overflow-wrap: anywhere;
+}
+.dreamon-preview .preview-team-card-roles > svg {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 .dreamon-preview .preview-filter-trigger[data-active='true'] {
   background: var(--accent);

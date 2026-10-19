@@ -11,9 +11,9 @@
 | 화면·경로 | 코드 원본 | 구현할 정책·완료 조건 |
 | --- | --- | --- |
 | 로그인·가입 `/login`, `/signup` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx) | [인증 AC-04~14](../specs/authentication.md#acceptance-criteria): 자체 로그인·교내 미인증·로그인 후 행동·접근 권한. 레퍼런스 로그인은 모의 동작 |
-| 공모전 탐색 `/explore` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx), [ExploreFilters](../../design-reference/src/features/design-preview/ExploreFilters.tsx) | [공고 명세](../specs/contests.md): 왼쪽 세로 포스터·D-day, 오른쪽 제목·분야·주최자와 우하단 팀 아이콘·모집 중 팀 수. 카드 전체로 상세 이동. 검색·필터·빈 결과, 분야는 아이콘으로 여는 Drawer에서 선택·적용 |
-| 공모전 상세 `/contests/:contestId` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [공고 공개·참가·마감 정책](../specs/contests.md): 원문·참가 방식·인원·일정·제출물·미확인 정보, 관련 팀·팀 만들기 연결 |
-| 팀 탐색 `/explore?tab=teams` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [팀 AC-01](../specs/team-recruitment.md#acceptance-criteria): 모집 역할·정원·상태·공모전별 탐색 |
+| 공모전 탐색 `/explore` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx), [ExploreFilters](../../design-reference/src/features/design-preview/ExploreFilters.tsx) | [공고 명세](../specs/contests.md): 왼쪽 세로 포스터·D-day, 오른쪽 제목·분야·주최자와 우하단 팀 아이콘·모집 중 팀 수. 카드 전체로 상세 이동. 검색·필터·번호 페이지·빈 결과, 분야는 아이콘으로 여는 Drawer에서 선택·적용 |
+| 공모전 상세 `/contests/:contestId` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [공고 공개·참가·마감 정책](../specs/contests.md): 원문·참가 방식·인원·일정·제출물·미확인 정보, 해당 공모전의 팀을 상세 안에 바로 표시. 생성(+)/AI 아이콘, 열린 공고의 빈 팀 안내, 마감 시 생성·AI 숨김 |
+| 팀 탐색 `/explore?tab=teams` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [팀 AC-01](../specs/team-recruitment.md#acceptance-criteria): 모집 역할·정원·상태·공모전별 탐색과 번호 페이지 |
 | 공개 모집글 `/teams/:teamId` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-03~07·15·18·26](../specs/team-recruitment.md#acceptance-criteria): 지원·필수 프로필 보완·메시지·마감·중복·취소 후 재지원 |
 | 팀 만들기 `/teams/new` | [CreateTeamPage](../../design-reference/src/features/design-preview/CreateTeamPage.tsx), [ContestPicker](../../design-reference/src/features/design-preview/ContestPicker.tsx) | [팀 AC-02·13·16·22~24](../specs/team-recruitment.md#acceptance-criteria): 공모전 검색 선택, 목표·역할·팀장 포함 정원·마감·공식 인원 범위·개인 전용 준비 팀 |
 | 워크스페이스 `/workspace` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access): 본인이 팀장이거나 현재 확정 팀원인 팀과 빈 상태. 내 팀·내 지원 콘텐츠 제목과 개수, 작업 아이콘을 한 줄에 배치하고 팀 카드 전체를 눌러 팀 공간 이동 |
@@ -23,7 +23,7 @@
 | 지원자 검토 `/applicants/:applicantId` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [프로필 공개 정책](../specs/profile.md#visibility), [팀 선발 정책](../specs/team-recruitment.md#membership-capacity): 지원한 팀장이 공개 상태와 관계없이 전체 현재 프로필을 확인. 일반 팀원은 이 예외를 갖지 않음 |
 | 내 프로필 `/profile` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx), [ProfileFields](../../design-reference/src/features/design-preview/ProfileFields.tsx) | [프로필 AC-01·06·20~25](../specs/profile.md#acceptance-criteria): 학사·역량·경험·시간 입력, 단일 포트폴리오 URL·제목, 전체 프로필 공개 스위치와 전환 확인, 선택형 마스코트 이미지 |
 | 본인 공개 화면 확인 `/profile/public` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx) | [사람 탐색과 공개 설정](../specs/profile.md#people-directory): 본인이 설정한 공개 결과 확인 |
-| 사람 탐색·상세 `/explore?tab=people`, `/people/:personId` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [프로필 AC-08~12·23~24](../specs/profile.md#acceptance-criteria): 로그인 후 공개 프로필 검색·전체 등록 항목 열람. 비공개 프로필의 일반 검색·AI 결과·직접 상세 접근 제외. 지원자 관계와 구분 |
+| 사람 탐색·상세 `/explore?tab=people`, `/people/:personId` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [프로필 AC-08~12·23~24](../specs/profile.md#acceptance-criteria): `함께할 사람`에서 로그인 후 공개 프로필 검색·번호 페이지·전체 등록 항목 열람. 비공개 프로필의 일반 검색·AI 결과·직접 상세 접근 제외. 지원자 관계와 구분 |
 | AI `/ai` | [AiChatPage](../../design-reference/src/features/design-preview/AiChatPage.tsx) | [LLM 추천 AC-16~25](../specs/matching.md#acceptance-criteria): 로그인 후 자연어 입력·결과·후속 조건·중단·실패·재시도·빈 결과. 실제 LLM은 미구현 |
 | 상단 알림함 · 별도 경로 없음 | [Notifications](../../design-reference/src/features/design-preview/Notifications.tsx) | [알림 AC-01~06](../specs/notifications.md): 읽음·미읽음·모두 읽음·소유 관계·관련 화면 이동 |
 | 시작·없는 경로 `/loading`, 정의되지 않은 주소 | [LoadingPage](../../design-reference/src/features/design-preview/LoadingPage.tsx), [라우트](../../design-reference/src/pages/DesignPreviewPage.tsx) | 시작 안내와 찾을 수 없는 대상·경로에서 탐색으로 돌아가기 |
@@ -34,7 +34,7 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 
 | 흐름 | 화면을 검토할 때 함께 확인할 것 |
 | --- | --- |
-| 탐색 → 상세 → 복귀 | 검색·선택한 탭·필터, 결과 없음, 공고·팀이 없는 주소. 커서 조회·무한 스크롤·이전 스크롤 복원은 현재 제품 계약으로 확정하지 않음 |
+| 탐색 → 상세 → 복귀 | 검색·선택한 탭·필터·정렬·페이지를 URL에 유지. 각 페이지 6개, 이전/다음과 최대 3개 번호. 조건 변경 시 1페이지, 잘못된 페이지·결과 감소 보정. 페이지 이동 시 결과 제목으로 포커스/스크롤 이동. 이전 스크롤 위치 복원·운영 페이지 크기·서버 조회는 미정 |
 | 탐색 필터·정렬·초기화 | 필터 아이콘 → Drawer의 분야/역할 초안 선택 → 적용 시 URL 반영. 취소·Escape·바깥 닫기 시 미적용 선택 제거, 다시 열면 적용값 복원. 팀의 모집중만 조건, 정렬만 변경했을 때도 초기화 아이콘 표시·기본 조건 복원 |
 | 탐색 → AI | 공모전·팀·사람 세 탭 모두 검색창 오른쪽 안의 AI 아이콘으로 이동. 비로그인은 로그인 안내 후 이어가기. AI 진입과 검색어 지우기는 각각 독립된 44px 조작 영역·접근성 이름 제공 |
 | 워크스페이스 → 내 지원·팀 만들기 | 내 팀·내 지원 콘텐츠 제목과 개수 옆에 작업 아이콘 배치. 목록 아이콘의 접근성 이름·title은 `내 지원`, 더하기 아이콘은 `팀 만들기`. 각각 44px 조작 영역을 유지하고 팀 만들기는 녹색 주요 행동으로 표시. 내 지원 화면에서는 해당 아이콘의 `aria-current`·녹색 선택 상태와 `내 팀으로` 복귀 링크 확인 |
@@ -91,3 +91,11 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 - `/reference/notices/campus`, `/reference/portfolios/seoyeon`: 실제 기관·개인 사이트를 대신하는 로컬 링크 목적지.
 
 모든 경로에 `/design-preview` 접두사를 붙입니다. 날짜는 레퍼런스의 수명이 지나도 검토할 수 있도록 2026-10-18에 고정한 예시이며 운영 마감 시각 정책이 아닙니다. 모집 종료 후 기존 지원자의 선발·추천은 정책 TBD이므로 이 레퍼런스에서 모델링하지 않습니다. 신규 지원의 마감 제한과 구분해 구현해야 합니다.
+
+## 페이지 이동과 공모전별 팀 목록
+
+탐색의 세 탭은 [ListPagination](../../design-reference/src/features/design-preview/ListPagination.tsx)과 [useListPage](../../design-reference/src/features/design-preview/use-list-page.ts)를 함께 사용합니다. `page`로 번호를 유지하며 총결과 수는 현재 조건과 열람 범위를 적용한 수입니다. 비로그인의 사람 탭에는 결과 수·페이지 조작을 노출하지 않습니다. 검색·필터 적용·정렬·탭·초기화는 1페이지로 돌아갑니다. 0건이면 페이지 조작을 숨기고, 1페이지뿐이면 현재 번호와 비활성 이전/다음만 표시합니다. 운영 API·DB의 페이징/집계 구현은 별도입니다.
+
+공모전 상세의 `함께할 팀`에는 현재 공모전과 연결된 공개 팀을 직접 표시합니다. [TeamCard](../../design-reference/src/features/design-preview/TeamCard.tsx)를 탐색과 공유하고, 상세 안에서는 중복 공모전명을 생략합니다. 팀이 6개를 넘으면 `teamPage`로 페이지를 나누고 팀 모집글에서 복귀할 때 원래 공모전·팀 페이지·탐색 복귀 경로를 유지합니다. 카드 상태 배지는 워크스페이스와 같은 정원·기한 판정을 사용하지만, 기존 탐색의 모집중만 필터·공모전 카드 집계는 상태값 기준이라는 제한이 남습니다.
+
+팀 찾기 버튼을 없애고 팀 영역 오른쪽에 AI·생성(+) 아이콘을 둡니다. 생성은 현재 공모전을 미리 선택하며, AI는 로그인 전용 대화로 이동합니다. 공모전 조건을 자동 전송하지 않습니다. 열린 공고에 팀이 없으면 첫 팀 생성을 권하고, 개인 전용이면 준비 모임으로 안내합니다. 마감 공고는 기존 팀·공고 열람만 허용하며 생성·AI 아이콘과 생성 권유는 표시하지 않습니다.

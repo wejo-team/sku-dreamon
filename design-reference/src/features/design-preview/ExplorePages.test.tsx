@@ -1,8 +1,9 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { ContestPage, ExplorePage, PersonPage } from './ExplorePages';
+import { TeamPage } from './WorkspacePages';
 import {
   archivedContest,
   contests,
@@ -10,8 +11,21 @@ import {
   initialTeams,
   people,
   type Profile,
+  type Team,
 } from './data';
 import { PreviewContext, type PreviewState } from './preview-context';
+
+function CurrentLocation() {
+  const { pathname, search } = useLocation();
+  return <p aria-label="현재 경로">{pathname + search}</p>;
+}
+
+function currentUrl() {
+  return new URL(
+    screen.getByLabelText('현재 경로').textContent!,
+    'https://example.com',
+  );
+}
 
 function renderExplore(path: string, overrides: Partial<PreviewState> = {}) {
   const state: PreviewState = {
@@ -35,6 +49,7 @@ function renderExplore(path: string, overrides: Partial<PreviewState> = {}) {
   render(
     <MemoryRouter initialEntries={[path]}>
       <PreviewContext value={state}>
+        <CurrentLocation />
         <Routes>
           <Route path="/design-preview/explore" element={<ExplorePage />} />
           <Route
@@ -45,6 +60,7 @@ function renderExplore(path: string, overrides: Partial<PreviewState> = {}) {
             path="/design-preview/contests/:contestId"
             element={<ContestPage />}
           />
+          <Route path="/design-preview/teams/:teamId" element={<TeamPage />} />
         </Routes>
       </PreviewContext>
     </MemoryRouter>,
@@ -71,6 +87,13 @@ const publicProfile: Profile = {
   portfolio: 'https://portfolio.example.com/jiwoo',
   visibility: { discoverable: true },
 };
+
+const pagedTeams: Team[] = Array.from({ length: 14 }, (_, index) => ({
+  ...initialTeams[0]!,
+  id: `paged-${index + 1}`,
+  name: `페이지 팀 ${String(index + 1).padStart(2, '0')}`,
+  roles: ['개발', '디자인'],
+}));
 
 describe('official reference public exploration', () => {
   it('allows guests to read and filter public contests using the shared interests', async () => {
@@ -139,6 +162,152 @@ describe('official reference public exploration', () => {
     expect(state.apply).not.toHaveBeenCalled();
   });
 
+  it('paginates the complete filtered result and preserves its conditions and page through team detail', async () => {
+    const params = new URLSearchParams({
+      tab: 'teams',
+      q: '페이지',
+      role: '개발',
+      open: 'true',
+      contest: 'campus',
+      page: '2',
+    });
+    renderExplore(`/design-preview/explore?${params}`, {
+      teams: [...pagedTeams, initialTeams[1]!],
+    });
+    const user = userEvent.setup();
+    const nav = screen.getByRole('navigation', { name: '탐색 결과 페이지' });
+    expect(screen.getByRole('status')).toHaveTextContent('검색 결과 14개');
+    expect(
+      screen
+        .getAllByRole('heading', { level: 3 })
+        .map((node) => node.textContent),
+    ).toEqual(pagedTeams.slice(6, 12).map((team) => team.name));
+    expect(within(nav).getByRole('link', { name: '2페이지' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+
+    await user.click(within(nav).getByRole('link', { name: '다음 페이지' }));
+    expect(
+      screen
+        .getAllByRole('heading', { level: 3 })
+        .map((node) => node.textContent),
+    ).toEqual(pagedTeams.slice(12).map((team) => team.name));
+    expect(
+      screen.getByRole('heading', { name: '함께 도전하는 팀' }),
+    ).toHaveFocus();
+    const expectedLastPage = new URLSearchParams(params);
+    expectedLastPage.set('page', '3');
+    expect(currentUrl().searchParams.toString()).toBe(
+      expectedLastPage.toString(),
+    );
+    expect(screen.getByRole('button', { name: '다음 페이지' })).toBeDisabled();
+
+    await user.click(screen.getByRole('link', { name: '이전 페이지' }));
+    const listPath = currentUrl().pathname + currentUrl().search;
+    const teamLink = screen.getByRole('link', { name: /페이지 팀 07/ });
+    expect(
+      new URL(
+        teamLink.getAttribute('href')!,
+        'https://example.com',
+      ).searchParams.get('from'),
+    ).toBe(listPath);
+    await user.click(teamLink);
+    expect(
+      screen.getByRole('heading', { name: '페이지 팀 07' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '목록으로' })).toHaveAttribute(
+      'href',
+      listPath,
+    );
+    await user.click(screen.getByRole('link', { name: '목록으로' }));
+    expect(currentUrl().searchParams.toString()).toBe(params.toString());
+    expect(
+      screen
+        .getAllByRole('heading', { level: 3 })
+        .map((node) => node.textContent),
+    ).toEqual(pagedTeams.slice(6, 12).map((team) => team.name));
+  });
+
+  it.each(['search', 'filter', 'tab', 'reset'])(
+    'returns to page one when the user changes %s',
+    async (action) => {
+      renderExplore(
+        '/design-preview/explore?tab=teams&q=페이지&role=개발&page=2',
+        {
+          signedIn: true,
+          teams: pagedTeams,
+        },
+      );
+      const user = userEvent.setup();
+      expect(currentUrl().searchParams.get('page')).toBe('2');
+      if (action === 'search') {
+        await user.type(
+          screen.getByRole('textbox', { name: '탐색 검색' }),
+          ' ',
+        );
+      } else if (action === 'filter') {
+        await user.click(screen.getByRole('button', { name: '탐색 필터' }));
+        await user.click(screen.getByRole('radio', { name: '디자인' }));
+        await user.click(screen.getByRole('button', { name: '필터 적용' }));
+        expect(currentUrl().searchParams.get('role')).toBe('디자인');
+      } else if (action === 'tab') {
+        await user.click(screen.getByRole('link', { name: '사람' }));
+        expect(
+          screen.getByRole('heading', { name: '함께할 사람' }),
+        ).toBeInTheDocument();
+      } else {
+        await user.click(
+          screen.getByRole('button', { name: '검색 조건 초기화' }),
+        );
+        expect(currentUrl().searchParams.get('role')).toBeNull();
+      }
+      expect(currentUrl().searchParams.get('page')).toBeNull();
+      expect(screen.getByRole('link', { name: '1페이지' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      if (action !== 'tab') {
+        expect(
+          screen.getByRole('heading', { name: '페이지 팀 01' }),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByRole('heading', { name: '페이지 팀 07' }),
+        ).not.toBeInTheDocument();
+      }
+    },
+  );
+
+  it.each([
+    { requested: '0', expectedPage: 1 },
+    { requested: '-2', expectedPage: 1 },
+    { requested: 'invalid', expectedPage: 1 },
+    { requested: '2.5', expectedPage: 1 },
+    { requested: '9007199254740992', expectedPage: 1 },
+    { requested: '99', expectedPage: 3 },
+  ])(
+    'normalizes page=$requested to a reachable page without losing filters',
+    ({ requested, expectedPage }) => {
+      renderExplore(
+        `/design-preview/explore?tab=teams&role=개발&page=${requested}`,
+        { teams: pagedTeams },
+      );
+      expect(currentUrl().searchParams.get('page')).toBe(
+        expectedPage === 1 ? null : String(expectedPage),
+      );
+      expect(currentUrl().searchParams.get('tab')).toBe('teams');
+      expect(currentUrl().searchParams.get('role')).toBe('개발');
+      expect(
+        screen.getByRole('link', { name: `${expectedPage}페이지` }),
+      ).toHaveAttribute('aria-current', 'page');
+      expect(
+        screen.getByRole('heading', {
+          name: expectedPage === 1 ? '페이지 팀 01' : '페이지 팀 13',
+        }),
+      ).toBeInTheDocument();
+    },
+  );
+
   it('does not expose people or their search matches to guests', () => {
     renderExplore('/design-preview/explore?tab=people&q=정수아');
     expect(
@@ -146,7 +315,7 @@ describe('official reference public exploration', () => {
         name: '로그인하고 함께할 사람을 찾아보세요',
       }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('검색 결과 0개');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'AI에게 추천 받기' }),
     ).toHaveAttribute('href', '/design-preview/ai');
@@ -314,6 +483,110 @@ describe('official reference public exploration', () => {
       'href',
       '/design-preview/teams/new?contest=campus',
     );
+  });
+
+  it('shows only this contest’s teams inline with accessible create and AI icon actions', () => {
+    renderExplore('/design-preview/contests/campus');
+    const teamSection = screen.getByRole('region', { name: '함께할 팀' });
+    expect(
+      within(teamSection).getByRole('link', { name: /캠퍼스 메이커스/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(teamSection).queryByText('그린웨이브'),
+    ).not.toBeInTheDocument();
+    expect(
+      within(teamSection).queryByText('로컬 크루'),
+    ).not.toBeInTheDocument();
+    expect(
+      within(teamSection).queryByText(contests[0]!.title),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '팀 찾기' }),
+    ).not.toBeInTheDocument();
+    const create = within(teamSection).getByRole('link', { name: '팀 만들기' });
+    expect(create).toHaveAttribute(
+      'href',
+      '/design-preview/teams/new?contest=campus',
+    );
+    expect(create.textContent).toBe('');
+    const ai = within(teamSection).getByRole('link', {
+      name: 'AI로 팀 찾아보기',
+    });
+    expect(ai).toHaveAttribute('href', '/design-preview/ai');
+    expect(ai.textContent).toBe('');
+  });
+
+  it.each([
+    {
+      contestId: 'campus',
+      action: '팀 만들기',
+      prompt: '첫 팀을 만들어 함께 도전해 보세요.',
+    },
+    {
+      contestId: 'local',
+      action: '준비 모임 만들기',
+      prompt: '첫 준비 모임을 만들어 함께 도전해 보세요.',
+    },
+  ])(
+    'invites users to create the first group when $contestId has no teams',
+    ({ contestId, action, prompt }) => {
+      renderExplore(`/design-preview/contests/${contestId}`, { teams: [] });
+      const teamSection = screen.getByRole('region', { name: '함께할 팀' });
+      expect(
+        within(teamSection).getByRole('heading', {
+          name: '아직 함께할 팀이 없어요',
+        }),
+      ).toBeInTheDocument();
+      expect(within(teamSection).getByText(prompt)).toBeInTheDocument();
+      expect(
+        within(teamSection).getByRole('link', { name: action }),
+      ).toHaveAttribute(
+        'href',
+        `/design-preview/teams/new?contest=${contestId}`,
+      );
+      expect(
+        within(teamSection).queryByRole('navigation'),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('paginates related teams and returns from a team to the same contest team page and explore context', async () => {
+    const from = '/design-preview/explore?category=교육';
+    const params = new URLSearchParams({ from, teamPage: '2' });
+    const contestPath = `/design-preview/contests/campus?${params}`;
+    renderExplore(contestPath, { teams: [...pagedTeams, initialTeams[1]!] });
+    const user = userEvent.setup();
+    const teamSection = screen.getByRole('region', { name: '함께할 팀' });
+    expect(
+      within(teamSection)
+        .getAllByRole('heading', { level: 3 })
+        .map((node) => node.textContent),
+    ).toEqual(pagedTeams.slice(6, 12).map((team) => team.name));
+    expect(
+      within(teamSection).getByRole('navigation', {
+        name: '공모전 팀 목록 페이지',
+      }),
+    ).toHaveAccessibleDescription('전체 3페이지 중 2페이지');
+    expect(screen.getByRole('link', { name: '탐색으로' })).toHaveAttribute(
+      'href',
+      from,
+    );
+    await user.click(
+      within(teamSection).getByRole('link', { name: /페이지 팀 07/ }),
+    );
+    expect(screen.getByRole('link', { name: '목록으로' })).toHaveAttribute(
+      'href',
+      contestPath,
+    );
+    await user.click(screen.getByRole('link', { name: '목록으로' }));
+    expect(currentUrl().searchParams.get('teamPage')).toBe('2');
+    expect(currentUrl().searchParams.get('from')).toBe(from);
+    expect(
+      screen.getByRole('heading', { name: '페이지 팀 07' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: '페이지 팀 01' }),
+    ).not.toBeInTheDocument();
   });
 
   it('makes individual-contest collaboration a preparation group and marks missing submission information', () => {

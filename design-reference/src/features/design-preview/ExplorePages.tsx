@@ -4,6 +4,7 @@ import {
   Search,
   ArrowRight,
   Sparkles,
+  Plus,
   RotateCcw,
   Users,
   X,
@@ -24,6 +25,9 @@ import { usePreview } from './preview-context';
 import { ContestCover } from './ContestCover';
 import { ExploreFilters } from './ExploreFilters';
 import { ProfileDetails } from './ProfileDetails';
+import { ListPagination } from './ListPagination';
+import { useListPage } from './use-list-page';
+import { TeamCard } from './TeamCard';
 import {
   ActionLink,
   Avatar,
@@ -53,6 +57,7 @@ export function ExplorePage() {
   const sort = params.get('sort') ?? 'default';
   const update = (key: string, value: string) => {
     const next = new URLSearchParams(params);
+    next.delete('page');
     if (value) next.set(key, value);
     else next.delete(key);
     setParams(next, { replace: key === 'q' });
@@ -106,6 +111,8 @@ export function ExplorePage() {
       : tab === 'teams'
         ? matchedTeams.length
         : matchedPeople.length;
+  const { page, totalPages, start, end, hrefForPage, headingRef } =
+    useListPage(count);
   const reset = () => setParams(tab === 'contests' ? {} : { tab });
   const contestContext = contests.find(
     (item) => item.id === params.get('contest'),
@@ -175,6 +182,7 @@ export function ExplorePage() {
           onlyOpen={params.get('open') === 'true'}
           onApply={(value, onlyOpen) => {
             const next = new URLSearchParams(params);
+            next.delete('page');
             const key = tab === 'contests' ? 'category' : 'role';
             if (value) next.set(key, value);
             else next.delete(key);
@@ -219,18 +227,20 @@ export function ExplorePage() {
         <Notice>{contestContext.title}에 함께 도전하는 팀이에요.</Notice>
       )}
       <div className="preview-results-heading">
-        <h2>
+        <h2 ref={headingRef} tabIndex={-1}>
           {tab === 'contests'
             ? '모집 중인 공모전'
             : tab === 'teams'
               ? '함께 도전하는 팀'
-              : '다양한 관심사를 가진 사람들'}
+              : '함께할 사람'}
         </h2>
-        <span className="preview-result-count" role="status">
-          <span className="sr-only">검색 결과 </span>
-          {count}
-          <span className="sr-only">개</span>
-        </span>
+        {(tab !== 'people' || signedIn) && (
+          <span className="preview-result-count" role="status">
+            <span className="sr-only">검색 결과 </span>
+            {count}
+            <span className="sr-only">개</span>
+          </span>
+        )}
         {tab === 'teams' && (
           <Link className="preview-text-link" to={previewPath('/teams/new')}>
             팀 만들기
@@ -266,7 +276,7 @@ export function ExplorePage() {
           className={`preview-grid preview-explore-grid preview-explore-grid--${tab}`}
         >
           {tab === 'contests' &&
-            matchedContests.map((item, index) => (
+            matchedContests.slice(start, end).map((item, index) => (
               <Link
                 className="preview-card preview-contest-card"
                 key={item.id}
@@ -303,40 +313,17 @@ export function ExplorePage() {
               </Link>
             ))}
           {tab === 'teams' &&
-            matchedTeams.map((item) => (
-              <Link
-                className="preview-card preview-team-card"
-                key={item.id}
-                to={previewPath(`/teams/${item.id}?from=${from}`)}
-              >
-                <div className="preview-row preview-split">
-                  <Badge tone={item.status === '모집중' ? 'lime' : 'neutral'}>
-                    {item.status}
-                  </Badge>
-                  <span className="preview-muted">
-                    {item.members}명 활동 중
-                  </span>
-                </div>
-                <h3>{item.name}</h3>
-                <p className="preview-card-description">{item.summary}</p>
-                <div className="preview-row">
-                  {item.roles.map((value) => (
-                    <Badge key={value}>{value}</Badge>
-                  ))}
-                </div>
-                <div className="preview-card-footer">
-                  <span>
-                    {
-                      contests.find((contest) => contest.id === item.contestId)
-                        ?.title
-                    }
-                  </span>
-                  <ChevronRight size={20} aria-hidden="true" />
-                </div>
-              </Link>
-            ))}
+            matchedTeams
+              .slice(start, end)
+              .map((item) => (
+                <TeamCard
+                  key={item.id}
+                  team={item}
+                  to={previewPath(`/teams/${item.id}?from=${from}`)}
+                />
+              ))}
           {tab === 'people' &&
-            matchedPeople.map((item) => (
+            matchedPeople.slice(start, end).map((item) => (
               <Link
                 className="preview-card preview-person-card"
                 key={item.id}
@@ -367,6 +354,14 @@ export function ExplorePage() {
             ))}
         </div>
       )}
+      {count > 0 && (
+        <ListPagination
+          page={page}
+          totalPages={totalPages}
+          hrefForPage={hrefForPage}
+          label="탐색 결과 페이지"
+        />
+      )}
     </section>
   );
 }
@@ -374,6 +369,14 @@ export function ExplorePage() {
 export function ContestPage() {
   const { contestId } = useParams();
   const [params] = useSearchParams();
+  const { teams } = usePreview();
+  const location = useLocation();
+  const relatedTeams = teams.filter((team) => team.contestId === contestId);
+  const { page, totalPages, start, end, hrefForPage, headingRef } = useListPage(
+    relatedTeams.length,
+    'teamPage',
+  );
+  const teamFrom = encodeURIComponent(location.pathname + location.search);
   const contest = [...contests, archivedContest].find(
     (item) => item.id === contestId,
   );
@@ -482,40 +485,106 @@ export function ContestPage() {
           </div>
           <Notice>공모전 접수는 주최 기관에서 진행합니다.</Notice>
         </article>
-        <aside className="preview-panel preview-detail-aside">
-          <h2>함께할 팀</h2>
+        <section
+          className="preview-contest-teams-section"
+          aria-labelledby="contest-teams-title"
+        >
+          <div className="preview-contest-teams-heading">
+            <div className="preview-contest-teams-title">
+              <h2 id="contest-teams-title" ref={headingRef} tabIndex={-1}>
+                함께할 팀
+              </h2>
+              <span className="preview-result-count">
+                <span className="sr-only">팀 </span>
+                {relatedTeams.length}
+                <span className="sr-only">개</span>
+              </span>
+            </div>
+            {contest.status !== 'closed' && (
+              <div className="preview-contest-team-actions">
+                <Button
+                  asChild
+                  variant="outline"
+                  className="preview-compact-action preview-ai-shortcut"
+                >
+                  <Link
+                    to={previewPath('/ai')}
+                    aria-label="AI로 팀 찾아보기"
+                    title="AI로 팀 찾아보기"
+                  >
+                    <Sparkles size={20} aria-hidden="true" />
+                  </Link>
+                </Button>
+                <Button asChild className="preview-compact-action">
+                  <Link
+                    to={previewPath(`/teams/new?contest=${contest.id}`)}
+                    aria-label={
+                      contest.participation === 'individual'
+                        ? '준비 모임 만들기'
+                        : '팀 만들기'
+                    }
+                    title={
+                      contest.participation === 'individual'
+                        ? '준비 모임 만들기'
+                        : '팀 만들기'
+                    }
+                  >
+                    <Plus size={20} aria-hidden="true" />
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </div>
           {contest.participation === 'individual' && (
             <Notice>
               개인 참가 공모전이에요. 준비 모임에서 함께 준비하고 접수는 각자
               진행해요.
             </Notice>
           )}
-          {contest.status === 'closed' ? (
+          {contest.status === 'closed' && (
             <Notice>
               접수가 마감되어 새 팀을 만들거나 지원할 수 없어요. 공고는 계속
               확인할 수 있어요.
             </Notice>
-          ) : (
-            <>
-              <ActionLink
-                to={previewPath(`/explore?tab=teams&contest=${contest.id}`)}
-              >
-                팀 찾기
-              </ActionLink>
-              <ActionLink
-                to={previewPath(`/teams/new?contest=${contest.id}`)}
-                secondary
-              >
-                {contest.participation === 'individual'
-                  ? '준비 모임 만들기'
-                  : '팀 만들기'}
-              </ActionLink>
-              <ActionLink to={previewPath('/ai')} secondary>
-                AI로 팀 찾아보기
-              </ActionLink>
-            </>
           )}
-        </aside>
+          {relatedTeams.length ? (
+            <>
+              <div className="preview-grid preview-contest-team-list">
+                {relatedTeams.slice(start, end).map((team) => (
+                  <TeamCard
+                    key={team.id}
+                    team={team}
+                    to={previewPath(`/teams/${team.id}?from=${teamFrom}`)}
+                    showContest={false}
+                  />
+                ))}
+              </div>
+              {totalPages > 1 && (
+                <ListPagination
+                  page={page}
+                  totalPages={totalPages}
+                  hrefForPage={hrefForPage}
+                  label="공모전 팀 목록 페이지"
+                />
+              )}
+            </>
+          ) : (
+            <EmptyState
+              title={
+                contest.status === 'closed'
+                  ? '등록된 팀이 없어요'
+                  : '아직 함께할 팀이 없어요'
+              }
+              description={
+                contest.status === 'closed'
+                  ? '공모전 상세 정보는 계속 확인할 수 있어요.'
+                  : contest.participation === 'individual'
+                    ? '첫 준비 모임을 만들어 함께 도전해 보세요.'
+                    : '첫 팀을 만들어 함께 도전해 보세요.'
+              }
+            />
+          )}
+        </section>
       </div>
     </div>
   );
