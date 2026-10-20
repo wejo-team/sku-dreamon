@@ -23,6 +23,7 @@
 | [frontend.md](frontend.md) | 모바일 UI, API 호출, 캐시, 폼·상태 관리 |
 | [공식 디자인](../design/README.md) | 저장소의 모바일 화면·상태·컴포넌트를 참조해 제품 프론트에 구현할 때 |
 | [backend.md](backend.md) | 비동기 DB, 트랜잭션, API·설정·마이그레이션 |
+| [DB 설계](../database/README.md) · [API 명세](../api/README.md) | 물리 ERD·테이블·요청/응답 계약을 검토하거나 구현할 때 |
 | [testing.md](testing.md) | 테스트 범위, CI 단계, 완료 기준 |
 | [documentation.md](documentation.md) | 문서 원본·인덱스 관리 규칙과 VitePress 자동 게시 운영 |
 
@@ -40,7 +41,7 @@
 
 ## 아직 결정하지 않은 것
 
-로그인 세션 방식·기간과 계정 복구 정책, 상세 도메인·테이블, 운영 배포 플랫폼은 미정입니다. 추천은 LLM 기반으로 변경했으며 모델·제공자·검색·실행·API 등 내부 아키텍처는 [추천 명세](../specs/matching.md)의 TBD입니다. 초기 문서와 실행 기반을 만드는 데 이 결정을 먼저 할 필요는 없습니다. 필요한 기능을 구현하기 전에 확정하고 관련 문서를 갱신합니다.
+상세 도메인·테이블과 외부 API 계약은 [DB 설계](../database/README.md)와 [API 명세](../api/README.md)에 검토안으로 정리합니다. 구현 완료를 뜻하지 않습니다. 로그인 세션 방식·기간, 계정 복구·보존, 운영 배포 플랫폼은 미정입니다. 추천은 LLM 기반이며 모델·제공자·검색·실행·저장 등 내부 아키텍처는 [추천 명세](../specs/matching.md)의 TBD를 유지합니다. 기능 구현에 필요한 선행 결정은 [설계 검토 목록](../database/decisions.md#open-decisions)에서 확인합니다.
 
 현재 런타임·패키지 버전은 버전 파일과 lockfile에 고정합니다. [로컬 실행](local-development.md)에서 설치 명령을 확인합니다. 버전을 변경할 때 호환성을 검사하고 파일과 문서를 함께 갱신합니다.
 

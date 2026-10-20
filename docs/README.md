@@ -11,7 +11,8 @@
 | [collaboration/](collaboration/README.md) | GitHub에서 문서 작성·PR·리뷰·게시 확인을 하는 방법 |
 | [development/](development/README.md) | 설치·실행, 기술 규칙, 개발·리뷰·검증 방법 |
 | [specs/](specs/README.md) | 팀이 검토하는 기능 동작·정책·예외·완료 조건 |
-| [logical-model/](logical-model/README.md) | 프로젝트 전체의 논리 ERD·속성·관계·제약·권한 설계 초안 |
+| [database/](database/README.md) | 물리 ERD·테이블 정의·DB 제약·트랜잭션 설계안 |
+| [api/](api/README.md) | 요청·응답·권한·오류·페이지네이션과 OpenAPI 계약안 |
 | [design/](design/README.md) | 공식 모바일 디자인 실행·화면별 명세·프론트엔드 인계 |
 | [templates/](templates/README.md) | 새 문서를 작성할 때 복사하는 양식 |
 | [branding.md](branding.md) | 서경드림온의 의미와 이름·기술 식별자 표기 기준 |
@@ -23,6 +24,7 @@
 - 기획 팀원 등 GitHub가 처음인 팀원이 참여할 때: [문서 협업 시작하기](collaboration/README.md)
 - 처음 실행할 때: [로컬 실행](development/local-development.md)
 - 제품 화면을 구현할 때: [공식 디자인 레퍼런스](design/README.md)
+- DB와 서버 인터페이스를 검토할 때: [DB 설계](database/README.md) → [API 명세](api/README.md)
 - 명세·계획·PR을 검토할 때: [팀 작업 흐름](development/workflow.md)
 - 공식 모바일 디자인을 참고할 때: [디자인 실행 안내](design/README.md)과 [버전·검증 기록](specs/prototype-alignment.md)
 - 현재 프로토타입과 기능 명세를 대조할 때: [디자인 기능·명세 대조](specs/prototype-alignment.md)
