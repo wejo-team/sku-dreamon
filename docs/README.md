@@ -12,7 +12,7 @@
 | [development/](development/README.md) | 설치·실행, 기술 규칙, 개발·리뷰·검증 방법 |
 | [specs/](specs/README.md) | 팀이 검토하는 기능 동작·정책·예외·완료 조건 |
 | [database/](database/README.md) | 물리 ERD·테이블 정의·DB 제약·트랜잭션 설계안 |
-| [api/](api/README.md) | 요청·응답·권한·오류·페이지네이션과 OpenAPI 계약안 |
+| [api/](api/README.md) | 요청·응답 필드·권한·오류·페이지네이션의 Markdown 설계 |
 | [design/](design/README.md) | 공식 모바일 디자인 실행·화면별 명세·프론트엔드 인계 |
 | [templates/](templates/README.md) | 새 문서를 작성할 때 복사하는 양식 |
 | [branding.md](branding.md) | 서경드림온의 의미와 이름·기술 식별자 표기 기준 |
