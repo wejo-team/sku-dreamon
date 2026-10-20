@@ -21,6 +21,7 @@
 | [architecture.md](architecture.md) | 폴더 책임·의존 방향·실행 기반을 변경할 때 |
 | [conventions.md](conventions.md) | 이름·포맷·주석·브랜치·커밋·PR |
 | [frontend.md](frontend.md) | 모바일 UI, API 호출, 캐시, 폼·상태 관리 |
+| [공식 디자인](../design/README.md) | 저장소의 모바일 화면·상태·컴포넌트를 참조해 제품 프론트에 구현할 때 |
 | [backend.md](backend.md) | 비동기 DB, 트랜잭션, API·설정·마이그레이션 |
 | [testing.md](testing.md) | 테스트 범위, CI 단계, 완료 기준 |
 | [documentation.md](documentation.md) | 문서 원본·인덱스 관리 규칙과 VitePress 자동 게시 운영 |
@@ -29,17 +30,17 @@
 
 - 서비스명: **서경드림온**. 약칭은 **드림온**, 영문 표기는 **SKU DreamOn**, 기술 식별자의 기본형은 `sku-dreamon`입니다. 의미와 사용 기준은 [이름과 표기](../branding.md)를 따릅니다.
 - 저장소: `wejo-team/sku-dreamon`. 공개 저장소이며 이름은 서비스의 기술 식별자에 맞춥니다.
-- 구조: `frontend/`, `backend/`가 있는 모노레포. 공통 패키지나 별도 모노레포 실행 도구는 필요가 생길 때 추가합니다.
+- 구조: 제품의 `frontend/`, `backend/`와 독립적인 공식 UI 참고 앱 `design-reference/`가 있는 모노레포. 공통 패키지나 별도 모노레포 실행 도구는 필요가 생길 때 추가합니다.
 - 프론트: React + TypeScript + Vite + React Router, Tailwind + shadcn/ui, TanStack Query + fetch, React Hook Form + Zod. 패키지 관리자는 npm입니다.
 - 백엔드: FastAPI + uv + Pydantic + SQLAlchemy 2 비동기 API + asyncpg + PostgreSQL + Alembic입니다. 앞서 검토했던 동기 DB 접근안은 이 결정으로 대체합니다.
-- CI: GitHub Actions. 프론트는 ESLint·Prettier·TypeScript, 백엔드는 Ruff·mypy를 사용합니다.
+- CI: GitHub Actions. 프론트는 ESLint·Prettier·TypeScript, 백엔드는 Ruff·mypy를 사용합니다. 공식 디자인은 필요할 때 로컬에서 수동 확인합니다.
 - 문서: `docs/`를 원본으로 VitePress + GitHub Pages에서 읽습니다. 명세·계획·구현의 사람 검토 절차는 그대로 유지합니다.
 - 스프린트 1 로그인: [자체 아이디·비밀번호 방식](../specs/authentication.md#login-decision). 학교·이메일 인증과 소셜 로그인은 후속 범위이며, [내부 사용자 ID와 로그인 수단의 분리](../specs/authentication.md#account-linking)를 적용합니다.
 - 처음에는 한국어 개발 문서와 영어 코드 식별자를 사용합니다.
 
 ## 아직 결정하지 않은 것
 
-로그인 세션 방식·기간과 계정 복구 정책, 상세 도메인·테이블, 운영 배포 플랫폼, AI 모델·제공자는 미정입니다. 초기 문서와 실행 기반을 만드는 데 이 결정을 먼저 할 필요는 없습니다. 필요한 기능을 구현하기 전에 확정하고 관련 문서를 갱신합니다.
+로그인 세션 방식·기간과 계정 복구 정책, 상세 도메인·테이블, 운영 배포 플랫폼은 미정입니다. 추천은 LLM 기반으로 변경했으며 모델·제공자·검색·실행·API 등 내부 아키텍처는 [추천 명세](../specs/matching.md)의 TBD입니다. 초기 문서와 실행 기반을 만드는 데 이 결정을 먼저 할 필요는 없습니다. 필요한 기능을 구현하기 전에 확정하고 관련 문서를 갱신합니다.
 
 현재 런타임·패키지 버전은 버전 파일과 lockfile에 고정합니다. [로컬 실행](local-development.md)에서 설치 명령을 확인합니다. 버전을 변경할 때 호환성을 검사하고 파일과 문서를 함께 갱신합니다.
 
