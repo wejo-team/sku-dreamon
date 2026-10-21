@@ -42,8 +42,8 @@
 | --- | --- | --- | --- |
 | 남은 인증·세션 운영 정책 | 서버 세션·지속 쿠키 전달, 가입 후 자동 로그인, 토큰 해시 저장, 유휴 24시간·절대 7일 만료, 독립된 동시 세션·현재 세션 즉시 회수 | CSRF 전달·검증 세부, 쿠키 이름·경로, 운영 도메인·시도 제한 수치·정리 및 보존 기간·라이브러리 | [세션 정책](../specs/authentication.md#session-policy), [AUTH 미정](../specs/authentication.md#open-questions) |
 | 계정 탈퇴·데이터 보존 | 안정된 계정 FK, 종료된 소속·지원 이력 | 연쇄 삭제·익명화·아이디 재사용 정책 | [프로필 미정](../specs/profile.md#open-questions) |
-| 공고·모집 조건 변경 | 현재 조건 저장, 작성·수정 주체 FK | 기존 지원 자동 취소·소속 변경 | [주최 측 변경](../specs/contests.md#eligibility-changes) |
-| 관리자 운영 | 관리자 권한과 등록 주체 구분 | 관리자 화면·권한 부여·관리 API | [공고 운영](../specs/contests.md#operation-flow) |
+| 공고·모집 조건 변경 | 현재 조건과 생성·수정 시각 저장 | 기존 지원 자동 취소·소속 변경 | [주최 측 변경](../specs/contests.md#eligibility-changes) |
+| 관리자 운영 | 공고 등록·수정·등록 전 확인의 관리자 책임 | 관리자 계정·인증·권한 저장 방식, 관리자 화면·권한 부여·관리 API | [공고 운영](../specs/contests.md#operation-flow) |
 | 코드·학사 원장 확정 | 안정된 코드·변하지 않는 경로 구조 | 확인하지 않은 실제 원장 식별자·임의 분류 추가 | [선택지](../specs/profile-options.md), [학사 구조](../specs/academic-structure.md) |
 | AI 운영·저장·미완성 프로필 | 외부 HTTP 계약·소유·대상 권한 | 내부 제공자·영속화·개인화 허용 범위 | [MATCH 미정](../specs/matching.md#open-questions) |
 | 알림 전달·보존 | DB 저장·읽음·중복 방지·정렬 설계 | 실시간 채널·보존 기한·삭제·운영 상한 | [NOTIFY 미정](../specs/notifications.md) |
@@ -53,6 +53,8 @@
 TEAM-02·03·04는 2026-10-21 사용자 결정으로 위 팀·지원 전이와 재지원·소속 정책에 반영했습니다. 팀장의 선발 취소·강퇴·탈퇴·팀 삭제 및 별도 팀 전체 확정 단계는 [MVP 제외 범위](../specs/team-recruitment.md#membership-exclusions)이며 미정인 필수 구현 항목으로 남기지 않습니다. 모집글 편집·조건 변경 영향·계정 탈퇴와 보존 정책까지 확정한 것은 아닙니다.
 
 [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위에서 제외한 후속 검토 항목이며, 현재 가입·로그인 개발을 막는 선행 결정이 아닙니다. 복구 API·저장 구조를 이번 설계에 추가하지 않습니다.
+
+[공고 등록자·수정자 이력](../specs/contests.md#operation-flow)은 MVP에서 제외합니다. 관리자 권한 테이블과 공고의 등록자·수정자 FK는 이번 설계에 포함하지 않으며, 관리자 계정의 저장 방식은 운영 설계에서 정합니다.
 
 <a id="verification-cases"></a>
 

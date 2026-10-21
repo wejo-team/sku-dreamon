@@ -13,7 +13,6 @@
 
 ```mermaid
 erDiagram
-  accounts ||--o{ contests : manages
   contests ||--|{ contest_audiences : has
   contests ||--o{ contest_fields : has
   fields ||--o{ contest_fields : classifies
@@ -34,9 +33,6 @@ erDiagram
   contest_fields {
     uuid contest_id PK,FK
     varchar field_code PK,FK
-  }
-  accounts {
-    uuid id PK
   }
   fields {
     varchar code PK
@@ -72,12 +68,12 @@ erDiagram
 | `member_limit_kind` | `varchar(16)` | 불가 | — | `range` / `unlimited` / `unknown` |
 | `min_members` | `bigint` | 허용 | `NULL` | 확인된 최소 양의 정수 |
 | `max_members` | `bigint` | 허용 | `NULL` | 확인된 최대 양의 정수 |
-| `created_by_account_id` | `uuid` | 불가 | — | FK → `accounts.id`; 등록 관리자 |
-| `updated_by_account_id` | `uuid` | 불가 | — | FK → `accounts.id`; 마지막 수정 관리자 |
 | `verified_at` | `timestamptz` | 불가 | — | 등록 전 원문 확인 완료 시각 |
 | `created_at` | `timestamptz` | 불가 | `now()` | 생성 시각 |
 | `updated_at` | `timestamptz` | 불가 | `now()` | 저장 시 갱신 |
 | `version` | `bigint` | 불가 | `1` | 저장 성공마다 증가하는 변경 버전 |
+
+공고의 확인·생성·수정 시각은 기록하며, 관리자 계정 참조와 등록·수정자 이력 저장은 MVP 범위에 포함하지 않습니다.
 
 참가 인원은 양의 `bigint`로 저장하고 API에서는 십진 문자열로 전송합니다. 서비스가 별도 최대 정원을 정하는 정책은 없으며, `bigint`의 최대 표현값 9,223,372,036,854,775,807은 DB의 기술 범위입니다. 범위를 넘는 입력을 자르거나 반올림하지 않습니다. `unlimited`는 최대 인원 NULL로 표현하며 큰 숫자로 바꾸지 않습니다.
 
@@ -155,13 +151,11 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 
 | FK 이름 | 참조 | 삭제 동작 |
 | --- | --- | --- |
-| `fk_contests_created_by` | `created_by_account_id` → `accounts.id` | `RESTRICT` |
-| `fk_contests_updated_by` | `updated_by_account_id` → `accounts.id` | `RESTRICT` |
 | `fk_contest_audiences_contest` | `contest_audiences.contest_id` → `contests.id` | `RESTRICT` |
 | `fk_contest_fields_contest` | `contest_fields.contest_id` → `contests.id` | `RESTRICT` |
 | `fk_contest_fields_field` | `contest_fields.field_code` → `fields.code` | `RESTRICT` |
 
-식별자의 갱신 동작도 `RESTRICT`입니다. 공고 삭제·보존 기간이 미정이므로 연쇄 삭제나 soft-delete 공개 숨김을 추가하지 않습니다. 관리자 역할 회수는 관리자 계정 참조를 지우는 동작이 아닙니다.
+식별자의 갱신 동작도 `RESTRICT`입니다. 공고 삭제·보존 기간이 미정이므로 연쇄 삭제나 soft-delete 공개 숨김을 추가하지 않습니다.
 
 ## 조회용 인덱스와 파생 값
 
@@ -170,7 +164,6 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 | `ix_contests_created` | B-tree `(created_at DESC, id DESC)` | 등록순과 동률 순서 |
 | `ix_contests_closes` | B-tree `(registration_closes_at ASC, id ASC)` | 마감 임박순 |
 | `ix_contest_fields_field` | B-tree `(field_code, contest_id)` | 분야 필터 |
-| `ix_contests_created_by` / `ix_contests_updated_by` | 각각 B-tree `(created_by_account_id)` / `(updated_by_account_id)` | 관리자 참조·FK 검사 |
 
 초기 이름·주최자 검색은 `ILIKE` 조건으로 설계합니다. 분야 검색은 `fields` 조인을 사용하며 결과는 공고 단위로 중복 제거합니다. 한글 부분 검색 성능 개선용 확장·전문 검색은 실제 데이터와 실행 계획을 확인한 뒤 결정하며 이 설계에서 `pg_trgm`을 필수 설치하지 않습니다.
 

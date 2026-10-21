@@ -23,7 +23,6 @@
 erDiagram
     direction LR
     accounts ||--o{ auth_sessions : establishes
-    accounts ||--o{ account_role_grants : has
     accounts ||--o| profiles : owns
     profiles ||--|{ profile_interests : selects
     profiles ||--|{ profile_desired_roles : selects
@@ -35,11 +34,6 @@ erDiagram
         text password_hash
         timestamptz credentials_updated_at
         timestamptz created_at
-    }
-    account_role_grants {
-        uuid account_id PK,FK
-        varchar role_code PK
-        timestamptz granted_at
     }
     auth_sessions {
         uuid id PK
@@ -118,6 +112,8 @@ commit 뒤 응답 전달이 유실된 경우는 DB 저장 실패와 구분합니
 
 로그인 아이디 유일성은 저장된 모든 계정에 적용합니다. 향후 탈퇴 기능에서 아이디 재사용을 허용하려면 [탈퇴 정책](../specs/profile.md#account-withdrawal)과 유일성 변경을 함께 검토해야 합니다.
 
+관리자용 계정·인증·권한 저장 구조는 [공모전 명세의 미정 사항](../specs/contests.md#open-questions)에 남기며, 일반 회원 `accounts`와의 관계를 확정하지 않습니다. 관리자라는 이유로 비공개 프로필 열람 범위를 넓히지 않습니다.
+
 <a id="auth-sessions"></a>
 
 ### `auth_sessions` — 서버 로그인 세션
@@ -158,25 +154,10 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | 최근 사용 기록 | 이전 값의 유효성 검사를 통과한 해당 세션만 `last_seen_at`을 갱신합니다. 다른 세션의 사용 기록은 바꾸지 않습니다. 동시 로그아웃으로 회수된 행을 갱신해 되살리거나, 만료된 행을 새 세션으로 재생성하지 않습니다. `expires_at`과 `revoked_at`은 이 갱신으로 바꾸지 않습니다. |
 | 브라우저 재시작 | 지속 쿠키로 전달된 기존 토큰을 같은 세션으로 조회합니다. 재시작 자체로 `created_at`·`last_seen_at`·`expires_at`을 초기화하지 않으며, 재시작 후 요청도 이전 활동 시각으로 만료를 검사한 뒤에만 최근 사용 기록을 갱신합니다. |
 | 현재 세션 로그아웃 | 현재 행의 `revoked_at`을 저장해 즉시 회수하고 commit한 뒤 쿠키를 삭제합니다. 회수 이후 이전 토큰으로 새 인증을 허용하지 않으며, 같은 계정의 다른 세션은 변경하지 않습니다. 쿠키 삭제만으로 서버 회수를 대신하지 않습니다. |
-| 업무 권한 | 세션으로 식별한 `account_id`를 기준으로 현재 프로필 공개 범위·지원 관계·팀 소속·관리 권한을 다시 확인합니다. 세션 생성 당시 권한의 사본으로 접근을 허용하지 않습니다. |
+| 업무 권한 | 세션으로 식별한 `account_id`를 기준으로 현재 프로필 공개 범위·지원 관계·팀 소속을 다시 확인합니다. 세션 생성 당시 권한의 사본으로 접근을 허용하지 않습니다. |
 | 정리 | 만료·회수된 행의 정리 주기·보존 기간은 미정입니다. 정리 작업 전에도 요청마다 유효성을 검사하므로 만료 행이 남았다는 이유로 인증을 허용하지 않습니다. |
 
 유휴 24시간·절대 7일과 브라우저 재시작 후 로그인 유지는 [세션 정책](../specs/authentication.md#session-policy)을 적용하며, 현재 시각에 의존하는 만료 판단을 DB CHECK나 정리 작업에 맡기지 않습니다. 별도 로그인 유지 체크박스·`remember_me` 저장 구조는 두지 않습니다. 쿠키 수명·전달 계약은 [공통 API 계약](../api/conventions.md#access), 세션 정리 및 보존 기간은 [AUTH-06 남은 운영 정책](../specs/authentication.md#open-questions)에서 관리합니다. SQLAlchemy의 DB 작업 단위인 `Session`·`AsyncSession`과 이 로그인 세션은 다른 개념입니다.
-
-### `account_role_grants`
-
-계정에 부여된 서비스 운영 권한을 기록하여 공고 관리 같은 관리자 업무의 권한을 확인합니다. 사용자가 팀에서 맡고 싶은 역할과는 별개의 정보입니다.
-
-| 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·용도 |
-| --- | --- | --- | --- | --- |
-| `account_id` | `uuid` | 불가 | 없음 | 복합 PK, FK → `accounts.id` |
-| `role_code` | `varchar(32)` | 불가 | 없음 | 복합 PK. 현재 저장값 `admin` |
-| `granted_at` | `timestamptz` | 불가 | `now()` | 부여 시각 |
-
-- PK: `pk_account_role_grants(account_id, role_code)`.
-- FK: `fk_account_role_grants_account`, `ON DELETE RESTRICT`.
-- CHECK: `ck_account_role_grants_role`은 현재 `admin`만 허용합니다. 사용자의 희망 역할을 저장하는 `roles`와 별개의 서비스 권한입니다.
-- 관리자 공고 관리 권한을 확인하는 최소 저장 구조입니다. 권한 부여·회수 운영 절차와 관리자 화면은 [공모전 명세의 미정 사항](../specs/contests.md#open-questions)을 따릅니다. 관리자라는 이유로 비공개 프로필 열람 범위를 넓히지 않습니다.
 
 <a id="profiles"></a>
 
