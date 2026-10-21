@@ -12,7 +12,7 @@
 | `team_memberships` | 팀장 또는 선발된 팀원의 소속 기간 한 건 |
 | `application_events` | 지원 상태가 실제 변경된 사건 한 건 |
 
-지원과 소속은 서로 다릅니다. 취소 후 재지원은 새로운 지원 ID를 만들며, 현재 인원은 종료되지 않은 소속을 세어 계산합니다. 공모전 분야와 최신 프로필은 복제하지 않고 각각 [공모전 테이블](contests.md)과 [계정·프로필 테이블](identity.md)을 조회합니다.
+지원과 소속은 서로 다릅니다. 취소·폐기 후 허용된 재지원은 새로운 지원 ID를 만들며, 현재 인원은 종료되지 않은 소속을 세어 계산합니다. 공모전 분야와 최신 프로필은 복제하지 않고 각각 [공모전 테이블](contests.md)과 [계정·프로필 테이블](identity.md)을 조회합니다.
 
 ![팀·지원·소속 물리 ERD](diagrams/teams.svg)
 
@@ -32,6 +32,7 @@ erDiagram
   accounts ||--o{ team_memberships : joins
   applications o|--o| team_memberships : creates
   applications ||--|{ application_events : records
+  team_memberships o|--o{ application_events : causes_discard
   teams {
     uuid id PK
     uuid contest_id FK
@@ -65,6 +66,7 @@ erDiagram
     uuid contest_id FK
     uuid applicant_account_id FK
     uuid cause_event_id FK
+    uuid cause_membership_id FK
     bigint application_version
     varchar to_status
   }
@@ -101,11 +103,9 @@ erDiagram
 | 모집 상태 코드 | 표시 이름 | 이번 설계에서 쓰는 경계 |
 | --- | --- | --- |
 | `open` | 모집 중 | 생성·명시적 재개 성공 후 상태 |
-| `reviewing` | 지원자 검토 | 상태 의미만 보존. 진입 행동은 미정 |
 | `closed` | 모집 마감 | 팀장 종료 또는 정원 충족의 닫힘 기록 |
-| `finalized` | 팀원 확정 | 팀 전체 확정의 구체 전이는 미정 |
 
-현재 접수 가능 여부는 저장 상태만으로 결정하지 않습니다. [모집 가능 조건](../specs/team-recruitment.md#recruitment-conditions)을 현재 공고·팀 기한·활성 소속 수에 적용합니다. 시각 경과를 상태 변경 이벤트로 저장하거나 마감 알림을 생성하지 않습니다.
+현재 접수 가능 여부는 저장 상태만으로 결정하지 않습니다. [모집 가능 조건](../specs/team-recruitment.md#recruitment-conditions)을 현재 공고·팀 기한·활성 소속 수에 적용합니다. 시각 경과만으로 저장 상태를 자동 변경하거나 마감 알림을 생성하지 않습니다. 검토 중은 개별 지원의 상태이며, 팀 전체 확정 상태는 두지 않습니다. 저장 상태 전이는 [팀 상태 전이](../specs/team-recruitment.md#team-state-transitions)를 따릅니다.
 
 ### 제약과 저장 시 검증
 
@@ -116,7 +116,7 @@ erDiagram
 | `ck_teams_text` | CHECK | 팀명·소개가 공백만으로 이루어지지 않음 |
 | `ck_teams_request_fingerprint` | CHECK | 소문자 16진수 64자리 |
 | `ck_teams_capacity` | CHECK | `target_capacity > 0`; 정수 타입 자체가 소수 입력을 허용한다는 뜻은 아니며 API에서 반올림 없이 거부 |
-| `ck_teams_recruitment_state` | CHECK | 위 네 상태 코드만 허용 |
+| `ck_teams_recruitment_state` | CHECK | `open`, `closed`만 허용 |
 | `ck_teams_closed_reason` | CHECK | `closed`이면 정의된 닫힘 사유 필수. 다른 상태에는 NULL |
 | `ck_teams_deadline_assumptions` | CHECK | 시각·시간대 보완 플래그와 해당 원문 필드의 NULL 여부 일치 |
 | `ck_teams_version` | CHECK | `version > 0` |
@@ -174,7 +174,9 @@ erDiagram
 
 팀·지원 생성의 `request_id`는 같은 입력의 재시도에서 재사용합니다. `request_fingerprint`는 행위자 ID·요청 경로·정규화한 최초 허용 입력을 정해진 키 순서로 직렬화한 뒤 서버가 SHA-256으로 생성합니다. 사용자에게 지문 입력을 받지 않고, 현재 프로필·현재 팀 표시명 같은 변동 조회값은 지문에 넣지 않습니다. 같은 사용자·요청 ID의 지문이 같으면 기존 리소스를 반환하고 다르면 충돌로 응답합니다. 최초 지문은 이후 상태나 허용된 필드 변경으로 갱신하지 않습니다. 세부 정규화·재시도 순서는 [트랜잭션 설계](transactions.md)를 따릅니다.
 
-이 제약을 통과하는 것과 재지원이 허용되는 것은 다릅니다. 취소 후 재지원 외의 허용 범위는 [명세의 미정 사항](../specs/team-recruitment.md#open-questions)을 따릅니다. 일반적인 `PATCH status`로 미정 전이를 열어 두지 않습니다.
+이 제약을 통과하는 것과 재지원이 허용되는 것은 다릅니다. [재지원 정책](../specs/team-recruitment.md#reapplication)에 따라 같은 팀의 `rejected` 이력이 하나라도 있으면 새 지원을 거부합니다. `canceled`·`discarded` 이후에는 같은 공모전 활성 소속이 없고 현재 모집 조건을 충족할 때 새 지원 ID로 접수합니다. 같은 공모전 소속 중 신규 지원 금지는 [소속과 지원의 경계](../specs/team-recruitment.md#membership-exclusions)를 따릅니다. 이력·소속 조회와 신규 저장은 [공통 계정 잠금](transactions.md) 아래 수행하며, 부분 UNIQUE만으로 과거 미선발 이력까지 검사했다고 간주하지 않습니다.
+
+검토 시작·미선발은 팀장의 명시적 명령으로만 수행합니다. 조회·모집 종료·기한 경과·정원 충족으로 자동 미선발을 만들지 않습니다. `rejected`·`canceled`·`discarded`는 종료 상태이며 되돌리지 않습니다. `selected`의 본인 취소를 포함한 허용 전이는 [지원 상태 전이](../specs/team-recruitment.md#application-transitions)를 따릅니다. 일반적인 `PATCH status`로 이 범위를 넓히지 않습니다.
 
 ## `team_memberships` — 소속 기간
 
@@ -193,13 +195,14 @@ erDiagram
 | --- | --- | --- |
 | `uq_memberships_active_contest` | 부분 UNIQUE `(account_id, contest_id)`; `ended_at IS NULL` | 팀장 포함 공모전별 활성 소속 최대 1개 |
 | `uq_memberships_source_application` | UNIQUE `(source_application_id)` | 같은 지원으로 소속 기간을 두 번 만들지 않음; 팀장 NULL은 여러 팀에서 가능 |
+| `uq_memberships_cause_context` | UNIQUE `(id, contest_id, account_id)` | 팀 생성 폐기 원인이 같은 사용자·공모전인지 FK로 검증하는 참조키 |
 | `ck_memberships_end` | CHECK | 활성: 종료 시각·사유 모두 NULL. 종료: `ended_at ≥ joined_at`이고 사유 `application_canceled` |
 
 여러 행의 상태·개수는 저장 서비스가 [공통 잠금 순서](transactions.md) 아래 검증합니다. DB에는 위 행 제약·유일성과 아래 결합 FK를 최종 방어선으로 둡니다.
 
 | 서비스 검증 책임 | 최종 저장 상태 |
 | --- | --- |
-| 팀 생성 | 해당 팀장과 일치하는 활성 소속 정확히 1개. 이 소속에만 원인 지원 NULL 허용 |
+| 팀 생성 | 해당 팀장과 일치하는 활성 소속 정확히 1개. 이 소속에만 원인 지원 NULL 허용. 같은 공모전 본인의 다른 대기 지원은 함께 폐기 |
 | 선발 | 같은 팀·사용자의 `selected` 지원과 활성 일반 소속이 1:1로 대응 |
 | 선발 후 본인 취소 | 원인 지원은 `canceled`, 해당 일반 소속은 종료 상태 |
 | 소속 추가·정원 저장 | 활성 소속 수가 목표 정원을 넘지 않음 |
@@ -225,6 +228,7 @@ erDiagram
 | `actor_account_id` | `uuid` | 허용 | `NULL` | 본인·팀장 행위자. 자동 폐기는 NULL |
 | `reason_code` | `varchar(32)` | 불가 | — | 아래 사건 코드 |
 | `cause_event_id` | `uuid` | 허용 | `NULL` | 자동 폐기를 일으킨 다른 지원의 선발 사건 |
+| `cause_membership_id` | `uuid` | 허용 | `NULL` | 자동 폐기를 일으킨 새 팀의 팀장 소속 |
 | `occurred_at` | `timestamptz` | 불가 | `now()` | 성공한 상태 변경 시각 |
 
 | 사건 코드 | 상태 대응 | 추가 조건 |
@@ -233,23 +237,24 @@ erDiagram
 | `selected` | `submitted`/`reviewing` → `selected` | 행위자=해당 팀장 |
 | `canceled` | `submitted`/`reviewing`/`selected` → `canceled` | 행위자=지원자 |
 | `selected_elsewhere` | `submitted`/`reviewing` → `discarded` | 행위자 NULL, 원인 선발 사건 필수 |
-| `reviewing_started` | `submitted` → `reviewing` | 저장 코드만 예약. 실행 행동·시점은 미정 |
-| `rejected` | `submitted`/`reviewing` → `rejected` | 저장 코드만 예약. 실행 계약은 미정 |
+| `team_created_elsewhere` | `submitted`/`reviewing` → `discarded` | 행위자 NULL, 새 팀의 팀장 소속 필수 |
+| `reviewing_started` | `submitted` → `reviewing` | 행위자=해당 팀장, 명시적 검토 시작 |
+| `rejected` | `submitted`/`reviewing` → `rejected` | 행위자=해당 팀장, 명시적 미선발 |
 
 | 이름 | 종류 | 보장하는 내용 |
 | --- | --- | --- |
 | `uq_application_events_version` | UNIQUE `(application_id, application_version)` | 동일 상태 버전의 사건 중복 금지 |
 | `uq_application_events_cause_context` | UNIQUE `(id, contest_id, applicant_account_id)` | 폐기 원인이 같은 사용자·공모전인지 FK로 검증 |
 | `ck_application_events_transition` | CHECK | 위 코드·상태 조합, 최초 버전 1·나머지 버전 > 1, 이전·결과 상태가 다름 |
-| `ck_application_events_cause` | CHECK | `selected_elsewhere`만 원인 ID 필수·행위자 NULL; 나머지는 원인 NULL·행위자 필수 |
+| `ck_application_events_cause` | CHECK | `selected_elsewhere`: `cause_event_id`만 필수·행위자 NULL. `team_created_elsewhere`: `cause_membership_id`만 필수·행위자 NULL. 나머지: 두 원인 모두 NULL·행위자 필수 |
 
-서비스는 지원 상태 변경과 사건 추가를 함께 저장하면서 버전 연속성, 새 사건의 `from_status`와 직전 사건의 `to_status` 일치, 현재 지원과 마지막 사건의 상태·버전 일치, 행위자의 팀장·본인 권한을 검증합니다. 자동 폐기 원인은 같은 사용자·공모전의 다른 팀 선발 사건이어야 하며, 같은 사용자·공모전 참조는 아래 결합 FK도 보장합니다.
+서비스는 지원 상태 변경과 사건 추가를 함께 저장하면서 버전 연속성, 새 사건의 `from_status`와 직전 사건의 `to_status` 일치, 현재 지원과 마지막 사건의 상태·버전 일치, 행위자의 팀장·본인 권한을 검증합니다. `selected_elsewhere`의 원인은 같은 사용자·공모전의 다른 팀에서 이번 트랜잭션에 생성한 `selected` 사건이어야 합니다. `team_created_elsewhere`의 원인은 같은 사용자·공모전의 다른 팀을 이번 트랜잭션에 생성하면서 만든 활성 팀장 소속이어야 합니다. 이 소속의 `source_application_id IS NULL`과 `account_id = teams.leader_account_id`도 검사합니다. 아래 결합 FK는 같은 사용자·공모전 참조를 보장하며, 원인의 종류·다른 팀 여부·생성 트랜잭션까지 대신 검증하지는 않습니다.
 
-선발 1건과 폐기 N건은 서로 다른 사건 ID를 갖습니다. 폐기 N건은 같은 `cause_event_id`를 공유할 수 있습니다. 이 구분이 [알림 설계](notifications.md)의 `(event_id, recipient_account_id)` 중복 방지 기준이 됩니다. 종료된 지원의 사건·관계를 유지하므로 [기존 지원 검토 권한](../specs/profile.md#former-applicant-visibility)을 조회할 수 있습니다.
+선발 1건과 폐기 N건은 서로 다른 사건 ID를 갖습니다. 선발에 따른 폐기 N건은 같은 `cause_event_id`, 팀 생성에 따른 폐기 N건은 같은 `cause_membership_id`를 공유할 수 있습니다. 팀 생성 원인을 표현하기 위해 가짜 지원·선발 사건을 만들지 않습니다. 각 폐기 사건 ID가 [알림 설계](notifications.md)의 `(event_id, recipient_account_id)` 중복 방지 기준이 됩니다. 종료된 지원의 사건·관계를 유지하므로 [기존 지원 검토 권한](../specs/profile.md#former-applicant-visibility)을 조회할 수 있습니다.
 
 ## 결합 FK와 삭제 동작
 
-아래 FK는 모두 `ON DELETE RESTRICT`, `ON UPDATE RESTRICT`입니다. 보존·팀 삭제·회원 탈퇴 효과가 정해지기 전 업무 이력을 자동으로 지우지 않습니다. NULL인 `source_application_id`·`cause_event_id`의 결합 FK에는 `MATCH SIMPLE`을 적용하고, 저장 서비스가 위 책임표에 따라 NULL 허용 의미를 확인합니다.
+아래 FK는 모두 `ON DELETE RESTRICT`, `ON UPDATE RESTRICT`입니다. 팀 삭제는 MVP에서 제공하지 않으며, 후속 보존·회원 탈퇴 정책 없이 업무 이력을 자동으로 지우지 않습니다. NULL인 `source_application_id`·`cause_event_id`·`cause_membership_id`의 결합 FK에는 `MATCH SIMPLE`을 적용하고, 저장 서비스가 위 책임표에 따라 NULL 허용 의미를 확인합니다.
 
 | FK 이름 | 자식 컬럼 → 부모 컬럼 |
 | --- | --- |
@@ -266,6 +271,7 @@ erDiagram
 | `fk_application_events_application` | `application_events.(application_id, team_id, contest_id, applicant_account_id)` → `applications.(id, team_id, contest_id, applicant_account_id)` |
 | `fk_application_events_actor` | `application_events.actor_account_id` → `accounts.id` |
 | `fk_application_events_cause` | `application_events.(cause_event_id, contest_id, applicant_account_id)` → `application_events.(id, contest_id, applicant_account_id)` |
+| `fk_application_events_cause_membership` | `application_events.(cause_membership_id, contest_id, applicant_account_id)` → `team_memberships.(id, contest_id, account_id)` |
 
 ## 조회용 인덱스
 
@@ -279,27 +285,31 @@ PK·UNIQUE가 만드는 인덱스 외의 초기 인덱스입니다. 팀의 공�
 | `ix_team_recruitment_roles_role` | B-tree `(role_code, team_id)` | 모집 역할 필터 |
 | `ix_applications_team_status` | B-tree `(team_id, status, submitted_at DESC, id DESC)` | 팀장 지원자 목록·대기 수 |
 | `ix_applications_account` | B-tree `(applicant_account_id, submitted_at DESC, id DESC)` | 내 지원 목록 |
-| `ix_applications_pending_contest` | B-tree `(applicant_account_id, contest_id, id)`; `status IN (submitted, reviewing)` | 선발 시 다른 대기 지원 잠금·폐기 |
+| `ix_applications_pending_contest` | B-tree `(applicant_account_id, contest_id, id)`; `status IN (submitted, reviewing)` | 선발·팀 생성 시 다른 대기 지원 잠금·폐기 |
+| `ix_applications_rejected_history` | B-tree `(team_id, applicant_account_id)`; `status = rejected` | 같은 팀 재지원 금지 이력 확인 |
 | `ix_applications_role` | B-tree `(applied_role_code)` | 공통 역할 FK 참조 |
 | `ix_memberships_team_active` | B-tree `(team_id, account_id)`; `ended_at IS NULL` | 현재 팀원·현재 인원 |
 | `ix_memberships_team_history` | B-tree `(team_id, joined_at, id)` | 팀 소속 이력·FK 참조 |
 | `ix_memberships_account_history` | B-tree `(account_id, joined_at DESC, id DESC)` | 계정 소속 이력·FK 참조 |
 | `ix_application_events_cause` | B-tree `(cause_event_id)` | 선발로 발생한 폐기 사건 |
+| `ix_application_events_cause_membership` | B-tree `(cause_membership_id)` | 팀 생성으로 발생한 폐기 사건·원인 소속 FK 참조 |
 | `ix_application_events_actor` | B-tree `(actor_account_id)` | 사건 행위자 FK 참조 |
 
 `uq_application_events_version`의 선두 열은 지원 상태 이력 조회에도 사용합니다. 현재 인원·대기 수·공모전 전체 팀 수는 집계값이며 수동으로 갱신하는 카운터 컬럼을 두지 않습니다. 확장 인덱스·검색용 복제 데이터는 측정 후 도입합니다.
 
-## 미정 정책이 막는 실행 경계
+## 확정된 실행 경계와 범위 밖 동작
 
-미정 정책 원본은 [팀 명세의 남은 질문](../specs/team-recruitment.md#open-questions)과 [공고 변경 영향](../specs/contests.md#eligibility-changes)입니다. DB가 상태·이력을 표현할 수 있다는 이유로 다음 행동을 API에서 활성화하지 않습니다.
+팀·지원 상태와 재지원·소속 경계는 [팀 명세](../specs/team-recruitment.md)의 확정 규칙을 따릅니다. DB가 상태·이력을 표현할 수 있다는 이유로 범위 밖 동작을 API에서 활성화하지 않습니다.
 
 | 경계 | 설계에서의 처리 |
 | --- | --- |
-| 이미 확정 소속이 있는 사용자의 같은 공모전 신규 지원 | 기존 데이터 표현과 새 접수 허용 결정을 분리 |
-| 팀 생성 시 다른 대기 지원 처리 | 선발의 자동 폐기를 팀 생성에 적용하지 않음 |
-| 미선발·폐기 후 재지원, 미선발 처리·검토 중 진입 | 코드 값은 표현하되 미정 전이의 쓰기 계약 보류 |
-| 마감 후 실제 선발·팀 전체 확정·팀장 선발 취소 | AI 검토 허용으로 추론하지 않음 |
-| 팀장 탈퇴·팀 삭제·회원 탈퇴 이후 이력 | CASCADE·임의 익명화·보존 기간을 추가하지 않음 |
+| 선발 가능 시점 | [선발 기한](../specs/team-recruitment.md#selection-window)에 따라 공고 접수 마감 전·여석 존재가 필수. 팀 `closed`·팀 기한 경과만으로 기존 지원의 선발을 막지 않음 |
+| 같은 공모전 소속과 신규 지원 | 활성 소속이 있으면 신규 지원 거부. 팀 생성 성공 시 본인의 같은 공모전 다른 대기 지원만 원자적으로 폐기 |
+| 종료 지원·다른 공모전 지원 | 팀 생성·선발의 폐기 대상에서 제외. 미선발 이력은 같은 팀 재지원 차단에 사용 |
+| 팀장 선발 취소·강퇴·팀장 탈퇴·팀 삭제 | MVP 범위 밖. 기존 본인 지원 취소를 다른 권한의 소속 제거로 확장하지 않음 |
+| 회원 탈퇴 이후 이력·데이터 보존 | CASCADE·임의 익명화·보존 기간을 추가하지 않음 |
 | 모집 정보·지원 메시지 편집 | 구조가 있다는 이유로 편집 endpoint를 새로 열지 않음 |
+
+[공고 조건 변경의 기존 팀 영향](../specs/contests.md#eligibility-changes) 등 남은 질문은 별도 정책 결정이며, 위 확정 전이의 구현을 모두 보류한다는 뜻은 아닙니다.
 
 이 문서는 DDL·마이그레이션·트리거·서버 코드가 아닙니다. 구현 단계에서 제약과 [동시성 검증 사례](transactions.md)를 실제 PostgreSQL에서 검증해야 합니다.

@@ -191,6 +191,7 @@ API 설계에서 **누가 무엇을 할 수 있는지**와 **인증을 어떻게
 | `CONTEST_NOT_OPEN`, `RECRUITMENT_CLOSED`, `RECRUITMENT_DEADLINE_PASSED` | 공고·팀의 현재 접수 상태 또는 기한 충돌. [팀](contests-teams.md) |
 | `CAPACITY_OUT_OF_RANGE`, `TEAM_FULL` | 공식 참가 인원 범위 위반 또는 빈자리 없음. [팀](contests-teams.md) |
 | `DUPLICATE_APPLICATION`, `MEMBERSHIP_CONFLICT` | 유효 지원 중복 또는 확정 소속 충돌. [지원·선발](contests-teams.md) |
+| `REAPPLICATION_NOT_ALLOWED` | 미선발 이력이 있는 같은 팀에 새로 지원함. [재지원](contests-teams.md#transitions) |
 | `INVALID_APPLICATION_STATE`, `INVALID_RECRUITMENT_STATE` | 요청 행동을 할 수 없는 지원·모집 상태. [상태 처리](contests-teams.md) |
 | `REQUEST_ID_REUSED` | 같은 생성 UUID를 다른 정규화 본문에 재사용 |
 | `MESSAGE_ID_CONFLICT`, `REQUEST_ALREADY_RUNNING` | 같은 메시지 ID의 다른 본문 또는 진행 중 요청과 충돌. [AI](ai-notifications.md) |
@@ -202,14 +203,14 @@ API 설계에서 **누가 무엇을 할 수 있는지**와 **인증을 어떻게
 
 ## 쓰기·충돌·재시도
 
-`VersionedAction` 요청은 `{ "expectedVersion": "1" }` 형태입니다. `expectedVersion: Version` 하나가 필수이며 NULL·추가 필드는 허용하지 않습니다. 선발·취소는 지원 버전, 모집 종료·재개는 팀 버전을 전달합니다. 프로필 요청은 해당 영역의 전체 편집/공개 전환 객체에 같은 버전 필드를 둡니다.
+`VersionedAction` 요청은 `{ "expectedVersion": "1" }` 형태입니다. `expectedVersion: Version` 하나가 필수이며 NULL·추가 필드는 허용하지 않습니다. 검토 시작·미선발·선발·취소는 지원 버전, 모집 종료·재개는 팀 버전을 전달합니다. 프로필 요청은 해당 영역의 전체 편집/공개 전환 객체에 같은 버전 필드를 둡니다.
 
 | 요청 | 재시도와 충돌 계약 |
 | --- | --- |
 | 프로필 최초 저장 | `expectedVersion="0"`. 이미 생성됐다면 409. 자동 덮어쓰기 없음 |
 | 프로필 수정·공개 전환 | 조회한 `version`을 `expectedVersion`으로 전달. 다른 변경이 먼저 저장됐다면 409 후 다시 조회 |
 | 팀·지원 생성 | 사용자가 실행한 생성 시도마다 UUID `requestId`. 응답 유실 후 같은 시도는 동일 ID·동일 정규화된 본문으로 재전송. 첫 생성 201, 동일 시도 재전송 200, 같은 ID의 다른 본문은 409 `REQUEST_ID_REUSED` |
-| 선발·지원 취소·모집 종료·재개 | 대상의 `expectedVersion`. 버전을 먼저 비교하여 다르면 409. 일치하는 버전에서 같은 결과 상태이면 200과 현재 값을 반환하고 추가 사건을 만들지 않음. 응답 유실 시 먼저 재조회하여 결과 확인 |
+| 검토 시작·미선발·선발·지원 취소·모집 종료·재개 | 대상의 `expectedVersion`. 버전을 먼저 비교하여 다르면 409. 일치하는 버전에서 해당 행동의 no-op 조건을 충족하면 200과 현재 값을 반환하고 버전·사건·알림을 추가하지 않음. 정확한 전이·조건은 [지원과 모집 행동](contests-teams.md#transitions)을 따르며 응답 유실 시 먼저 재조회하여 결과 확인 |
 | AI 메시지 전송 | 현재 대화 내 `clientMessageId`로 사용자 메시지 중복 방지. 내용이 다르면 409 |
 | AI 실패 재시도·중단 | `expectedAttempt`로 현재 시도를 지정. 이전 시도의 응답·취소가 새 시도에 적용되지 않음 |
 | 알림 읽음 | 이미 읽은 항목의 최초 `readAt` 유지. 업무 상태·알림 사건을 새로 만들지 않음 |
@@ -226,9 +227,8 @@ API 설계에서 **누가 무엇을 할 수 있는지**와 **인증을 어떻게
 | 탈퇴·이전 데이터 표시 | DELETE 계정 endpoint를 만들지 않음 | [PROFILE-04](../specs/profile.md#open-questions) |
 | 계정 복구 — MVP 범위 밖 | 복구 endpoint를 만들지 않으며 현재 인증 구현의 선행 조건으로 두지 않음. 복구 도입 시 정책·계약 후속 검토 | [계정 복구 범위](../specs/authentication.md#account-recovery) |
 | 일반 텍스트 계수·URL 길이 | 정책 수치는 필드 표에 기록, 계수 방식·미확정 상한은 임의 추가하지 않음 | [PROFILE-07](../specs/profile.md#open-questions) |
-| 소속 중 새 지원, 팀 생성 시 기존 대기 지원, 미선발·폐기 후 재지원 | 확정된 정상·취소 후 재지원 외 분기는 성공·거부를 임의 확정하지 않음 | [TEAM-04](../specs/team-recruitment.md#open-questions) |
-| 모집 종료 후 선발·검토 시작·팀 전체 확정·미선발 처리 | 범용 상태 PATCH·미선발·팀장 선발취소 endpoint 없음. 선발 endpoint의 미정 분기는 명시적으로 후속 검토 | [TEAM-02·03](../specs/team-recruitment.md#open-questions) |
-| 모집 정보 편집·제출 후 메시지 수정·팀 삭제 | 범용 수정·삭제 endpoint 없음 | [TEAM-07~09](../specs/team-recruitment.md#open-questions) |
+| 팀장 선발 취소·강퇴·팀장 탈퇴·팀 삭제 — MVP 범위 밖 | 관리 endpoint나 범용 상태 PATCH로 제공하지 않음. 본인의 선발 후 지원 취소는 확정 계약 유지 | [소속 관리 제외 범위](../specs/team-recruitment.md#membership-exclusions) |
+| 모집 정보 편집·제출 후 메시지 수정 | 범용 수정 endpoint 없음 | [TEAM-07~09](../specs/team-recruitment.md#open-questions) |
 | 마감 공고 목록 기본 배치·기본 필터 | 상세 열람은 정의. 목록의 미지정 상태 조건은 CONTEST-05 검토 필요 | [공고 미정 사항](../specs/contests.md#open-questions) |
 | 관리자 공고 관리·공식 조건 변경 영향 | 관리 책임만 유지. 관리자 CRUD·일괄 소급 변경 API 없음 | [공고 운영](../specs/contests.md#operation-flow), [TEAM-06](../specs/team-recruitment.md#open-questions) |
 | AI 서버 보존·제공자·실행·스트리밍 | 외부 요청·결과 모양만 제안. 현재 대화 조회를 과거 대화 복원 API로 확대하지 않음 | [MATCH-10·12·13·14](../specs/matching.md#open-questions) |

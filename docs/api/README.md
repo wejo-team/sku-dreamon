@@ -8,7 +8,7 @@
 | --- | --- |
 | 타입·필수값·NULL·인증·페이지·오류·재시도 | [공통 계약](conventions.md) |
 | 가입·로그인·프로필·선택지·사람 탐색과 필드 표 | [계정과 프로필 API](accounts-profiles.md) |
-| 공모전·팀·지원·선발·워크스페이스와 필드 표 | [공모전과 팀 API](contests-teams.md) |
+| 공모전·팀·지원·검토 시작·미선발·선발·워크스페이스와 필드 표 | [공모전과 팀 API](contests-teams.md) |
 | 현재 AI 대화·지원자 검토·알림과 필드 표 | [AI와 알림 API](ai-notifications.md) |
 | 정책·DB·API를 함께 검토하는 방법 | [정합성 확인 기준](#consistency) |
 
@@ -56,6 +56,6 @@ FastAPI의 기본 제공 경로는 `/docs`(Swagger UI), `/redoc`(ReDoc), `/opena
 
 ## 구현 전에 남은 결정
 
-인증은 만료 기간·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인을 포함한 [서버 세션 정책](../specs/authentication.md#session-policy)과 [쿠키 전달 계약](conventions.md#session-auth)을 적용합니다. 쿠키 이름·경로와 CSRF의 구체 전송 계약, 운영 도메인·CORS, 시도 제한 수치·종료된 세션의 정리·보존, 일부 지원 상태 전이, 공고 변경 영향, LLM 내부 구조와 데이터 보존은 여전히 미정입니다. [공통 계약의 보류 목록](conventions.md#deferred)에서 각 기능 명세로 이동합니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖이며 현재 인증 구현의 선행 조건이 아닙니다.
+인증은 만료 기간·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인을 포함한 [서버 세션 정책](../specs/authentication.md#session-policy)과 [쿠키 전달 계약](conventions.md#session-auth)을 적용합니다. 모집·지원의 허용 전이와 선발 기간·재지원은 [팀과 지원 계약](contests-teams.md#transitions)을 따릅니다. 쿠키 이름·경로와 CSRF의 구체 전송 계약, 운영 도메인·CORS, 시도 제한 수치·종료된 세션의 정리·보존, 모집 정보·지원 메시지 편집, 공고 변경 영향, LLM 내부 구조와 데이터 보존은 여전히 미정입니다. [공통 계약의 보류 목록](conventions.md#deferred)에서 각 기능 명세로 이동합니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖이며 현재 인증 구현의 선행 조건이 아닙니다.
 
 JSON 이름과 접두사는 [저장소 API 작성 규칙](../development/conventions.md)을 따릅니다. 이 설계에는 SQL·ORM·마이그레이션·제품 API 구현이 포함되지 않습니다.

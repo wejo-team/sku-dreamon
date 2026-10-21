@@ -24,6 +24,7 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 - 2026-10-19 [#77](https://github.com/wejo-team/sku-dreamon/issues/77) 정책 결정에 따라 개인의 요일별 시간 구간을 [주당 참여 가능 시간](profile-options.md#weekly-availability)으로 대체합니다. 참여 중인 모든 프로젝트를 합산한 참고 정보이며 권장 입력을 유지합니다. 세부 일정 조율은 팀 공간의 후속 기능으로 구상하고 현재 MVP에 추가하지 않습니다.
 - 같은 날 [#77의 확정 정책](https://github.com/wejo-team/sku-dreamon/issues/77#issuecomment-6260435650)을 담당 명세에 반영합니다. 참가 대상·분야·입력 제한·알림·추천·인증의 기존 설명과 충돌하면 최신 담당 명세를 적용합니다. 신규 지원은 공개 프로필만 가능하고, 비공개 전환 후 기존 지원과 지원 팀장의 최신 프로필 기반 AI 검토는 유지하되 일반 검색·AI 사람 추천에서는 제외합니다.
 - 2026-10-19 논리 모델링 전 추가 사용자 결정은 [모집 재개](team-recruitment.md#recruitment-reopening), [동시 지원·폐기](team-recruitment.md#parallel-applications), 팀장 변경 제외, [참가 자격 비차단](team-recruitment.md#recruitment-conditions), [관리자의 공고 관리·조건 변경 TBD](contests.md)에 반영합니다. 디자인 적용과 배포는 [대조 기록](prototype-alignment.md#policy-follow-up)에서 별도로 확인합니다.
+- 2026-10-21 사용자 결정에 따라 [팀 모집 두 상태·지원별 명시적 전이](team-recruitment.md#team-state-transitions), [기존 지원의 선발 가능 시점](team-recruitment.md#selection-window), [종료 사유별 재지원](team-recruitment.md#reapplication)과 팀 생성 시 대기 지원 폐기를 적용합니다. 팀장의 선발 취소·강퇴·탈퇴·팀 삭제 및 별도 팀 전체 확정 단계는 [MVP에서 제외](team-recruitment.md#membership-exclusions)합니다. 이번 결정은 명세·DB·API 설계에 반영하며 화면·서버 구현 완료를 뜻하지 않습니다.
 - 원문에서 정하지 않은 동작을 이관 과정에서 확정하지 않습니다. 기능별 미정 사항은 해당 명세에 남깁니다. 기존 `추가 리스트 최종.md`와의 선택지 차이는 [선택지 차이](profile-options.md#source-differences)에서 관리합니다.
 - 원문 이관 이후 [이슈 #20](https://github.com/wejo-team/sku-dreamon/issues/20)에서 변경한 가입 경로는 [자체 로그인 결정](authentication.md#login-decision)을 적용합니다. 원문의 학교 이메일 필수·실제/시연 인증 선택은 이번 범위에서 대체합니다.
 
@@ -43,11 +44,11 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 | 알림 | 상단 알림함에서 본인의 지원 상태 변경·팀장이 받은 신규 지원과 읽음 상태 확인 | [서비스 알림](notifications.md) |
 | 팀 공간 | 팀장과 현재 확정 팀원에게 공모전 정보, 팀원, 모집·매칭 상태를 보여 주는 최소 공간 | [팀 모집과 지원](team-recruitment.md#team-workspace-access) |
 
-팀장이 선발하면 해당 지원자가 즉시 확정 팀원이 되며 별도 수락은 없습니다. 팀장 포함 정원과 선발 시 차감은 [팀원 확정과 정원 정책](team-recruitment.md#membership-capacity)을 따릅니다. [지원자 검토를 시작해도 현재 접수 조건을 충족하면 신규 지원을 받으며](team-recruitment.md#recruitment-review), 나머지 팀 전체 모집 상태 전이·종료는 [팀 명세의 미정 사항](team-recruitment.md#open-questions)에서 별도로 결정합니다.
+팀장이 선발하면 해당 지원자가 즉시 확정 팀원이 되며 별도 수락은 없습니다. 팀장 포함 정원과 선발 시 차감은 [팀원 확정과 정원 정책](team-recruitment.md#membership-capacity)을 따릅니다. 팀 모집 상태는 [모집 중·모집 마감 두 가지](team-recruitment.md#team-state-transitions)이며 검토 시작·선발·미선발은 개별 지원에 적용합니다. [검토 중에도 현재 접수 조건을 충족하면 신규 지원을 받으며](team-recruitment.md#recruitment-review), 팀 모집 종료·기한 경과 뒤 기존 지원 선발은 [공고 접수 마감 전·여석 등 현재 조건](team-recruitment.md#selection-window)을 따릅니다.
 
 모든 팀의 목표 총 정원은 [공고의 참가 인원 범위](team-recruitment.md#official-capacity)에 맞추며, 1명 공고는 추가 모집 없이 운영합니다. 준비 모임 예외와 개인/팀 참가 방식의 별도 관리는 제거합니다. 마감은 [원문 시각·시간대를 우선하고 누락 시 한국시간·해당 날짜 종료로 보완](contests.md#deadline-policy)하며 보완 사실을 안내합니다.
 
-팀 생성·선발에는 팀장을 포함한 [공모전별 한 팀 소속 제한](team-recruitment.md#membership-limit)을 적용합니다. 지원자는 선발·확정 후에도 [지원을 취소해 팀에서 빠지고 한 자리를 반환](team-recruitment.md#application-cancellation)할 수 있으며, 현재 모집 조건을 충족하면 [즉시 재지원](team-recruitment.md#reapplication)할 수 있습니다. 같은 공모전의 여러 팀에 [동시 지원](team-recruitment.md#parallel-applications)할 수 있고 선발 성공 시 다른 대기 지원은 폐기합니다. 폐기는 취소·미선발·삭제와 구분하며 소속 취소 후 자동 복원하지 않습니다. 팀장 변경·위임은 제공하지 않습니다. 모집은 [팀장이 명시적으로 재개](team-recruitment.md#recruitment-reopening)하며 자리 반환으로 자동 재개하지 않습니다. 나머지 미선발·폐기 후 재지원·팀장 탈퇴 정책은 담당 명세의 미정 사항을 유지합니다.
+팀 생성·선발에는 팀장을 포함한 [공모전별 한 팀 소속 제한](team-recruitment.md#membership-limit)을 적용하며, 같은 공모전 소속 중 신규 지원은 받지 않습니다. 지원자는 선발·확정 후에도 [지원을 취소해 팀에서 빠지고 한 자리를 반환](team-recruitment.md#application-cancellation)할 수 있습니다. 취소·폐기 뒤에는 현재 무소속·모집 조건을 충족하면 새 지원이 가능하고, 미선발된 같은 팀에는 재지원할 수 없는 [종료 사유별 정책](team-recruitment.md#reapplication)을 적용합니다. 같은 공모전의 여러 팀에 [동시 지원](team-recruitment.md#parallel-applications)할 수 있고 선발·본인 팀 생성 성공 시 같은 공모전의 다른 대기 지원을 함께 폐기합니다. 다른 공모전·종료된 지원은 유지하며 소속 취소 후 자동 복원하지 않습니다. 모집은 [팀장이 명시적으로 재개](team-recruitment.md#recruitment-reopening)하며 자리 반환으로 자동 재개하지 않습니다. 팀장 변경·위임·선발 취소·강퇴·탈퇴·팀 삭제는 [MVP 제외](team-recruitment.md#membership-exclusions)입니다.
 
 ## 제외 범위와 후속 검토
 
@@ -208,9 +209,10 @@ PDF에는 일정의 연도가 명시되어 있지 않습니다. 이 표는 원�
 
 ## 시작 전 결정할 항목
 
+팀 모집·지원 상태 전이와 재지원·소속 경계(TEAM-02·03·04)는 [2026-10-21 확정 정책](team-recruitment.md#team-state-transitions)에 반영했습니다. 아래 표는 아직 남은 항목만 다룹니다.
+
 | 원문 항목 | 현재 정리와 결정 위치 |
 | --- | --- |
-| 팀 결성 완료 기준 | 개별 팀원은 [선발 즉시 확정](team-recruitment.md#membership-capacity). 팀 전체 모집 상태 전이·종료는 [TEAM-02](team-recruitment.md#open-questions)에서 별도 결정 |
 | 공고 등록·관리 및 AI 요약 | [최초 공개 조건](contests.md#publication-policy)은 정의됨. [요약 사용처·필요성·MVP 포함 여부](contests.md#summary-scope)는 TBD이며 AI 연동은 이후 결정. 관리자 등록·수정·확인 책임은 확정하며 수집·DB 적재·갱신·관리자 권한 부여/회수·관리자 페이지·재확인 방식은 [공고 미정 사항](contests.md#open-questions) |
 | 매칭 기준 | [LLM 추천 전환](matching.md#policy-decisions)으로 기존 규칙·산식 제외. 모델·실행·검색·API·저장·검증 등 내부 아키텍처는 [TBD](matching.md#open-questions) |
 | 프로필 공개 범위 | 기본 비공개인 전체 프로필 상태를 [설명·확인 후 전환](profile.md#visibility-changes). 지원 팀장은 비공개여도 전체 현재 프로필을 열람하며 [취소·미선발 후 관계도 유지](profile.md#former-applicant-visibility). 기록 보존·탈퇴 등은 [프로필 미정 사항](profile.md#open-questions) |

@@ -1,6 +1,6 @@
 # 공모전과 팀 API
 
-**상태: 설계 제안.** 공모전 탐색, 팀 생성·모집, 지원·선발과 워크스페이스의 전송 계약을 정의합니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 설계 제안 · 미구현.** 공모전 탐색, 팀 생성·모집, 지원·검토·선발과 워크스페이스의 전송 계약을 정의합니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 - 입력은 [검색 조건](#queries)과 [요청 본문](#requests), 출력은 [공모전](#contest-summary)·[팀](#team-summary)·[지원](#application) 데이터 표에서 확인합니다.
@@ -12,7 +12,7 @@
 
 ## API 목록
 
-아래 모든 작업에 입력 형식 오류 **422**, 일시 장애 **503**, 내부 오류 **500**이 공통 적용됩니다. 로그인 또는 관계 권한이 필요한 작업에는 **401**도 적용됩니다. 표의 실패 열은 그 밖의 응답을 나타냅니다. 실패 본문 형식은 [공통 오류 계약](conventions.md)에 있습니다.
+아래 모든 작업에 입력 형식 오류 **422**, 일시 장애 **503**, 내부 오류 **500**이 공통 적용됩니다. 로그인 또는 관계 권한이 필요한 작업에는 **401**, 상태 변경 요청에는 [공통 CSRF 검사 실패의 403](conventions.md#session-auth)도 적용됩니다. 표의 실패 열은 그 밖의 응답을 나타냅니다. 실패 본문 형식은 [공통 오류 계약](conventions.md)에 있습니다.
 
 ### 공모전과 공개 팀 탐색
 
@@ -42,15 +42,17 @@
 
 | 메서드·경로 | 권한·입력 | 성공 응답 | 추가 실패 |
 | --- | --- | --- | --- |
-| `POST /teams/{teamId}/applications` | 로그인, 팀 UUID·`ApplicationCreate` | 첫 접수 201 `Application`, 동일 요청 재전송 200 `Application` | 404 팀 없음, 409 프로필·모집·중복·코드·요청 ID 충돌 |
+| `POST /teams/{teamId}/applications` | 로그인, 팀 UUID·`ApplicationCreate` | 첫 접수 201 `Application`, 동일 요청 재전송 200 `Application` | 404 팀 없음, 409 프로필·모집·중복·재지원·소속·코드·요청 ID 충돌 |
 | `GET /me/applications` | 본인, 페이지 조건·선택 `status` | 200 `Page<MyApplication>` | — |
 | `GET /applications/{applicationId}` | 지원 본인 또는 받은 팀장, 지원 UUID | 200 `Application` | 404 없음 또는 관계 밖 |
 | `PUT /applications/{applicationId}/cancellation` | 지원 본인, 지원 UUID·`VersionedAction` | 200 `CancellationResult` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
 | `GET /teams/{teamId}/applicants` | 해당 팀장, 팀 UUID·페이지 조건·선택 `status` | 200 `Page<Applicant>` | 403 권한, 404 팀 없음 |
 | `GET /applications/{applicationId}/applicant` | 받은 팀장, 지원 UUID | 200 `Applicant` | 403 행동 권한, 404 없음 또는 관계 밖 |
-| `PUT /applications/{applicationId}/selection` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `SelectionResult` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·정원·소속·버전 충돌 |
+| `PUT /applications/{applicationId}/review-start` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `Application` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
+| `PUT /applications/{applicationId}/rejection` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `Application` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
+| `PUT /applications/{applicationId}/selection` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `SelectionResult` | 403 행동 권한, 404 없음 또는 관계 밖, 409 공고 기한·상태·정원·소속·버전 충돌 |
 
-다른 팀·일반 팀원·일반 사용자는 지원서 존재를 확인할 수 없도록 404로 처리합니다. 존재를 확인할 수 있는 관계라도 해당 행동을 수행할 권한이 없으면 403입니다. 조회만으로 지원 상태를 `reviewing`으로 변경하지 않습니다.
+다른 팀·일반 팀원·일반 사용자는 지원서 존재를 확인할 수 없도록 404로 처리합니다. 존재를 확인할 수 있는 관계라도 해당 행동을 수행할 권한이 없으면 403입니다. 목록·상세·AI 결과 조회만으로 지원 상태를 `reviewing`으로 변경하지 않으며, 팀장이 검토 시작 API를 명시적으로 실행해야 합니다. 검토 시작은 선발·미선발의 필수 선행 작업이 아닙니다.
 
 <a id="queries"></a>
 
@@ -90,10 +92,10 @@
 | --- | --- |
 | `RegistrationStatus` | `scheduled` 접수 예정, `open` 접수 중, `closed` 접수 마감 |
 | `AudienceCode` | `student` 대학생, `general` 일반인, `unrestricted` 제한 없음, `unknown` 미확인 |
-| `RecruitmentState` | `open` 모집 중, `reviewing` 검토 중, `finalized` 팀원 확정, `closed` 모집 마감 |
+| `RecruitmentState` | `open` 모집 중, `closed` 모집 마감 |
 | `ApplicationStatus` | `submitted` 지원 완료, `reviewing` 검토 중, `selected` 선발, `rejected` 미선발, `canceled` 취소, `discarded` 폐기 |
 
-이 값들은 조회·표시 계약입니다. `rejected`·`finalized` 등의 존재가 해당 상태로 변경하는 행동 API까지 확정했다는 뜻은 아닙니다. 지원자 상태와 팀 모집 상태를 혼용하지 않습니다.
+팀 모집은 두 상태만 사용하며 검토는 개별 지원 상태입니다. 팀의 `open`은 저장 상태이고, `isRecruiting`은 그 상태와 현재 공고·팀 기한·잔여 정원을 함께 평가한 신규 접수 가능 표시입니다. 기한 경과 시 `recruitmentState="open"`이면서 `isRecruiting=false`일 수 있으며, 화면의 모집 배지·버튼은 실제 접수 불가를 모집 마감으로 표시합니다. 기한이 지났다고 저장 상태를 자동으로 `closed`로 바꾸는 작업을 전제하지 않습니다. 실제 전이는 [모집 상태 정책](../specs/team-recruitment.md#team-state-transitions)과 [지원 상태 정책](../specs/team-recruitment.md#application-transitions)을 따릅니다.
 
 <a id="requests"></a>
 
@@ -113,7 +115,7 @@
 | `roleCodes` | `CatalogCode[]` | 예 | 중복 불가. `capacity="1"`이면 `[]`, 2명 이상이면 1~6개 |
 | `recruitmentDeadline` | `DeadlineInput` | 예 | 입력 날짜·선택 시각·선택 시간대 |
 
-선택 역할은 공통 목록을 사용합니다. 공고 분야·개인/팀 유형·주당 시간·팀장 ID는 입력에 없습니다. 서버가 인증 주체를 팀장으로 사용하고 팀과 팀장 소속을 함께 생성합니다. 정원에 기본값이나 별도 서비스 상한을 추가하지 않습니다. 근거는 [공식 정원과 생성 항목](../specs/team-recruitment.md#official-capacity)에 있습니다.
+선택 역할은 공통 목록을 사용합니다. 공고 분야·개인/팀 유형·주당 시간·팀장 ID는 입력에 없습니다. 서버가 인증 주체를 팀장으로 사용합니다. 팀·팀장 소속 생성과 같은 공모전에서 본인이 제출한 `submitted`·`reviewing` 지원의 폐기·사건·본인 알림을 한 트랜잭션에서 처리합니다. 다른 공모전이나 이미 종결된 지원은 변경하지 않으며, 생성 실패 시 대기 지원도 유지합니다. 근거는 [동시 지원과 소속 확정](../specs/team-recruitment.md#parallel-applications)에 있습니다. 정원에 기본값이나 별도 서비스 상한을 추가하지 않으며 [공식 정원과 생성 항목](../specs/team-recruitment.md#official-capacity)을 따릅니다.
 
 다음 예시의 UUID와 `ROLE_EXAMPLE`은 형식 설명용이며 실제 운영 코드가 아닙니다.
 
@@ -135,11 +137,11 @@
 
 | 필드 | 타입 | 필수 | 제약·처리 |
 | --- | --- | --- | --- |
-| `requestId` | `Id` | 예 | 새 접수 시도 식별 UUID. 취소 후 재지원은 새 값 |
+| `requestId` | `Id` | 예 | 새 접수 시도 식별 UUID. 취소·폐기 후 허용된 재지원은 새 값 |
 | `roleCode` | `CatalogCode` | 예 | 공통 역할 하나. 팀 모집 역할과 다르다는 이유로 거절하지 않음 |
 | `message` | string 또는 null | 아니오 | 최대 1,000자. 생략·null·trim 후 빈 본문은 메시지 없음인 null로 정규화 |
 
-공개 전환·프로필 보완은 접수와 별도 저장입니다. 서버가 [지원 직전 확인](../specs/profile.md#before-application)과 [현재 모집 조건](../specs/team-recruitment.md#recruitment-conditions)을 다시 검사하며, 비공개 프로필을 자동으로 공개하지 않습니다.
+공개 전환·프로필 보완은 접수와 별도 저장입니다. 서버가 [지원 직전 확인](../specs/profile.md#before-application)과 [현재 모집 조건](../specs/team-recruitment.md#recruitment-conditions)을 다시 검사하며, 비공개 프로필을 자동으로 공개하지 않습니다. 같은 공모전에 현재 확정 소속이 있으면 신규 지원을 거부하며, 대상 팀의 미선발 이력이 있으면 같은 팀 재지원을 거부합니다. 미선발 검사는 최신 지원 한 건만이 아니라 해당 팀에 대한 본인의 종결 이력 전체를 확인합니다. 취소·폐기 후 새 지원에도 현재 프로필 공개·필수 입력·무소속·모집 조건을 다시 적용하며 아래 [재지원 계약](#transitions)을 따릅니다.
 
 다음 UUID·역할 코드는 형식 설명용입니다.
 
@@ -153,7 +155,7 @@
 
 ### 상태 변경 본문
 
-선발·취소에는 **지원의 버전**, 모집 종료·재개에는 **팀의 버전**을 [VersionedAction](conventions.md#versioned-action)의 필수 `expectedVersion`으로 보냅니다.
+검토 시작·미선발·선발·취소에는 **지원의 버전**, 모집 종료·재개에는 **팀의 버전**을 [VersionedAction](conventions.md#versioned-action)의 필수 `expectedVersion`으로 보냅니다.
 
 ```json
 { "expectedVersion": "3" }
@@ -275,8 +277,8 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 | `roleCodes` | `CatalogCode[]` | 모집 역할, 중복 없이 최대 6개. 정원 1명은 빈 배열 |
 | `capacity` | `PositiveBigInt` | 팀장 포함 목표 정원 |
 | `memberCount` | integer | 현재 팀장·확정 팀원 수, 1~9,007,199,254,740,991 |
-| `recruitmentState` | `RecruitmentState` | 팀 모집 상태 |
-| `closedReason` | `capacity_reached`, `leader_closed` 또는 null | 모집 마감일 때 사유, 그 외 null |
+| `recruitmentState` | `RecruitmentState` | 저장된 `open`·`closed` 상태. 기한·정원을 반영한 현재 접수 가능 여부는 `isRecruiting` |
+| `closedReason` | `capacity_reached`, `leader_closed` 또는 null | 저장 상태가 `closed`일 때 사유, `open`이면 null. 단순 기한 경과의 사유값은 추가하지 않음 |
 | `recruitmentEndsAt` | `Timestamp` | 팀 모집 마감의 제외 경계 |
 | `isRecruiting` | boolean | 현재 공통 모집 가능 조건에 따른 계산값 |
 | `isDemo` | boolean | 시연 데이터 여부 |
@@ -353,10 +355,12 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 | `roleCode` | `CatalogCode` | 지원 역할 하나 |
 | `message` | string 또는 null | 선택 메시지, 최대 1,000자 |
 | `status` | `ApplicationStatus` | 현재 지원 상태 |
-| `discardedByApplicationId` | `Id` 또는 null | 폐기를 유발한 지원 ID. 해당 원인 지원도 열람할 수 있는 본인에게만 제공하며 다른 팀장에게는 null |
+| `discardReason` | `selected_elsewhere`, `team_created_elsewhere` 또는 null | 다른 팀 선발 또는 본인 팀 생성에 따른 폐기 사유. `discarded`일 때 필수 값, 그 외 null |
+| `discardedByApplicationId` | `Id` 또는 null | 다른 팀 선발로 폐기된 경우 원인 지원 ID. 해당 지원도 열람할 수 있는 본인에게만 제공하며 받은 팀장에게는 null |
+| `discardedByTeamId` | `Id` 또는 null | 본인 팀 생성으로 폐기된 경우 생성한 팀 ID. 본인에게만 제공하며 받은 팀장에게는 null |
 | `submittedAt`, `updatedAt` | `Timestamp` | 최초 접수·마지막 변경 시각 |
 
-`Application`에는 프로필을 포함하지 않습니다. 지원서 열람 권한만으로 모든 조회자에게 팀장 검토용 최신 전체 프로필을 제공하지 않습니다.
+`Application`에는 프로필을 포함하지 않습니다. 지원서 열람 권한만으로 모든 조회자에게 팀장 검토용 최신 전체 프로필을 제공하지 않습니다. 폐기 원인 ID 두 필드는 동시에 값을 갖지 않습니다. 받은 팀장에게도 폐기 사유는 제공하지만 다른 팀·지원의 원인 ID는 제공하지 않습니다. 팀 생성 폐기의 원인 팀은 DB에 기록한 팀장 소속에서 조회하며 가상의 선발 지원 ID를 만들지 않습니다.
 
 <a id="my-application"></a>
 
@@ -378,7 +382,7 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 | --- | --- | --- |
 | `application` | `Application` | 받은 지원서 |
 | `profile` | [Profile](accounts-profiles.md#profile) | 해당 지원자의 최신 전체 프로필. `version`과 시연 데이터 여부인 `isDemo` 포함 |
-| `isSelectionCandidate` | boolean | 현재 지원·소속 조건상 새 선발 후보인지 여부 |
+| `isSelectionCandidate` | boolean | 현재 지원이 `submitted`·`reviewing`이고 같은 공모전의 확정 소속이 없는지. 마감·정원까지 검증한 실제 선발 실행 허가는 아님 |
 
 지원 후 비공개 전환, 취소·미선발·폐기 이후에도 받은 팀장의 [최신 프로필 열람 관계](../specs/profile.md#application-profile)를 유지합니다. 새 후보 여부와 기존 AI 검토 가능 여부는 다르며, 이 관계를 일반 사람 검색에 확대하지 않습니다.
 
@@ -400,35 +404,42 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 
 팀·지원 생성에서 서버는 인증 주체·경로·정규화한 최초 입력으로 같은 시도를 판별합니다. 첫 생성은 201, 같은 `requestId`와 같은 입력의 재전송은 기존 리소스를 200으로 반환합니다. 같은 ID의 다른 입력은 409 `REQUEST_ID_REUSED`입니다. 이후 팀·지원의 상태가 바뀌어도 과거 생성 재시도를 새 행동으로 실행하지 않습니다.
 
-취소 후 재지원은 새 `requestId`·새 지원 ID로 접수하며, 이전 취소나 소속을 복원하지 않습니다. 이미 같은 공모전에 소속된 사람의 신규 지원, 미선발·폐기 뒤 재지원, 팀 생성 시 대기 지원의 처리는 [TEAM-04](../specs/team-recruitment.md#open-questions) 결정이 필요합니다. 팀 생성의 프로필 완성 요구는 [PROFILE-03](../specs/profile.md#open-questions)에 남깁니다.
+취소·폐기 후에는 같은 공모전에 현재 소속이 없고 현재 모집·프로필 조건을 충족하면 새 `requestId`·새 지원 ID로 접수합니다. 미선발 이력이 있는 같은 팀에는 재지원할 수 없고, 다른 팀에는 현재 조건을 충족하면 지원할 수 있습니다. `rejected`·`canceled`·`discarded` 기록은 복원하거나 다른 상태로 바꾸지 않습니다. 이전 시도에 대한 늦은 요청은 새 시도를 변경하지 않습니다. 근거는 [재지원](../specs/team-recruitment.md#reapplication)과 [소속 확정 시 다른 대기 지원 폐기](../specs/team-recruitment.md#parallel-applications)입니다. 팀 생성의 프로필 완성 요구는 [PROFILE-03](../specs/profile.md#open-questions)에 남깁니다.
 
 ### 버전이 있는 행동
 
-모든 행동은 잠금 후 대상 버전과 `expectedVersion`을 **먼저 비교**합니다. 다르면 현재 상태가 요청 결과와 같아도 409 `VERSION_CONFLICT`입니다. 아래 재요청 성공은 일치하는 현재 버전이 전제입니다.
+행동 권한·열람 관계를 확인하고 대상을 잠근 뒤, 대상 버전과 `expectedVersion`을 **상태 전이 판단보다 먼저 비교**합니다. 다르면 현재 상태가 요청 결과와 같아도 409 `VERSION_CONFLICT`입니다. 아래 재요청 성공은 일치하는 현재 버전이 전제입니다.
 
 | 행동 | 허용된 전이·재요청 | 성공 시 함께 처리하는 것 |
 | --- | --- | --- |
+| 검토 시작 | `submitted` → `reviewing`. 이미 `reviewing`이면 no-op 200 | 해당 지원 버전·사건·본인 알림만 갱신. 팀 모집 상태·정원은 유지 |
+| 미선발 | `submitted`·`reviewing` → `rejected`. 이미 `rejected`이면 no-op 200 | 해당 지원 버전·사건·본인 알림 갱신. 소속·정원은 유지 |
 | 선발 | `submitted`·`reviewing` → `selected`. 이미 `selected`이며 동일한 현재 소속이면 no-op 200 | 현재 소속 생성, 같은 공모전 다른 대기 지원 폐기, 사건·알림. 정원 충족 시 모집 마감 |
 | 본인 취소 | `submitted`·`reviewing`·`selected` → `canceled`. 이미 `canceled`이면 no-op 200 | 선발 후 취소는 소속 종료·자리 반환·사건·알림. 자동 모집 재개·폐기 지원 복원 없음 |
-| 모집 종료 | `open`·`reviewing` → `closed`, 사유 `leader_closed`. 이미 `closed`이면 사유를 보존하고 no-op 200 | 기존 지원·소속 유지 |
+| 모집 종료 | `open` → `closed`, 사유 `leader_closed`. 이미 `closed`이면 사유를 보존하고 no-op 200 | 기존 지원·소속 유지. 대기 지원을 자동 미선발 처리하지 않음 |
 | 모집 재개 | `closed` → `open`, 마감 사유 null. 이미 `open`이며 현재 모집 가능하면 no-op 200 | 현재 공고 접수·팀 모집 기한·잔여 정원 확인. 폐기 지원 복원 없음 |
 
-선발·취소·폐기·소속·알림은 [동일 트랜잭션](../database/transactions.md)에서 처리합니다. 실패하면 부분 선발·부분 폐기를 성공 결과로 반환하지 않습니다. 응답 유실 후에는 현재 리소스를 다시 조회해 결과와 버전을 확인합니다.
+미선발은 팀장의 명시적 요청에서만 실행하며 모집 종료·기한 경과·정원 충족으로 자동 실행하지 않습니다. `rejected`·`canceled`·`discarded`에서 다른 상태로 가는 요청은 `INVALID_APPLICATION_STATE`이며, 표의 동일 상태 no-op은 상태 복원이 아닙니다. no-op은 버전·사건·알림을 추가하지 않습니다.
+
+실제로 `submitted`·`reviewing`을 선발하려면 현재 공고 접수 기간 안이고 여석·무소속·팀장 권한을 충족해야 합니다. 선발 검사는 신규 접수용 `isRecruiting`과 독립적이며, 팀의 저장 상태가 `closed`이거나 팀 모집 기한이 지났어도 기존 유효 지원은 선발할 수 있습니다. `현재 시각 >= 공고 endsAt`이면 실제 선발을 `CONTEST_NOT_OPEN`으로 거부합니다. 이미 선발된 동일 소속에 대한 버전 일치 no-op은 새 선발이 아니므로 이후 공고 마감만으로 실패시키지 않습니다. 정책 원본은 [기존 지원 선발 가능 기간](../specs/team-recruitment.md#selection-window)입니다.
+
+팀 생성에 따른 폐기, 검토 시작·미선발·선발·취소의 지원 상태·소속·사건·알림 변경은 해당 유스케이스의 [동일 트랜잭션](../database/transactions.md)에서 처리합니다. 실패하면 부분 선발·부분 폐기를 성공 결과로 반환하지 않습니다. 응답 유실 후에는 현재 리소스를 다시 조회해 결과와 버전을 확인합니다.
 
 ### 409 업무 오류
 
 | 요청 | 정의한 오류 코드 |
 | --- | --- |
 | 팀 생성 | `CONTEST_NOT_OPEN`, `CAPACITY_OUT_OF_RANGE`, `MEMBERSHIP_CONFLICT`, `INVALID_CATALOG_SELECTION`, `REQUEST_ID_REUSED` |
-| 신규 지원 | `PROFILE_REQUIRED`, `PROFILE_PRIVATE`, `CONTEST_NOT_OPEN`, `TEAM_FULL`, `RECRUITMENT_CLOSED`, `RECRUITMENT_DEADLINE_PASSED`, `DUPLICATE_APPLICATION`, `INVALID_CATALOG_SELECTION`, `REQUEST_ID_REUSED` |
-| 선발 | `VERSION_CONFLICT`, `INVALID_APPLICATION_STATE`, `TEAM_FULL`, `MEMBERSHIP_CONFLICT` |
+| 신규 지원 | `PROFILE_REQUIRED`, `PROFILE_PRIVATE`, `CONTEST_NOT_OPEN`, `TEAM_FULL`, `RECRUITMENT_CLOSED`, `RECRUITMENT_DEADLINE_PASSED`, `DUPLICATE_APPLICATION`, `REAPPLICATION_NOT_ALLOWED`, `MEMBERSHIP_CONFLICT`, `INVALID_CATALOG_SELECTION`, `REQUEST_ID_REUSED` |
+| 검토 시작·미선발 | `VERSION_CONFLICT`, `INVALID_APPLICATION_STATE` |
+| 선발 | `VERSION_CONFLICT`, `INVALID_APPLICATION_STATE`, `CONTEST_NOT_OPEN`, `TEAM_FULL`, `MEMBERSHIP_CONFLICT` |
 | 본인 취소 | `VERSION_CONFLICT`, `INVALID_APPLICATION_STATE` |
 | 모집 종료 | `VERSION_CONFLICT`, `INVALID_RECRUITMENT_STATE` |
 | 모집 재개 | `VERSION_CONFLICT`, `CONTEST_NOT_OPEN`, `TEAM_FULL`, `RECRUITMENT_DEADLINE_PASSED`, `INVALID_RECRUITMENT_STATE` |
 
-공개 전환을 화면에서 확인했더라도 지원 직전 비공개로 바뀌었다면 `PROFILE_PRIVATE`입니다. 다른 팀의 지원 목록이나 건수를 오류 세부사항에 포함하지 않습니다.
+공개 전환을 화면에서 확인했더라도 지원 직전 비공개로 바뀌었다면 `PROFILE_PRIVATE`입니다. 현재 유효 지원의 중복은 `DUPLICATE_APPLICATION`, 대상 팀의 미선발 이력에 따른 재지원 거부는 `REAPPLICATION_NOT_ALLOWED`, 같은 공모전의 현재 소속 충돌은 `MEMBERSHIP_CONFLICT`입니다. 다른 팀의 지원 목록이나 건수를 오류 세부사항에 포함하지 않습니다.
 
-모집 종료 뒤 추가 선발, `finalized`의 변경, 미선발 처리, 팀장 선발 취소, 지원 메시지 수정은 [미정 사항](../specs/team-recruitment.md#open-questions)입니다. 범용 상태 `PATCH`를 제공하거나 위 조회 enum을 근거로 미정 전이를 허용하지 않습니다. 정책이 필요한 분기는 출시 전에 성공·실패 계약을 완성합니다.
+팀장 선발 취소·강퇴·팀장 탈퇴·팀 삭제와 별도 소속 탈퇴 API는 [MVP 범위 밖](../specs/team-recruitment.md#membership-exclusions)입니다. 본인의 선발 후 지원 취소는 위 계약을 유지합니다. 모집 정보 편집과 제출 후 지원 메시지 수정은 [미정 사항](../specs/team-recruitment.md#open-questions)이며 범용 상태 `PATCH`로 정의하지 않은 행동을 허용하지 않습니다.
 
 ## DB 연결
 
