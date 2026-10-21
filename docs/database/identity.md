@@ -1,6 +1,6 @@
 # 계정·프로필 테이블
 
-이 문서는 PostgreSQL 17 기준 **물리 설계 초안**입니다. 계정 식별·서버 세션·현재 프로필의 저장 구조를 정의합니다. 세션 기간·동시 로그인·탈퇴처럼 미정인 제품 결정을 테이블 설계로 확정하지 않습니다.
+이 문서는 PostgreSQL 17 기준 **물리 설계 초안**입니다. 계정 식별·서버 세션·현재 프로필의 저장 구조를 정의합니다. 브라우저 재시작 후 로그인 유지·가입 후 자동 로그인·탈퇴처럼 미정인 제품 결정을 테이블 설계로 확정하지 않습니다.
 
 | 먼저 확인할 내용 | 원본 |
 | --- | --- |
@@ -120,7 +120,7 @@ erDiagram
 | `ck_local_credentials_login_id` | ASCII 소문자·숫자만으로 구성된 4~24자. 대문자·공백을 정규화하는 작업은 저장 전에 수행 |
 | `ck_local_credentials_password_hash` | 해시 문자열은 빈 문자열이 아님. 원문 비밀번호 길이와 해시 길이를 혼동하지 않음 |
 
-가입은 `accounts`와 `local_credentials`를 한 트랜잭션에서 생성합니다. 일반 FK만으로 모든 계정의 인증 정보 존재를 강제할 수 없으므로 가입 유스케이스가 1:1 완성을 책임집니다. 비밀번호 해시 알고리즘·비용과 시도 제한 등은 [인증 최소 기준과 미정 사항](../specs/authentication.md#open-questions)을 따릅니다. 로그인 상태는 아래 서버 세션으로 관리하며, 가입 후 자동 로그인·소셜 연결·계정 복구는 별도 미정 범위입니다.
+가입은 `accounts`와 `local_credentials`를 한 트랜잭션에서 생성합니다. 일반 FK만으로 모든 계정의 인증 정보 존재를 강제할 수 없으므로 가입 유스케이스가 1:1 완성을 책임집니다. 비밀번호 해시 알고리즘·비용과 시도 제한 등은 [인증 최소 기준과 미정 사항](../specs/authentication.md#open-questions)을 따릅니다. 로그인 상태는 아래 서버 세션으로 관리하며, 가입 후 자동 로그인은 별도 미정 범위입니다. 소셜 연결은 후속 구현이며, [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위에서 제외하고 후속으로 검토합니다.
 
 로그인 아이디 유일성은 저장된 모든 계정에 적용합니다. 향후 탈퇴 기능에서 아이디 재사용을 허용하려면 [탈퇴 정책](../specs/profile.md#account-withdrawal)과 유일성 변경을 함께 검토해야 합니다.
 
@@ -136,8 +136,8 @@ erDiagram
 | `token_hash` | `bytea` | 불가 | 없음 | 원문 세션 토큰의 SHA-256 해시, 32바이트 |
 | `account_id` | `uuid` | 불가 | 없음 | FK → `accounts.id` |
 | `created_at` | `timestamptz` | 불가 | 없음 | 세션을 발급한 서버 시각 |
-| `last_seen_at` | `timestamptz` | 불가 | 없음 | 유효성 확인을 통과한 최근 사용 시각. 생성 시 `created_at`과 같음 |
-| `expires_at` | `timestamptz` | 불가 | 없음 | 절대 만료 경계. 해당 시각부터 무효이며 요청 사용으로 연장하지 않음 |
+| `last_seen_at` | `timestamptz` | 불가 | 없음 | 해당 세션의 유효성 확인을 통과한 최근 활동 시각. 생성 시 `created_at`과 같으며 유휴 24시간의 기준 |
+| `expires_at` | `timestamptz` | 불가 | 없음 | [세션 정책](../specs/authentication.md#session-policy)의 절대 만료 경계: `created_at`부터 UTC 기준 168시간(7일) 뒤. 해당 시각부터 무효이며 요청 사용으로 연장하지 않음 |
 | `revoked_at` | `timestamptz` | 허용 | `NULL` | 명시적으로 회수한 서버 시각. NULL만으로 유효함을 뜻하지 않음 |
 
 | 제약·인덱스 이름 | 정의와 목적 |
@@ -150,18 +150,20 @@ erDiagram
 | `ix_auth_sessions_account` | B-tree (`account_id`). 계정 참조와 해당 계정의 세션 조회 |
 | `ix_auth_sessions_expires` | B-tree (`expires_at`). 절대 만료된 정리 후보 조회; 삭제 시점·보존 기간을 정하는 제약은 아님 |
 
-`accounts`와의 1:N 구조는 여러 세션 행을 표현할 수 있다는 뜻입니다. 동시 기기 수·동시 로그인 허용 여부·새 로그인 시 기존 세션 회수 범위를 확정하지 않습니다. CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항목은 [API 공통 계약](../api/conventions.md#access)과 후속 개발 계획에서 함께 정합니다. 이번 표에 임의의 CSRF 전송 규칙이나 컬럼을 추가하지 않습니다.
+`accounts`와의 1:N 구조로 [세션 정책](../specs/authentication.md#session-policy)의 동시 로그인을 지원합니다. 새 로그인은 새 세션 행을 생성하며 기존 세션을 회수하지 않습니다. 활동 기록·만료·로그아웃은 세션별로 독립적이고, 다른 세션의 활동이 이 세션의 유휴 만료를 연장하지 않습니다. 동시 기기 상한이나 자동 축출 규칙은 추가하지 않습니다.
+
+CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항목은 [API 공통 계약](../api/conventions.md#access)과 후속 개발 계획에서 함께 정합니다. 이번 표에 임의의 CSRF 전송 규칙이나 컬럼을 추가하지 않습니다.
 
 | 저장·조회 책임 | 처리 경계 |
 | --- | --- |
 | 로그인 성공 | 비밀번호 검증 후 CSPRNG로 최소 128비트의 엔트로피를 가진 새 불투명 토큰을 생성하고, 해시·계정·발급 및 만료 시각을 저장합니다. DB commit 성공 뒤에만 세션 쿠키를 발급합니다. 원문 토큰은 DB·로그에 남기지 않습니다. |
-| 인증 확인 | 받은 원문 토큰을 같은 방식으로 SHA-256 해시하여 조회하고, 현재 서버 시각으로 회수 여부·절대 만료·이전 `last_seen_at`에 따른 유휴 만료를 모두 검사합니다. 하나라도 실패하면 인증에 사용하지 않습니다. |
-| 최근 사용 기록 | 이전 값의 유효성 검사를 통과한 세션만 `last_seen_at`을 갱신합니다. 동시 로그아웃으로 회수된 행을 갱신해 되살리거나, 만료된 행을 새 세션으로 재생성하지 않습니다. `expires_at`과 `revoked_at`은 이 갱신으로 바꾸지 않습니다. |
-| 현재 세션 로그아웃 | 현재 행의 `revoked_at`을 저장해 회수하고 commit한 뒤 쿠키를 삭제합니다. 쿠키 삭제만으로 서버 회수를 대신하지 않습니다. |
+| 인증 확인 | 받은 원문 토큰을 같은 방식으로 SHA-256 해시하여 조회합니다. 현재 서버 시각이 `expires_at` 이상이거나 이전 `last_seen_at`부터 24시간 이상 지났거나 `revoked_at`이 있으면 인증에 사용하지 않습니다. 기간과 만료 경계의 정책 원본은 [세션 정책](../specs/authentication.md#session-policy)입니다. |
+| 최근 사용 기록 | 이전 값의 유효성 검사를 통과한 해당 세션만 `last_seen_at`을 갱신합니다. 다른 세션의 사용 기록은 바꾸지 않습니다. 동시 로그아웃으로 회수된 행을 갱신해 되살리거나, 만료된 행을 새 세션으로 재생성하지 않습니다. `expires_at`과 `revoked_at`은 이 갱신으로 바꾸지 않습니다. |
+| 현재 세션 로그아웃 | 현재 행의 `revoked_at`을 저장해 즉시 회수하고 commit한 뒤 쿠키를 삭제합니다. 회수 이후 이전 토큰으로 새 인증을 허용하지 않으며, 같은 계정의 다른 세션은 변경하지 않습니다. 쿠키 삭제만으로 서버 회수를 대신하지 않습니다. |
 | 업무 권한 | 세션으로 식별한 `account_id`를 기준으로 현재 프로필 공개 범위·지원 관계·팀 소속·관리 권한을 다시 확인합니다. 세션 생성 당시 권한의 사본으로 접근을 허용하지 않습니다. |
 | 정리 | 만료·회수된 행의 정리 주기·보존 기간은 미정입니다. 정리 작업 전에도 요청마다 유효성을 검사하므로 만료 행이 남았다는 이유로 인증을 허용하지 않습니다. |
 
-유휴·절대 만료 기간과 로그인 유지 옵션은 [AUTH-06 세션 운영 정책](../specs/authentication.md#open-questions)이 결정된 뒤 적용합니다. 현재 시각에 의존하는 만료 판단을 DB CHECK나 정리 작업에 맡기지 않습니다. 쿠키 속성과 전달 방식의 원본은 [세션 정책](../specs/authentication.md#session-policy)이며, SQLAlchemy의 DB 작업 단위인 `Session`·`AsyncSession`과 이 로그인 세션은 다른 개념입니다.
+유휴 24시간·절대 7일은 [세션 정책](../specs/authentication.md#session-policy)을 적용하며, 현재 시각에 의존하는 만료 판단을 DB CHECK나 정리 작업에 맡기지 않습니다. 브라우저 재시작 후 쿠키 유지·로그인 유지 선택·가입 후 자동 로그인·정리 및 보존 기간은 [AUTH-06 남은 운영 정책](../specs/authentication.md#open-questions)에서 정합니다. SQLAlchemy의 DB 작업 단위인 `Session`·`AsyncSession`과 이 로그인 세션은 다른 개념입니다.
 
 ### `account_role_grants`
 
@@ -268,7 +270,9 @@ erDiagram
 
 | 후속 결정 | 영향을 받는 저장·API |
 | --- | --- |
-| [세션 운영·복구 세부 정책](../specs/authentication.md#open-questions) | 유휴·절대 만료 기간, 동시 로그인·로그인 유지·가입 후 자동 로그인, CSRF 검증 정보·전달 세부, 시도 제한·복구·세션 정리 및 보존 |
+| [남은 인증·세션 운영 정책](../specs/authentication.md#open-questions) | 브라우저 재시작 후 쿠키 유지·로그인 유지 선택·가입 후 자동 로그인, CSRF 검증 정보·전달 세부, 시도 제한 수치·세션 정리 및 보존 |
 | [탈퇴·보존·복구·아이디 재사용](../specs/profile.md#open-questions) | 탈퇴 상태의 저장 표현, 관련 행 삭제·열람·소속 처리. 자동 연쇄 삭제 없음 |
 | [프로필 Unicode 계수·URL 길이](../specs/profile.md#open-questions) | 본문 서비스 검증·추가 DB CHECK·API validation schema |
 | [실제 공통 코드·학사 목록](../specs/profile-options.md#open-questions) | 기준 데이터 초기 적재. 테이블을 설계한 것이 운영 목록 검증 완료를 뜻하지 않음 |
+
+[계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖의 후속 검토 항목입니다. 복구 테이블·API를 이번에 추가하지 않으며, 복구 방식 결정이 현재 가입·로그인 개발의 선행 조건은 아닙니다.
