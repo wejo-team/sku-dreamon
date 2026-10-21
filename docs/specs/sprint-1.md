@@ -214,7 +214,7 @@ PDF에는 일정의 연도가 명시되어 있지 않습니다. 이 표는 원�
 | 공고 등록·관리 및 AI 요약 | [최초 공개 조건](contests.md#publication-policy)은 정의됨. [요약 사용처·필요성·MVP 포함 여부](contests.md#summary-scope)는 TBD이며 AI 연동은 이후 결정. 관리자 등록·수정·확인 책임은 확정하며 수집·DB 적재·갱신·관리자 권한 부여/회수·관리자 페이지·재확인 방식은 [공고 미정 사항](contests.md#open-questions) |
 | 매칭 기준 | [LLM 추천 전환](matching.md#policy-decisions)으로 기존 규칙·산식 제외. 모델·실행·검색·API·저장·검증 등 내부 아키텍처는 [TBD](matching.md#open-questions) |
 | 프로필 공개 범위 | 기본 비공개인 전체 프로필 상태를 [설명·확인 후 전환](profile.md#visibility-changes). 지원 팀장은 비공개여도 전체 현재 프로필을 열람하며 [취소·미선발 후 관계도 유지](profile.md#former-applicant-visibility). 기록 보존·탈퇴 등은 [프로필 미정 사항](profile.md#open-questions) |
-| 로그인·지원 진입·AI·시연 데이터 | [공개 탐색과 로그인 필요 행동](authentication.md#access-policy), [지원 직전 필수 정보 점검](profile.md#before-application), [실제·시연 데이터 상호작용](#demo-data-scope)은 정의됨. 참가 자격을 비즈니스 로직으로 제한하지 않고 원문 확인을 안내하며, 공개 프로필·마감·정원 등 나머지 제한은 유지. 로그인 실패·만료는 [단순 안내](authentication.md#auth-failures), 계정 복구는 [MVP 제외](authentication.md#account-recovery). 브라우저 로그인 유지 등 [인증의 남은 결정](authentication.md#open-questions), AI 추천·공고 요약, 시연 데이터 선정·준비·정리·표시 UI는 담당 명세에서 후속 결정 |
+| 로그인·지원 진입·AI·시연 데이터 | [공개 탐색과 로그인 필요 행동](authentication.md#access-policy), [지원 직전 필수 정보 점검](profile.md#before-application), [실제·시연 데이터 상호작용](#demo-data-scope)은 정의됨. 참가 자격을 비즈니스 로직으로 제한하지 않고 원문 확인을 안내하며, 공개 프로필·마감·정원 등 나머지 제한은 유지. [기본 로그인 유지·가입 후 자동 로그인](authentication.md#session-policy)과 [실패·만료 단순 안내](authentication.md#auth-failures)는 확정, 계정 복구는 [MVP 제외](authentication.md#account-recovery). 시도 제한·세션 정리 등 [인증의 남은 결정](authentication.md#open-questions), AI 추천·공고 요약, 시연 데이터 선정·준비·정리·표시 UI는 담당 명세에서 후속 결정 |
 | 웹 구현 범위 | 위 주요 화면과 모바일 웹 기준을 적용. 시연 URL·대상 브라우저 버전·기기 목록은 미정 |
 
 <a id="source-coverage"></a>

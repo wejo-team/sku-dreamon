@@ -23,13 +23,15 @@
 | `POST /auth/logout` | 로그인 | 본문 없음 | 204, 본문 없음 | 401 `UNAUTHENTICATED` |
 | `GET /me` | 로그인한 본인 | 본문 없음 | 200 [Account](#account) | 401 `UNAUTHENTICATED` |
 
-가입은 계정과 자체 인증 정보를 함께 생성하며, 저장 시 아이디 유일성을 확인합니다. 중복 확인 응답은 가입 예약이 아닙니다. 탈퇴 아이디 재사용은 [탈퇴 정책](../specs/profile.md#account-withdrawal)이 확정되기 전에 가입 가능으로 안내하지 않습니다.
+가입은 `accounts`·`local_credentials`·새 `auth_sessions`를 같은 트랜잭션에서 생성하며, 저장 시 아이디 유일성을 확인합니다. 모두 커밋된 뒤 201 `SignupResult`와 `Set-Cookie`를 반환하여 바로 로그인시킵니다. 세션 저장이 실패하면 가입 전체를 롤백하며 성공 응답·인증 쿠키를 발급하지 않습니다. 클라이언트는 가입 성공 후 `GET /me`의 `id`가 `SignupResult.account.id`와 일치하는지 확인하고 프로필 설정으로 이동합니다. 다른 계정의 기존 쿠키가 남아 있다면 자동 로그인 성공으로 취급하지 않고 가입한 계정의 로그인을 안내합니다. 중복 확인 응답은 가입 예약이 아닙니다. 탈퇴 아이디 재사용은 [탈퇴 정책](../specs/profile.md#account-withdrawal)이 확정되기 전에 가입 가능으로 안내하지 않습니다.
+
+가입 응답이 유실되어도 서버의 커밋은 완료되었을 수 있습니다. 클라이언트는 계정을 삭제하거나 자동으로 다시 가입하지 않고 로그인 상태를 확인합니다. 이때 응답 계정 ID를 알 수 없다면 `GET /me`의 `loginId`가 가입 요청의 정규화된 아이디와 일치하는지 확인하고, 미인증·불일치이면 입력한 계정으로 로그인하도록 안내합니다. 일시적인 조회 실패는 가입 실패나 만료로 단정하지 않고 다시 확인할 수 있게 합니다. 이는 MVP에서 제외한 분실 계정 복구 기능을 추가하는 것이 아닙니다.
 
 로그인 실패는 아이디 존재 여부와 비밀번호 오류를 구분하지 않는 `INVALID_CREDENTIALS` 응답을 제안합니다. 화면은 [실패·만료 안내 정책](../specs/authentication.md#auth-failures)에 따라 간단히 안내하고 다시 로그인을 시도할 수 있게 합니다. 로그인 성공 시 새 서버 세션의 저장이 커밋된 뒤 `Set-Cookie`로 토큰을 전달하고, JSON 본문에는 아래 `LoginResult`의 계정 데이터만 반환합니다. 세션 저장에 실패하면 로그인 성공 응답이나 새 인증 쿠키를 발급하지 않습니다.
 
 `GET /me`와 다른 인증 필요 요청은 [공통 서버 세션 검사](conventions.md#session-auth)로 계정을 식별합니다. 만료된 세션은 401을 반환하고 화면에서 재로그인을 안내합니다. 로그아웃은 현재 서버 세션을 즉시 회수하고, 회수를 커밋한 뒤 쿠키를 만료시켜 204를 반환합니다. 동시 로그인을 허용하며 다른 로그인 세션의 상태·수명은 변경하지 않습니다. 성공 후 클라이언트는 계정별 AI 화면·초안을 지우고 진행 중 응답을 취소합니다.
 
-**인증 방식·세션 수명·동시 로그인은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다.** 브라우저를 닫은 뒤 쿠키 유지·로그인 유지 선택·가입 후 자동 로그인과 CSRF의 구체 전송 계약은 미정입니다. `SignupResult`의 계정 데이터만으로 가입 직후 로그인되었다고 판단하지 않습니다. 로그인·로그아웃·가입에도 [공통 인증·CSRF 계약](conventions.md#session-auth)을 적용하고, 남은 결정은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 따릅니다.
+**인증 방식·세션 수명·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다.** 별도 로그인 유지 선택 없이 같은 지속 쿠키를 사용하며, 브라우저 재시작으로 세션 만료 시각을 연장하지 않습니다. 로그인·로그아웃·가입에도 [공통 인증·CSRF 계약](conventions.md#session-auth)을 적용하고, 쿠키 이름·경로와 CSRF의 구체 전송 계약 등 남은 결정은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 따릅니다.
 
 <a id="credentials"></a>
 
@@ -40,7 +42,7 @@
 | `loginId` | string | 불가 | 앞뒤 공백 제거 → ASCII 소문자화 → `^[a-z0-9]{4,24}$` 검증. 밑줄·하이픈 미허용 |
 | `password` | string | 불가 | NFC 정규화 후 Unicode 코드 포인트 15~128개. 공백·대소문자는 보존. 요청 전용으로 응답·오류·로그에 원문을 포함하지 않음 |
 
-아이디 중복 확인의 query `loginId`에도 같은 정규화를 적용합니다. 정책 원본은 [로그인 아이디](../specs/authentication.md#login-identifier)와 [비밀번호](../specs/authentication.md#password-policy)입니다.
+아이디 중복 확인의 query `loginId`에도 같은 정규화를 적용합니다. 가입·로그인 요청에 `rememberMe` 등 로그인 유지 선택 필드는 추가하지 않습니다. 정책 원본은 [로그인 아이디](../specs/authentication.md#login-identifier)와 [비밀번호](../specs/authentication.md#password-policy)입니다.
 
 <a id="account"></a>
 
@@ -63,7 +65,7 @@
 
 | 객체 | 전체 필드 | 의미 |
 | --- | --- | --- |
-| `SignupResult` | `account: Account` | 계정 생성 성공. 자동 로그인 여부는 미정 |
+| `SignupResult` | `account: Account` | 계정·인증 정보·세션 생성 성공. 별도 `Set-Cookie`로 자동 로그인하며 클라이언트는 로그인 상태 확인 후 프로필 설정으로 이동 |
 | `LoginResult` | `account: Account` | 본인 계정 데이터. 세션 토큰은 본문에 포함하지 않고 별도 `Set-Cookie`로 전달 |
 | `LoginIdAvailability` | `normalizedLoginId: string`, `available: boolean` | 정규화한 아이디와 현재 중복 여부. 아이디 형식은 `^[a-z0-9]{4,24}$` |
 

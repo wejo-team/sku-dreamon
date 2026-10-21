@@ -42,7 +42,7 @@
 
 ## 아직 결정하지 않은 것
 
-상세 도메인·테이블과 외부 API 계약은 [DB 설계](../database/README.md)와 [API 명세](../api/README.md)에 검토안으로 정리합니다. 구현 완료를 뜻하지 않습니다. 브라우저 로그인 유지·가입 후 자동 로그인·CSRF 전달 세부, 데이터 보존·운영 배포 플랫폼은 미정입니다. 세션 만료·독립 동시 로그인은 [확정 정책](../specs/authentication.md#session-policy)을 적용하고 [계정 복구는 MVP에서 제외](../specs/authentication.md#account-recovery)합니다. 추천은 LLM 기반이며 모델·제공자·검색·실행·저장 등 내부 아키텍처는 [추천 명세](../specs/matching.md)의 TBD를 유지합니다. 기능 구현에 필요한 선행 결정은 [설계 검토 목록](../database/decisions.md#open-decisions)에서 확인합니다.
+상세 도메인·테이블과 외부 API 계약은 [DB 설계](../database/README.md)와 [API 명세](../api/README.md)에 검토안으로 정리합니다. 구현 완료를 뜻하지 않습니다. CSRF 전달 세부·로그인 시도 제한 수치·세션 정리·데이터 보존·운영 배포 플랫폼은 미정입니다. 기본 로그인 유지·가입 후 자동 로그인·세션 만료·독립 동시 로그인은 [확정 정책](../specs/authentication.md#session-policy)을 적용하고 [계정 복구는 MVP에서 제외](../specs/authentication.md#account-recovery)합니다. 추천은 LLM 기반이며 모델·제공자·검색·실행·저장 등 내부 아키텍처는 [추천 명세](../specs/matching.md)의 TBD를 유지합니다. 기능 구현에 필요한 선행 결정은 [설계 검토 목록](../database/decisions.md#open-decisions)에서 확인합니다.
 
 현재 런타임·패키지 버전은 버전 파일과 lockfile에 고정합니다. [로컬 실행](local-development.md)에서 설치 명령을 확인합니다. 버전을 변경할 때 호환성을 검사하고 파일과 문서를 함께 갱신합니다.
 
