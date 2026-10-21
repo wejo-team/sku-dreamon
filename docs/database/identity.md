@@ -33,6 +33,8 @@ erDiagram
         varchar login_id_normalized UK
         text password_hash
         timestamptz credentials_updated_at
+        varchar school_email
+        timestamptz school_email_verified_at
         timestamptz created_at
     }
     auth_sessions {
@@ -90,6 +92,8 @@ erDiagram
 | `login_id_normalized` | `varchar(320)` | 불가 | 없음 | 정규화 완료 로그인 아이디. 유일. 향후 이메일 사용에 대비한 저장 폭 |
 | `password_hash` | `text` | 불가 | 없음 | 검증용 해시. 알고리즘·파라미터를 표현할 수 있는 인코딩 문자열 |
 | `credentials_updated_at` | `timestamptz` | 불가 | `now()` | 자체 인증 정보 변경 시각. 변경 시 애플리케이션이 갱신 |
+| `school_email` | `varchar(320)` | 허용 | `NULL` | 후속 교내 인증용 이메일. `login_id_normalized`와 별개 |
+| `school_email_verified_at` | `timestamptz` | 허용 | `NULL` | 현재 저장된 `school_email`의 확인 완료 시각. 후속 인증 성공 때만 설정 |
 | `created_at` | `timestamptz` | 불가 | `now()` | 계정 생성 시각 |
 
 | 제약·인덱스 이름 | 정의와 목적 |
@@ -98,13 +102,16 @@ erDiagram
 | `uq_accounts_login_id` | `login_id_normalized` 유일. B-tree 유일 인덱스로 로그인 조회도 수행 |
 | `ck_accounts_login_id` | ASCII 소문자·숫자만으로 구성된 4~24자. 대문자·공백을 정규화하는 작업은 저장 전에 수행 |
 | `ck_accounts_password_hash` | 해시 문자열은 빈 문자열이 아님. 원문 비밀번호 길이와 해시 길이를 혼동하지 않음 |
+| `ck_accounts_school_email_verified` | `school_email_verified_at IS NULL OR school_email IS NOT NULL`. 주소 없이 확인 시각만 저장하지 않음 |
 
-`varchar(320)`은 향후 이메일 로그인 도입에 대비한 저장 공간이며, 현재 입력·CHECK는 [영문 소문자·숫자 4~24자](../specs/authentication.md#login-identifier)를 유지합니다. 이메일 도입 시 형식·길이·정규화·유일성·소유권 확인과 기존 아이디 전환을 함께 정하고 CHECK·API 검증을 변경합니다.
+`login_id_normalized`의 `varchar(320)`은 향후 이메일 로그인 도입에 대비한 저장 공간이며, 현재 입력·CHECK는 [영문 소문자·숫자 4~24자](../specs/authentication.md#login-identifier)를 유지합니다. 이메일 도입 시 형식·길이·정규화·유일성·소유권 확인과 기존 아이디 전환을 함께 정하고 CHECK·API 검증을 변경합니다.
+
+교내 이메일 두 컬럼은 [후속 교내 인증](../specs/authentication.md#verification-meaning)을 위한 예약 필드이며, MVP에서는 수집·검증하지 않고 모두 `NULL`로 유지합니다. 향후 주소를 변경하거나 삭제하면 같은 저장에서 기존 `school_email_verified_at`을 `NULL`로 초기화합니다.
 
 - 탈퇴 효력·보존·복구를 정하는 [PROFILE-04](../specs/profile.md#open-questions)가 남아 있어 탈퇴 상태 컬럼·API는 별도 설계로 보류합니다. 현재 테이블에서 자동 소속 해제·물리 삭제·복구를 수행하지 않습니다.
-- 이메일·연락처·학교 인증 결과는 현재 수집 범위가 아니므로 저장 컬럼을 추가하지 않습니다. 교내 미인증 표시는 [인증 명세](../specs/authentication.md#verification-meaning)의 현재 고정 응답으로 처리합니다.
+- 연락처는 현재 수집 범위가 아니므로 저장 컬럼을 추가하지 않습니다. 교내 미인증 표시는 [인증 명세](../specs/authentication.md#verification-meaning)의 현재 고정 응답으로 처리합니다.
 
-현재 MVP는 모든 계정이 자체 아이디·비밀번호로 가입하므로 두 인증 컬럼은 `NOT NULL`입니다. 향후 소셜 전용 가입을 도입하면 두 컬럼을 함께 비울 수 있도록 NULL 허용과 조합 제약을 검토하고, 소셜 연결 정보는 같은 `accounts.id`에 연결합니다. 소셜 전용 가입이나 이메일 로그인으로의 변경을 이번 통합에 포함하지 않습니다.
+현재 MVP는 모든 계정이 자체 아이디·비밀번호로 가입하므로 `login_id_normalized`와 `password_hash`는 `NOT NULL`입니다. 향후 소셜 전용 가입을 도입하면 이 두 컬럼을 함께 비울 수 있도록 NULL 허용과 조합 제약을 검토하고, 소셜 연결 정보는 같은 `accounts.id`에 연결합니다. 소셜 전용 가입이나 이메일 로그인으로의 변경을 이번 통합에 포함하지 않습니다.
 
 가입은 [가입 후 자동 로그인 정책](../specs/authentication.md#session-policy)에 따라 자체 로그인 정보를 포함한 `accounts`와 새 `auth_sessions`를 한 트랜잭션에서 생성하고, commit 성공 뒤 세션 쿠키를 발급합니다. 세션 저장을 포함한 어느 저장 단계라도 실패하면 전체를 rollback하여 계정·세션의 부분 가입 성공을 남기지 않습니다.
 
