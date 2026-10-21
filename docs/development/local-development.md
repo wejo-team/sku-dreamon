@@ -51,7 +51,7 @@ npm run dev
 
 `http://localhost:5173`에서 연결 확인 화면을 엽니다. Vite 개발 서버가 `/api` 요청을 백엔드 8000 포트로 전달합니다. API 실패 시 오류를 표시하고 다시 확인할 수 있습니다.
 
-`VITE_API_BASE_URL`은 브라우저에 노출되는 API 경로입니다. `API_PROXY_TARGET`은 Vite 개발 서버만 사용합니다. 운영 배포의 API 연결 방식·CORS·인증은 아직 정하지 않았습니다.
+`VITE_API_BASE_URL`은 브라우저에 노출되는 API 경로입니다. `API_PROXY_TARGET`은 Vite 개발 서버만 사용합니다. 인증은 [서버 세션 쿠키](../specs/authentication.md#session-policy)로 결정했으며 아직 구현하지 않았습니다. 운영 배포의 API 연결 방식·도메인·CORS와 보안 쿠키를 검증할 로컬 HTTPS 구성은 후속 개발 계획에서 정합니다.
 
 ## 검사
 

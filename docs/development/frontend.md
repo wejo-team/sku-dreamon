@@ -12,7 +12,7 @@
 
 - HTTP 전송·공통 오류 처리는 `lib/api.ts`, 기능별 endpoint 호출은 `features/<기능>/api.ts`에 둡니다.
 - 공통 클라이언트는 HTTP 실패를 정상 응답으로 취급하지 않고, 응답 내용이 없는 204도 처리합니다. 요청 취소를 위한 AbortSignal을 전달할 수 있게 합니다.
-- 인증 방식이 정해지기 전에 임의의 토큰 저장·갱신 체계를 넣지 않습니다.
+- 인증은 [서버 세션 쿠키](../specs/authentication.md#session-policy)를 사용합니다. 세션 토큰을 JavaScript에서 읽거나 localStorage·sessionStorage에 저장하지 않습니다. CSRF 전달 세부와 만료 후 흐름은 [인증 계약](../api/conventions.md#access)을 확정한 뒤 적용합니다.
 - query key에는 리소스와 조회 조건을 포함합니다. 목록·상세·필터 변경이 서로 잘못된 캐시를 사용하지 않도록 구분합니다.
 - mutation 성공 시 영향받은 query를 갱신하거나 무효화합니다. 모든 요청을 일괄 재시도하지 않고, 권한·검증 오류와 일시적 오류를 구분합니다.
 - 각 화면은 로딩·빈 결과·오류 상태를 제공합니다. `useEffect`로 공통 요청 수명주기를 반복 구현하지 않습니다.

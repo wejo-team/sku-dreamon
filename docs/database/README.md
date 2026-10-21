@@ -9,7 +9,7 @@
 | 문서 | 확인할 내용 |
 | --- | --- |
 | [공통 기준](conventions.md) | 타입·NULL·이름·버전·제약의 표기 |
-| [계정·프로필](identity.md) | 로그인 수단 분리, 프로필과 선택 항목, 포트폴리오 |
+| [계정·프로필](identity.md) | 로그인 수단 분리, 서버 세션, 프로필과 선택 항목, 포트폴리오 |
 | [선택지·학사 구조](catalogs.md) | 공통 코드, 학사 경로, 사용 중인 항목의 보존 |
 | [공모전](contests.md) | 공고·분야·참가 대상·인원·시각 |
 | [팀·지원·소속](teams.md) | 팀원 관계, 지원 시도, 상태 발생 건 |
@@ -23,7 +23,7 @@
 
 | 작업 | DB 설계 | API 계약 | 정책 원본 |
 | --- | --- | --- | --- |
-| 회원가입·프로필·사람 탐색 | [계정·프로필](identity.md) | [계정·프로필 API](../api/accounts-profiles.md) | [인증](../specs/authentication.md), [프로필](../specs/profile.md) |
+| 회원가입·로그인·프로필·사람 탐색 | [계정·프로필](identity.md), [서버 세션](identity.md#auth-sessions) | [계정·프로필 API](../api/accounts-profiles.md) | [인증](../specs/authentication.md), [프로필](../specs/profile.md) |
 | 공고 목록·상세 | [공모전](contests.md) | [공모전·팀 API](../api/contests-teams.md) | [공고](../specs/contests.md) |
 | 팀 생성·지원·선발·취소 | [팀·지원·소속](teams.md) | [공모전·팀 API](../api/contests-teams.md) | [팀 모집](../specs/team-recruitment.md) |
 | AI 대화·지원자 검토 | [영속화 경계](decisions.md#ai-storage) | [AI·알림 API](../api/ai-notifications.md) | [추천](../specs/matching.md) |

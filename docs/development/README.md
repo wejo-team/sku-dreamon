@@ -37,11 +37,12 @@
 - CI: GitHub Actions. 프론트는 ESLint·Prettier·TypeScript, 백엔드는 Ruff·mypy를 사용합니다. 공식 디자인은 필요할 때 로컬에서 수동 확인합니다.
 - 문서: `docs/`를 원본으로 VitePress + GitHub Pages에서 읽습니다. 명세·계획·구현의 사람 검토 절차는 그대로 유지합니다.
 - 스프린트 1 로그인: [자체 아이디·비밀번호 방식](../specs/authentication.md#login-decision). 학교·이메일 인증과 소셜 로그인은 후속 범위이며, [내부 사용자 ID와 로그인 수단의 분리](../specs/authentication.md#account-linking)를 적용합니다.
+- 로그인 유지: [PostgreSQL 서버 세션과 보안 쿠키](../specs/authentication.md#session-policy). 저장 필드와 요청 인증 흐름은 [DB](../database/identity.md#auth-sessions)·[API](../api/conventions.md#access) 설계에서 관리합니다.
 - 처음에는 한국어 개발 문서와 영어 코드 식별자를 사용합니다.
 
 ## 아직 결정하지 않은 것
 
-상세 도메인·테이블과 외부 API 계약은 [DB 설계](../database/README.md)와 [API 명세](../api/README.md)에 검토안으로 정리합니다. 구현 완료를 뜻하지 않습니다. 로그인 세션 방식·기간, 계정 복구·보존, 운영 배포 플랫폼은 미정입니다. 추천은 LLM 기반이며 모델·제공자·검색·실행·저장 등 내부 아키텍처는 [추천 명세](../specs/matching.md)의 TBD를 유지합니다. 기능 구현에 필요한 선행 결정은 [설계 검토 목록](../database/decisions.md#open-decisions)에서 확인합니다.
+상세 도메인·테이블과 외부 API 계약은 [DB 설계](../database/README.md)와 [API 명세](../api/README.md)에 검토안으로 정리합니다. 구현 완료를 뜻하지 않습니다. 로그인 세션 기간·동시 로그인·CSRF 전달 세부, 계정 복구·보존, 운영 배포 플랫폼은 미정입니다. 추천은 LLM 기반이며 모델·제공자·검색·실행·저장 등 내부 아키텍처는 [추천 명세](../specs/matching.md)의 TBD를 유지합니다. 기능 구현에 필요한 선행 결정은 [설계 검토 목록](../database/decisions.md#open-decisions)에서 확인합니다.
 
 현재 런타임·패키지 버전은 버전 파일과 lockfile에 고정합니다. [로컬 실행](local-development.md)에서 설치 명령을 확인합니다. 버전을 변경할 때 호환성을 검사하고 파일과 문서를 함께 갱신합니다.
 

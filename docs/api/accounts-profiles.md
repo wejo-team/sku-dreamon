@@ -9,7 +9,7 @@
 | 선택지·학사 목록 | [목록 API](#directory-endpoints), [선택지 필드](#catalog-item) |
 | 공개 사람 목록·상세 | [사람 탐색 API](#directory-endpoints), [목록 카드 필드](#person-summary) |
 
-모든 객체는 아래에 정의된 필드만 사용합니다. **본문의 필드는 별도 표시가 없으면 모두 필수**이며, `null` 허용과 필드 생략 허용은 다릅니다. 읽기 전용 필드·선언하지 않은 필드·snake_case를 쓰기 본문으로 보내면 422입니다. 아래 오류 표 외에 모든 API는 공통 `500 INTERNAL_ERROR`, `503 TEMPORARY_UNAVAILABLE`를 사용합니다.
+모든 객체는 아래에 정의된 필드만 사용합니다. **본문의 필드는 별도 표시가 없으면 모두 필수**이며, `null` 허용과 필드 생략 허용은 다릅니다. 읽기 전용 필드·선언하지 않은 필드·snake_case를 쓰기 본문으로 보내면 422입니다. 아래 오류 표 외에 모든 API는 공통 `500 INTERNAL_ERROR`, `503 TEMPORARY_UNAVAILABLE`를 사용하며, 상태 변경 요청에는 [공통 CSRF 보호와 실패 응답](conventions.md#session-auth)이 적용됩니다.
 
 <a id="account-endpoints"></a>
 
@@ -25,9 +25,11 @@
 
 가입은 계정과 자체 인증 정보를 함께 생성하며, 저장 시 아이디 유일성을 확인합니다. 중복 확인 응답은 가입 예약이 아닙니다. 탈퇴 아이디 재사용은 [탈퇴 정책](../specs/profile.md#account-withdrawal)이 확정되기 전에 가입 가능으로 안내하지 않습니다.
 
-로그인 실패는 아이디 존재 여부와 비밀번호 오류를 구분하지 않는 `INVALID_CREDENTIALS` 응답을 제안합니다. 로그아웃은 현재 세션 종료이며 다른 기기의 전체 로그아웃을 뜻하지 않습니다. 성공 후 클라이언트는 계정별 AI 화면·초안을 지우고 진행 중 응답을 취소합니다.
+로그인 실패는 아이디 존재 여부와 비밀번호 오류를 구분하지 않는 `INVALID_CREDENTIALS` 응답을 제안합니다. 로그인 성공 시 새 서버 세션의 저장이 커밋된 뒤 `Set-Cookie`로 토큰을 전달하고, JSON 본문에는 아래 `LoginResult`의 계정 데이터만 반환합니다. 세션 저장에 실패하면 로그인 성공 응답이나 새 인증 쿠키를 발급하지 않습니다.
 
-**인증 전달 방식·세션 수명·가입 후 자동 로그인은 아직 미정입니다.** 아래 계정 데이터만으로 인증 구현이 완성되거나 가입 직후 로그인되었다고 판단하지 않습니다. [AUTH 미정 사항](../specs/authentication.md#open-questions)과 [공통 인증 계약](conventions.md#access)을 먼저 결정해야 합니다.
+`GET /me`와 다른 인증 필요 요청은 [공통 서버 세션 검사](conventions.md#session-auth)로 계정을 식별합니다. 로그아웃은 현재 서버 세션의 회수를 커밋한 뒤 쿠키를 만료시켜 204를 반환합니다. 다른 기기의 전체 로그아웃을 뜻하지 않습니다. 성공 후 클라이언트는 계정별 AI 화면·초안을 지우고 진행 중 응답을 취소합니다.
+
+**인증은 서버 세션·쿠키 전달로 정했으며, 수명·동시 로그인·가입 후 자동 로그인과 CSRF의 구체 전송 계약은 미정입니다.** `SignupResult`의 계정 데이터만으로 가입 직후 로그인되었다고 판단하지 않습니다. 로그인·로그아웃·가입에도 [공통 인증·CSRF 계약](conventions.md#session-auth)을 적용하고, 남은 결정은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 따릅니다.
 
 <a id="credentials"></a>
 
@@ -62,7 +64,7 @@
 | 객체 | 전체 필드 | 의미 |
 | --- | --- | --- |
 | `SignupResult` | `account: Account` | 계정 생성 성공. 자동 로그인 여부는 미정 |
-| `LoginResult` | `account: Account` | 본인 계정 데이터. 쿠키·토큰 등 인증 전달 계약은 별도 미정 |
+| `LoginResult` | `account: Account` | 본인 계정 데이터. 세션 토큰은 본문에 포함하지 않고 별도 `Set-Cookie`로 전달 |
 | `LoginIdAvailability` | `normalizedLoginId: string`, `available: boolean` | 정규화한 아이디와 현재 중복 여부. 아이디 형식은 `^[a-z0-9]{4,24}$` |
 
 모든 필드는 필수이며 `null`을 허용하지 않습니다. 가입·로그인 제한 수치와 기간은 미정이며 429 계약만 제안합니다.
