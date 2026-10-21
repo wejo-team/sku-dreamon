@@ -6,8 +6,9 @@
 
 | 선택 | 이유 | 원본 |
 | --- | --- | --- |
-| 계정과 로그인 수단 분리 | 로그인 아이디 변경·추가 인증 수단이 업무 FK를 바꾸지 않음 | [계정 식별 정책](../specs/authentication.md#account-linking) |
+| 자체 로그인 정보를 계정에 통합 | MVP의 1:1 저장 구조를 단순화. 업무 FK는 불변 계정 ID를 참조하므로 로그인 아이디 변경·추가 인증 수단과 독립 | [계정 식별 정책](../specs/authentication.md#account-linking), [계정 저장](identity.md#accounts) |
 | PostgreSQL 서버 세션과 쿠키 | 불투명 토큰의 해시·만료·회수를 서버에서 관리하고, 현재 업무 권한은 관계 데이터로 재검사 | [세션 정책](../specs/authentication.md#session-policy), [세션 테이블](identity.md#auth-sessions) |
+| 시연 데이터는 고정 UUID 시드 목록으로 구분 | 업무 테이블에 표시용 컬럼을 추가하지 않고 서버에서 시연 여부를 판정. 이름 변경·중복과 무관하게 대상 식별 | [시연 데이터](../specs/sprint-1.md#demo-data-scope) |
 | 프로필 선택지는 연결 테이블 | 코드 FK·중복 방지·검색을 지원하고 JSON 배열 내부 규칙에 의존하지 않음 | [공통 선택지](../specs/profile-options.md) |
 | 지원 시도와 소속 분리 | 취소 후 재지원 이력과 실제 팀 접근 권한을 구분 | [지원·취소 정책](../specs/team-recruitment.md#application-cancellation) |
 | 팀 모집 상태 두 가지와 개별 지원 검토 | 팀은 모집 중·마감으로 관리하고, 검토·선발·미선발은 개별 지원의 명시적 행동으로 기록 | [팀 상태](../specs/team-recruitment.md#team-state-transitions), [지원 전이](../specs/team-recruitment.md#application-transitions) |
@@ -61,7 +62,7 @@ TEAM-02·03·04는 2026-10-21 사용자 결정으로 위 팀·지원 전이와 �
 
 | 사례 | 확인할 결과 |
 | --- | --- |
-| 가입 중 계정·자체 로그인 정보·세션 저장 단계에서 오류 | 전체 rollback으로 세 행 모두 생성하지 않음. 부분 가입 성공 응답·세션 쿠키 발급 없음 |
+| 가입 중 자체 로그인 정보를 포함한 계정 행 또는 세션 행 저장 오류 | 전체 rollback으로 계정·세션 모두 생성하지 않음. 부분 가입 성공 응답·세션 쿠키 발급 없음 |
 | 가입 전체 commit 뒤 성공 응답·쿠키 전달 유실 | 저장된 계정·세션은 유지. 가입 rollback으로 안내하지 않고 가입한 아이디·비밀번호의 일반 로그인으로 새 세션을 받을 수 있음 |
 | 로그인 세션 저장 실패 | 세션 쿠키 미발급, 원문 토큰이 DB·로그에 남지 않음 |
 | 회수·유휴 만료·절대 만료된 세션으로 요청 | 정리 작업 실행 여부와 무관하게 인증 실패, 최근 사용 갱신으로 세션을 되살리지 않음 |

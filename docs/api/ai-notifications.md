@@ -202,14 +202,14 @@ AI 검토·후보 요청·결과 조회는 지원 상태를 변경하지 않습�
 | `ResourceCard` | `reason` | 문자열 | 확인 가능한 정보에 근거한 추천 이유 |
 | `ResourceCard` | `fieldCodes` | `CatalogCode[]` | 분야 코드 |
 | `ResourceCard` | `roleCodes` | `CatalogCode[]` | 역할 코드 |
-| `ResourceCard` | `isDemo` | 불리언 | **서버 판정** 시연 데이터 여부. 공고는 `contests.is_demo`, 팀은 `teams.is_demo`, 사람은 `accounts.is_demo`에서 가져옴 |
+| `ResourceCard` | `isDemo` | 불리언 | **서버 판정** 시연 데이터 여부. `kind`에 대응하는 고정 UUID 시드 목록에 `resourceId`가 포함되는지 확인. 사람은 계정 ID 기준 |
 | `ChatResult` | `kind` | 고정값 `chat` | 응답 종류 |
 | `ChatResult` | `answer` | 문자열 | 표시 답변 |
 | `ChatResult` | `cards` | `ResourceCard[]` | 종류 합계 최대 3개. 결과가 없으면 `[]` |
 | `ChatResult` | `generatedAt` | `Timestamp` | 결과 생성 시각 |
 | `ChatResult` | `referencesChanged` | 불리언 | 현재 권한·상태 변경으로 이전 답변을 정보 변경 안내로 대체했는지 |
 
-모델이 만든 URL을 그대로 이동 경로로 쓰지 않습니다. 클라이언트가 `kind`·`resourceId`를 제품의 내부 상세 경로에 연결하며, 응답에 `/design-preview` 경로를 넣지 않습니다. `isDemo`도 모델 출력이나 화면의 추측으로 결정하지 않습니다. 표시 기준은 [시연 데이터 안내](../specs/sprint-1.md#demo-data-scope)를 따릅니다.
+모델이 만든 URL을 그대로 이동 경로로 쓰지 않습니다. 클라이언트가 `kind`·`resourceId`를 제품의 내부 상세 경로에 연결하며, 응답에 `/design-preview` 경로를 넣지 않습니다. `isDemo`도 이름·모델 출력·화면의 추측으로 결정하지 않습니다. 표시 기준은 [시연 데이터 안내](../specs/sprint-1.md#demo-data-scope)를 따릅니다.
 
 ### ProfileVersion · ApplicantReviewResult
 

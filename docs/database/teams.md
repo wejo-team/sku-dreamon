@@ -97,7 +97,6 @@ erDiagram
 | `deadline_effective_timezone` | `text` | 불가 | — | 실제 해석 시간대 |
 | `deadline_time_assumed` | `boolean` | 불가 | — | 원문 시각 보완 여부 |
 | `deadline_timezone_assumed` | `boolean` | 불가 | — | 원문 시간대 보완 여부 |
-| `is_demo` | `boolean` | 불가 | `false` | 시연 여부 |
 | `created_at` | `timestamptz` | 불가 | `now()` | 생성 시각 |
 | `updated_at` | `timestamptz` | 불가 | `now()` | 최종 저장 시각 |
 | `version` | `bigint` | 불가 | `1` | 저장 성공마다 증가 |

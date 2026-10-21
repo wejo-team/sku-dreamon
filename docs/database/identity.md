@@ -12,7 +12,7 @@
 
 ## 구조를 먼저 보기
 
-계정은 로그인 수단과 분리된 식별자입니다. 로그인 세션은 계정에 연결하고, 원문 토큰 대신 검증용 해시와 만료·회수 정보를 저장합니다. 프로필은 계정당 현재 값 하나이며, 지원할 때 복제하지 않습니다. 복수 선택은 연결 테이블에, 포트폴리오는 선택적인 1:1 관계에 저장합니다.
+서비스 활동은 로그인 아이디와 구분되는 불변 계정 ID를 참조합니다. 현재 MVP의 자체 로그인 아이디·비밀번호 해시는 `accounts`의 같은 행에 저장합니다. 로그인 세션은 계정에 연결하고, 원문 토큰 대신 검증용 해시와 만료·회수 정보를 저장합니다. 프로필은 계정당 현재 값 하나이며, 지원할 때 복제하지 않습니다. 복수 선택은 연결 테이블에, 포트폴리오는 선택적인 1:1 관계에 저장합니다.
 
 ![계정·프로필 물리 ERD](diagrams/identity.svg)
 
@@ -22,7 +22,6 @@
 ```mermaid
 erDiagram
     direction LR
-    accounts ||--|| local_credentials : authenticates
     accounts ||--o{ auth_sessions : establishes
     accounts ||--o{ account_role_grants : has
     accounts ||--o| profiles : owns
@@ -32,19 +31,15 @@ erDiagram
     profiles ||--o| portfolio_links : registers
     accounts {
         uuid id PK
+        varchar login_id_normalized UK
+        text password_hash
+        timestamptz credentials_updated_at
         timestamptz created_at
-        boolean is_demo
     }
     account_role_grants {
         uuid account_id PK,FK
         varchar role_code PK
         timestamptz granted_at
-    }
-    local_credentials {
-        uuid account_id PK,FK
-        varchar login_id_normalized UK
-        text password_hash
-        timestamptz updated_at
     }
     auth_sessions {
         uuid id PK
@@ -93,38 +88,31 @@ erDiagram
 
 ### `accounts`
 
-서비스 활동의 주체가 되는 계정입니다. 로그인 수단·프로필과 별도로 두어 지원·팀 소속·알림이 어느 계정에 속하는지 연결하는 기준으로 사용합니다.
+현재 계정당 자체 로그인 정보 하나만 있으므로 서비스 활동의 주체와 로그인 정보를 한 행에 저장합니다. 지원·팀 소속·알림은 로그인 아이디 대신 불변 `id`를 참조하여 같은 계정의 활동으로 유지됩니다.
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·용도 |
 | --- | --- | --- | --- | --- |
 | `id` | `uuid` | 불가 | 없음 | PK. 애플리케이션이 발급하는 불변 계정 ID |
-| `created_at` | `timestamptz` | 불가 | `now()` | 계정 생성 시각 |
-| `is_demo` | `boolean` | 불가 | `false` | [시연 데이터 표시](../specs/sprint-1.md#demo-data-scope) |
-
-- PK: `pk_accounts(id)`.
-- 탈퇴 효력·보존·복구를 정하는 [PROFILE-04](../specs/profile.md#open-questions)가 남아 있어 탈퇴 상태 컬럼·API는 별도 설계로 보류합니다. 현재 테이블에서 자동 소속 해제·물리 삭제·복구를 수행하지 않습니다.
-- 이메일·연락처·학교 인증 결과는 현재 수집 범위가 아니므로 저장 컬럼을 추가하지 않습니다. 교내 미인증 표시는 [인증 명세](../specs/authentication.md#verification-meaning)의 현재 고정 응답으로 처리합니다.
-
-### `local_credentials`
-
-아이디·비밀번호로 계정에 접근할 때 확인하는 자체 로그인 정보입니다. 서비스 활동의 소유자를 나타내는 계정과 로그인에 필요한 정보를 분리합니다.
-
-| 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·용도 |
-| --- | --- | --- | --- | --- |
-| `account_id` | `uuid` | 불가 | 없음 | PK, FK → `accounts.id` |
-| `login_id_normalized` | `varchar(24)` | 불가 | 없음 | 정규화 완료 로그인 아이디 |
+| `login_id_normalized` | `varchar(320)` | 불가 | 없음 | 정규화 완료 로그인 아이디. 유일. 향후 이메일 사용에 대비한 저장 폭 |
 | `password_hash` | `text` | 불가 | 없음 | 검증용 해시. 알고리즘·파라미터를 표현할 수 있는 인코딩 문자열 |
-| `updated_at` | `timestamptz` | 불가 | `now()` | 인증 정보 변경 시각. 변경 시 애플리케이션이 갱신 |
+| `credentials_updated_at` | `timestamptz` | 불가 | `now()` | 자체 인증 정보 변경 시각. 변경 시 애플리케이션이 갱신 |
+| `created_at` | `timestamptz` | 불가 | `now()` | 계정 생성 시각 |
 
 | 제약·인덱스 이름 | 정의와 목적 |
 | --- | --- |
-| `pk_local_credentials` | PK (`account_id`) |
-| `fk_local_credentials_account` | `account_id` → `accounts.id`, `ON DELETE RESTRICT` |
-| `uq_local_credentials_login_id` | `login_id_normalized` 유일. B-tree 유일 인덱스로 로그인 조회도 수행 |
-| `ck_local_credentials_login_id` | ASCII 소문자·숫자만으로 구성된 4~24자. 대문자·공백을 정규화하는 작업은 저장 전에 수행 |
-| `ck_local_credentials_password_hash` | 해시 문자열은 빈 문자열이 아님. 원문 비밀번호 길이와 해시 길이를 혼동하지 않음 |
+| `pk_accounts` | PK (`id`) |
+| `uq_accounts_login_id` | `login_id_normalized` 유일. B-tree 유일 인덱스로 로그인 조회도 수행 |
+| `ck_accounts_login_id` | ASCII 소문자·숫자만으로 구성된 4~24자. 대문자·공백을 정규화하는 작업은 저장 전에 수행 |
+| `ck_accounts_password_hash` | 해시 문자열은 빈 문자열이 아님. 원문 비밀번호 길이와 해시 길이를 혼동하지 않음 |
 
-가입은 [가입 후 자동 로그인 정책](../specs/authentication.md#session-policy)에 따라 `accounts`·`local_credentials`·새 `auth_sessions`를 한 트랜잭션에서 생성하고, commit 성공 뒤 세션 쿠키를 발급합니다. 세션 저장을 포함한 어느 저장 단계라도 실패하면 전체를 rollback하여 부분 가입 성공을 남기지 않습니다. 일반 FK만으로 모든 계정의 인증 정보 존재를 강제할 수 없으므로 가입 유스케이스가 계정과 자체 로그인 정보의 1:1 완성을 책임집니다.
+`varchar(320)`은 향후 이메일 로그인 도입에 대비한 저장 공간이며, 현재 입력·CHECK는 [영문 소문자·숫자 4~24자](../specs/authentication.md#login-identifier)를 유지합니다. 이메일 도입 시 형식·길이·정규화·유일성·소유권 확인과 기존 아이디 전환을 함께 정하고 CHECK·API 검증을 변경합니다.
+
+- 탈퇴 효력·보존·복구를 정하는 [PROFILE-04](../specs/profile.md#open-questions)가 남아 있어 탈퇴 상태 컬럼·API는 별도 설계로 보류합니다. 현재 테이블에서 자동 소속 해제·물리 삭제·복구를 수행하지 않습니다.
+- 이메일·연락처·학교 인증 결과는 현재 수집 범위가 아니므로 저장 컬럼을 추가하지 않습니다. 교내 미인증 표시는 [인증 명세](../specs/authentication.md#verification-meaning)의 현재 고정 응답으로 처리합니다.
+
+현재 MVP는 모든 계정이 자체 아이디·비밀번호로 가입하므로 두 인증 컬럼은 `NOT NULL`입니다. 향후 소셜 전용 가입을 도입하면 두 컬럼을 함께 비울 수 있도록 NULL 허용과 조합 제약을 검토하고, 소셜 연결 정보는 같은 `accounts.id`에 연결합니다. 소셜 전용 가입이나 이메일 로그인으로의 변경을 이번 통합에 포함하지 않습니다.
+
+가입은 [가입 후 자동 로그인 정책](../specs/authentication.md#session-policy)에 따라 자체 로그인 정보를 포함한 `accounts`와 새 `auth_sessions`를 한 트랜잭션에서 생성하고, commit 성공 뒤 세션 쿠키를 발급합니다. 세션 저장을 포함한 어느 저장 단계라도 실패하면 전체를 rollback하여 계정·세션의 부분 가입 성공을 남기지 않습니다.
 
 commit 뒤 응답 전달이 유실된 경우는 DB 저장 실패와 구분합니다. 이미 생성된 계정·세션을 rollback했다고 안내하지 않으며, 사용자는 가입한 아이디·비밀번호로 일반 로그인하여 새 세션을 받을 수 있습니다. 비밀번호 해시 알고리즘·비용과 시도 제한 등은 [인증 최소 기준과 미정 사항](../specs/authentication.md#open-questions)을 따릅니다. 소셜 연결은 후속 구현이며, [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위에서 제외하고 후속으로 검토합니다.
 
@@ -164,7 +152,7 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 
 | 저장·조회 책임 | 처리 경계 |
 | --- | --- |
-| 가입 후 자동 로그인 | 새 계정·자체 로그인 정보·세션을 같은 트랜잭션에서 생성합니다. 세션 토큰은 아래 로그인과 같은 생성·해시 저장 기준을 사용하고, 전체 commit 성공 뒤 쿠키를 발급해 프로필 설정으로 연결합니다. |
+| 가입 후 자동 로그인 | 자체 로그인 정보를 포함한 새 계정 행과 세션 행을 같은 트랜잭션에서 생성합니다. 세션 토큰은 아래 로그인과 같은 생성·해시 저장 기준을 사용하고, 전체 commit 성공 뒤 쿠키를 발급해 프로필 설정으로 연결합니다. |
 | 로그인 성공 | 비밀번호 검증 후 CSPRNG로 최소 128비트의 엔트로피를 가진 새 불투명 토큰을 생성하고, 해시·계정·발급 및 만료 시각을 저장합니다. DB commit 성공 뒤에만 세션 쿠키를 발급합니다. 원문 토큰은 DB·로그에 남기지 않습니다. |
 | 인증 확인 | 받은 원문 토큰을 같은 방식으로 SHA-256 해시하여 조회합니다. 현재 서버 시각이 `expires_at` 이상이거나 이전 `last_seen_at`부터 24시간 이상 지났거나 `revoked_at`이 있으면 인증에 사용하지 않습니다. 기간과 만료 경계의 정책 원본은 [세션 정책](../specs/authentication.md#session-policy)입니다. |
 | 최근 사용 기록 | 이전 값의 유효성 검사를 통과한 해당 세션만 `last_seen_at`을 갱신합니다. 다른 세션의 사용 기록은 바꾸지 않습니다. 동시 로그아웃으로 회수된 행을 갱신해 되살리거나, 만료된 행을 새 세션으로 재생성하지 않습니다. `expires_at`과 `revoked_at`은 이 갱신으로 바꾸지 않습니다. |
@@ -228,7 +216,7 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | `ix_profiles_academic_placement` | B-tree (`academic_placement_id`). 경로 참조 확인·학사 조건 조회 |
 | `ix_profiles_public_updated` | B-tree (`updated_at DESC, account_id ASC`), 조건 `is_public=true`. 공개 사람 목록의 정렬·집계 후보 |
 
-가입 완료 시에는 `accounts`·`local_credentials`·로그인 세션이 생성되고 프로필은 없습니다. [가입 후 자동 로그인](../specs/authentication.md#session-policy) 상태에서 프로필 설정으로 이동합니다. 프로필 첫 저장은 `expectedVersion="0"`으로 필수 항목·연결 행을 함께 생성하고 `version=1`을 반환합니다. 이후 수정은 조회한 현재 버전을 전송하고, 성공할 때만 1 증가시킵니다. API의 `version`·`expectedVersion`은 JavaScript 정밀도 손실을 피하기 위한 십진 문자열이며 DB에는 `bigint`로 저장합니다. 미완성 편집 초안은 별도 `draft` 행으로 저장하지 않습니다.
+가입 완료 시에는 자체 로그인 정보를 포함한 `accounts`와 로그인 세션이 생성되고 프로필은 없습니다. [가입 후 자동 로그인](../specs/authentication.md#session-policy) 상태에서 프로필 설정으로 이동합니다. 프로필 첫 저장은 `expectedVersion="0"`으로 필수 항목·연결 행을 함께 생성하고 `version=1`을 반환합니다. 이후 수정은 조회한 현재 버전을 전송하고, 성공할 때만 1 증가시킵니다. API의 `version`·`expectedVersion`은 JavaScript 정밀도 손실을 피하기 위한 십진 문자열이며 DB에는 `bigint`로 저장합니다. 미완성 편집 초안은 별도 `draft` 행으로 저장하지 않습니다.
 
 ### `profile_interests` · `profile_desired_roles` · `profile_skills`
 

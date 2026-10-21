@@ -23,7 +23,7 @@
 | `POST /auth/logout` | 로그인 | 본문 없음 | 204, 본문 없음 | 401 `UNAUTHENTICATED` |
 | `GET /me` | 로그인한 본인 | 본문 없음 | 200 [Account](#account) | 401 `UNAUTHENTICATED` |
 
-가입은 `accounts`·`local_credentials`·새 `auth_sessions`를 같은 트랜잭션에서 생성하며, 저장 시 아이디 유일성을 확인합니다. 모두 커밋된 뒤 201 `SignupResult`와 `Set-Cookie`를 반환하여 바로 로그인시킵니다. 세션 저장이 실패하면 가입 전체를 롤백하며 성공 응답·인증 쿠키를 발급하지 않습니다. 클라이언트는 가입 성공 후 `GET /me`의 `id`가 `SignupResult.account.id`와 일치하는지 확인하고 프로필 설정으로 이동합니다. 다른 계정의 기존 쿠키가 남아 있다면 자동 로그인 성공으로 취급하지 않고 가입한 계정의 로그인을 안내합니다. 중복 확인 응답은 가입 예약이 아닙니다. 탈퇴 아이디 재사용은 [탈퇴 정책](../specs/profile.md#account-withdrawal)이 확정되기 전에 가입 가능으로 안내하지 않습니다.
+가입은 자체 로그인 정보를 포함한 `accounts`와 새 `auth_sessions`를 같은 트랜잭션에서 생성하며, 저장 시 아이디 유일성을 확인합니다. 모두 커밋된 뒤 201 `SignupResult`와 `Set-Cookie`를 반환하여 바로 로그인시킵니다. 세션 저장이 실패하면 가입 전체를 롤백하며 성공 응답·인증 쿠키를 발급하지 않습니다. 클라이언트는 가입 성공 후 `GET /me`의 `id`가 `SignupResult.account.id`와 일치하는지 확인하고 프로필 설정으로 이동합니다. 다른 계정의 기존 쿠키가 남아 있다면 자동 로그인 성공으로 취급하지 않고 가입한 계정의 로그인을 안내합니다. 중복 확인 응답은 가입 예약이 아닙니다. 탈퇴 아이디 재사용은 [탈퇴 정책](../specs/profile.md#account-withdrawal)이 확정되기 전에 가입 가능으로 안내하지 않습니다.
 
 가입 응답이 유실되어도 서버의 커밋은 완료되었을 수 있습니다. 클라이언트는 계정을 삭제하거나 자동으로 다시 가입하지 않고 로그인 상태를 확인합니다. 이때 응답 계정 ID를 알 수 없다면 `GET /me`의 `loginId`가 가입 요청의 정규화된 아이디와 일치하는지 확인하고, 미인증·불일치이면 입력한 계정으로 로그인하도록 안내합니다. 일시적인 조회 실패는 가입 실패나 만료로 단정하지 않고 다시 확인할 수 있게 합니다. 이는 MVP에서 제외한 분실 계정 복구 기능을 추가하는 것이 아닙니다.
 
@@ -44,6 +44,8 @@
 
 아이디 중복 확인의 query `loginId`에도 같은 정규화를 적용합니다. 가입·로그인 요청에 `rememberMe` 등 로그인 유지 선택 필드는 추가하지 않습니다. 정책 원본은 [로그인 아이디](../specs/authentication.md#login-identifier)와 [비밀번호](../specs/authentication.md#password-policy)입니다.
 
+`login_id_normalized`의 [DB 저장 폭](../database/identity.md#accounts)은 향후 확장을 위해 `varchar(320)`으로 두지만, 현재 API는 위 4~24자 규칙을 그대로 적용하며 이메일 로그인을 허용하지 않습니다.
+
 <a id="account"></a>
 
 ### Account — 본인 계정 응답
@@ -52,7 +54,7 @@
 | --- | --- | --- | --- |
 | `id` | Id | 불가 | 계정 UUID |
 | `loginId` | string | 불가 | 정규화된 로그인 아이디. `^[a-z0-9]{4,24}$` |
-| `isDemo` | boolean | 불가 | 서버가 `accounts.is_demo`에서 읽은 시연 계정 표시값 |
+| `isDemo` | boolean | 불가 | 계정용 고정 UUID 시드 목록에 `id`가 포함되는지 서버에서 판정 |
 | `hasProfile` | boolean | 불가 | 저장된 프로필 존재 여부 |
 | `schoolVerification` | string | 불가 | 현재 허용값은 `unverified` 하나 |
 | `createdAt` | Timestamp | 불가 | 계정 생성 시각 |
@@ -109,10 +111,10 @@
 | `accountId` | Id | 불가 | 프로필 소유 계정 |
 | `version` | Version | 불가 | 현재 프로필 버전. 양의 BIGINT 십진 문자열 |
 | `isPublic` | boolean | 불가 | 현재 전체 프로필 공개 상태 |
-| `isDemo` | boolean | 불가 | `accounts.is_demo`의 서버 관리값. 다른 사람 카드·지원자 상세에서도 같은 시연 표시를 사용 |
+| `isDemo` | boolean | 불가 | 계정용 고정 UUID 시드 목록에 `accountId`가 포함되는지 서버에서 판정. 사람 카드·지원자 상세에서도 같은 기준 사용 |
 | `updatedAt` | Timestamp | 불가 | 마지막 프로필 변경 시각 |
 
-[시연 데이터 정책](../specs/sprint-1.md#demo-data-scope)에 따라 `isDemo`를 전달합니다. 프로필 저장·공개 전환 요청에서 이 값을 받지 않으며, 요청자가 시연 여부를 변경할 수 없습니다.
+[시연 데이터 정책](../specs/sprint-1.md#demo-data-scope)에 따라 서버가 리소스 종류와 고정 UUID 시드 목록으로 `isDemo`를 계산합니다. 이름·모델 출력·클라이언트의 추측으로 판정하지 않으며, 프로필 저장·공개 전환 요청에서 이 값을 받지 않습니다.
 
 권한이 있는 조회에서만 전체 프로필을 반환합니다. 교내 인증은 현재 [미인증 표시 규칙](../specs/authentication.md#verification-meaning)을 사용하므로 `Profile`에 별도 인증 상태 필드를 추가하지 않습니다. 화면은 미인증으로 표시하며 실제 학교 인증이 도입되면 별도 계약 변경이 필요합니다. 로그인 아이디·인증 정보·미수집 연락처는 포함하지 않습니다.
 
@@ -236,7 +238,7 @@
 | --- | --- | --- | --- |
 | `accountId` | Id | 불가 | 프로필 소유 계정 |
 | `realName` | string | 불가 | 현재 실명, 프로필의 길이 기준 적용 |
-| `isDemo` | boolean | 불가 | `accounts.is_demo`의 서버 관리값. 카드의 시연 표시 근거 |
+| `isDemo` | boolean | 불가 | 계정용 고정 UUID 시드 목록에 `accountId`가 포함되는지 서버에서 판정. 카드의 시연 표시 근거 |
 | `avatarCode` | CatalogCode | 허용 | 현재 이미지 선택. 미선택 기본 표시는 Profile과 같음 |
 | `introduction` | string | 허용 | 현재 자기소개, 최대 300자 |
 | `fieldCodes` | CatalogCode[] | 불가 | 관심 분야 1~3개, 중복 없음 |
@@ -302,7 +304,7 @@
 
 | API 정보 | DB 원본 |
 | --- | --- |
-| `Account`·로그인·`isDemo` | [계정과 프로필 테이블](../database/identity.md) |
+| `Account`·로그인·`isDemo` | [계정과 프로필 테이블](../database/identity.md), [시연 데이터 식별](../specs/sprint-1.md#demo-data-scope) |
 | `Profile`·버전·연결 목록·포트폴리오 | [계정과 프로필 테이블](../database/identity.md) |
 | 코드·학사 경로 | [공통 카탈로그](../database/catalogs.md) |
 

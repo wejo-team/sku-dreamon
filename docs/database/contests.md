@@ -75,7 +75,6 @@ erDiagram
 | `created_by_account_id` | `uuid` | 불가 | — | FK → `accounts.id`; 등록 관리자 |
 | `updated_by_account_id` | `uuid` | 불가 | — | FK → `accounts.id`; 마지막 수정 관리자 |
 | `verified_at` | `timestamptz` | 불가 | — | 등록 전 원문 확인 완료 시각 |
-| `is_demo` | `boolean` | 불가 | `false` | 실제·시연 데이터 표시값 |
 | `created_at` | `timestamptz` | 불가 | `now()` | 생성 시각 |
 | `updated_at` | `timestamptz` | 불가 | `now()` | 저장 시 갱신 |
 | `version` | `bigint` | 불가 | `1` | 저장 성공마다 증가하는 변경 버전 |

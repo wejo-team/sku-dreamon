@@ -190,7 +190,7 @@
 | `startsAt` | `Timestamp` | 접수 시작, 포함 경계 |
 | `endsAt` | `Timestamp` | 접수 마감, 제외 경계 |
 | `teamCount` | integer | 상태에 관계없는 연결 팀 전체 수, 0~9,007,199,254,740,991 |
-| `isDemo` | boolean | 시연 데이터 여부 |
+| `isDemo` | boolean | 공고용 고정 UUID 시드 목록에 `id`가 포함되는지 서버에서 판정 |
 | `createdAt` | `Timestamp` | 등록 시각 |
 | `version` | `Version` | 공고의 현재 버전 |
 
@@ -281,7 +281,7 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 | `closedReason` | `capacity_reached`, `leader_closed` 또는 null | 저장 상태가 `closed`일 때 사유, `open`이면 null. 단순 기한 경과의 사유값은 추가하지 않음 |
 | `recruitmentEndsAt` | `Timestamp` | 팀 모집 마감의 제외 경계 |
 | `isRecruiting` | boolean | 현재 공통 모집 가능 조건에 따른 계산값 |
-| `isDemo` | boolean | 시연 데이터 여부 |
+| `isDemo` | boolean | 팀용 고정 UUID 시드 목록에 `id`가 포함되는지 서버에서 판정 |
 | `createdAt` | `Timestamp` | 팀 생성 시각 |
 | `recruitmentDeadline` | `DeadlineInterpretation` | 모집 마감의 원문·보완 정보 |
 
@@ -305,7 +305,7 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 | `membershipId` | `Id` | 현재 소속 식별자 |
 | `accountId` | `Id` | 소속 계정 식별자 |
 | `realName` | string | 현재 같은 팀 구성원을 식별하는 실명 |
-| `isDemo` | boolean | `accounts.is_demo`의 서버 관리값. 전체 프로필 열람 여부와 별개로 팀원 시연 표시를 제공 |
+| `isDemo` | boolean | 계정용 고정 UUID 시드 목록에 `accountId`가 포함되는지 서버에서 판정. 전체 프로필 열람 여부와 별개로 팀원 시연 표시 제공 |
 | `membershipRole` | `leader` 또는 `member` | 팀장/팀원 구분 |
 | `roleCode` | `CatalogCode` 또는 null | 선발된 지원 역할. 지원을 통해 생성되지 않은 팀장 소속은 null |
 | `joinedAt` | `Timestamp` | 소속 시작 시각 |
