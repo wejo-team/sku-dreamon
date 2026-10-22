@@ -17,6 +17,7 @@
 - mutation 성공 시 영향받은 query를 갱신하거나 무효화합니다. 모든 요청을 일괄 재시도하지 않고, 권한·검증 오류와 일시적 오류를 구분합니다.
 - 각 화면은 로딩·빈 결과·오류 상태를 제공합니다. `useEffect`로 공통 요청 수명주기를 반복 구현하지 않습니다.
 - API 요청·응답 타입과 전송용 Zod schema는 [컨벤션](conventions.md)의 「API JSON 필드명」에 정한 camelCase 이름을 사용합니다. 응답을 검증한 뒤 UI에서 같은 이름으로 사용합니다.
+- 제품 API의 성공 결과는 [공통 성공 응답](../api/conventions.md#success-responses)의 최상위 `data`에서 읽습니다. 목록의 `pagination` 등 부가 정보도 보존하며, 본문 없는 204와 오류 응답은 별도로 처리합니다.
 - Zod의 폼 검증과 TypeScript 타입은 서버의 검증을 대신하지 않습니다. API 타입 자동 생성은 계약이 생길 때 검토합니다.
 
 ## 모바일 UI

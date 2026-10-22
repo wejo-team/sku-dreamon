@@ -14,6 +14,7 @@ LLM 제공자·검색·프롬프트·실행 구조·저장소·보존 기간은 
 ## 이 문서의 표기
 
 - `Id`는 UUID 문자열, `Timestamp`는 UTC 시각 문자열, `Version`은 양의 십진 문자열, `CatalogCode`는 최대 64자의 코드입니다. [공통 계약](conventions.md)의 표현·검증·오류 형식을 적용합니다.
+- 성공 응답은 [공통 `Success<T>`](conventions.md#success-responses)를 사용하며, 아래 응답 DTO 표는 `data` 내부 값을 정의합니다. 요청 본문과 중첩 DTO를 별도로 감싸지 않습니다.
 - 객체의 **아래에 기재된 필드는 모두 필수**입니다. 생략할 수 있는 요청 필드만 별도로 `선택`이라고 표시합니다. `null` 허용은 생략 허용과 다르며, 목록의 빈 값은 `[]`입니다. 선언하지 않은 필드는 허용하지 않습니다.
 - `양의 안전 정수`는 `1~9007199254740991`, `음이 아닌 안전 정수`는 `0~9007199254740991`인 JSON 정수입니다. 시도·순서·집계의 전송 표현 한계이며 서비스 이용 횟수 상한이 아닙니다.
 - 모든 API는 공통 실패 `401`, `500`, `503`을 제공합니다. 아래 표의 **추가 실패**는 이 공통 실패에 더하는 HTTP 상태입니다. `422`는 경로·query·본문 검증 실패, `429`는 요청 제한이며 구체 제한 수치는 미정입니다.
@@ -25,14 +26,14 @@ LLM 제공자·검색·프롬프트·실행 구조·저장소·보존 기간은 
 
 | 메서드·경로 | 요청 | 성공 | 추가 실패 |
 | --- | --- | --- | --- |
-| `POST /ai/conversations` | [ConversationCreate](#conversation-fields) | 201 `Conversation` | 404, 409, 422, 429 |
-| `GET /ai/conversations/{conversationId}` | 본문 없음 | 200 `ConversationView` | 404, 422 |
-| `POST /ai/conversations/{conversationId}/messages` | [MessageCreate](#conversation-fields) | 202 `AiRequest`, `Location` | 404, 409, 422, 429 |
-| `GET /ai/requests/{requestId}` | 본문 없음 | 200 `AiRequest` | 404, 422 |
-| `POST /ai/requests/{requestId}/retries` | [AiRetry](#ai-control-fields) | 202 `AiRequest`, `Location` | 404, 409, 422, 429 |
-| `PUT /ai/requests/{requestId}/cancellation` | [AiCancel](#ai-control-fields) | 200 `AiRequest` | 404, 409, 422 |
+| `POST /ai/conversations` | [ConversationCreate](#conversation-fields) | 201 `Success<Conversation>` | 404, 409, 422, 429 |
+| `GET /ai/conversations/{conversationId}` | 본문 없음 | 200 `Success<ConversationView>` | 404, 422 |
+| `POST /ai/conversations/{conversationId}/messages` | [MessageCreate](#conversation-fields) | 202 `Success<AiRequest>`, `Location` | 404, 409, 422, 429 |
+| `GET /ai/requests/{requestId}` | 본문 없음 | 200 `Success<AiRequest>` | 404, 422 |
+| `POST /ai/requests/{requestId}/retries` | [AiRetry](#ai-control-fields) | 202 `Success<AiRequest>`, `Location` | 404, 409, 422, 429 |
+| `PUT /ai/requests/{requestId}/cancellation` | [AiCancel](#ai-control-fields) | 200 `Success<AiRequest>` | 404, 409, 422 |
 
-`202`는 답변 완성이 아니라 요청 접수입니다. 이 문서의 모든 202 응답은 `Location: /api/v1/ai/requests/{id}`를 제공하며 `id`는 반환된 `AiRequest.id`입니다. 해당 상대 경로를 조회하는 polling 계약을 제안합니다. polling 간격·스트리밍·백그라운드 실행 방식은 미정입니다. 화면이 비활성·로그아웃 상태이면 반복 조회를 멈추고, 429·503에서 무제한 재시도하지 않습니다.
+`202`는 답변 완성이 아니라 요청 접수입니다. 이 문서의 모든 202 응답은 `Location: /api/v1/ai/requests/{id}`를 제공하며 `id`는 응답 본문의 `data.id` (`AiRequest.id`)입니다. 해당 상대 경로를 조회하는 polling 계약을 제안합니다. polling 간격·스트리밍·백그라운드 실행 방식은 미정입니다. 화면이 비활성·로그아웃 상태이면 반복 조회를 멈추고, 429·503에서 무제한 재시도하지 않습니다.
 
 ### 권한과 오류 조건
 
@@ -162,7 +163,7 @@ LLM 제공자·검색·프롬프트·실행 구조·저장소·보존 기간은 
 | `message` | 문자열 | 사용자에게 보여 줄 설명 |
 | `retryable` | 불리언 | 현재 요청을 실패 재시도 endpoint로 재시도할 수 있는지 |
 
-`AiFailure`는 200·202 응답 안의 **AI 처리 상태**이며 HTTP 실패의 공통 `error` 객체와 다릅니다. 모델 원문·프롬프트·스택·제공자 비밀값을 포함하지 않습니다.
+`AiFailure`는 `AiRequest`의 **AI 처리 상태**이며 HTTP 실패의 공통 `error` 객체와 다릅니다. 단건 실행의 200·202 응답에서는 `data.failure`에 담으며, `status: failed`인 실행을 정상 조회한 응답도 `Success<AiRequest>`를 사용합니다. 모델 원문·프롬프트·스택·제공자 비밀값을 포함하지 않습니다.
 
 <a id="applicant-endpoints"></a>
 
@@ -170,9 +171,9 @@ LLM 제공자·검색·프롬프트·실행 구조·저장소·보존 기간은 
 
 | 메서드·경로 | 권한·요청 | 성공 | 추가 실패 |
 | --- | --- | --- | --- |
-| `POST /applications/{applicationId}/ai-reviews` | 해당 지원을 받은 현재 팀장. 본문 없음 | 202 `AiRequest`, `Location` | 403, 404, 409, 422, 429 |
-| `GET /applications/{applicationId}/ai-review` | 해당 지원을 받은 현재 팀장. 본문 없음 | 200 `AiRequest` | 404, 422 |
-| `POST /teams/{teamId}/applicant-recommendations` | 해당 팀의 현재 팀장. 본문 없음 | 202 `AiRequest`, `Location` | 403, 404, 409, 422, 429 |
+| `POST /applications/{applicationId}/ai-reviews` | 해당 지원을 받은 현재 팀장. 본문 없음 | 202 `Success<AiRequest>`, `Location` | 403, 404, 409, 422, 429 |
+| `GET /applications/{applicationId}/ai-review` | 해당 지원을 받은 현재 팀장. 본문 없음 | 200 `Success<AiRequest>` | 404, 422 |
+| `POST /teams/{teamId}/applicant-recommendations` | 해당 팀의 현재 팀장. 본문 없음 | 202 `Success<AiRequest>`, `Location` | 403, 404, 409, 422, 429 |
 
 서버가 현재 자료를 조회합니다. 클라이언트로부터 임의 프로필 전문이나 다른 지원자의 ID 목록을 받지 않습니다. 같은 대상에 진행 요청이 있으면 409 `REQUEST_ALREADY_RUNNING`입니다. 리소스가 없거나 존재를 숨겨야 하는 관계이면 404, 확인 가능한 리소스의 행동 권한이 없으면 403 `FORBIDDEN`입니다. 현재 검토 조회는 결과가 없거나 권한이 없으면 404입니다.
 

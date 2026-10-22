@@ -6,9 +6,11 @@
 | --- | --- |
 | 공통 선택지·학사 목록 조회 | [API 목록](#catalog-endpoints) |
 | 공통 선택지 필드 | [CatalogItem·AvatarPreset](#catalog-item), [Catalogs](#catalogs) |
-| 학사 계층·프로필 연결 | [AcademicUnit·AcademicCatalog](#academic-unit) |
+| 학사 계층·프로필 연결 | [AcademicUnit](#academic-unit) |
 
 모든 객체는 아래에 정의된 필드만 사용합니다. **본문의 필드는 별도 표시가 없으면 모두 필수**이며, `null` 허용과 필드 생략 허용은 다릅니다. 읽기 전용 필드·선언하지 않은 필드·snake_case를 쓰기 본문으로 보내면 422입니다. 아래 오류 표 외에 모든 API는 공통 `500 INTERNAL_ERROR`, `503 TEMPORARY_UNAVAILABLE`를 사용하며, 상태 변경 요청에는 [공통 CSRF 보호와 실패 응답](conventions.md#session-auth)이 적용됩니다.
+
+성공 응답의 본문은 [공통 성공 응답](conventions.md#success-responses)을 따르며, 아래 응답 DTO 표는 `data` 안의 값과 하위 객체를 정의합니다.
 
 <a id="catalog-endpoints"></a>
 
@@ -16,8 +18,8 @@
 
 | 메서드·경로 | 접근 | 입력 | 성공 | 오류 |
 | --- | --- | --- | --- | --- |
-| `GET /catalogs` | 공개 | 없음 | 200 [Catalogs](#catalogs) | 공통 500·503 |
-| `GET /catalogs/academic-units` | 공개 | 없음 | 200 [AcademicCatalog](#academic-unit) | 공통 500·503 |
+| `GET /catalogs` | 공개 | 없음 | 200 [Success&lt;Catalogs&gt;](#catalogs) | 공통 500·503 |
+| `GET /catalogs/academic-units` | 공개 | 없음 | 200 [Success&lt;AcademicUnit[]&gt;](#academic-unit) | 공통 500·503 |
 
 <a id="catalog-item"></a>
 
@@ -55,9 +57,9 @@
 <a id="academic-placement"></a>
 <a id="academic-unit"></a>
 
-### AcademicUnit와 AcademicCatalog — 학사 계층
+### AcademicUnit — 학사 계층
 
-`AcademicCatalog`는 **필수 `items: AcademicUnit[]`** 하나를 가지며 `null`을 허용하지 않습니다. `GET /catalogs/academic-units`는 현행·비활성 항목을 부모와 함께 모두 반환합니다. 서버는 DB의 숫자 ID 기준 `id ASC`로 정렬하며, 이 순서는 학교의 공식 표시 순서를 뜻하지 않습니다.
+`GET /catalogs/academic-units` 응답의 **필수 `data: AcademicUnit[]`**는 `null`을 허용하지 않으며, 빈 목록은 `[]`입니다. 현행·비활성 항목을 부모와 함께 모두 반환합니다. 서버는 DB의 숫자 ID 기준 `id ASC`로 정렬하며, 이 순서는 학교의 공식 표시 순서를 뜻하지 않습니다.
 
 | AcademicUnit 필드 | 타입 | null | 의미·허용값 |
 | --- | --- | --- | --- |

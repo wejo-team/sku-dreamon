@@ -10,6 +10,7 @@
 ## 이 문서의 표기
 
 - `Id`는 UUID 문자열, `Timestamp`는 UTC 시각 문자열입니다. [공통 계약](conventions.md)의 표현·검증·오류 형식을 적용합니다.
+- 성공 응답은 [공통 `Success<T>`](conventions.md#success-responses)를 사용하며, 아래 응답 DTO 표는 `data` 내부 값을 정의합니다. `NotificationPage`는 `data`를 포함한 응답 전체이므로 다시 감싸지 않습니다.
 - 객체의 **아래에 기재된 필드는 모두 필수**입니다. 생략할 수 있는 요청 필드만 별도로 `선택`이라고 표시합니다. `null` 허용은 생략 허용과 다르며, 목록의 빈 값은 `[]`입니다. 선언하지 않은 필드는 허용하지 않습니다.
 - `양의 안전 정수`는 `1~9007199254740991`, `음이 아닌 안전 정수`는 `0~9007199254740991`인 JSON 정수입니다. 집계의 전송 표현 한계이며 서비스 이용 횟수 상한이 아닙니다.
 - 모든 API는 공통 실패 `401`, `500`, `503`을 제공합니다. 아래 표의 **추가 실패**는 이 공통 실패에 더하는 HTTP 상태입니다. `422`는 경로·query·본문 검증 실패, `429`는 요청 제한이며 구체 제한 수치는 미정입니다.
@@ -22,16 +23,16 @@
 | 메서드·경로 | 요청 | 성공 | 추가 실패 |
 | --- | --- | --- | --- |
 | `GET /me/notifications` | `page`, `pageSize`, `unreadOnly` query | 200 `NotificationPage` | 422 |
-| `GET /me/notifications/unread-count` | 없음 | 200 `UnreadCount` | 없음 |
-| `PUT /me/notifications/{notificationId}/read` | 본문 없음 | 200 `Notification` | 404, 422 |
-| `PUT /me/notifications/read` | `ReadNotifications` | 200 `ReadNotificationsResult` | 404, 422 |
+| `GET /me/notifications/unread-count` | 없음 | 200 `Success<UnreadCount>` | 없음 |
+| `PUT /me/notifications/{notificationId}/read` | 본문 없음 | 200 `Success<Notification>` | 404, 422 |
+| `PUT /me/notifications/read` | `ReadNotifications` | 200 `Success<ReadNotificationsResult>` | 404, 422 |
 
 모든 알림 경로는 인증 주체 **본인**만 대상으로 합니다. query·본문에 다른 수신자 ID를 받지 않습니다. 다른 사람의 알림이나 없는 ID는 404 `RESOURCE_NOT_FOUND`입니다.
 
 | 목록 query | 타입·기본값 | 계약 |
 | --- | --- | --- |
 | `page` | 양의 정수, 기본 1 | [공통 페이지 규칙](conventions.md) 적용 |
-| `pageSize` | 1~100 정수, 기본 20 | `NotificationPage`의 `items`·`pagination`에 적용 |
+| `pageSize` | 1~100 정수, 기본 20 | `NotificationPage`의 `data`·`pagination`에 적용 |
 | `unreadOnly` | 불리언, 기본 `false` | `true`면 미읽음만 반환 |
 
 정렬은 `occurredAt DESC, id DESC`입니다. `total`은 현재 필터와 권한을 적용한 목록 집계이며, `UnreadCount.unreadCount`는 본인의 **전체 미읽음 수**입니다. 목록 열기만으로 읽음 처리하지 않습니다.
@@ -42,11 +43,11 @@
 
 ### NotificationPage — 목록과 전체 미읽음 수
 
-`NotificationPage`는 [공통 `Page<Notification>`](conventions.md#pagination)의 전체 필드와 아래 `unreadCount`를 **같은 객체에** 포함합니다. 세 필드 모두 필수이며 `null`을 허용하지 않습니다.
+`NotificationPage`는 [공통 `Page<Notification>`](conventions.md#pagination)의 전체 필드와 아래 `unreadCount`를 **같은 객체에** 포함합니다. `data`에는 알림 배열을 담고 `pagination`·`unreadCount`는 최상위에 둡니다. 세 필드 모두 필수이며 `null`을 허용하지 않습니다.
 
 | 필드 | 타입 | 의미 |
 | --- | --- | --- |
-| `items` | `Notification[]` | 현재 목록 필터에 맞는 본인 알림 |
+| `data` | `Notification[]` | 현재 목록 필터에 맞는 본인 알림. 빈 결과는 `[]` |
 | `pagination` | `PageMeta` | 같은 권한·필터·읽기 시점의 목록 집계 |
 | `unreadCount` | 음이 아닌 안전 정수 | 목록 필터와 무관한 본인의 **전체 미읽음 수** |
 

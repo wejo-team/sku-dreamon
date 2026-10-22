@@ -6,9 +6,9 @@
 
 - 입력은 [검색 조건](#queries), 출력은 [공모전 데이터](#contest-summary) 표에서 확인합니다.
 
-- ID·코드·시각·정원·버전은 [공통 타입](conventions.md#types), 페이지는 [Page&lt;T&gt;](conventions.md#pagination), 실패는 [공통 오류](conventions.md#errors)를 사용합니다. `Page<T>`는 `items: T[]`와 `pagination`을 가진 공통 응답입니다.
+- ID·코드·시각·정원·버전은 [공통 타입](conventions.md#types), 실패는 [공통 오류](conventions.md#errors)를 사용합니다. 단건·복합 성공은 [Success&lt;T&gt;](conventions.md#success-responses), 목록은 [Page&lt;T&gt;](conventions.md#pagination)를 사용하며 `Page<T>`는 `data: T[]`와 `pagination`을 가진 응답입니다.
 
-**표 읽기:** 응답 표의 모든 필드는 필수입니다. `null` 허용 여부는 타입에 따로 표시하며, `null`인 필드를 생략하지 않습니다. 요청은 각 표에 필수 여부를 표시합니다. 선언하지 않은 요청 필드는 422입니다. 일반 텍스트의 정책상 글자 수와 Unicode 계수 단위의 미정 사항은 [공통 계약](conventions.md)을 따릅니다.
+**표 읽기:** 응답 DTO 표는 `data` 내부에서 사용하는 데이터 구조를 정의하며, 각 DTO의 모든 필드는 필수입니다. `null` 허용 여부는 타입에 따로 표시하며, `null`인 필드를 생략하지 않습니다. 요청은 각 표에 필수 여부를 표시합니다. 선언하지 않은 요청 필드는 422입니다. 일반 텍스트의 정책상 글자 수와 Unicode 계수 단위의 미정 사항은 [공통 계약](conventions.md)을 따릅니다.
 
 <a id="endpoints"></a>
 
@@ -19,7 +19,7 @@
 | 메서드·경로 | 권한·입력 | 성공 응답 | 추가 실패 |
 | --- | --- | --- | --- |
 | `GET /contests` | 공개, 공모전 검색 조건 | 200 `Page<ContestSummary>` | — |
-| `GET /contests/{contestId}` | 공개, 공고 UUID | 200 `Contest` | 404 공고 없음 |
+| `GET /contests/{contestId}` | 공개, 공고 UUID | 200 `Success<Contest>` | 404 공고 없음 |
 
 공고는 접수 예정·중·마감 상태 모두 상세 열람할 수 있습니다. 화면별 정보 구분은 [공고 탐색](../specs/contests.md#exploration-ui)을 따릅니다. 공고에 연결된 팀 목록 `GET /contests/{contestId}/teams`는 [팀 API](teams.md#endpoints)에 정의합니다.
 

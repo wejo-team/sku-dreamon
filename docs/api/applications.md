@@ -6,9 +6,9 @@
 
 - 입력은 [검색 조건](#queries)과 [요청 본문](#requests), 출력은 [지원 데이터](#application) 표에서 확인합니다.
 
-- ID·코드·시각·정원·버전은 [공통 타입](conventions.md#types), 페이지는 [Page&lt;T&gt;](conventions.md#pagination), 실패는 [공통 오류](conventions.md#errors)를 사용합니다. `Page<T>`는 `items: T[]`와 `pagination`을 가진 공통 응답입니다.
+- ID·코드·시각·정원·버전은 [공통 타입](conventions.md#types), 실패는 [공통 오류](conventions.md#errors)를 사용합니다. 단건·복합 성공은 [Success&lt;T&gt;](conventions.md#success-responses), 목록은 [Page&lt;T&gt;](conventions.md#pagination)를 사용하며 `Page<T>`는 `data: T[]`와 `pagination`을 가진 응답입니다.
 
-**표 읽기:** 응답 표의 모든 필드는 필수입니다. `null` 허용 여부는 타입에 따로 표시하며, `null`인 필드를 생략하지 않습니다. 요청은 각 표에 필수 여부를 표시합니다. 선언하지 않은 요청 필드는 422입니다. 일반 텍스트의 정책상 글자 수와 Unicode 계수 단위의 미정 사항은 [공통 계약](conventions.md)을 따릅니다.
+**표 읽기:** 응답 DTO 표는 `data` 내부에서 사용하는 데이터 구조를 정의하며, 각 DTO의 모든 필드는 필수입니다. `null` 허용 여부는 타입에 따로 표시하며, `null`인 필드를 생략하지 않습니다. 요청은 각 표에 필수 여부를 표시합니다. 선언하지 않은 요청 필드는 422입니다. 일반 텍스트의 정책상 글자 수와 Unicode 계수 단위의 미정 사항은 [공통 계약](conventions.md)을 따릅니다.
 
 <a id="endpoints"></a>
 
@@ -18,15 +18,15 @@
 
 | 메서드·경로 | 권한·입력 | 성공 응답 | 추가 실패 |
 | --- | --- | --- | --- |
-| `POST /teams/{teamId}/applications` | 로그인, 팀 UUID·`ApplicationCreate` | 첫 접수 201 `Application`, 동일 요청 재전송 200 `Application` | 404 팀 없음, 409 프로필·모집·중복·재지원·소속·코드·요청 ID 충돌 |
+| `POST /teams/{teamId}/applications` | 로그인, 팀 UUID·`ApplicationCreate` | 첫 접수 201 `Success<Application>`, 동일 요청 재전송 200 `Success<Application>` | 404 팀 없음, 409 프로필·모집·중복·재지원·소속·코드·요청 ID 충돌 |
 | `GET /me/applications` | 본인, 페이지 조건·선택 `status` | 200 `Page<MyApplication>` | — |
-| `GET /applications/{applicationId}` | 지원 본인 또는 받은 팀장, 지원 UUID | 200 `Application` | 404 없음 또는 관계 밖 |
-| `PUT /applications/{applicationId}/cancellation` | 지원 본인, 지원 UUID·`VersionedAction` | 200 `CancellationResult` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
+| `GET /applications/{applicationId}` | 지원 본인 또는 받은 팀장, 지원 UUID | 200 `Success<Application>` | 404 없음 또는 관계 밖 |
+| `PUT /applications/{applicationId}/cancellation` | 지원 본인, 지원 UUID·`VersionedAction` | 200 `Success<CancellationResult>` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
 | `GET /teams/{teamId}/applicants` | 해당 팀장, 팀 UUID·페이지 조건·선택 `status` | 200 `Page<Applicant>` | 403 권한, 404 팀 없음 |
-| `GET /applications/{applicationId}/applicant` | 받은 팀장, 지원 UUID | 200 `Applicant` | 403 행동 권한, 404 없음 또는 관계 밖 |
-| `PUT /applications/{applicationId}/review-start` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `Application` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
-| `PUT /applications/{applicationId}/rejection` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `Application` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
-| `PUT /applications/{applicationId}/selection` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `SelectionResult` | 403 행동 권한, 404 없음 또는 관계 밖, 409 공고 기한·상태·정원·소속·버전 충돌 |
+| `GET /applications/{applicationId}/applicant` | 받은 팀장, 지원 UUID | 200 `Success<Applicant>` | 403 행동 권한, 404 없음 또는 관계 밖 |
+| `PUT /applications/{applicationId}/review-start` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `Success<Application>` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
+| `PUT /applications/{applicationId}/rejection` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `Success<Application>` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
+| `PUT /applications/{applicationId}/selection` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `Success<SelectionResult>` | 403 행동 권한, 404 없음 또는 관계 밖, 409 공고 기한·상태·정원·소속·버전 충돌 |
 
 다른 팀·일반 팀원·일반 사용자는 지원서 존재를 확인할 수 없도록 404로 처리합니다. 존재를 확인할 수 있는 관계라도 해당 행동을 수행할 권한이 없으면 403입니다. 목록·상세·AI 결과 조회만으로 지원 상태를 `reviewing`으로 변경하지 않으며, 팀장이 검토 시작 API를 명시적으로 실행해야 합니다. 검토 시작은 선발·미선발의 필수 선행 작업이 아닙니다.
 

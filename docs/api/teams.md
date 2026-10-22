@@ -6,9 +6,9 @@
 
 - 입력은 [검색 조건](#queries)과 [요청 본문](#requests), 출력은 [팀 데이터](#team-summary) 표에서 확인합니다.
 
-- ID·코드·시각·정원·버전은 [공통 타입](conventions.md#types), 페이지는 [Page&lt;T&gt;](conventions.md#pagination), 실패는 [공통 오류](conventions.md#errors)를 사용합니다. `Page<T>`는 `items: T[]`와 `pagination`을 가진 공통 응답입니다.
+- ID·코드·시각·정원·버전은 [공통 타입](conventions.md#types), 실패는 [공통 오류](conventions.md#errors)를 사용합니다. 단건·복합 성공은 [Success&lt;T&gt;](conventions.md#success-responses), 목록은 [Page&lt;T&gt;](conventions.md#pagination)를 사용하며 `Page<T>`는 `data: T[]`와 `pagination`을 가진 응답입니다.
 
-**표 읽기:** 응답 표의 모든 필드는 필수입니다. `null` 허용 여부는 타입에 따로 표시하며, `null`인 필드를 생략하지 않습니다. 요청은 각 표에 필수 여부를 표시합니다. 선언하지 않은 요청 필드는 422입니다. 일반 텍스트의 정책상 글자 수와 Unicode 계수 단위의 미정 사항은 [공통 계약](conventions.md)을 따릅니다.
+**표 읽기:** 응답 DTO 표는 `data` 내부에서 사용하는 데이터 구조를 정의하며, 각 DTO의 모든 필드는 필수입니다. `null` 허용 여부는 타입에 따로 표시하며, `null`인 필드를 생략하지 않습니다. 요청은 각 표에 필수 여부를 표시합니다. 선언하지 않은 요청 필드는 422입니다. 일반 텍스트의 정책상 글자 수와 Unicode 계수 단위의 미정 사항은 [공통 계약](conventions.md)을 따릅니다.
 
 <a id="endpoints"></a>
 
@@ -22,7 +22,7 @@
 | --- | --- | --- | --- |
 | `GET /contests/{contestId}/teams` | 공개, 공고 UUID·팀 검색 조건 | 200 `Page<TeamSummary>` | 404 공고 없음 |
 | `GET /teams` | 공개, 팀 검색 조건·선택 `contestId` | 200 `Page<TeamSummary>` | — |
-| `GET /teams/{teamId}` | 공개, 팀 UUID | 200 `Team` | 404 팀 없음 |
+| `GET /teams/{teamId}` | 공개, 팀 UUID | 200 `Success<Team>` | 404 팀 없음 |
 
 공개 팀 응답에는 지원서·지원자 프로필·팀 공간 데이터를 포함하지 않습니다. 화면별 정보 구분은 [공고 탐색](../specs/contests.md#exploration-ui)과 [팀 모집 명세](../specs/team-recruitment.md)를 따릅니다. 공모전 목록·상세 조회는 [공모전 API](contests.md#endpoints)에 정의합니다.
 
@@ -30,11 +30,11 @@
 
 | 메서드·경로 | 권한·입력 | 성공 응답 | 추가 실패 |
 | --- | --- | --- | --- |
-| `POST /teams` | 로그인, `TeamCreate` | 첫 생성 201 `Team`, 동일 요청 재전송 200 `Team` | 404 공고 없음, 409 공고·정원·소속·코드·요청 ID 충돌 |
+| `POST /teams` | 로그인, `TeamCreate` | 첫 생성 201 `Success<Team>`, 동일 요청 재전송 200 `Success<Team>` | 404 공고 없음, 409 공고·정원·소속·코드·요청 ID 충돌 |
 | `GET /me/teams` | 본인, 페이지 조건 | 200 `Page<WorkspaceTeam>` | — |
-| `GET /teams/{teamId}/space` | 현재 팀장·확정 팀원, 팀 UUID | 200 `TeamSpace` | 403 현재 소속 아님, 404 팀 없음 |
-| `PUT /teams/{teamId}/recruitment/closure` | 해당 팀장, 팀 UUID·`VersionedAction` | 200 `RecruitmentResult` | 403 권한, 404 팀 없음, 409 상태·버전 충돌 |
-| `PUT /teams/{teamId}/recruitment/reopening` | 해당 팀장, 팀 UUID·`VersionedAction` | 200 `RecruitmentResult` | 403 권한, 404 팀 없음, 409 기한·정원·상태·버전 충돌 |
+| `GET /teams/{teamId}/space` | 현재 팀장·확정 팀원, 팀 UUID | 200 `Success<TeamSpace>` | 403 현재 소속 아님, 404 팀 없음 |
+| `PUT /teams/{teamId}/recruitment/closure` | 해당 팀장, 팀 UUID·`VersionedAction` | 200 `Success<RecruitmentResult>` | 403 권한, 404 팀 없음, 409 상태·버전 충돌 |
+| `PUT /teams/{teamId}/recruitment/reopening` | 해당 팀장, 팀 UUID·`VersionedAction` | 200 `Success<RecruitmentResult>` | 403 권한, 404 팀 없음, 409 기한·정원·상태·버전 충돌 |
 
 `GET /me/teams`는 현재 팀장·확정 팀원인 팀만 반환합니다. 대기 지원은 [내 지원 목록](applications.md#endpoints)에서 조회합니다. 팀 공간과 최신 프로필의 열람 범위는 [팀원 데이터](#team-member)에 정의합니다.
 

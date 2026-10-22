@@ -10,15 +10,17 @@
 
 모든 객체는 아래에 정의된 필드만 사용합니다. **본문의 필드는 별도 표시가 없으면 모두 필수**이며, `null` 허용과 필드 생략 허용은 다릅니다. 읽기 전용 필드·선언하지 않은 필드·snake_case를 쓰기 본문으로 보내면 422입니다. 아래 오류 표 외에 모든 API는 공통 `500 INTERNAL_ERROR`, `503 TEMPORARY_UNAVAILABLE`를 사용하며, 상태 변경 요청에는 [공통 CSRF 보호와 실패 응답](conventions.md#session-auth)이 적용됩니다.
 
+성공 응답의 본문은 [공통 성공 응답](conventions.md#success-responses)을 따르며, 아래 응답 DTO 표는 `data` 안의 값과 하위 객체를 정의합니다.
+
 <a id="profile-endpoints"></a>
 
 ## 본인 프로필 저장과 공개 전환
 
 | 메서드·경로 | 요청 | 성공 | 오류 |
 | --- | --- | --- | --- |
-| `GET /me/profile` | 본문 없음 | 200 [Profile](#profile) | 401 `UNAUTHENTICATED`; 404 `RESOURCE_NOT_FOUND` |
-| `PUT /me/profile` | 본문 [ProfileWrite](#profile-write) | 최초·수정 모두 200 [Profile](#profile) | 401 `UNAUTHENTICATED`; 409 아래 충돌 코드; 422 |
-| `PUT /me/profile/visibility` | 본문 [VisibilityWrite](#visibility-write) | 200 [Profile](#profile) | 401 `UNAUTHENTICATED`; 404 `RESOURCE_NOT_FOUND`; 409 `VERSION_CONFLICT`; 422 |
+| `GET /me/profile` | 본문 없음 | 200 [Success&lt;Profile&gt;](#profile) | 401 `UNAUTHENTICATED`; 404 `RESOURCE_NOT_FOUND` |
+| `PUT /me/profile` | 본문 [ProfileWrite](#profile-write) | 최초·수정 모두 200 [Success&lt;Profile&gt;](#profile) | 401 `UNAUTHENTICATED`; 409 아래 충돌 코드; 422 |
+| `PUT /me/profile/visibility` | 본문 [VisibilityWrite](#visibility-write) | 200 [Success&lt;Profile&gt;](#profile) | 401 `UNAUTHENTICATED`; 404 `RESOURCE_NOT_FOUND`; 409 `VERSION_CONFLICT`; 422 |
 
 세 API는 인증 주체 자신의 프로필만 취급합니다. 프로필 미저장 조회는 404입니다. 저장 충돌 코드는 다음과 같습니다.
 
@@ -147,7 +149,7 @@
 | 메서드·경로 | 접근 | 입력 | 성공 | 오류 |
 | --- | --- | --- | --- | --- |
 | `GET /people` | 로그인 | 아래 query | 200 `Page<PersonSummary>` | 401 `UNAUTHENTICATED`; 422 |
-| `GET /people/{accountId}` | 로그인 | 필수 path `accountId: Id` | 200 [Profile](#profile) | 401 `UNAUTHENTICATED`; 404 `RESOURCE_NOT_FOUND`; 422 |
+| `GET /people/{accountId}` | 로그인 | 필수 path `accountId: Id` | 200 [Success&lt;Profile&gt;](#profile) | 401 `UNAUTHENTICATED`; 404 `RESOURCE_NOT_FOUND`; 422 |
 
 ### 사람 목록 검색 조건
 
@@ -159,7 +161,7 @@
 | `page` | integer | 선택, `1` | 1 이상 안전 정수. 마지막 페이지 초과는 마지막 유효 페이지로 보정 |
 | `pageSize` | integer | 선택, `20` | 1~100. 기본·최대 크기는 기술 제안 |
 
-정렬은 `updatedAt DESC, accountId ASC`입니다. `Page<PersonSummary>`는 필수 `items: PersonSummary[]`, `pagination: PageMeta`로 구성됩니다. 두 값은 `null`을 허용하지 않으며 [공통 페이지 계약](conventions.md#pagination)의 조회·집계 일치와 빈 결과 처리를 적용합니다.
+정렬은 `updatedAt DESC, accountId ASC`입니다. `Page<PersonSummary>`는 필수 `data: PersonSummary[]`, `pagination: PageMeta`로 구성됩니다. 두 값은 `null`을 허용하지 않으며 [공통 페이지 계약](conventions.md#pagination)의 조회·집계 일치와 빈 결과 처리를 적용합니다.
 
 현재 공개 프로필만 목록·집계에 포함합니다. 비공개·미존재 상세는 같은 404로 처리합니다. 지원받은 팀장도 `/people`에서는 이 경계를 지키며 비공개 열람 예외는 [지원자 상세 API](applications.md#applicant)의 `/applications/{applicationId}/applicant`에서 관계를 확인합니다. 제품 정책 원본은 [사람 탐색](../specs/profile.md#people-directory)입니다.
 

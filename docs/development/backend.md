@@ -6,6 +6,7 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 
 - API는 `/api/v1` 아래에 리소스 중심 경로로 제공합니다. HTTP 상태 코드를 사용하고 실패를 200 응답으로 감추지 않습니다.
 - 요청·응답은 Pydantic schema로 명시합니다. FastAPI의 기본 validation error 형식과 호환되는 처리를 우선하고, 도메인 오류 계약이 필요하면 프론트와 함께 문서화합니다.
+- 제품 API의 성공 응답 모델은 [공통 성공 응답](../api/conventions.md#success-responses)을 따릅니다. 실제 JSON과 OpenAPI 모두 최상위 `data`를 명시하며, 204의 빈 본문과 쿠키·`Location` 헤더를 보존합니다.
 - 구현 전 API 계약은 [Markdown 설계](../api/README.md)에서 검토합니다. 구현 시 라우터·Pydantic 모델·인증과 오류 선언을 기준으로 FastAPI의 OpenAPI·Swagger UI를 자동 생성하며 수동 YAML을 별도로 유지하지 않습니다.
 - 구현 PR에서 생성 문서와 실제 응답을 [정합성 확인 기준](../api/README.md#consistency)에 따라 설계와 대조합니다. 구현된 API의 상세 필드 표는 코드·생성 문서 링크로 대체하고 설계 이유·정책·트랜잭션 설명은 유지합니다. 자세한 순서는 [API 인계 절차](../api/README.md#implementation-handoff)를 따릅니다.
 - Python 내부 필드와 전송 JSON의 이름은 [컨벤션](conventions.md)의 「API JSON 필드명」 규칙에 따라 API DTO 경계에서 연결합니다. 현재 적용 상태와 요청 이름 검증 기준도 해당 절을 따릅니다.
