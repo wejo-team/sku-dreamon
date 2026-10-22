@@ -23,6 +23,42 @@
 | 프로필 수정 버전 | 기존 AI 결과가 어떤 프로필을 사용했는지 비교. 과거 프로필 전문 보존과 분리 | [현재 프로필 기준](../specs/profile.md#application-profile) |
 | 서버 읽음 기록 | 다음 조회에 같은 읽음 상태를 반환. 실시간 전송 방식과 분리 | [알림 저장](notifications.md) |
 
+<a id="primary-keys"></a>
+
+## 기본 키 선택 기준
+
+현재 [17개 테이블](overview.md)의 공유·복합 PK 구성과 식별 정책은 아래 기준으로 유지합니다. 단일 PK 컬럼명은 [명명 규칙](conventions.md#primary-key-names)에 따라 `<단수형 테이블명>_id`로 통일합니다. 외부 API 식별자·구현 상태는 변경하지 않습니다.
+
+- **독립적으로 구별할 대상은 별도 대리키를 둡니다.** 같은 소유자 아래에서도 발생 건·기간·시도를 구별하거나 다른 테이블·API가 개별 행을 참조하면 별도 ID가 유용합니다. 부모가 있어야 존재한다는 이유만으로 복합 PK를 선택하지 않습니다.
+- **소유자의 단일 구성요소는 공유 PK를 사용합니다.** 현재 값 하나만 있고 독립적인 이전·참조가 필요하지 않으면 소유자 ID 값을 PK이자 FK로 사용합니다. `profiles.profile_id`는 이름·이메일 같은 자연키가 아니라 이미 불변 대리키인 `accounts.account_id`와 같은 값입니다. `portfolio_links.portfolio_link_id`도 `profiles.profile_id`의 값을 공유합니다. 자신의 테이블명으로 컬럼을 명명해도 별도 ID를 발급하지 않습니다.
+- **중복 없는 단순 선택 집합은 복합 PK를 사용합니다.** 소유자와 선택 코드의 조합 자체가 관계를 식별하고, 개별 연결의 별도 생명주기·API·외부 참조가 없다면 추가 ID를 두지 않습니다. 소유자나 코드를 바꾸는 것은 기존 연결의 이전이 아니라 다른 선택 관계로의 교체입니다.
+
+| 테이블 | 현재 PK | 선택 근거 |
+| --- | --- | --- |
+| [`accounts`](identity.md#accounts) | UUID `account_id` | 로그인 수단과 분리된 업무 주체이며 여러 관계가 참조 |
+| [`auth_sessions`](identity.md#auth-sessions) | UUID `auth_session_id` | 한 계정의 여러 로그인마다 만료·회수를 독립적으로 관리 |
+| [`academic_units`](catalogs.md#academic-tables) | BIGINT `academic_unit_id` | 이름·계층과 별개로 학사 항목과 기존 소속 참조를 보존 |
+| [`profiles`](identity.md#profiles) | UUID `profile_id`, FK → `accounts.account_id` | 계정당 현재 프로필 하나이며 계정과 같은 ID 값을 사용 |
+| [`portfolio_links`](identity.md) | UUID `portfolio_link_id`, FK → `profiles.profile_id` | 현재 프로필의 선택적인 URL 슬롯 하나이며 프로필과 같은 ID 값을 사용 |
+| [`profile_interests`](identity.md) | `(account_id, field_code)` | 프로필의 중복 없는 관심 분야 집합 |
+| [`profile_desired_roles`](identity.md) | `(account_id, role_code)` | 프로필의 중복 없는 희망 역할 집합 |
+| [`profile_skills`](identity.md) | `(account_id, skill_code)` | 프로필의 중복 없는 역량 집합 |
+| [`contests`](contests.md) | UUID `contest_id` | 독립 공고 조회와 팀 참조의 기준 |
+| [`contest_audiences`](contests.md) | `(contest_id, audience_code)` | 공고의 중복 없는 참가 대상 집합 |
+| [`contest_fields`](contests.md) | `(contest_id, field_code)` | 공고의 중복 없는 분야 집합 |
+| [`teams`](teams.md) | UUID `team_id` | 모집·팀 공간·지원 관계에서 같은 팀을 식별 |
+| [`team_recruitment_roles`](teams.md) | `(team_id, role_code)` | 모집 역할 코드 집합이며 역할별 정원·충원·개별 슬롯은 없음 |
+| [`applications`](teams.md) | UUID `application_id` | 같은 사용자·팀의 재지원도 이전 지원과 다른 시도로 식별 |
+| [`team_memberships`](teams.md) | UUID `team_membership_id` | 종료된 소속과 새 소속 기간을 구별하며 폐기 사건의 원인으로 참조 |
+| [`application_events`](teams.md) | UUID `application_event_id` | 상태 변경 발생 건마다 알림·후속 폐기 원인이 참조 |
+| [`notifications`](notifications.md) | UUID `notification_id` | 개별 알림의 읽음 처리 대상으로 식별 |
+
+프로필은 [계정 ID로 조회](../api/profiles.md#directory-endpoints)하고, 포트폴리오는 [URL 1개와 프로필 전체 공개 정책](../specs/profile.md#portfolio)을 따릅니다. 별도 프로필·포트폴리오 ID를 추가할 현재 요구는 없습니다. 반면 [재지원은 새 지원 ID](../specs/team-recruitment.md#reapplication)를 사용하고, 소속은 [팀 API의 `membershipId`](../api/teams.md)로 구별하며, 알림에는 [개별 읽음 API](../api/notifications.md)가 있습니다. 관계 테이블처럼 보여도 별도 발생 건을 식별해야 하는 세 경우에 이미 대리키를 둔 이유입니다.
+
+대리키는 업무 중복과 참조 문맥의 일치를 대신 보장하지 않습니다. 별도 대리키가 있어도 같은 사건·수신자 알림의 UNIQUE, 공모전별 활성 소속의 부분 UNIQUE, 지원·소속·사건의 계정·공모전 일치를 보장하는 복합 FK와 그 참조용 UNIQUE는 유지합니다. 구체 제약은 각 테이블 정의가 원본입니다.
+
+향후 한 계정의 여러 프로필, 개별 식별·참조가 필요한 여러 포트폴리오, 정원·충원 상태를 가진 개별 모집 슬롯, 소유자가 바뀌어도 같은 대상을 유지해야 하는 요구가 확정되면 별도 ID를 다시 검토합니다. 이는 **도입이 확정된 정책이 아니라 재검토 조건**입니다. 전환이 필요할 때는 기존 데이터·참조·업무 유일성·API 식별자와 마이그레이션 영향을 함께 설계합니다.
+
 <a id="ai-storage"></a>
 
 ## AI의 물리 저장 경계
