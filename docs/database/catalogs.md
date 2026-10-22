@@ -32,7 +32,7 @@
 
 ### 공통 정의와 API
 
-각 항목은 변경하지 않는 `code`와 `displayName`, `isSelectable`, `sortOrder`를 가집니다. `code`는 길이 1~64의 문자열이며 표시명으로 재생성하거나 다른 의미로 재사용하지 않습니다. 같은 문자열도 분류가 다르면 별개의 값이므로 필드에 맞는 enum으로 검사합니다. 프로필 이미지는 제공 자산의 경로도 같은 정의에 두고 [목록 API](../api/accounts-profiles.md#catalogs)에서 `assetUrl`로 제공합니다.
+각 항목은 변경하지 않는 `code`와 `displayName`, `isSelectable`, `sortOrder`를 가집니다. `code`는 길이 1~64의 문자열이며 표시명으로 재생성하거나 다른 의미로 재사용하지 않습니다. 같은 문자열도 분류가 다르면 별개의 값이므로 필드에 맞는 enum으로 검사합니다. 프로필 이미지는 제공 자산의 경로도 같은 정의에 두고 [목록 API](../api/catalogs.md#catalogs)에서 `assetUrl`로 제공합니다.
 
 `GET /catalogs`는 이 서버 정의에서 기존 일곱 목록을 구성합니다. 화면은 API의 표시명·선택 가능 여부·정렬을 사용하고 별도의 수기 목록을 만들지 않습니다. 실제 코드 문자열은 [OPTIONS-02·07](../specs/profile-options.md#open-questions)에서 확정하며 한국어 표시명을 운영 코드로 자동 전환하지 않습니다.
 
@@ -117,6 +117,6 @@ erDiagram
 
 프로필에는 가장 깊게 선택한 `academic_units.id` 하나를 `academic_unit_id`에 저장합니다. 상위 대학·학부·전공 ID를 중복 저장하지 않으며 표시 정보는 부모 연결을 따라 구성합니다. 학부·학과까지만 선택하면 해당 ID, 세부전공을 선택하면 전공 ID를 저장하고, 학사 정보 전체가 미입력이면 NULL로 둡니다. 전공을 선택하지 않은 이유나 배정 상태는 별도로 저장·추론하지 않습니다.
 
-학사 ID와 부모 ID는 DB에서 `bigint`, [API](../api/accounts-profiles.md#academic-unit)에서는 `PositiveBigInt` 십진 문자열입니다. 사용자의 소속 저장은 기존 항목을 참조할 뿐 새 학사 행이나 ID를 만들지 않습니다. 계정·공고·팀 등 다른 업무 ID는 UUID를 유지합니다.
+학사 ID와 부모 ID는 DB에서 `bigint`, [API](../api/catalogs.md#academic-unit)에서는 `PositiveBigInt` 십진 문자열입니다. 사용자의 소속 저장은 기존 항목을 참조할 뿐 새 학사 행이나 ID를 만들지 않습니다. 계정·공고·팀 등 다른 업무 ID는 UUID를 유지합니다.
 
 **초기 데이터 적재는 별도 확인이 필요합니다.** [ACADEMIC-01~04](../specs/academic-structure.md#open-questions)의 실제 목록·적용 대상·부모 관계와 기존 데이터 대응이 남아 있으며, 31행 이관 표를 현행 운영 목록으로 확정하지 않습니다.

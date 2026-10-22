@@ -120,7 +120,7 @@ API 설계에서 **누가 무엇을 할 수 있는지**와 **인증을 어떻게
 | `fieldCode` | CatalogCode, 기본 필터 없음 | 저장된 전체 분야 중 해당 코드 포함 여부 |
 | `roleCode` | CatalogCode, 기본 필터 없음 | 해당 목록의 모집/희망 역할 조건 |
 | `recruitingOnly` | boolean, 기본 false | true이면 현재 공통 모집 가능 조건을 충족한 팀만 |
-| `status` | ApplicationStatus, 기본 전체 | [지원 상태](contests-teams.md#values)의 한 값 |
+| `status` | ApplicationStatus, 기본 전체 | [지원 상태](applications.md#values)의 한 값 |
 
 `Page<T>`·`PageMeta`의 모든 필드는 필수이며 NULL을 허용하지 않습니다. 빈 결과 예시는 다음과 같습니다.
 
@@ -184,18 +184,18 @@ API 설계에서 **누가 무엇을 할 수 있는지**와 **인증을 어떻게
 
 | 코드 | 의미·상세 원본 |
 | --- | --- |
-| `LOGIN_ID_TAKEN` | 정규화한 아이디 중복. [계정](accounts-profiles.md) |
+| `LOGIN_ID_TAKEN` | 정규화한 아이디 중복. [계정](auth.md) |
 | `VERSION_CONFLICT` | 현재 버전과 예상 버전 불일치 |
-| `INVALID_CATALOG_SELECTION`, `INVALID_ACADEMIC_PATH` | 선택지·소속 경로의 현재 유효성 충돌. [프로필](accounts-profiles.md) |
-| `PROFILE_REQUIRED`, `PROFILE_PRIVATE` | 신규 지원의 필수 프로필 또는 공개 조건 미충족. [지원](contests-teams.md) |
-| `CONTEST_NOT_OPEN`, `RECRUITMENT_CLOSED`, `RECRUITMENT_DEADLINE_PASSED` | 공고·팀의 현재 접수 상태 또는 기한 충돌. [팀](contests-teams.md) |
-| `CAPACITY_OUT_OF_RANGE`, `TEAM_FULL` | 공식 참가 인원 범위 위반 또는 빈자리 없음. [팀](contests-teams.md) |
-| `DUPLICATE_APPLICATION`, `MEMBERSHIP_CONFLICT` | 유효 지원 중복 또는 확정 소속 충돌. [지원·선발](contests-teams.md) |
-| `REAPPLICATION_NOT_ALLOWED` | 미선발 이력이 있는 같은 팀에 새로 지원함. [재지원](contests-teams.md#transitions) |
-| `INVALID_APPLICATION_STATE`, `INVALID_RECRUITMENT_STATE` | 요청 행동을 할 수 없는 지원·모집 상태. [상태 처리](contests-teams.md) |
+| `INVALID_CATALOG_SELECTION`, `INVALID_ACADEMIC_PATH` | 선택지·소속 경로의 현재 유효성 충돌. [프로필](profiles.md) |
+| `PROFILE_REQUIRED`, `PROFILE_PRIVATE` | 신규 지원의 필수 프로필 또는 공개 조건 미충족. [지원](applications.md) |
+| `CONTEST_NOT_OPEN`, `RECRUITMENT_CLOSED`, `RECRUITMENT_DEADLINE_PASSED` | 공고·팀의 현재 접수 상태 또는 기한 충돌. [팀](teams.md) |
+| `CAPACITY_OUT_OF_RANGE`, `TEAM_FULL` | 공식 참가 인원 범위 위반 또는 빈자리 없음. [팀](teams.md) |
+| `DUPLICATE_APPLICATION`, `MEMBERSHIP_CONFLICT` | 유효 지원 중복 또는 확정 소속 충돌. [지원·선발](applications.md) |
+| `REAPPLICATION_NOT_ALLOWED` | 미선발 이력이 있는 같은 팀에 새로 지원함. [재지원](applications.md#transitions) |
+| `INVALID_APPLICATION_STATE`, `INVALID_RECRUITMENT_STATE` | 요청 행동을 할 수 없는 지원·모집 상태. [지원](applications.md#transitions)·[모집](teams.md#transitions) |
 | `REQUEST_ID_REUSED` | 같은 생성 UUID를 다른 정규화 본문에 재사용 |
-| `MESSAGE_ID_CONFLICT`, `REQUEST_ALREADY_RUNNING` | 같은 메시지 ID의 다른 본문 또는 진행 중 요청과 충돌. [AI](ai-notifications.md) |
-| `REQUEST_NOT_RETRYABLE`, `ATTEMPT_CONFLICT` | 재시도 불가 상태 또는 현재 시도 불일치. [AI](ai-notifications.md) |
+| `MESSAGE_ID_CONFLICT`, `REQUEST_ALREADY_RUNNING` | 같은 메시지 ID의 다른 본문 또는 진행 중 요청과 충돌. [AI](ai.md) |
+| `REQUEST_NOT_RETRYABLE`, `ATTEMPT_CONFLICT` | 재시도 불가 상태 또는 현재 시도 불일치. [AI](ai.md) |
 
 422의 `loc`는 `body`, `query`, 필드명·배열 위치를 담습니다. 비밀번호 등 입력 원문을 `input`이나 오류 메시지에 복제하지 않습니다. 다른 팀의 지원 여부를 오류 세부사항으로 추가하지 않습니다. 로그인 오류에서도 아이디 존재 여부를 구분하지 않습니다. 가입 전 아이디 중복 확인 API의 `available` 응답은 별도로 명시한 공개 계약입니다.
 
@@ -210,7 +210,7 @@ API 설계에서 **누가 무엇을 할 수 있는지**와 **인증을 어떻게
 | 프로필 최초 저장 | `expectedVersion="0"`. 이미 생성됐다면 409. 자동 덮어쓰기 없음 |
 | 프로필 수정·공개 전환 | 조회한 `version`을 `expectedVersion`으로 전달. 다른 변경이 먼저 저장됐다면 409 후 다시 조회 |
 | 팀·지원 생성 | 사용자가 실행한 생성 시도마다 UUID `requestId`. 응답 유실 후 같은 시도는 동일 ID·동일 정규화된 본문으로 재전송. 첫 생성 201, 동일 시도 재전송 200, 같은 ID의 다른 본문은 409 `REQUEST_ID_REUSED` |
-| 검토 시작·미선발·선발·지원 취소·모집 종료·재개 | 대상의 `expectedVersion`. 버전을 먼저 비교하여 다르면 409. 일치하는 버전에서 해당 행동의 no-op 조건을 충족하면 200과 현재 값을 반환하고 버전·사건·알림을 추가하지 않음. 정확한 전이·조건은 [지원과 모집 행동](contests-teams.md#transitions)을 따르며 응답 유실 시 먼저 재조회하여 결과 확인 |
+| 검토 시작·미선발·선발·지원 취소·모집 종료·재개 | 대상의 `expectedVersion`. 버전을 먼저 비교하여 다르면 409. 일치하는 버전에서 해당 행동의 no-op 조건을 충족하면 200과 현재 값을 반환하고 버전·사건·알림을 추가하지 않음. 정확한 전이·조건은 [지원 행동](applications.md#transitions)과 [모집 행동](teams.md#transitions)을 따르며 응답 유실 시 먼저 재조회하여 결과 확인 |
 | AI 메시지 전송 | 현재 대화 내 `clientMessageId`로 사용자 메시지 중복 방지. 내용이 다르면 409 |
 | AI 실패 재시도·중단 | `expectedAttempt`로 현재 시도를 지정. 이전 시도의 응답·취소가 새 시도에 적용되지 않음 |
 | 알림 읽음 | 이미 읽은 항목의 최초 `readAt` 유지. 업무 상태·알림 사건을 새로 만들지 않음 |

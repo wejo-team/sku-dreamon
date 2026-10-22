@@ -7,12 +7,19 @@
 | 확인할 내용 | 문서 |
 | --- | --- |
 | 타입·필수값·NULL·인증·페이지·오류·재시도 | [공통 계약](conventions.md) |
-| 가입·로그인·프로필·선택지·사람 탐색과 필드 표 | [계정과 프로필 API](accounts-profiles.md) |
-| 공모전·팀·지원·검토 시작·미선발·선발·워크스페이스와 필드 표 | [공모전과 팀 API](contests-teams.md) |
-| 현재 AI 대화·지원자 검토·알림과 필드 표 | [AI와 알림 API](ai-notifications.md) |
+| 회원가입·로그인·로그아웃·본인 계정과 세션 | [계정·인증 API](auth.md) |
+| 프로필 편집·공개 전환·사람 탐색 | [프로필 API](profiles.md) |
+| 공통 선택지·학사 목록 | [선택지 API](catalogs.md) |
+| 공모전 목록·상세 | [공모전 API](contests.md) |
+| 팀 탐색·생성·모집·팀원·워크스페이스 | [팀 API](teams.md) |
+| 지원·취소·지원자 조회·검토·미선발·선발 | [지원 API](applications.md) |
+| AI 대화·추천·지원자 AI 검토 | [AI API](ai.md) |
+| 알림 목록·미읽음 수·읽음 처리 | [알림 API](notifications.md) |
 | 정책·DB·API를 함께 검토하는 방법 | [정합성 확인 기준](#consistency) |
 
 각 영역 문서는 **경로·권한·응답 → 요청 조건 → 데이터 필드 → 상태·실패 처리** 순서로 읽습니다. 표에서 사용한 공통 타입과 `Page<T>`의 정확한 JSON 모양은 공통 계약을 참조합니다.
+
+문서는 기능의 책임을 기준으로 나눕니다. `/contests/{contestId}/teams`는 팀, `/teams/{teamId}/applications`는 지원 문서에서 정의합니다. 지원자 AI 검토는 AI 문서에 두고, 실제 지원 상태를 바꾸는 검토·선발은 지원 문서에서 정의합니다.
 
 ## 문서별 책임
 
@@ -56,6 +63,6 @@ FastAPI의 기본 제공 경로는 `/docs`(Swagger UI), `/redoc`(ReDoc), `/opena
 
 ## 구현 전에 남은 결정
 
-인증은 만료 기간·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인을 포함한 [서버 세션 정책](../specs/authentication.md#session-policy)과 [쿠키 전달 계약](conventions.md#session-auth)을 적용합니다. 모집·지원의 허용 전이와 선발 기간·재지원은 [팀과 지원 계약](contests-teams.md#transitions)을 따릅니다. 쿠키 이름·경로와 CSRF의 구체 전송 계약, 운영 도메인·CORS, 시도 제한 수치·종료된 세션의 정리·보존, 모집 정보·지원 메시지 편집, 공고 변경 영향, LLM 내부 구조와 데이터 보존은 여전히 미정입니다. [공통 계약의 보류 목록](conventions.md#deferred)에서 각 기능 명세로 이동합니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖이며 현재 인증 구현의 선행 조건이 아닙니다.
+인증은 만료 기간·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인을 포함한 [서버 세션 정책](../specs/authentication.md#session-policy)과 [쿠키 전달 계약](conventions.md#session-auth)을 적용합니다. 모집·지원의 허용 전이와 선발 기간·재지원은 [모집 상태 변경](teams.md#transitions)과 [지원 상태 변경](applications.md#transitions)을 따릅니다. 쿠키 이름·경로와 CSRF의 구체 전송 계약, 운영 도메인·CORS, 시도 제한 수치·종료된 세션의 정리·보존, 모집 정보·지원 메시지 편집, 공고 변경 영향, LLM 내부 구조와 데이터 보존은 여전히 미정입니다. [공통 계약의 보류 목록](conventions.md#deferred)에서 각 기능 명세로 이동합니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖이며 현재 인증 구현의 선행 조건이 아닙니다.
 
 JSON 이름과 접두사는 [저장소 API 작성 규칙](../development/conventions.md)을 따릅니다. 이 설계에는 SQL·ORM·마이그레이션·제품 API 구현이 포함되지 않습니다.

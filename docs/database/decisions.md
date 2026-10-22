@@ -11,7 +11,7 @@
 | 시연 데이터는 고정 UUID 시드 목록으로 구분 | 업무 테이블에 표시용 컬럼을 추가하지 않고 서버에서 시연 여부를 판정. 이름 변경·중복과 무관하게 대상 식별 | [시연 데이터](../specs/sprint-1.md#demo-data-scope) |
 | 공통 선택지는 애플리케이션 enum | MVP의 고정 목록·표시 정보를 서버 한곳에서 관리하고 코드 수정·배포로 변경. 공통코드 DB 테이블과 목록 동기화 작업을 생략 | [코드 관리 정책](../specs/profile-options.md#catalog-management), [enum과 저장 책임](catalogs.md#code-enums) |
 | 학사는 단일 인접 리스트와 증가형 ID | 부모 ID로 최대 3단계 계층을 구성. 개편은 새 항목으로 등록하고 과거 ID를 보존하여 별도 경로 테이블을 생략 | [학사 저장](catalogs.md#academic-tables), [선택 정책](../specs/academic-structure.md#selection-policy) |
-| 프로필 소속은 선택한 학사 ID 하나로 표현 | 선택한 항목과 부모 경로를 표시하면 충분하므로 전공 배정 상태를 별도 저장하지 않음 | [학사 선택 흐름](../specs/academic-structure.md#selection-flow), [프로필 API](../api/accounts-profiles.md#academic-unit) |
+| 프로필 소속은 선택한 학사 ID 하나로 표현 | 선택한 항목과 부모 경로를 표시하면 충분하므로 전공 배정 상태를 별도 저장하지 않음 | [학사 선택 흐름](../specs/academic-structure.md#selection-flow), [학사 선택·저장 흐름](../api/catalogs.md#academic-unit) |
 | 학사 변경 근거는 문서·PR로 관리 | 시드·마이그레이션 변경의 사유·출처를 기록하고 별도 DB 감사 로그를 생략. 기존 소속은 학사 행과 부모 연결로 보존 | [학사 변경 근거](catalogs.md#catalog-changes) |
 | 프로필 복수 선택은 연결 테이블 | 소유자 FK·중복 방지·검색을 지원하고 JSON 배열 내부 규칙에 의존하지 않음. 선택 코드의 유효성은 공통 enum으로 검사 | [공통 선택지](../specs/profile-options.md) |
 | 지원 시도와 소속 분리 | 취소 후 재지원 이력과 실제 팀 접근 권한을 구분 | [지원·취소 정책](../specs/team-recruitment.md#application-cancellation) |
@@ -27,7 +27,7 @@
 
 ## AI의 물리 저장 경계
 
-[AI API](../api/ai-notifications.md)는 대화·메시지·요청·결과의 식별과 상태를 설계합니다. 이 식별자가 존재한다는 이유만으로 모두 PostgreSQL 영구 테이블이 되지는 않습니다.
+[AI API](../api/ai.md)는 대화·메시지·요청·결과의 식별과 상태를 설계합니다. 이 식별자가 존재한다는 이유만으로 모두 PostgreSQL 영구 테이블이 되지는 않습니다.
 
 | 정보 | 현재 설계 범위 | 아직 확정하지 않는 것 |
 | --- | --- | --- |
