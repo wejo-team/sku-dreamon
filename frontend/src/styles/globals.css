@@ -1,24 +1,82 @@
+/**
+ * [참조 출처]
+ * 1. docs/design/tokens.md - 서경드림온 모바일 공식 디자인 토큰 (표면, 에메랄드 강조색, 상태 배지, 그림자)
+ * 2. docs/design/verification.md - UI/UX 확인 (회색 배경, 흰 카드, 명도 대비 5:1 이상, 터치 영역 44px)
+ * 3. docs/development/frontend.md - 모바일 우선 유동 너비 및 공통 디자인 시스템 토큰 적용
+ * 4. design-reference/src/features/design-preview/preview-tokens.css - CSS 커스텀 속성 및 그림자 정의
+ * 5. design-reference/src/styles/globals.css - Tailwind CSS v4 @theme inline 테마 매핑 규격
+ */
+
 @import 'tailwindcss';
+
+@font-face {
+  font-family: 'DreamOn Noto';
+  src: url('/fonts/NotoSansKR.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   color-scheme: light;
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* [출처 1, 4] 기본 캔버스 및 서경대 에메랄드 그린 컬러 팔레트 */
+  --background: #f1f1f3;
+  --foreground: #18352b;
+  --surface-canvas: #f1f1f3;
+  --surface-card: #ffffff;
+  --surface-card-hover: #bdd9c7;
+  --surface-card-pressed: #b2d0bd;
+  --surface-sunken: #dfeae3;
+
+  /* [출처 1, 2] 카드 컴포넌트 표면 및 텍스트 대비 */
   --card: #ffffff;
-  --primary: #0f172a;
+  --card-foreground: #18352b;
+  --card-muted-foreground: #40594a;
+
+  /* [출처 1] 주요 행동(Primary) 및 호버 상태 */
+  --primary: #007a55;
+  --primary-hover: #00573a;
   --primary-foreground: #ffffff;
-  --secondary: #e2e8f0;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #475569;
-  --accent: #e2e8f0;
-  --accent-foreground: #0f172a;
-  --destructive: #b91c1c;
-  --border: #e2e8f0;
-  --input: #cbd5e1;
-  --ring: #2563eb;
+
+  /* [출처 1, 4] 보조 및 액센트 색상 */
+  --secondary: #d9e9df;
+  --secondary-foreground: #365f4d;
+  --muted: #f2f7f4;
+  --muted-foreground: #52675d;
+  --accent: #e1efe7;
+  --accent-foreground: #00573a;
+
+  /* [출처 1] 경계선 및 입력 필드 */
+  --border: #d5e2da;
+  --input: #71897c;
+  --ring: #007a55;
   --radius: 0.75rem;
+
+  /* [출처 1] 상태별 시맨틱 컬러 토큰 */
+  --destructive: #b91c1c;
+  --recruiting-background: #cce9d7;
+  --recruiting-foreground: #164c35;
+  --closed-background: #e4e4e7;
+  --closed-foreground: #52525b;
+  --leaf-soft: #f0fdf4;
+  --leaf-ink: #166534;
+  --warning-soft: #fffbeb;
+  --warning-ink: #92400e;
+  --coral-soft: #fef2f2;
+  --coral-ink: #b91c1c;
+  --ai-soft: #f0edf8;
+  --ai-ink: #453587;
+
+  /* [출처 1, 4] 그림자 오프셋 */
+  --card-shadow:
+    0 3px 5px -2px rgba(24, 53, 43, 0.18),
+    0 12px 24px -10px rgba(24, 53, 43, 0.3);
+  --panel-shadow:
+    0 2px 4px -2px rgba(24, 53, 43, 0.16),
+    0 7px 16px -7px rgba(24, 53, 43, 0.24);
+
   font-family:
+    'DreamOn Noto',
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -29,11 +87,20 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* [출처 5] Tailwind CSS v4 @theme inline 테마 매핑 */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface-canvas: var(--surface-canvas);
+  --color-surface-card: var(--surface-card);
+  --color-surface-card-hover: var(--surface-card-hover);
+  --color-surface-card-pressed: var(--surface-card-pressed);
+  --color-surface-sunken: var(--surface-sunken);
   --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-card-muted-foreground: var(--card-muted-foreground);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -41,10 +108,23 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-recruiting-bg: var(--recruiting-background);
+  --color-recruiting-text: var(--recruiting-foreground);
+  --color-closed-bg: var(--closed-background);
+  --color-closed-text: var(--closed-foreground);
+  --color-leaf-soft: var(--leaf-soft);
+  --color-leaf-ink: var(--leaf-ink);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-ink: var(--warning-ink);
+  --color-coral-soft: var(--coral-soft);
+  --color-coral-ink: var(--coral-ink);
+  --color-ai-soft: var(--ai-soft);
+  --color-ai-ink: var(--ai-ink);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -56,10 +136,24 @@
   }
 
   body {
-    @apply m-0 min-w-80 bg-background text-foreground;
+    /* [출처 1, 3] 모바일 캔버스 배경 설정 및 최소 너비 320px 지원 */
+    @apply m-0 min-w-80 bg-surface-canvas text-foreground;
   }
 
   button:not(:disabled) {
     cursor: pointer;
   }
+}
+
+/* [출처 1, 3] 모바일 뷰포트 컨테이너 (최대 480px 중앙 정렬) */
+.dreamon-viewport {
+  width: 100%;
+  max-width: 480px;
+  min-height: 100svh;
+  margin-left: auto;
+  margin-right: auto;
+  background-color: var(--surface-canvas);
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
