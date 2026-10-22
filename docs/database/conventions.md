@@ -7,11 +7,11 @@
 | 항목 | 설계 기준 |
 | --- | --- |
 | 대상 DB | 저장소 `compose.yaml`과 같은 PostgreSQL 17.11 |
-| 이름 | 테이블은 복수형, 컬럼은 `snake_case`. API의 `camelCase`와 DTO 경계에서 변환 |
+| 이름 | 테이블은 복수형, 컬럼은 `snake_case`. 단일 PK는 `<단수형 테이블명>_id`. API 필드명은 전송 계약을 유지하고 DTO에서 명시적으로 매핑 |
 | `PK` / `FK` / `UQ` | 기본 키 / 외래 키 / 유일성. 복합 키는 괄호 안 컬럼 전체의 조합 |
 | NULL | 표에서 허용한 컬럼만 NULL. 미입력을 빈 문자열·가짜 코드·0으로 대체하지 않음 |
 | UUID | 계정·공고·팀·지원 등 업무 객체의 식별자. 서버가 생성하며 로그인 아이디와 분리 |
-| 학사 ID | `academic_units.id`는 `bigint GENERATED ALWAYS AS IDENTITY`. 부모·프로필 참조도 `bigint`, API에는 십진 문자열로 전달 |
+| 학사 ID | `academic_units.academic_unit_id`는 `bigint GENERATED ALWAYS AS IDENTITY`. 부모·프로필 참조도 `bigint`, API에는 십진 문자열로 전달 |
 | `VARCHAR(64)` 코드 | 분야·역할 등 선택지의 안정된 키. 화면 이름은 변경할 수 있지만 키를 이름으로 재생성하지 않음 |
 | `TEXT` | 가변 길이 입력. 길이·형식 제약은 해당 테이블의 CHECK와 API 검증을 함께 사용 |
 | `BIGINT` | 정원·수정 버전. API에는 정밀도 손실 없는 십진 문자열로 전달 |
@@ -21,6 +21,19 @@
 | 서버 시각 | 해당 업무가 실제 발생한 서버 시점. 요청자가 보낸 시각을 감사 기록으로 신뢰하지 않음 |
 
 `BIGINT`의 양수 표현 범위는 1~9,223,372,036,854,775,807입니다. 이는 저장 타입의 기술적 범위이며, “인원 제한 없음” 공고에 별도의 서비스 정원 상한을 정한 것이 아닙니다. API에서 정원과 버전은 이 범위를 검증하고, 표현 범위가 달라져야 하면 DB와 API 계약을 함께 변경합니다.
+
+<a id="primary-key-names"></a>
+
+## PK 컬럼 이름과 참조
+
+단일 PK는 단수형 테이블명에 `_id`를 붙입니다. 예를 들어 `accounts.account_id`, `auth_sessions.auth_session_id`, `team_memberships.team_membership_id`입니다. 이름을 자동으로 추측하는 ORM 규칙 대신 각 모델에 컬럼명을 명시합니다. PK의 타입·발급 방식과 [공유·복합 PK 선택 정책](decisions.md#primary-keys)은 이름 변경과 별개로 유지합니다.
+
+- 공유 PK도 자신의 테이블명을 사용합니다. `profiles.profile_id`는 PK이자 `accounts.account_id`를 참조하는 FK이고 두 값은 같습니다. `portfolio_links.portfolio_link_id`도 `profiles.profile_id`와 같은 값입니다. 컬럼명을 바꿔도 새 UUID를 따로 발급하거나 별도 소유자 컬럼을 추가하지 않습니다.
+- 복합 PK는 기존 구성 컬럼을 유지합니다. 예를 들어 `profile_interests(account_id, field_code)`에 `profile_interest_id`를 추가하지 않습니다.
+- FK의 로컬 컬럼은 `leader_account_id`, `recipient_account_id`, `parent_id`처럼 역할을 나타내는 기존 이름을 유지하고, 참조 대상은 변경된 PK 컬럼을 가리킵니다. 프로필 선택 목록의 `account_id`는 계정과 같은 값을 가진 `profiles.profile_id`를 참조합니다.
+- 공개 API의 `id`·`accountId`·`membershipId` 등은 현재 계약을 유지합니다. DB의 `account_id`를 계정 응답의 `id`로, `profile_id`를 프로필 응답의 `accountId`로 옮기는 작업은 DTO를 구성하는 경계에서 명시합니다. 일반적인 snake_case→camelCase 변환만으로 이 의미 매핑을 대신하지 않습니다.
+
+현재 도메인 테이블·migration은 구현 전이므로 설계·참조·ERD와 공통 코드의 사용법을 함께 맞춥니다. 향후 이미 생성된 테이블의 컬럼명을 바꿀 때는 FK·인덱스·쿼리와 데이터 보존 migration을 함께 검토합니다.
 
 ## 제약을 두는 위치
 

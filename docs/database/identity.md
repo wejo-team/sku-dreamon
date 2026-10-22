@@ -29,7 +29,7 @@ erDiagram
     profiles ||--o{ profile_skills : selects
     profiles ||--o| portfolio_links : registers
     accounts {
-        uuid id PK
+        uuid account_id PK
         varchar login_id_normalized UK
         text password_hash
         timestamptz credentials_updated_at
@@ -38,7 +38,7 @@ erDiagram
         timestamptz created_at
     }
     auth_sessions {
-        uuid id PK
+        uuid auth_session_id PK
         bytea token_hash UK
         uuid account_id FK
         timestamptz created_at
@@ -47,7 +47,7 @@ erDiagram
         timestamptz revoked_at
     }
     profiles {
-        uuid account_id PK,FK
+        uuid profile_id PK,FK
         bigint version
         text real_name
         boolean is_public
@@ -68,7 +68,7 @@ erDiagram
         varchar skill_code PK
     }
     portfolio_links {
-        uuid account_id PK,FK
+        uuid portfolio_link_id PK,FK
         text url
         text title
     }
@@ -84,11 +84,11 @@ erDiagram
 
 ### `accounts`
 
-현재 계정당 자체 로그인 정보 하나만 있으므로 서비스 활동의 주체와 로그인 정보를 한 행에 저장합니다. 지원·팀 소속·알림은 로그인 아이디 대신 불변 `id`를 참조하여 같은 계정의 활동으로 유지됩니다.
+현재 계정당 자체 로그인 정보 하나만 있으므로 서비스 활동의 주체와 로그인 정보를 한 행에 저장합니다. 지원·팀 소속·알림은 로그인 아이디 대신 불변 `account_id`를 참조하여 같은 계정의 활동으로 유지됩니다.
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·용도 |
 | --- | --- | --- | --- | --- |
-| `id` | `uuid` | 불가 | 없음 | PK. 애플리케이션이 발급하는 불변 계정 ID |
+| `account_id` | `uuid` | 불가 | 없음 | PK. 애플리케이션이 발급하는 불변 계정 ID |
 | `login_id_normalized` | `varchar(320)` | 불가 | 없음 | 정규화 완료 로그인 아이디. 유일. 향후 이메일 사용에 대비한 저장 폭 |
 | `password_hash` | `text` | 불가 | 없음 | 검증용 해시. 알고리즘·파라미터를 표현할 수 있는 인코딩 문자열 |
 | `credentials_updated_at` | `timestamptz` | 불가 | `now()` | 자체 인증 정보 변경 시각. 변경 시 애플리케이션이 갱신 |
@@ -98,7 +98,7 @@ erDiagram
 
 | 제약·인덱스 이름 | 정의와 목적 |
 | --- | --- |
-| `pk_accounts` | PK (`id`) |
+| `pk_accounts` | PK (`account_id`) |
 | `uq_accounts_login_id` | `login_id_normalized` 유일. B-tree 유일 인덱스로 로그인 조회도 수행 |
 | `ck_accounts_login_id` | ASCII 소문자·숫자만으로 구성된 4~24자. 대문자·공백을 정규화하는 작업은 저장 전에 수행 |
 | `ck_accounts_password_hash` | 해시 문자열은 빈 문자열이 아님. 원문 비밀번호 길이와 해시 길이를 혼동하지 않음 |
@@ -111,7 +111,7 @@ erDiagram
 - 탈퇴 효력·보존·복구를 정하는 [PROFILE-04](../specs/profile.md#open-questions)가 남아 있어 탈퇴 상태 컬럼·API는 별도 설계로 보류합니다. 현재 테이블에서 자동 소속 해제·물리 삭제·복구를 수행하지 않습니다.
 - 연락처는 현재 수집 범위가 아니므로 저장 컬럼을 추가하지 않습니다. 교내 미인증 표시는 [인증 명세](../specs/authentication.md#verification-meaning)의 현재 고정 응답으로 처리합니다.
 
-현재 MVP는 모든 계정이 자체 아이디·비밀번호로 가입하므로 `login_id_normalized`와 `password_hash`는 `NOT NULL`입니다. 향후 소셜 전용 가입을 도입하면 이 두 컬럼을 함께 비울 수 있도록 NULL 허용과 조합 제약을 검토하고, 소셜 연결 정보는 같은 `accounts.id`에 연결합니다. 소셜 전용 가입이나 이메일 로그인으로의 변경을 이번 통합에 포함하지 않습니다.
+현재 MVP는 모든 계정이 자체 아이디·비밀번호로 가입하므로 `login_id_normalized`와 `password_hash`는 `NOT NULL`입니다. 향후 소셜 전용 가입을 도입하면 이 두 컬럼을 함께 비울 수 있도록 NULL 허용과 조합 제약을 검토하고, 소셜 연결 정보는 같은 `accounts.account_id`에 연결합니다. 소셜 전용 가입이나 이메일 로그인으로의 변경을 이번 통합에 포함하지 않습니다.
 
 가입은 [가입 후 자동 로그인 정책](../specs/authentication.md#session-policy)에 따라 자체 로그인 정보를 포함한 `accounts`와 새 `auth_sessions`를 한 트랜잭션에서 생성하고, commit 성공 뒤 세션 쿠키를 발급합니다. 세션 저장을 포함한 어느 저장 단계라도 실패하면 전체를 rollback하여 계정·세션의 부분 가입 성공을 남기지 않습니다.
 
@@ -131,9 +131,9 @@ commit 뒤 응답 전달이 유실된 경우는 DB 저장 실패와 구분합니
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·용도 |
 | --- | --- | --- | --- | --- |
-| `id` | `uuid` | 불가 | 없음 | PK. 서버 내부 세션 식별자이며 인증 토큰으로 사용하지 않음 |
+| `auth_session_id` | `uuid` | 불가 | 없음 | PK. 서버 내부 세션 식별자이며 인증 토큰으로 사용하지 않음 |
 | `token_hash` | `bytea` | 불가 | 없음 | 원문 세션 토큰의 SHA-256 해시, 32바이트 |
-| `account_id` | `uuid` | 불가 | 없음 | FK → `accounts.id` |
+| `account_id` | `uuid` | 불가 | 없음 | FK → `accounts.account_id` |
 | `created_at` | `timestamptz` | 불가 | 없음 | 세션을 발급한 서버 시각 |
 | `last_seen_at` | `timestamptz` | 불가 | 없음 | 해당 세션의 유효성 확인을 통과한 최근 활동 시각. 생성 시 `created_at`과 같으며 유휴 24시간의 기준 |
 | `expires_at` | `timestamptz` | 불가 | 없음 | [세션 정책](../specs/authentication.md#session-policy)의 절대 만료 경계: `created_at`부터 UTC 기준 168시간(7일) 뒤. 해당 시각부터 무효이며 요청 사용으로 연장하지 않음 |
@@ -141,8 +141,8 @@ commit 뒤 응답 전달이 유실된 경우는 DB 저장 실패와 구분합니
 
 | 제약·인덱스 이름 | 정의와 목적 |
 | --- | --- |
-| `pk_auth_sessions` | PK (`id`) |
-| `fk_auth_sessions_account` | `account_id` → `accounts.id`, `ON DELETE RESTRICT`, `ON UPDATE RESTRICT` |
+| `pk_auth_sessions` | PK (`auth_session_id`) |
+| `fk_auth_sessions_account` | `account_id` → `accounts.account_id`, `ON DELETE RESTRICT`, `ON UPDATE RESTRICT` |
 | `uq_auth_sessions_token_hash` | UNIQUE (`token_hash`). 요청 토큰의 해시로 세션 조회 |
 | `ck_auth_sessions_token_hash` | `octet_length(token_hash) = 32` |
 | `ck_auth_sessions_times` | `last_seen_at >= created_at`, `expires_at > created_at`, `revoked_at IS NULL OR revoked_at >= created_at` |
@@ -174,9 +174,11 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 
 함께 공모전에 참여할 사람을 찾거나 지원자를 검토할 때 참고하는 계정의 현재 소개 정보입니다. 지원마다 사본을 만드는 대신 하나의 프로필을 참조하여 최신 정보를 확인합니다.
 
+`profile_id`는 `accounts.account_id`와 같은 UUID를 사용하는 공유 PK이자 FK입니다. 프로필을 만들 때 별도 ID를 발급하지 않으며 계정당 프로필 하나를 유지합니다.
+
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·용도 |
 | --- | --- | --- | --- | --- |
-| `account_id` | `uuid` | 불가 | 없음 | PK, FK → `accounts.id` |
+| `profile_id` | `uuid` | 불가 | 없음 | 공유 PK, FK → `accounts.account_id`. 계정 ID와 동일한 값 |
 | `version` | `bigint` | 불가 | `1` | 프로필 전체 변경 버전. 하위 선택·포트폴리오 변경도 포함 |
 | `real_name` | `text` | 불가 | 없음 | 등록 실명. 유일성 없음 |
 | `is_public` | `boolean` | 불가 | `false` | 프로필 전체 공개 상태 |
@@ -184,7 +186,7 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | `academic_status_code` | `varchar(64)` | 허용 | `NULL` | 학적 상태. `AcademicStatusCode` 검증 |
 | `grade_code` | `varchar(64)` | 허용 | `NULL` | 학년. `GradeCode` 검증 |
 | `weekly_availability_code` | `varchar(64)` | 허용 | `NULL` | 주당 참여 가능 시간. `WeeklyAvailabilityCode` 검증 |
-| `academic_unit_id` | `bigint` | 허용 | `NULL` | FK → `academic_units.id`. 가장 깊게 선택한 학사 항목 |
+| `academic_unit_id` | `bigint` | 허용 | `NULL` | FK → `academic_units.academic_unit_id`. 가장 깊게 선택한 학사 항목 |
 | `experience_state` | `varchar(16)` | 불가 | `unspecified` | `unspecified` / `none` / `provided` |
 | `experience_body` | `text` | 허용 | `NULL` | 현재 경험 본문 |
 | `introduction` | `text` | 허용 | `NULL` | 자기소개 |
@@ -195,12 +197,12 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 
 | 제약·인덱스 이름 | 정의와 목적 |
 | --- | --- |
-| `pk_profiles` | PK (`account_id`) |
+| `pk_profiles` | PK (`profile_id`) |
 | `ck_profiles_version` | `version >= 1` |
 | `ck_profiles_real_name` | `real_name`은 빈 문자열이 아님. 공백 정규화·글자 수 검증은 저장 계약 적용 |
 | `ck_profiles_experience` | `unspecified`·`none`이면 본문 `NULL`; `provided`이면 본문이 `NULL`도 빈 문자열도 아님. 다른 상태값 금지 |
 | `ix_profiles_academic_unit` | B-tree (`academic_unit_id`). 선택 항목 참조 확인·학사 조건 조회 |
-| `ix_profiles_public_updated` | B-tree (`updated_at DESC, account_id ASC`), 조건 `is_public=true`. 공개 사람 목록의 정렬·집계 후보 |
+| `ix_profiles_public_updated` | B-tree (`updated_at DESC, profile_id ASC`), 조건 `is_public=true`. 공개 사람 목록의 정렬·집계 후보 |
 
 가입 완료 시에는 자체 로그인 정보를 포함한 `accounts`와 로그인 세션이 생성되고 프로필은 없습니다. [가입 후 자동 로그인](../specs/authentication.md#session-policy) 상태에서 프로필 설정으로 이동합니다. 프로필 첫 저장은 `expectedVersion="0"`으로 필수 항목·연결 행을 함께 생성하고 `version=1`을 반환합니다. 이후 수정은 조회한 현재 버전을 전송하고, 성공할 때만 1 증가시킵니다. API의 `version`·`expectedVersion`은 JavaScript 정밀도 손실을 피하기 위한 십진 문자열이며 DB에는 `bigint`로 저장합니다. 미완성 편집 초안은 별도 `draft` 행으로 저장하지 않습니다.
 
@@ -212,15 +214,15 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 - `profile_desired_roles`: 팀에서 맡고 싶은 역할로, 함께할 사람을 찾을 때 참고하는 참여 의향입니다.
 - `profile_skills`: 사용자가 등록한 보유 역량으로, 함께할 사람이나 지원자를 판단할 때 참고합니다.
 
-세 테이블은 다음 두 컬럼으로 각각 구성됩니다. FK는 모두 `ON DELETE RESTRICT`입니다.
+세 테이블은 다음 두 컬럼으로 각각 구성됩니다. 복합 PK의 `account_id` 이름과 선택 코드 조합은 유지합니다. 이 `account_id`는 계정 ID와 같은 값을 가진 `profiles.profile_id`를 참조합니다. FK는 모두 `ON DELETE RESTRICT`입니다.
 
 | 테이블 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·참조 |
 | --- | --- | --- | --- | --- | --- |
-| `profile_interests` | `account_id` | `uuid` | 불가 | 없음 | 복합 PK, FK → `profiles.account_id` |
+| `profile_interests` | `account_id` | `uuid` | 불가 | 없음 | 복합 PK, FK → `profiles.profile_id` |
 | `profile_interests` | `field_code` | `varchar(64)` | 불가 | 없음 | 복합 PK. `FieldCode` 검증 |
-| `profile_desired_roles` | `account_id` | `uuid` | 불가 | 없음 | 복합 PK, FK → `profiles.account_id` |
+| `profile_desired_roles` | `account_id` | `uuid` | 불가 | 없음 | 복합 PK, FK → `profiles.profile_id` |
 | `profile_desired_roles` | `role_code` | `varchar(64)` | 불가 | 없음 | 복합 PK. `RoleCode` 검증 |
-| `profile_skills` | `account_id` | `uuid` | 불가 | 없음 | 복합 PK, FK → `profiles.account_id` |
+| `profile_skills` | `account_id` | `uuid` | 불가 | 없음 | 복합 PK, FK → `profiles.profile_id` |
 | `profile_skills` | `skill_code` | `varchar(64)` | 불가 | 없음 | 복합 PK. `SkillCode` 검증 |
 
 | 테이블 | PK·FK 이름 | 추가 인덱스 |
@@ -235,13 +237,15 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 
 프로필 소개를 뒷받침하는 작업물·경험을 외부 링크로 보여 주기 위한 정보입니다. 포트폴리오를 등록한 프로필에만 연결 행을 둡니다.
 
+`portfolio_link_id`는 `profiles.profile_id`와 같은 UUID를 사용하는 공유 PK이자 FK입니다. 별도 ID를 발급하지 않으므로 계정·프로필·포트폴리오 링크의 PK 값은 같습니다.
+
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·용도 |
 | --- | --- | --- | --- | --- |
-| `account_id` | `uuid` | 불가 | 없음 | PK, FK → `profiles.account_id` |
+| `portfolio_link_id` | `uuid` | 불가 | 없음 | 공유 PK, FK → `profiles.profile_id`. 프로필 ID와 동일한 값 |
 | `url` | `text` | 불가 | 없음 | 유효한 HTTP(S) URL |
 | `title` | `text` | 허용 | `NULL` | 선택 제목 |
 
-- PK: `pk_portfolio_links(account_id)`로 프로필당 최대 1개를 보장합니다.
+- PK: `pk_portfolio_links(portfolio_link_id)`로 프로필당 최대 1개를 보장합니다.
 - FK: `fk_portfolio_links_profile`, `ON DELETE RESTRICT`.
 - CHECK: `ck_portfolio_links_url`은 URL이 빈 문자열이 아님을 검사합니다. URL 파싱·HTTP(S) 스킴 검증은 저장 전에 수행합니다.
 - 링크 제거는 행을 삭제하는 갱신입니다. 제목만 남는 고아 상태와 별도의 공개 플래그가 없습니다. 프로필과 같은 트랜잭션에서 저장하며 `profiles.version`과 `updated_at`을 갱신합니다.

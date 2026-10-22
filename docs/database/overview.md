@@ -36,22 +36,22 @@ erDiagram
     accounts ||--o{ notifications : recipient
 
     accounts {
-        uuid id PK
+        uuid account_id PK
         varchar login_id_normalized UK
     }
     auth_sessions {
-        uuid id PK
+        uuid auth_session_id PK
         uuid account_id FK
         bytea token_hash UK
     }
     academic_units {
-        bigint id PK
+        bigint academic_unit_id PK
         varchar name
         bigint parent_id FK
         boolean is_selectable
     }
     profiles {
-        uuid account_id PK,FK
+        uuid profile_id PK,FK
         bigint academic_unit_id FK
     }
     profile_interests {
@@ -67,11 +67,11 @@ erDiagram
         varchar skill_code PK
     }
     portfolio_links {
-        uuid account_id PK,FK
+        uuid portfolio_link_id PK,FK
         text url
     }
     contests {
-        uuid id PK
+        uuid contest_id PK
         text title
     }
     contest_audiences {
@@ -83,7 +83,7 @@ erDiagram
         varchar field_code PK
     }
     teams {
-        uuid id PK
+        uuid team_id PK
         uuid contest_id FK
         uuid leader_account_id FK
     }
@@ -92,20 +92,20 @@ erDiagram
         varchar role_code PK
     }
     applications {
-        uuid id PK
+        uuid application_id PK
         uuid team_id FK
         uuid contest_id FK
         uuid applicant_account_id FK
     }
     team_memberships {
-        uuid id PK
+        uuid team_membership_id PK
         uuid team_id FK
         uuid contest_id FK
         uuid account_id FK
         uuid source_application_id FK
     }
     application_events {
-        uuid id PK
+        uuid application_event_id PK
         uuid application_id FK
         uuid team_id FK
         uuid contest_id FK
@@ -115,7 +115,7 @@ erDiagram
         uuid cause_membership_id FK
     }
     notifications {
-        uuid id PK
+        uuid notification_id PK
         uuid event_id FK
         uuid recipient_account_id FK
     }
