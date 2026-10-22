@@ -1,49 +1,66 @@
 /**
  * [참조 출처]
- * 1. docs/design/tokens.md - 입력 및 선택 컨트롤 스타일 규격
- * 2. docs/design/screens.md - 학사 전공 종속 선택 및 정렬 셀렉트 명세
- * 3. docs/development/frontend.md - 모바일 OS 기본 피커를 활용한 네이티브 드롭다운 권장
- * 4. design-reference/src/components/ui/native-select.tsx - NativeSelect 컴포넌트 원본
+ * 1. design-reference/src/components/ui/native-select.tsx - shadcn/ui 원본
+ * 2. docs/design/tokens.md - 「shadcn/ui 사용 맵」 정렬·학사 선택
+ * 3. docs/development/frontend.md - 「모바일 UI」 필요한 shadcn/ui만 추가, 44px 조작 영역
  */
 
 import type { ComponentProps } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDownIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// [출처 3, 4] 모바일 친화적 OS 네이티브 휠 피커와 결합된 NativeSelect 컴포넌트
-export function NativeSelect({
+// [출처 1, 2] 정렬·학사 선택
+function NativeSelect({
   className,
-  children,
+  size = 'default',
   ...props
-}: ComponentProps<'select'>) {
+}: Omit<ComponentProps<'select'>, 'size'> & { size?: 'sm' | 'default' }) {
   return (
-    <div className="relative w-full">
+    <div
+      className="group/native-select relative w-fit has-[select:disabled]:opacity-50"
+      data-slot="native-select-wrapper"
+    >
       <select
         data-slot="native-select"
+        data-size={size}
         className={cn(
-          'flex h-11 w-full appearance-none rounded-control border border-input bg-card px-3 py-2 pr-9 text-base shadow-xs transition-colors outline-none',
-          'focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40',
-          'disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive',
+          'h-11 w-full min-w-0 appearance-none rounded-control border border-input bg-transparent px-3 py-2 pr-9 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed data-[size=sm]:h-9 data-[size=sm]:py-1 dark:bg-input/30 dark:hover:bg-input/50',
+          'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          'aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
           className,
         )}
         {...props}
-      >
-        {children}
-      </select>
-      <ChevronDown
-        size={18}
-        className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground"
+      />
+      <ChevronDownIcon
+        className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted-foreground opacity-50 select-none"
         aria-hidden="true"
+        data-slot="native-select-icon"
       />
     </div>
   );
 }
 
-export function NativeSelectOption({
-  className,
-  ...props
-}: ComponentProps<'option'>) {
+function NativeSelectOption({ className, ...props }: ComponentProps<'option'>) {
   return (
-    <option className={cn('bg-card text-foreground', className)} {...props} />
+    <option
+      data-slot="native-select-option"
+      className={cn('bg-[Canvas] text-[CanvasText]', className)}
+      {...props}
+    />
   );
 }
+
+function NativeSelectOptGroup({
+  className,
+  ...props
+}: ComponentProps<'optgroup'>) {
+  return (
+    <optgroup
+      data-slot="native-select-optgroup"
+      className={cn('bg-[Canvas] text-[CanvasText]', className)}
+      {...props}
+    />
+  );
+}
+
+export { NativeSelect, NativeSelectOptGroup, NativeSelectOption };

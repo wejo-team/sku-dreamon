@@ -1,36 +1,32 @@
 /**
  * [참조 출처]
- * 1. docs/design/tokens.md - 안내 및 경고 박스 스타일 (--destructive, --muted, --leaf-soft)
- * 2. docs/design/verification.md - 알림 및 피드백 메시지 명확성 규칙
- * 3. docs/development/frontend.md - 성공/오류/주의 상태의 명확한 전달
- * 4. design-reference/src/components/ui/alert.tsx - shadcn Alert 컴포넌트 원본
+ * 1. design-reference/src/components/ui/alert.tsx - shadcn/ui 원본
+ * 2. docs/design/tokens.md - 「shadcn/ui 사용 맵」 오류·주의 안내
+ * 3. docs/development/frontend.md - 「모바일 UI」 필요한 shadcn/ui만 추가, 44px 조작 영역
  */
 
 import type { ComponentProps } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
-// [출처 1, 4] cva 기반 Alert 변형 정의
 const alertVariants = cva(
-  'relative flex w-full gap-3 rounded-panel border p-4 text-sm [&>svg]:size-5 [&>svg]:shrink-0',
+  'relative grid w-full grid-cols-[0_1fr] items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current',
   {
     variants: {
       variant: {
-        default: 'bg-card text-card-foreground border-border',
+        default: 'bg-card text-card-foreground',
         destructive:
-          'bg-coral-soft text-destructive border-destructive/20 [&>svg]:text-destructive',
-        info: 'bg-muted text-foreground border-border',
+          'bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 [&>svg]:text-current',
       },
     },
-    defaultVariants: {
-      variant: 'default',
-    },
+    defaultVariants: { variant: 'default' },
   },
 );
 
-export function Alert({
+// [출처 1, 2] 오류·주의 안내
+function Alert({
   className,
-  variant = 'default',
+  variant,
   ...props
 }: ComponentProps<'div'> & VariantProps<typeof alertVariants>) {
   return (
@@ -43,25 +39,30 @@ export function Alert({
   );
 }
 
-export function AlertTitle({ className, ...props }: ComponentProps<'div'>) {
+function AlertTitle({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
       data-slot="alert-title"
-      className={cn('font-semibold leading-tight tracking-tight', className)}
+      className={cn(
+        'col-start-2 min-h-4 font-medium tracking-tight',
+        className,
+      )}
       {...props}
     />
   );
 }
 
-export function AlertDescription({
-  className,
-  ...props
-}: ComponentProps<'div'>) {
+function AlertDescription({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
       data-slot="alert-description"
-      className={cn('text-sm leading-relaxed [&_p]:leading-relaxed', className)}
+      className={cn(
+        'col-start-2 grid justify-items-start gap-1 text-sm text-muted-foreground [&_p]:leading-relaxed',
+        className,
+      )}
       {...props}
     />
   );
 }
+
+export { Alert, AlertTitle, AlertDescription };

@@ -1,0 +1,131 @@
+/**
+ * [참조 출처]
+ * 1. design-reference/src/features/design-preview/ProfileDetails.tsx - 프로필 등록 항목 원본
+ * 2. docs/design/screens.md - 공개 사람 상세·본인 미리보기·지원자 상세가 같은 정보 계층 사용
+ * 3. docs/design/tokens.md - 키 13px·보조색, 값 16px·600 녹색, 긴 문단 16px·1.7
+ * 4. docs/specs/profile.md#fields - 학사·관심·역량·경험·자기소개·주당 시간·포트폴리오
+ */
+
+import { ExternalLink } from 'lucide-react';
+import type { Person } from '@/features/demo/data';
+import { Badge } from '@/components/common/CommonUi';
+
+function portfolioUrl(value?: string) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+// [출처 2, 3, 4] 등록 항목만 표시하고 인증 정보·미수집 연락처는 추가하지 않음
+export function ProfileDetails({
+  profile,
+}: {
+  profile: Omit<Person, 'id' | 'name'>;
+}) {
+  const academics = [
+    ['학적 상태', profile.academicStatus],
+    ['학년', profile.grade],
+    ['단과대학', profile.college],
+    ['학과', profile.department],
+    ['전공', profile.major],
+  ].filter(([, value]) => value);
+  const portfolio = portfolioUrl(profile.portfolio);
+  const experience =
+    profile.experienceState === 'none' ? '관련 경험 없음' : profile.experience;
+
+  return (
+    <dl className="preview-profile-facts">
+      <div>
+        <dt>희망 역할</dt>
+        <dd className="preview-row">
+          {profile.roles.map((role) => (
+            <Badge key={role}>{role}</Badge>
+          ))}
+        </dd>
+      </div>
+      {academics.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd className="preview-info-value">{value}</dd>
+        </div>
+      ))}
+      {profile.skills !== undefined && (
+        <div>
+          <dt>보유 역량</dt>
+          <dd>
+            {profile.skills.length ? (
+              <div className="preview-row">
+                {profile.skills.map((skill) => (
+                  <Badge key={skill}>{skill}</Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="preview-muted">아직 입력하지 않았어요.</p>
+            )}
+          </dd>
+        </div>
+      )}
+      {profile.interests !== undefined && (
+        <div>
+          <dt>관심 분야</dt>
+          <dd>
+            <div className="preview-row">
+              {profile.interests.map((interest) => (
+                <Badge key={interest}>{interest}</Badge>
+              ))}
+            </div>
+          </dd>
+        </div>
+      )}
+      {experience !== undefined && (
+        <div>
+          <dt>경험</dt>
+          <dd className="preview-info-copy">
+            {experience || '아직 입력하지 않았어요.'}
+          </dd>
+        </div>
+      )}
+      {profile.intro !== undefined && (
+        <div>
+          <dt>자기소개</dt>
+          <dd className="preview-info-copy">
+            {profile.intro || '아직 입력하지 않았어요.'}
+          </dd>
+        </div>
+      )}
+      {profile.availability !== undefined && (
+        <div>
+          <dt>주당 참여 가능 시간</dt>
+          <dd className="preview-info-copy">
+            {profile.availability || '미입력'}
+            <p className="preview-muted">
+              모든 참여 프로젝트를 합산한 예상 시간으로, 팀별 약속이나 남은
+              시간이 아니에요.
+            </p>
+          </dd>
+        </div>
+      )}
+      {portfolio && (
+        <div>
+          <dt>포트폴리오</dt>
+          <dd>
+            <a
+              className="preview-text-link"
+              href={portfolio}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {profile.portfolioTitle || '포트폴리오 열기'}
+              <ExternalLink size={16} aria-hidden="true" />
+              <span className="sr-only"> (새 창)</span>
+            </a>
+          </dd>
+        </div>
+      )}
+    </dl>
+  );
+}

@@ -1,31 +1,28 @@
 /**
  * [참조 출처]
- * 1. docs/design/tokens.md - 입력 컨트롤 테두리(--border, --input) 및 포커스 링(--ring) 토큰
- * 2. docs/design/verification.md - 터치 영역 최소 44px 및 모바일 키보드 대응
- * 3. docs/development/frontend.md - 모바일 접근성 및 라벨/포커스 이동 보장
- * 4. design-reference/src/components/ui/input.tsx - shadcn Input 베이스 컴포넌트
+ * 1. design-reference/src/components/ui/input.tsx - shadcn/ui 원본
+ * 2. docs/design/tokens.md - 「shadcn/ui 사용 맵」 입력
+ * 3. docs/development/frontend.md - 「모바일 UI」 필요한 shadcn/ui만 추가, 44px 조작 영역
  */
 
 import type { ComponentProps } from 'react';
 import { cn } from '@/lib/utils';
 
-// [출처 2, 4] 모바일 최소 터치 및 조작 영역(h-11, 44px)을 확보한 Input 컴포넌트
-export function Input({
-  className,
-  type = 'text',
-  ...props
-}: ComponentProps<'input'>) {
+// [출처 1, 2] 입력
+function Input({ className, type, ...props }: ComponentProps<'input'>) {
   return (
     <input
       type={type}
       data-slot="input"
       className={cn(
-        'flex h-11 w-full min-w-0 rounded-control border border-input bg-card px-3 py-2 text-base shadow-xs transition-colors outline-none',
-        'placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40',
-        'disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive',
+        'h-11 w-full min-w-0 rounded-control border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30',
+        'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+        'aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
         className,
       )}
       {...props}
     />
   );
 }
+
+export { Input };

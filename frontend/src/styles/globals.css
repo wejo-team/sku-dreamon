@@ -1,10 +1,12 @@
 /**
  * [참조 출처]
- * 1. docs/design/tokens.md - 서경드림온 모바일 공식 디자인 토큰 (표면, 에메랄드 강조색, 상태 배지, 그림자)
- * 2. docs/design/verification.md - UI/UX 확인 (회색 배경, 흰 카드, 명도 대비 5:1 이상, 터치 영역 44px)
- * 3. docs/development/frontend.md - 모바일 우선 유동 너비 및 공통 디자인 시스템 토큰 적용
- * 4. design-reference/src/features/design-preview/preview-tokens.css - CSS 커스텀 속성 및 그림자 정의
+ * 1. docs/design/tokens.md - 서경드림온 모바일 공식 디자인 토큰 (표면, 에메랄드 강조색, 상태 배지, 그림자, 반경, 간격)
+ * 2. docs/design/verification.md - UI/UX 확인 (회색 배경, 흰 카드, 명도 대비, 터치 영역 44px)
+ * 3. docs/development/frontend.md - 「모바일 UI」 반복 디자인은 공통 토큰 사용, 페이지별 임의 테마 금지
+ * 4. design-reference/src/features/design-preview/preview-tokens.css - 공식 화면 토큰 원본(이 파일로 병합)
  * 5. design-reference/src/styles/globals.css - Tailwind CSS v4 @theme inline 테마 매핑 규격
+ *
+ * 화면 스타일(styles/design-preview.css 등)은 이 파일의 토큰만 소비합니다. 토큰을 다른 CSS에서 다시 선언하지 않습니다.
  */
 
 @import 'tailwindcss';
@@ -19,18 +21,20 @@
 
 :root {
   color-scheme: light;
-  /* [출처 1, 4] 기본 캔버스 및 서경대 에메랄드 그린 컬러 팔레트 */
-  --background: #f1f1f3;
+  /* [출처 1, 4] 입력·상단·팝업·폼의 기본 면은 흰색, 스크롤 화면의 바탕은 회색 캔버스 */
+  --background: #ffffff;
   --foreground: #18352b;
   --surface-canvas: #f1f1f3;
   --surface-card: #ffffff;
   --surface-card-hover: #bdd9c7;
   --surface-card-pressed: #b2d0bd;
   --surface-sunken: #dfeae3;
+  --surface-control: var(--card);
+  --surface-chrome: var(--card);
 
   /* [출처 1, 2] 카드 컴포넌트 표면 및 텍스트 대비 */
   --card: #ffffff;
-  --card-foreground: #18352b;
+  --card-foreground: var(--foreground);
   --card-muted-foreground: #40594a;
 
   /* [출처 1] 주요 행동(Primary) 및 호버 상태 */
@@ -50,13 +54,11 @@
   --border: #d5e2da;
   --input: #71897c;
   --ring: #007a55;
-  --radius: 0.75rem;
-
-  /* [출처 3] 하단 주 메뉴 전체 높이: 기본 64px + 하단 safe-area (index.html viewport-fit=cover) */
-  --bottom-nav-height: calc(4rem + env(safe-area-inset-bottom));
+  /* [출처 1, 4] 반경: rounded-md = 컨트롤·버튼 8px, 카드·패널 12px */
+  --radius: 0.625rem;
 
   /* [출처 1] 상태별 시맨틱 컬러 토큰 */
-  --destructive: #b91c1c;
+  --destructive: var(--coral-ink);
   --recruiting-background: #cce9d7;
   --recruiting-foreground: #164c35;
   --closed-background: #e4e4e7;
@@ -70,13 +72,31 @@
   --ai-soft: #f0edf8;
   --ai-ink: #453587;
 
-  /* [출처 1, 4] 그림자 오프셋 */
+  /* [출처 1, 4] 카드 두 겹 그림자, hover 시 상승, 작은 패널·떠 있는 요소 그림자 */
   --card-shadow:
-    0 3px 5px -2px rgba(24, 53, 43, 0.18),
-    0 12px 24px -10px rgba(24, 53, 43, 0.3);
+    0 3px 5px -2px color-mix(in srgb, var(--foreground) 18%, transparent),
+    0 12px 24px -10px color-mix(in srgb, var(--foreground) 30%, transparent);
+  --card-hover-shadow:
+    0 4px 7px -2px color-mix(in srgb, var(--foreground) 18%, transparent),
+    0 16px 28px -10px color-mix(in srgb, var(--foreground) 32%, transparent);
   --panel-shadow:
-    0 2px 4px -2px rgba(24, 53, 43, 0.16),
-    0 7px 16px -7px rgba(24, 53, 43, 0.24);
+    0 2px 4px -2px color-mix(in srgb, var(--foreground) 16%, transparent),
+    0 7px 16px -7px color-mix(in srgb, var(--foreground) 24%, transparent);
+  --raised-shadow: 0 6px 18px
+    color-mix(in srgb, var(--foreground) 8%, transparent);
+  --action-shadow: none;
+  --overlay: color-mix(in srgb, var(--foreground) 40%, transparent);
+
+  /* [출처 1, 4] 글꼴·반경·간격: 좌우 여백·섹션 간격 20px, 페이지 제목 26px */
+  --display-font: 'DreamOn Noto', 'Noto Sans KR', sans-serif;
+  --preview-radius-control: 8px;
+  --preview-radius-button: 8px;
+  --preview-radius-card: 12px;
+  --preview-radius-panel: 12px;
+  --preview-page-gutter: 20px;
+  --preview-section-gap: 20px;
+  --preview-card-padding: 20px;
+  --preview-title-size: 26px;
 
   font-family:
     'DreamOn Noto',
@@ -155,15 +175,9 @@
   }
 }
 
-/* [출처 1, 3] 모바일 뷰포트 컨테이너 (최대 480px 중앙 정렬) */
-.dreamon-viewport {
-  width: 100%;
-  max-width: 480px;
-  min-height: 100svh;
-  margin-left: auto;
-  margin-right: auto;
-  background-color: var(--surface-canvas);
-  position: relative;
-  display: flex;
-  flex-direction: column;
+/* [출처 1, 4] 모바일 폭(700px 미만 컨테이너)에서는 카드 내부 여백 16px */
+@container dreamon (max-width: 699px) {
+  .dreamon-preview {
+    --preview-card-padding: 16px;
+  }
 }

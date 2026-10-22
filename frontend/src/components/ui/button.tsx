@@ -1,3 +1,10 @@
+/**
+ * [참조 출처]
+ * 1. design-reference/src/components/ui/button.tsx - shadcn/ui 원본
+ * 2. docs/design/tokens.md - 「shadcn/ui 사용 맵」 주요·보조 행동
+ * 3. docs/development/frontend.md - 「모바일 UI」 필요한 shadcn/ui만 추가, 44px 조작 영역
+ */
+
 import type { ComponentProps } from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -25,6 +32,7 @@ const buttonVariants = cva(
   },
 );
 
+// [출처 1, 2] 주요·보조 행동
 function Button({
   className,
   variant,
@@ -38,6 +46,7 @@ function Button({
   return (
     <Comp
       data-slot="button"
+      data-variant={variant ?? 'default'}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

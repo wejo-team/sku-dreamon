@@ -1,33 +1,103 @@
+/**
+ * [참조 출처]
+ * 1. design-reference/src/pages/DesignPreviewPage.tsx - 화면 경로와 공통 Provider·Shell 연결 원본
+ * 2. docs/design/screens.md - 「화면별 참조」 15개 화면 경로
+ * 3. docs/design/handoff.md - /design-preview 접두사는 개발용 식별자, 메모리 상태는 서버 계약이 아님
+ * 4. docs/development/frontend.md - 「화면과 상태」 라우트 화면은 pages/, 서버 데이터는 TanStack Query
+ */
+
 import { QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Route, Routes } from 'react-router';
+import { BrowserRouter, Outlet, Route, Routes } from 'react-router';
 import { AppShell } from '@/components/layout/AppShell';
+import {
+  LoginPage,
+  ProfilePage,
+  PublicProfilePage,
+  SignupPage,
+} from '@/features/account/AccountPages';
+import { AiChatPage, AiChatProvider } from '@/features/ai/AiChatPage';
+import { DemoProvider } from '@/features/demo/DemoProvider';
+import {
+  ContestPage,
+  ExplorePage,
+  PersonPage,
+} from '@/features/explore/ExplorePages';
+import { ApplicantReviewProvider } from '@/features/teams/ApplicantReviewProvider';
+import { CreateTeamPage } from '@/features/teams/CreateTeamPage';
+import {
+  ApplicantPage,
+  TeamPage,
+  WorkspacePage,
+} from '@/features/workspace/WorkspacePages';
 import { queryClient } from '@/lib/query-client';
 import { HealthPage } from '@/pages/HealthPage';
+import { LoadingPage } from '@/pages/LoadingPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import {
+  ReferenceNoticePage,
+  ReferencePortfolioPage,
+} from '@/pages/ReferencePages';
 
-// 페이지 구현 전 단계: 공통 AppShell 안에서 health 확인 화면과 404만 등록되어 있습니다.
-// 하단 탭·로고의 목적지(/explore, /ai, /workspace, /profile)는 각 페이지 작업에서 라우트를 추가합니다.
+// [출처 1, 3] 화면 확인용 메모리 상태(로그인·프로필·팀·지원)와 AI 대화·지원자 검토 상태를 공유합니다.
+// API 연동 시 각 기능의 TanStack Query로 교체하며 이 Provider를 서버 계약으로 사용하지 않습니다(출처 4).
+function DemoLayout() {
+  return (
+    <div className="dreamon-mobile-viewport">
+      <DemoProvider>
+        <AiChatProvider>
+          <ApplicantReviewProvider>
+            <Outlet />
+          </ApplicantReviewProvider>
+        </AiChatProvider>
+      </DemoProvider>
+    </div>
+  );
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route
-            path="/"
-            element={
-              <AppShell>
-                <HealthPage />
-              </AppShell>
-            }
-          />
-          <Route
-            path="*"
-            element={
-              <AppShell>
-                <NotFoundPage />
-              </AppShell>
-            }
-          />
+          {/* 백엔드 연결 확인 화면은 서비스 Shell 밖에 둡니다. */}
+          <Route path="/health" element={<HealthPage />} />
+          <Route element={<DemoLayout />}>
+            {/* [출처 2] 시작 안내 */}
+            <Route index element={<LoadingPage />} />
+            <Route path="loading" element={<LoadingPage />} />
+            <Route element={<AppShell />}>
+              {/* [출처 1] 실제 기관·개인 사이트를 대신하는 로컬 링크 목적지 */}
+              <Route
+                path="reference/notices/:contestId"
+                element={<ReferenceNoticePage />}
+              />
+              <Route
+                path="reference/portfolios/:personId"
+                element={<ReferencePortfolioPage />}
+              />
+              {/* [출처 2] 탐색·상세 */}
+              <Route path="explore" element={<ExplorePage />} />
+              <Route path="contests/:contestId" element={<ContestPage />} />
+              <Route path="people/:personId" element={<PersonPage />} />
+              {/* [출처 2] AI */}
+              <Route path="ai" element={<AiChatPage />} />
+              {/* [출처 2] 워크스페이스·팀·지원자 */}
+              <Route path="workspace" element={<WorkspacePage />} />
+              <Route path="teams/new" element={<CreateTeamPage />} />
+              <Route path="teams/:teamId" element={<TeamPage />} />
+              <Route
+                path="applicants/:applicantId"
+                element={<ApplicantPage />}
+              />
+              {/* [출처 2] 계정·프로필 */}
+              <Route path="profile" element={<ProfilePage />} />
+              <Route path="profile/public" element={<PublicProfilePage />} />
+              <Route path="login" element={<LoginPage />} />
+              <Route path="signup" element={<SignupPage />} />
+              {/* [출처 1, 2] 정의되지 않은 경로 */}
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Route>
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

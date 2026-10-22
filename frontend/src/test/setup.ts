@@ -8,6 +8,8 @@ beforeEach(() => {
   Element.prototype.setPointerCapture ??= () => {};
   Element.prototype.releasePointerCapture ??= () => {};
   Element.prototype.hasPointerCapture ??= () => false;
+  // cmdk scrolls the highlighted result; jsdom has no rendered scroll surface.
+  Element.prototype.scrollIntoView ??= () => {};
   vi.stubGlobal(
     'ResizeObserver',
     class {

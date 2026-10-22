@@ -1,19 +1,23 @@
 /**
  * [참조 출처]
- * 1. docs/design/screens.md - 상단 알림함: 열기만으로 읽음 처리하지 않음, 뒤로 가기·닫기는 알림함만 닫기
- * 2. docs/specs/notifications.md - 알림 읽음·모두 읽음·관련 화면 이동 완료 조건
- * 3. design-reference/src/features/design-preview/Notifications.tsx - history 기반 열림 상태 원본
- * 4. docs/design/verification.md - 텍스트 명도 대비 기준
- *
- * [PR #120 리뷰 반영]
- * - AppShell이 화면 배치와 알림 상태·처리를 함께 맡던 구조를 이 컴포넌트 한 단위로 분리했습니다.
- * - 열림 상태를 컴포넌트 state가 아닌 history 항목(location.state)에 두어, 브라우저 뒤로 가기가
- *   경로를 바꾸지 않고 알림함만 닫도록 했습니다(출처 1, 3).
+ * 1. design-reference/src/features/design-preview/Notifications.tsx - 상단 알림함 원본
+ * 2. docs/specs/notifications.md - 읽음·모두 읽음·관련 화면 이동, 실패 시 읽음·개수 유지 후 재시도
+ * 3. docs/design/screens.md - 「확인할 상태와 연결」 열기만으로 읽음 처리하지 않음, 뒤로 가기·닫기는 알림함만 닫기
+ * 4. docs/design/tokens.md - 상단 우측 알림과 하단 프로필의 역할 구분
  */
 
-import { useState } from 'react';
-import { Bell, CheckCheck, ChevronRight, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import {
+  Bell,
+  CheckCheck,
+  ChevronRight,
+  ClipboardCheck,
+  RotateCcw,
+  UserRoundPlus,
+  X,
+} from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   Drawer,
@@ -24,25 +28,62 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import {
-  initialNotifications,
-  type NotificationItem,
-} from './mock-notifications';
+import { type ApplicationStatus } from '@/features/demo/data';
+import { isNotificationRecipient } from '@/features/demo/notification-state';
+import { useDemo } from '@/features/demo/demo-context';
 
-export function NotificationInbox() {
+type Notification = {
+  id: string;
+  title: string;
+  description: string;
+  to: string;
+  kind: 'applicant' | 'application';
+  read: boolean;
+};
+
+const icons = {
+  applicant: UserRoundPlus,
+  application: ClipboardCheck,
+};
+const applicationTitles: Record<ApplicationStatus, string> = {
+  지원취소: '지원이 취소됐어요',
+  지원완료: '지원이 접수됐어요',
+  검토중: '팀에서 지원서를 검토하고 있어요',
+  선발: '지원한 팀에서 선발됐어요',
+  미선발: '이번 모집에서는 선발되지 않았어요',
+  폐기: '다른 팀 선발로 대기 지원이 폐기됐어요',
+};
+
+// [출처 2, 3, 4] 로그인 여부별 알림함, history로 열림 상태 관리
+export function Notifications() {
+  const { signedIn } = useDemo();
+  return <NotificationInbox key={signedIn ? 'member' : 'guest'} />;
+}
+
+function NotificationInbox() {
+  const {
+    signedIn,
+    teams,
+    notifications: history,
+    markNotificationsRead,
+  } = useDemo();
   const location = useLocation();
   const navigate = useNavigate();
-  const [notifications, setNotifications] =
-    useState<NotificationItem[]>(initialNotifications);
-
-  // [출처 1, 3] 열기는 같은 경로에 알림함 표시 history를 추가하고, 닫기는 그 항목을 되돌립니다.
-  // 새로고침으로 첫 history 항목에서 열린 경우에는 뒤로 가지 않고 표시만 제거해 페이지를 벗어나지 않습니다.
+  const failedOnce = useRef(false);
+  const [failedRead, setFailedRead] = useState<{
+    ids: string[];
+    to?: string;
+  } | null>(null);
   const open = location.state?.notificationInbox === true;
+  // [출처 3] 열기는 같은 경로에 알림함 history를 추가하고, 닫기·뒤로 가기는 그 항목만 되돌립니다.
+  // 새로고침으로 첫 history 항목에서 열린 경우에는 페이지를 벗어나지 않도록 표시만 지웁니다.
   const setOpen = (next: boolean) => {
     if (next === open) return;
     const path = `${location.pathname}${location.search}`;
     if (next) {
-      navigate(path, { state: { ...location.state, notificationInbox: true } });
+      navigate(path, {
+        state: { ...location.state, notificationInbox: true },
+      });
     } else if ((window.history.state?.idx ?? 1) > 0) {
       navigate(-1);
     } else {
@@ -52,115 +93,226 @@ export function NotificationInbox() {
       });
     }
   };
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const notifications: Notification[] = signedIn
+    ? history
+        .filter((item) => isNotificationRecipient(item, teams))
+        .reverse()
+        .map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          title:
+            item.kind === 'application'
+              ? applicationTitles[item.status]
+              : `${item.applicantName} 님이 지원했어요`,
+          description: `${item.teamName} · ${item.role} 지원`,
+          to:
+            item.kind === 'application'
+              ? '/workspace?view=applications'
+              : `/applicants/${item.applicationId}`,
+          read: item.read,
+        }))
+    : [];
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const markRead = (ids?: string[]) => {
-    setNotifications((prev) =>
-      prev.map((n) => (!ids || ids.includes(n.id) ? { ...n, read: true } : n)),
-    );
+  const unread = notifications.filter((item) => !item.read);
+  const visible = filter === 'unread' ? unread : notifications;
+  const markRead = (ids: string[], to?: string) => {
+    // A single failed write makes the recovery state reproducible in this reference.
+    if (
+      ids.some((id) => unread.some((item) => item.id === id)) &&
+      new URLSearchParams(location.search).get('scenario') ===
+        'notification-error' &&
+      !failedOnce.current
+    ) {
+      failedOnce.current = true;
+      setFailedRead({ ids, to });
+      return false;
+    }
+    markNotificationsRead(ids);
+    setFailedRead(null);
+    return true;
   };
+  const retryRead = () => {
+    if (!failedRead || !markRead(failedRead.ids, failedRead.to)) return;
+    if (failedRead.to) {
+      navigate(failedRead.to, { replace: true });
+    }
+  };
+  const returnTo = `${location.pathname}${location.search}`;
 
   return (
     <Drawer open={open} onOpenChange={setOpen}>
-      {/* [출처 1] 상단 우측 알림 버튼 (최소 44px 터치 타깃). 닫히면 포커스가 이 버튼으로 돌아옵니다. */}
       <DrawerTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
+          className="preview-notification-trigger"
           aria-label={
-            unreadCount ? `알림, 읽지 않은 알림 ${unreadCount}개` : '알림'
+            unread.length ? `알림, 읽지 않은 알림 ${unread.length}개` : '알림'
           }
-          className="relative size-11 rounded-full border-border bg-card p-0 hover:bg-muted"
         >
-          <Bell size={19} className="text-foreground" aria-hidden="true" />
-          {unreadCount > 0 && (
-            <span
-              aria-hidden="true"
-              className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-destructive text-[11px] font-bold text-white shadow-xs"
-            >
-              {unreadCount}
-            </span>
+          <Bell size={21} strokeWidth={1.8} aria-hidden="true" />
+          {!!unread.length && (
+            <span className="preview-notification-dot" aria-hidden="true" />
           )}
         </Button>
       </DrawerTrigger>
-
-      <DrawerContent className="p-4">
-        <DrawerHeader className="pb-2">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <DrawerTitle className="text-base font-bold">알림함</DrawerTitle>
-              <DrawerDescription className="text-xs">
-                업무 및 지원 상태 변경 알림
-              </DrawerDescription>
-            </div>
+      <DrawerContent className="dreamon-preview preview-drawer preview-notifications">
+        <DrawerHeader>
+          <div className="preview-notifications-heading">
+            <DrawerTitle>알림</DrawerTitle>
             <DrawerClose asChild>
               <Button
                 variant="ghost"
-                size="icon"
+                className="preview-notifications-close"
                 aria-label="알림 닫기"
-                className="-mt-2 -mr-2"
               >
-                <X aria-hidden="true" />
+                <X size={20} aria-hidden="true" />
               </Button>
             </DrawerClose>
           </div>
-          {unreadCount > 0 && (
-            <button
-              type="button"
-              onClick={() => markRead()}
-              className="flex min-h-11 items-center gap-1 self-end text-xs font-medium text-primary hover:text-primary-hover"
-            >
-              <CheckCheck size={15} aria-hidden="true" /> 모두 읽음
-            </button>
-          )}
+          <DrawerDescription className="sr-only">
+            지원 현황과 팀 소식을 확인하세요. 알림을 누르면 관련 화면으로
+            이동합니다.
+          </DrawerDescription>
         </DrawerHeader>
-
-        <div className="mt-2 flex flex-col gap-2.5">
-          {notifications.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              도착한 알림이 없어요.
-            </p>
-          ) : (
-            notifications.map((item) => (
-              <Link
-                key={item.id}
-                to={item.to}
-                onClick={(event) => {
-                  // [출처 2, 3] 알림함 history 항목을 관련 화면으로 대체해 뒤로 가기 시 알림함이 다시 열리지 않게 합니다.
-                  event.preventDefault();
-                  markRead([item.id]);
-                  navigate(item.to, { replace: true });
-                }}
-                className={`flex items-start gap-3 rounded-panel border p-3.5 transition-colors ${
-                  item.read
-                    ? 'border-border bg-card'
-                    : 'border-accent bg-accent/40 font-medium'
-                }`}
+        {signedIn ? (
+          <>
+            <div className="preview-notifications-tools">
+              <div
+                className="preview-notifications-filters"
+                role="group"
+                aria-label="알림 필터"
               >
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-foreground">
-                    {item.title}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {item.description}
-                  </p>
-                  {/* [출처 4] 작은 날짜도 보조색 토큰을 불투명하게 사용해 대비를 유지하고, 중요도는 크기·배치로 구분합니다. */}
-                  {item.occurredAt && (
-                    <span className="mt-2 block text-[11px] text-muted-foreground">
-                      {item.occurredAt}
-                    </span>
+                <Button
+                  variant="ghost"
+                  aria-pressed={filter === 'all'}
+                  onClick={() => setFilter('all')}
+                >
+                  전체
+                </Button>
+                <Button
+                  variant="ghost"
+                  aria-pressed={filter === 'unread'}
+                  onClick={() => setFilter('unread')}
+                >
+                  읽지 않음 <span>{unread.length}</span>
+                </Button>
+              </div>
+              <Button
+                variant="ghost"
+                className="preview-notifications-read-all"
+                disabled={!unread.length}
+                onClick={() => markRead(unread.map((item) => item.id))}
+              >
+                <CheckCheck size={16} aria-hidden="true" />
+                모두 읽음
+              </Button>
+            </div>
+            {failedRead && (
+              <Alert role="alert" className="mx-5 mb-3 w-auto">
+                <AlertDescription>
+                  <p>읽음 상태를 저장하지 못했어요. 다시 시도해 주세요.</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-2 justify-self-start"
+                    onClick={retryRead}
+                  >
+                    <RotateCcw size={16} aria-hidden="true" />
+                    다시 시도
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            <p className="sr-only" role="status">
+              읽지 않은 알림 {unread.length}개
+            </p>
+            <div className="preview-notifications-body">
+              {visible.length ? (
+                <ul
+                  className="preview-notifications-list"
+                  aria-label="알림 목록"
+                >
+                  {visible.map((item) => {
+                    const Icon = icons[item.kind];
+                    const isUnread = !item.read;
+                    return (
+                      <li key={item.id}>
+                        <Link
+                          to={item.to}
+                          className="preview-notification-item"
+                          data-unread={isUnread || undefined}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            if (!markRead([item.id], item.to)) return;
+                            navigate(item.to, { replace: true });
+                          }}
+                        >
+                          <span className="preview-notification-icon">
+                            <Icon
+                              size={20}
+                              strokeWidth={1.8}
+                              aria-hidden="true"
+                            />
+                          </span>
+                          <span className="preview-notification-copy">
+                            <strong>{item.title}</strong>
+                            <span>{item.description}</span>
+                          </span>
+                          <span className="preview-notification-trailing">
+                            {isUnread && (
+                              <span className="preview-notification-unread">
+                                <span className="sr-only">읽지 않음</span>
+                              </span>
+                            )}
+                            <ChevronRight size={16} aria-hidden="true" />
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="preview-notifications-empty">
+                  {filter === 'unread' && notifications.length ? (
+                    <CheckCheck
+                      size={28}
+                      strokeWidth={1.5}
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Bell size={28} strokeWidth={1.5} aria-hidden="true" />
                   )}
+                  <h3>
+                    {filter === 'unread' && notifications.length
+                      ? '모든 알림을 확인했어요'
+                      : '아직 알림이 없어요'}
+                  </h3>
+                  <p>새로운 지원 현황과 팀 소식이 오면 알려드릴게요.</p>
                 </div>
-                {!item.read && <span className="sr-only">읽지 않음</span>}
-                <ChevronRight
-                  size={16}
-                  aria-hidden="true"
-                  className="mt-1 shrink-0 text-muted-foreground"
-                />
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="preview-notifications-empty">
+            <Bell size={28} strokeWidth={1.5} aria-hidden="true" />
+            <h3>로그인하고 알림을 확인하세요</h3>
+            <p>지원 현황과 팀 소식을 한곳에서 확인할 수 있어요.</p>
+            <Button asChild>
+              <Link
+                to={`/login?returnTo=${encodeURIComponent(returnTo)}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`, {
+                    replace: true,
+                  });
+                }}
+              >
+                로그인
               </Link>
-            ))
-          )}
-        </div>
+            </Button>
+          </div>
+        )}
       </DrawerContent>
     </Drawer>
   );

@@ -1,16 +1,16 @@
 /**
  * [참조 출처]
- * 1. docs/design/tokens.md - 헤더 워드마크 SVG, 마스코트 로고, 4탭 모바일 하단 내비게이션 규격
- * 2. docs/design/screens.md - 공통 PreviewShell, visualViewport 키보드 대응, 상단 알림함 명세
- * 3. docs/design/assets/wordmark-explore-390.png - 헤더 및 탐색 레이아웃 스크린샷
- * 4. docs/development/frontend.md - 모바일 우선 유동 너비(320px~480px) 및 시맨틱 링크/버튼 보장
- * 5. design-reference/src/features/design-preview/PreviewShell.tsx - Shell 컴포넌트 원본
+ * 1. design-reference/src/features/design-preview/PreviewShell.tsx - 공통 상단·하단 탐색 Shell 원본
+ * 2. docs/design/tokens.md - 「모바일 상호작용 확인」 하단 4탭, 상단 알림, 루트 화면 h1.sr-only, 워드마크 140px
+ * 3. docs/design/screens.md - 화면별 경로와 활성 탭, AI 화면 visualViewport 대응
+ * 4. docs/design/assets/wordmark-explore-390.png, explore-390.png - 실제 헤더·하단 메뉴 화면
+ * 5. docs/development/frontend.md - 「모바일 UI」 safe-area, 키보드, 시맨틱 링크
  *
- * [PR #120 리뷰 반영] 알림 상태·처리는 features/notifications/NotificationInbox로 분리하고,
- * 이 파일에는 헤더·본문·하단 메뉴 배치만 남겼습니다.
+ * 하단 메뉴의 safe-area 높이·탭 등분과 AI 화면의 --preview-ai-viewport-height 소비는
+ * styles/design-preview.css·service-ui.css(출처 1의 원본 스타일)가 담당합니다.
  */
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   Layers2,
@@ -18,145 +18,147 @@ import {
   Search,
   UserRound,
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router';
-import { NotificationInbox } from '@/features/notifications/NotificationInbox';
+import { Link, Outlet, useLocation } from 'react-router';
+import { Notifications } from '@/features/notifications/NotificationInbox';
 
+// [출처 2] 하단 탐색 네 항목: 탐색·AI·워크스페이스·프로필
 const navItems = [
-  { id: 'explore', label: '탐색', to: '/explore', icon: Search },
-  { id: 'ai', label: 'AI', to: '/ai', icon: MessageCircle },
-  { id: 'workspace', label: '워크스페이스', to: '/workspace', icon: Layers2 },
-  { id: 'profile', label: '프로필', to: '/profile', icon: UserRound },
+  { id: 'explore', title: '탐색', to: '/explore', icon: Search },
+  { id: 'ai', title: 'AI', to: '/ai', icon: MessageCircle },
+  { id: 'workspace', title: '워크스페이스', to: '/workspace', icon: Layers2 },
+  { id: 'profile', title: '프로필', to: '/profile', icon: UserRound },
 ];
 
-// [출처 1, 2] 현재 경로에 따른 활성 탭 판별
-function getActiveTab(pathname: string) {
-  if (pathname.startsWith('/ai')) return 'ai';
-  if (
-    pathname.startsWith('/workspace') ||
-    pathname.startsWith('/teams') ||
-    pathname.startsWith('/applicants')
-  )
-    return 'workspace';
-  if (
-    pathname.startsWith('/profile') ||
-    pathname.startsWith('/login') ||
-    pathname.startsWith('/signup')
-  )
-    return 'profile';
-  return 'explore';
-}
-
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell() {
   const location = useLocation();
-  const isAuth = ['/login', '/signup'].includes(location.pathname);
-  const isAi = location.pathname.startsWith('/ai');
-  const shellRef = useRef<HTMLDivElement>(null);
+  const shell = useRef<HTMLDivElement>(null);
+  const main = useRef<HTMLElement>(null);
+  const isAuth = /\/(login|signup)$/.test(location.pathname);
+  const isAi = /^\/ai\/?$/.test(location.pathname);
+  const params = new URLSearchParams(location.search);
+  const fromAi = params.get('from') === '/ai';
+  const teamId = location.pathname.match(/\/teams\/([^/]+)$/)?.[1];
+  const teamView = teamId ? params.get('view') : null;
+  const isWorkspaceTeam =
+    teamId === 'new' || teamView === 'space' || teamView === 'applicants';
+  // [출처 1, 3] 팀 공간·지원자 관리·팀 만들기는 워크스페이스, AI에서 연 상세는 AI 탭으로 표시합니다.
+  const active =
+    isAi || fromAi
+      ? 'ai'
+      : isWorkspaceTeam || /\/(workspace|applicants)/.test(location.pathname)
+        ? 'workspace'
+        : /\/(profile|login|signup)/.test(location.pathname)
+          ? 'profile'
+          : 'explore';
 
-  // [출처 2, 5] 모바일 소프트 키보드 대응을 위한 visualViewport 이벤트 리스너
-  // TODO(AI 화면 연결): --ai-viewport-height를 소비하는 높이·스크롤 CSS를 AI 화면 구현 시 함께 추가합니다.
   useEffect(() => {
-    const node = shellRef.current;
+    const previousTitle = document.title;
+    document.title = '서경드림온';
+    return () => {
+      document.title = previousTitle;
+    };
+  }, []);
+
+  // [출처 5] 화면 전환 시 맨 위로 이동하고 본문으로 포커스를 옮겨 스크린리더가 새 화면을 읽게 합니다.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    main.current?.focus({ preventScroll: true });
+  }, [location.pathname, teamView]);
+
+  // [출처 3, 5] 모바일 키보드가 열려도 AI 입력창이 가려지지 않도록 visualViewport 높이를 전달합니다.
+  // 확대(scale ≠ 1) 중에는 사용자의 확대를 덮어쓰지 않습니다.
+  useEffect(() => {
+    const node = shell.current;
     const viewport = window.visualViewport;
     if (!isAi || !node || !viewport) return;
-
     const resize = () => {
       if (viewport.scale === 1) {
-        node.style.setProperty('--ai-viewport-height', `${viewport.height}px`);
+        node.style.setProperty(
+          '--preview-ai-viewport-height',
+          `${viewport.height}px`,
+        );
       } else {
-        node.style.removeProperty('--ai-viewport-height');
+        node.style.removeProperty('--preview-ai-viewport-height');
       }
     };
     resize();
     viewport.addEventListener('resize', resize);
     return () => {
       viewport.removeEventListener('resize', resize);
-      node?.style.removeProperty('--ai-viewport-height');
+      node.style.removeProperty('--preview-ai-viewport-height');
     };
   }, [isAi]);
 
-  const activeTab = getActiveTab(location.pathname);
+  const nav = navItems.map((item) => (
+    <Link
+      key={item.id}
+      to={item.to}
+      aria-current={active === item.id ? 'page' : undefined}
+    >
+      <item.icon size={21} strokeWidth={1.8} aria-hidden="true" />
+      <span>{item.title}</span>
+    </Link>
+  ));
 
   return (
-    <div ref={shellRef} className="dreamon-viewport shadow-lg">
-      {/* [출처 1, 3] 모바일 상단 공통 헤더 */}
-      <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-border bg-card px-4 backdrop-blur-xs">
-        <Link
-          to="/explore"
-          className="flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-ring"
-          aria-label="서경드림온 홈으로 이동"
-        >
-          <img
-            src="/brand/dreamon-logo.png"
-            alt=""
-            width={36}
-            height={36}
-            className="size-9 object-contain"
-          />
-          <img
-            src="/brand/dreamon-wordmark.svg"
-            alt="서경드림온"
-            width={130}
-            height={30}
-            className="h-7 w-auto object-contain"
-          />
-        </Link>
-
-        {isAuth ? (
+    <div
+      ref={shell}
+      className={`dreamon-preview${isAuth ? ' preview-auth-shell' : ''}${isAi ? ' preview-ai-shell' : ''}`}
+    >
+      <a className="preview-skip" href="#preview-main">
+        본문으로 바로가기
+      </a>
+      {/* [출처 2, 4] 로고 + 전용 워드마크 SVG(140px), 우측 알림 또는 로그인 화면의 복귀 링크 */}
+      <header className="preview-header">
+        <div className="preview-header-inner">
           <Link
+            className="preview-brand"
             to="/explore"
-            className="flex min-h-11 items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+            aria-label="서경드림온 탐색"
           >
-            <ArrowLeft size={16} aria-hidden="true" />
-            탐색으로
+            <span className="preview-brand-mark">
+              <img
+                src="/brand/dreamon-logo.png"
+                alt=""
+                width={40}
+                height={40}
+              />
+            </span>
+            <img
+              className="preview-wordmark"
+              src="/brand/dreamon-wordmark.svg"
+              alt=""
+              width={140}
+              height={33}
+            />
           </Link>
-        ) : (
-          <NotificationInbox />
-        )}
+          {!isAuth && (
+            <nav className="preview-desktop-nav" aria-label="주 메뉴">
+              {nav}
+            </nav>
+          )}
+          {isAuth ? (
+            <Link className="preview-auth-home" to="/explore">
+              <ArrowLeft size={16} aria-hidden="true" />
+              탐색으로
+            </Link>
+          ) : (
+            <Notifications />
+          )}
+        </div>
       </header>
-
-      {/* [출처 4] 메인 콘텐츠 스크롤 영역. 하단 메뉴 전체 높이(safe-area 포함) + 32px 여백만큼 비워 가림을 막습니다. */}
       <main
-        id="main-content"
-        className={
-          isAuth
-            ? 'flex-1 pb-8'
-            : 'flex-1 pb-[calc(var(--bottom-nav-height)+2rem)]'
-        }
+        id="preview-main"
+        ref={main}
+        tabIndex={-1}
+        className={`preview-main${isAuth ? ' preview-main-auth' : ''}`}
       >
-        {children}
+        <Outlet />
       </main>
-
-      {/* [출처 1, 3] 하단 고정 4개 내비게이션 탭 바
-          [PR #120 리뷰 반영] 높이 = 64px + safe-area, 탭은 고정 48px 폭 대신 공간을 1/4씩 나눠
-          '워크스페이스'가 줄바꿈되거나 아이콘이 줄어들지 않게 합니다. */}
+      {/* [출처 2, 5] 하단 4탭. 높이에 safe-area를 포함하고 탭은 폭을 등분합니다(styles/service-ui.css). */}
       {!isAuth && (
-        <nav
-          aria-label="하단 주 메뉴"
-          className="fixed bottom-0 z-40 flex h-(--bottom-nav-height) w-full max-w-[480px] items-start border-t border-border bg-card/95 px-2 pt-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm"
-        >
-          {navItems.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <Link
-                key={item.id}
-                to={item.to}
-                aria-current={isActive ? 'page' : undefined}
-                className={`flex h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-control text-xs transition-colors focus-visible:outline-2 focus-visible:outline-ring ${
-                  isActive
-                    ? 'font-bold text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <item.icon
-                  size={22}
-                  strokeWidth={isActive ? 2.2 : 1.8}
-                  aria-hidden="true"
-                  className="shrink-0"
-                />
-                <span className="whitespace-nowrap">{item.label}</span>
-              </Link>
-            );
-          })}
+        <nav className="preview-mobile-nav" aria-label="주 메뉴">
+          {nav}
         </nav>
       )}
     </div>
