@@ -1,4 +1,7 @@
+import pytest
 from httpx import AsyncClient
+
+pytestmark = pytest.mark.integration
 
 
 async def test_health_does_not_require_a_database(client: AsyncClient) -> None:

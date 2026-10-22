@@ -13,6 +13,24 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 - 환경설정은 `core/config.py`에서 검증합니다. 모듈 import만으로 DB 쿼리·외부 API 호출·테이블 생성이 실행되지 않게 합니다.
 - async DB나 비동기 외부 I/O를 호출하는 경로는 `async def`와 `await`로 연결합니다. 비동기 경로에서 동기 DB·HTTP 호출로 이벤트 루프를 막지 않습니다.
 
+<a id="api-core"></a>
+
+## 공통 API 기반의 책임
+
+[구현 이슈 #99](https://github.com/wejo-team/sku-dreamon/issues/99)의 공통 기반은 HTTP 계약에 한정합니다. 업무 권한·상태 전이·정원·조회 SQL은 각 도메인의 서비스가 맡으며, 공통 repository나 이벤트 프레임워크를 먼저 만들지 않습니다.
+
+- 요청 DTO는 camelCase만 받고, 응답 DTO는 Python의 snake_case로 구성하여 camelCase로 보냅니다. 두 책임을 분리하여 응답 생성 편의를 위해 외부 snake_case 입력까지 허용하지 않습니다. 임의 map 키는 변환하지 않습니다.
+- 성공 응답과 페이지 응답은 라우터에서 명시적인 모델로 반환합니다. `Success[T]`의 `T`에는 NULL을 허용하지 않는 영역별 DTO나 배열 타입을 지정하여 실제 검증과 OpenAPI를 일치시킵니다. 응답 본문을 자동으로 감싸는 middleware는 사용하지 않으므로 health·204·쿠키·`Location`의 기존 동작을 유지합니다.
+- BIGINT는 DTO 경계에서 엄격한 십진 문자열, 시각은 시간대가 있는 값으로 검증해 UTC `Z`로 보냅니다. DB 정수를 응답에 담을 때의 `str()` 변환은 해당 DTO를 만드는 곳에서 명시합니다.
+- 업무 오류는 상태·코드·안전한 안내 문구를 가진 예외 하나로 표현합니다. 예상하지 못한 오류와 요청 검증 실패에는 입력 원문을 포함하지 않는 응답을 제공합니다. 오류 응답 모델은 라우터의 `responses`에도 명시하여 OpenAPI와 실제 응답을 맞춥니다.
+- 페이지 모델은 범위와 전송 모양만 검증합니다. 마지막 페이지 보정·권한·필터·동일 읽기 시점의 집계는 실제 목록을 조회하는 도메인이 책임집니다.
+
+구현 원본은 [RequestDTO·ResponseDTO](../../backend/app/schemas/base.py), [공통 타입](../../backend/app/schemas/types.py), [Success·Page·PageMeta](../../backend/app/schemas/responses.py), [오류 모델](../../backend/app/schemas/errors.py)과 [오류 처리](../../backend/app/core/errors.py)입니다. 제품 요청 모델은 `RequestDTO`, 응답 모델은 `ResponseDTO`를 상속합니다. 모델 전체에 `strict=True`를 지정하기보다 숫자 등 해당 필드의 엄격한 타입을 선택하여 정상 UUID·시각 문자열의 파싱을 막지 않습니다.
+
+제품 라우터는 `responses=error_responses(401, 409, 422, 500, 503)`처럼 자신이 제공할 오류 상태를 명시합니다. 업무 실패는 `AppError(status_code, code, message)`로 전달하며 `message`에 입력 원문을 넣지 않습니다. 422는 요청 검증에만 사용하며 `AppError`로 지정할 수 없습니다. 프레임워크 HTTP 오류의 원래 `detail`과 검증기의 원래 `msg`는 그대로 노출하지 않습니다. 422는 `loc`·`type`과 고정된 안전한 안내를 반환하므로 필드별 화면 안내는 선언한 검증 계약을 함께 사용합니다. 위치 정보가 없는 명시적 `HTTPException(422)`도 같은 `detail` 구조로 반환합니다.
+
+오류 처리 시 만든 추적 ID는 `X-Request-ID` 응답 헤더와 최소 오류 로그에 기록하며, 업무 오류 본문의 `requestId`와 같습니다. 422 본문에는 기존 `detail`만 유지합니다. 이 ID는 생성 재시도에 쓰는 도메인 `requestId`와 관계없고 성공 요청 전체를 추적하는 기능은 아닙니다. 공통 핸들러가 남기는 로그에는 요청 본문·검증 입력·예외 문자열을 추가하지 않습니다. 서버 자체의 traceback 로그를 정제하는 기능은 포함하지 않습니다.
+
 ## 엔진과 세션
 
 - `create_async_engine`과 `async_sessionmaker`를 사용합니다. engine·session factory는 앱 수명에 맞춰 구성하고 종료 시 engine을 dispose합니다.

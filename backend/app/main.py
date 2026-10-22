@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from app.api.routes.health import router as health_router
 from app.core.config import Settings
+from app.core.errors import register_error_handlers
 from app.db.session import create_database
 
 
@@ -21,6 +22,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await database.engine.dispose()
 
     app = FastAPI(title="서경드림온 API", lifespan=lifespan)
+    register_error_handlers(app)
     app.include_router(health_router, prefix="/api/v1")
     return app
 

@@ -16,7 +16,7 @@ from app.core.config import Settings
 from app.db.session import Database, DatabaseSession
 from app.main import create_app
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 @pytest.fixture

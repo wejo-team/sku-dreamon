@@ -75,6 +75,8 @@ uv run pytest
 uv run alembic check
 ```
 
+유닛 테스트만 실행하려면 `uv run pytest tests/unit`, DB 없이 HTTP 통합만 확인하려면 `uv run pytest tests/integration -m "not database"`를 사용합니다. 전체 테스트는 위의 `uv run pytest`로 실행합니다. `integration` marker는 HTTP·DB 경계 검사를, `database` marker는 전용 PostgreSQL이 필요한 검사를 뜻합니다.
+
 `pytest`는 `TEST_DATABASE_URL`이 없으면 DB 통합 테스트를 건너뜁니다. 전체 DB 검증에는 전용 테스트 DB를 만듭니다. 아래 생성 명령은 저장소 루트에서 한 번만 실행합니다.
 
 ```bash
