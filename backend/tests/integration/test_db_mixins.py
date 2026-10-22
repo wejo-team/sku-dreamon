@@ -1,3 +1,5 @@
+"""PostgreSQL에서 UUID·시각 기본값과 명시적 수정 시각 갱신을 검증한다."""
+
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 

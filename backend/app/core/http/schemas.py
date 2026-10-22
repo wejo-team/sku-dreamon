@@ -1,3 +1,5 @@
+"""API의 이름 규칙과 성공·페이지·오류 응답 형식을 정의한다."""
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 

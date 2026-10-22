@@ -1,3 +1,5 @@
+"""환경변수로 지정한 격리 PostgreSQL의 연결 정보를 제공한다."""
+
 import os
 
 import pytest

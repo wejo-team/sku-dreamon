@@ -1,3 +1,5 @@
+"""요청마다 독립된 DB 세션을 제공하고 요청 종료 시 정리한다."""
+
 from collections.abc import AsyncIterator
 from typing import Annotated, cast
 

@@ -1,3 +1,5 @@
+"""비동기 DB 엔진과 세션 팩토리를 생성하며 요청 처리와 분리한다."""
+
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import (

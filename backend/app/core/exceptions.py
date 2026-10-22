@@ -1,5 +1,8 @@
+"""안전한 안내 문구와 HTTP 상태를 전달하는 애플리케이션 예외를 정의한다."""
+
+
 class AppError(Exception):
-    """An expected failure with a safe, client-facing message."""
+    """클라이언트에 공개할 수 있는 안내 문구로 예상 가능한 실패를 전달한다."""
 
     def __init__(
         self,

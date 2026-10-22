@@ -1,3 +1,5 @@
+"""API 공통 숫자·버전·시각 타입의 경계값과 직렬화 규칙을 검증한다."""
+
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest

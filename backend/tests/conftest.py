@@ -1,3 +1,5 @@
+"""격리된 설정의 앱과 수명 주기를 관리하는 HTTP 클라이언트를 제공한다."""
+
 from collections.abc import AsyncIterator
 
 import pytest

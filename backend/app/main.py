@@ -1,3 +1,5 @@
+"""앱 수명에 맞춰 DB 연결을 관리하고 라우터와 오류 핸들러를 연결한다."""
+
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 

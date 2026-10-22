@@ -1,3 +1,5 @@
+"""도메인 ORM 모델이 공유할 metadata와 제약조건 이름 규칙을 정의한다."""
+
 from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase
 

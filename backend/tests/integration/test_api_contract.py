@@ -1,3 +1,5 @@
+"""HTTP 경계의 요청 검증·응답 직렬화·오류 처리·OpenAPI 계약을 검증한다."""
+
 from datetime import UTC, datetime
 from uuid import UUID
 

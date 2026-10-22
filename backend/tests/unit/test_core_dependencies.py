@@ -1,3 +1,5 @@
+"""DB 기반과 예외 정의가 HTTP 계층·개별 도메인에 의존하지 않는지 검증한다."""
+
 import subprocess
 import sys
 from pathlib import Path

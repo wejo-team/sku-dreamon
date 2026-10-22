@@ -1,3 +1,5 @@
+"""DB 없이 동작하는 상태 확인 API와 없는 경로의 404 응답을 검증한다."""
+
 import pytest
 from httpx import AsyncClient
 

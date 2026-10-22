@@ -1,3 +1,5 @@
+"""ORM 공통 컬럼의 조합과 테이블별 PK 이름·공유키·복합키 선언을 검증한다."""
+
 from collections.abc import Callable
 from typing import cast
 from uuid import UUID, uuid4

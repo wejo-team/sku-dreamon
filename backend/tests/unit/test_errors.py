@@ -1,3 +1,5 @@
+"""오류 응답의 계약·요청 식별자·민감 정보 제거와 OpenAPI 정의를 검증한다."""
+
 import json
 from collections.abc import Awaitable, Callable
 from typing import cast

@@ -1,3 +1,5 @@
+"""설정된 PostgreSQL 연결을 확인하고 검사에 사용한 엔진을 정리한다."""
+
 import asyncio
 
 from sqlalchemy import text

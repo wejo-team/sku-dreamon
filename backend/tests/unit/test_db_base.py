@@ -1,3 +1,5 @@
+"""ORM 제약조건·인덱스의 이름 규칙과 명시적 이름 보존을 검증한다."""
+
 from collections.abc import Callable
 from typing import cast
 

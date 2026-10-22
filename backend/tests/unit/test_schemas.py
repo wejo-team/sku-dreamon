@@ -1,3 +1,5 @@
+"""DTO의 필드명·널 허용 규칙과 성공·페이지 응답 구조를 검증한다."""
+
 import pytest
 from pydantic import ValidationError
 

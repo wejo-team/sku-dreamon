@@ -1,3 +1,5 @@
+"""애플리케이션·HTTP·검증 오류를 안전한 응답과 추적 ID로 변환한다."""
+
 import logging
 from collections.abc import Mapping
 from uuid import uuid4

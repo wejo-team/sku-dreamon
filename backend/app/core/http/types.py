@@ -1,3 +1,5 @@
+"""API에서 사용하는 BIGINT·숫자·UTC 시각의 검증과 직렬화를 정의한다."""
+
 import re
 from datetime import UTC, datetime
 from typing import Annotated

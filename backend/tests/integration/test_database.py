@@ -1,3 +1,5 @@
+"""요청별 DB 세션 격리, 명시적 커밋, 앱 종료 시 연결 풀 해제를 검증한다."""
+
 import asyncio
 from collections.abc import AsyncIterator
 from typing import cast
@@ -64,7 +66,7 @@ async def test_request_cleanup_preserves_only_explicit_commits(
     expected_rows: int,
 ) -> None:
     database = cast(Database, database_app.state.database)
-    # A unique, disposable schema keeps every case isolated, including real commits.
+    # 실제 커밋도 다른 테스트에 영향을 주지 않도록 매번 별도 임시 스키마를 쓴다.
     schema = f"wejo_test_{uuid4().hex}"
     async with database.engine.begin() as connection:
         await connection.execute(text(f"CREATE SCHEMA {schema}"))
