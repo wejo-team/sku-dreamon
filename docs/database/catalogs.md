@@ -47,38 +47,15 @@
 
 <a id="catalog-changes"></a>
 
-## `catalog_change_logs` — 학사 기준 데이터 변경 기록
+## 학사 변경 근거 관리
 
-한 행은 학사 항목의 변경 한 건으로, 날짜·사유·공식 근거를 남깁니다. 공통 선택지 enum의 변경은 Git·PR로 관리하므로 이 테이블의 대상에 포함하지 않습니다. 실제 학사 관계는 업무 FK로 관리하고 로그의 대상 존재는 저장 서비스가 검사합니다.
-
-| 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·용도 |
-| --- | --- | --- | --- | --- |
-| `id` | `uuid` | 불가 | 없음 | PK. 애플리케이션 발급 |
-| `target_kind` | `varchar(32)` | 불가 | 없음 | 현재 대상은 `academic_units` |
-| `target_id` | `bigint` | 불가 | 없음 | 해당 학사 항목 ID. 업무 FK는 아님 |
-| `change_type` | `varchar(16)` | 불가 | 없음 | `created` / `updated` / `deactivated` / `reactivated` |
-| `changed_at` | `timestamptz` | 불가 | `now()` | 변경 시각 |
-| `reason` | `text` | 불가 | 없음 | 변경 사유 |
-| `source_reference` | `text` | 불가 | 없음 | 공식 자료·변경 근거의 참조 |
-
-| 제약·인덱스 이름 | 정의 |
-| --- | --- |
-| `pk_catalog_change_logs` | PK (`id`) |
-| `ck_catalog_change_logs_target` | `target_kind='academic_units'`, `target_id > 0` |
-| `ck_catalog_change_logs_type` | 위 네 변경 유형만 허용 |
-| `ck_catalog_change_logs_reason` | 사유는 빈 문자열이 아님 |
-| `ck_catalog_change_logs_source` | 근거는 빈 문자열이 아님 |
-| `ix_catalog_change_logs_id_time` | B-tree (`target_kind`, `target_id`, `changed_at DESC`, `id DESC`) |
-
-저장 유스케이스는 대상이 실제 학사 행인지 확인한 뒤 **학사 행 갱신과 로그 추가를 같은 트랜잭션에서 처리**합니다. 정상 업무에서 로그를 덮어쓰거나 삭제하지 않습니다. 학사 초기 적재·수정도 같은 검증을 거칩니다.
-
-전후 전체 객체나 사용자 데이터를 JSON으로 복제하지 않습니다. 이 구조는 변경 날짜·사유·근거의 감사용이며, 과거 학사 데이터의 완전한 복원 기능을 약속하지 않습니다.
+학사 초기 적재·수정·비활성화는 검토한 시드·마이그레이션으로 반영하고, 변경 사유·공식 출처·적용 대상은 관련 문서와 PR에 남깁니다. MVP에는 별도 DB 변경 이력 테이블을 두지 않습니다. 기존 소속 보존은 학사 행과 부모 연결을 유지하는 아래 저장 계약으로 보장합니다.
 
 <a id="academic-tables"></a>
 
 ## 학사 단일 인접 리스트
 
-![학사 계층과 변경 기록 물리 ERD](diagrams/academic.svg)
+![학사 계층 물리 ERD](diagrams/academic.svg)
 
 <details>
 <summary>도표 원본 보기</summary>
@@ -99,18 +76,9 @@ erDiagram
         bigint academic_unit_id FK
         boolean major_unassigned
     }
-    catalog_change_logs {
-        uuid id PK
-        varchar target_kind
-        bigint target_id
-        varchar change_type
-        timestamptz changed_at
-    }
 ```
 
 </details>
-
-감사 로그의 `target_id`는 서비스가 존재를 검증하며 DB FK가 아니므로 관계선 없이 표시합니다.
 
 ### `academic_units`
 
@@ -123,7 +91,7 @@ erDiagram
 | `parent_id` | `bigint` | 허용 | `NULL` | FK → `academic_units.id`. 단과대학만 부모 없음 |
 | `is_selectable` | `boolean` | 불가 | `true` | 신규 소속 선택 가능 여부. 과거 소속의 참조·표시와 구분 |
 
-별도 경로 테이블·고유 코드·종류·학년도·생성/수정 시각 컬럼을 추가하지 않습니다. 루트부터 깊이 0은 단과대학, 1은 학부·학과, 2는 세부전공으로 해석합니다. 학사 적용 대상과 공식 근거는 [학사 명세](../specs/academic-structure.md) 및 변경 기록에서 확인하며 자동 참가 자격 판정에 사용하지 않습니다.
+별도 경로 테이블·고유 코드·종류·학년도·생성/수정 시각 컬럼을 추가하지 않습니다. 루트부터 깊이 0은 단과대학, 1은 학부·학과, 2는 세부전공으로 해석합니다. 학사 적용 대상과 공식 근거는 [학사 명세](../specs/academic-structure.md)와 관련 PR에서 확인하며 자동 참가 자격 판정에 사용하지 않습니다.
 
 | 제약·인덱스 이름 | 정의와 목적 |
 | --- | --- |
@@ -148,7 +116,6 @@ erDiagram
 | 새 선택은 현행 항목만 사용 | 프로필 저장 시 선택한 항목과 모든 조상의 `is_selectable`을 같은 트랜잭션에서 검사·잠금. 비활성화 작업도 해당 행 잠금과 함께 처리 |
 | 기존 과거 소속은 계속 참조 | 같은 ID를 유지하는 프로필 수정은 비활성이라는 이유로 거절하지 않음. 과거 소속을 삭제·자동 치환하지 않음 |
 | 전공 미배정 범위 | `profiles.major_unassigned`와 선택한 학부의 조합을 검증. 학부별 허용 범위와 전달 방식은 [ACADEMIC-03](../specs/academic-structure.md#open-questions)에서 결정하며 이름·자식 부재만으로 허용하지 않음 |
-| 값 변경과 근거 보존 | 학사 행 수정과 `catalog_change_logs` 추가를 하나의 트랜잭션으로 처리 |
 
 프로필에는 가장 깊게 선택한 `academic_units.id` 하나를 `academic_unit_id`에 저장합니다. 상위 대학·학부·전공 ID를 중복 저장하지 않으며 표시 정보는 부모 연결을 따라 구성합니다. 전공이 없는 학과는 학과 ID를 저장합니다. 학사 미입력은 NULL, 전공 미배정은 허용된 학부 ID와 `major_unassigned=true`로 구분합니다.
 

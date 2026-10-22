@@ -1,6 +1,6 @@
 # 전체 ERD
 
-현재 물리 설계의 **18개 테이블과 도메인 간 FK 관계**를 한 그림으로 표시합니다. 아직 구현하지 않은 설계안이며, 핵심 키와 관계를 먼저 보여줍니다. 전체 컬럼·복합 키·제약·인덱스는 각 도메인 문서가 원본입니다.
+현재 물리 설계의 **17개 테이블과 도메인 간 FK 관계**를 한 그림으로 표시합니다. 아직 구현하지 않은 설계안이며, 핵심 키와 관계를 먼저 보여줍니다. 전체 컬럼·복합 키·제약·인덱스는 각 도메인 문서가 원본입니다.
 
 ![전체 데이터베이스 물리 ERD](diagrams/overview.svg)
 
@@ -119,11 +119,6 @@ erDiagram
         uuid event_id FK
         uuid recipient_account_id FK
     }
-    catalog_change_logs {
-        uuid id PK
-        varchar target_kind
-        bigint target_id
-    }
 ```
 
 </details>
@@ -134,7 +129,7 @@ erDiagram
 - 복합 FK는 테이블 사이의 선 하나로 요약합니다. 예를 들어 지원의 `team_id`·`contest_id`는 함께 팀을 참조하고, 사건의 지원 문맥은 `applications`를 참조합니다. 개별 컬럼을 별도 공고·계정 FK로 해석하지 않습니다.
 - 팀의 최소 소속 1명, 지원의 최초 사건 등 서비스 저장 규칙도 관계의 최소 개수에 반영했습니다. FK 자체가 자식 최소 개수를 보장하지 않으며 프로필 복수 선택의 상한도 상세 검증이 필요합니다.
 - 공통 선택지 7종은 애플리케이션 enum이므로 별도 코드 테이블·FK 선이 없습니다. 연결 테이블은 소유자 FK와 복합 PK를 유지합니다.
-- `catalog_change_logs.target_id`는 학사 항목을 가리키지만 서비스가 존재를 검증하는 값이며 DB FK는 아닙니다. 따라서 전체 테이블에 포함하되 연결선은 그리지 않습니다.
+- 학사 변경 근거는 문서·PR에서 관리하므로 별도 DB 변경 이력 테이블은 없습니다.
 - AI 대화·요청·결과의 물리 영속화는 아직 미정이므로 테이블을 추가하지 않습니다.
 
 ## 도메인별 상세
@@ -142,7 +137,7 @@ erDiagram
 | 영역 | 테이블 | 원본 |
 | --- | --- | --- |
 | 계정·프로필 | `accounts`, `auth_sessions`, `profiles`, `profile_interests`, `profile_desired_roles`, `profile_skills`, `portfolio_links` | [계정·프로필](identity.md) |
-| 학사·변경 기록 | `academic_units`, `catalog_change_logs` | [공통 선택지·학사](catalogs.md) |
+| 학사 | `academic_units` | [공통 선택지·학사](catalogs.md) |
 | 공모전 | `contests`, `contest_audiences`, `contest_fields` | [공모전](contests.md) |
 | 팀·지원·소속 | `teams`, `team_recruitment_roles`, `applications`, `team_memberships`, `application_events` | [팀·지원·소속](teams.md) |
 | 알림 | `notifications` | [알림](notifications.md) |
