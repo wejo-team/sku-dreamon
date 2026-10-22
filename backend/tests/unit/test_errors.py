@@ -10,8 +10,9 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.core.errors import AppError, error_responses, register_error_handlers
-from app.schemas.errors import ErrorResponse, ValidationErrorResponse
+from app.core.exceptions import AppError
+from app.core.http.handlers import error_responses, register_error_handlers
+from app.core.http.schemas import ErrorResponse, ValidationErrorResponse
 
 
 async def handle_error(exception: Exception) -> Response:

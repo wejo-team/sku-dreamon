@@ -3,10 +3,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routes.health import router as health_router
 from app.core.config import Settings
-from app.core.errors import register_error_handlers
-from app.db.session import create_database
+from app.core.db.session import create_database
+from app.core.http.handlers import register_error_handlers
+from app.domains.health.router import router as health_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

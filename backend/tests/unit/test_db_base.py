@@ -19,7 +19,7 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.schema import CreateIndex, CreateTable
 
-from app.db.base import Base
+from app.core.db.base import Base
 
 POSTGRESQL_DIALECT = cast(Callable[[], Dialect], postgresql.dialect)()
 

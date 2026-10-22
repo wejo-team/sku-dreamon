@@ -1,6 +1,6 @@
 # 구조와 초기 실행 기반
 
-현재 React 개발 연결 화면, FastAPI health API, 비동기 PostgreSQL 연결·Alembic과 CI가 있습니다. 아래는 폴더의 책임 지도이며, `models/`, `services/`, `e2e/` 등은 해당 코드가 필요할 때 추가합니다. 빈 기능 폴더를 미리 늘리지 않습니다.
+현재 React 개발 연결 화면, FastAPI health API, 비동기 PostgreSQL 연결·Alembic과 CI가 있습니다. 아래는 폴더의 책임 지도이며, 도메인의 `models.py`·`service.py`와 프론트의 `e2e/` 등은 해당 코드가 필요할 때 추가합니다. 빈 기능 폴더를 미리 늘리지 않습니다.
 
 ```text
 frontend/
@@ -20,12 +20,16 @@ frontend/
   package-lock.json
 backend/
   app/
-    api/routes/          # HTTP 입력·응답과 라우터
-    core/                # 설정, 공통 오류 처리
-    db/                  # AsyncEngine, sessionmaker, naming metadata, 선택 ORM mixin
-    models/              # SQLAlchemy 테이블 모델
-    schemas/             # Pydantic 요청·응답
-    services/            # 실제 업무 규칙과 쓰기 트랜잭션
+    core/                # 도메인이 함께 사용하는 기반
+      config.py          # 환경설정
+      exceptions.py      # 애플리케이션 오류 정의
+      db/                # ORM metadata·선택 컬럼, 비동기 엔진·세션, 연결 검사
+      http/              # 공통 DTO·응답, 예외 핸들러, 요청 의존성
+    domains/
+      health/            # 현재 구현된 health API
+        router.py
+        schemas.py
+      <기능>/            # 구현 시 router.py·schemas.py와 필요한 models.py·service.py 추가
     main.py              # 앱 생성·lifespan·라우터 연결
   alembic/versions/      # DB 변경 이력
   tests/                 # unit / integration (HTTP·PostgreSQL)
@@ -42,14 +46,17 @@ package-lock.json
 compose.yaml             # 개발용 PostgreSQL
 ```
 
+<a id="responsibility-boundaries"></a>
+
 ## 책임 경계
 
 - 프론트 `app`은 router와 provider를 연결하고, `pages`는 기능을 조합합니다. 기능 내부 API·query·form schema는 `features/<기능>/`에 모읍니다.
 - 공통 UI는 특정 기능의 API나 query에 의존하지 않습니다. 여러 기능이 사용하는 코드만 공통 위치로 옮깁니다.
 - `lib`에는 앱 전반의 작은 기반 코드만 둡니다. 기능 규칙을 넣는 만능 폴더로 사용하지 않습니다.
-- 백엔드 라우터는 HTTP 처리, 서비스는 업무 규칙을 담당합니다. ORM 모델과 요청·응답 스키마를 분리합니다.
-- ORM의 공통 metadata·선택 컬럼은 `db`, API DTO는 `schemas`에 둡니다. [공통 기반의 책임](backend.md#orm-foundation)에 따라 모델의 PK·컬럼을 선택하며 모든 모델에 같은 `id`·시각 컬럼을 강제하지 않습니다.
-- 반복되거나 복잡한 DB 쿼리가 생기면 `repositories/`를 추가합니다. 모든 기능에 Repository·Factory·interface를 의무화하지 않습니다.
+- 백엔드 `domains/<기능>/`에 해당 기능의 라우터·요청과 응답 스키마·ORM 모델·서비스를 모읍니다. 라우터는 HTTP 처리, 서비스는 업무 규칙과 쓰기 트랜잭션을 담당합니다. ORM 모델과 요청·응답 스키마를 분리하며, 실제로 필요한 파일만 만듭니다.
+- `core`는 여러 도메인이 사용하는 기반입니다. ORM의 공통 metadata·선택 컬럼과 엔진·세션은 `core/db`, 공통 DTO·응답·예외 핸들러·요청 의존성은 `core/http`에 둡니다. [공통 기반의 책임](backend.md#orm-foundation)에 따라 모델의 PK·컬럼을 선택하며 모든 모델에 같은 `id`·시각 컬럼을 강제하지 않습니다.
+- 의존 방향은 도메인에서 `core`로 향합니다. `core`는 개별 도메인을 import하지 않고, `core/db`는 FastAPI·Starlette나 `core/http`를 import하지 않습니다. 요청에서 DB 세션을 꺼내는 처리는 `core/http/dependencies.py`, 엔진·세션 생성은 `core/db/session.py`, 앱 수명과 라우터 연결은 `main.py`가 맡습니다.
+- 반복되거나 복잡한 DB 쿼리가 생기면 해당 도메인에 `repository.py`를 추가합니다. 여러 도메인에서 실제로 반복되는 기능만 검토해 공통화하며, 모든 기능에 Repository·Factory·interface를 의무화하지 않습니다.
 - 프론트와 백엔드는 HTTP API를 통해 연결합니다. 백엔드 DB 구조를 그대로 프론트의 내부 상태 구조로 강제하지 않습니다.
 
 ## 개발 환경

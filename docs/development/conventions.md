@@ -36,7 +36,7 @@ Python 모델 필드·ORM 속성·DB 컬럼은 snake_case, API JSON의 요청·�
 - 프론트 공통 HTTP 클라이언트에는 자동 키 변환기를 넣지 않습니다. 날짜 문자열을 화면용 Date로 바꾸는 등 값의 의미가 달라지는 변환은 응답 검증 뒤 명시적으로 수행합니다.
 - 이미 공개한 JSON 필드명을 바꿀 때는 기존 소비자에 대한 영향을 확인하고 명세·관련 테스트·배포 순서를 함께 검토합니다.
 
-**적용 상태:** [공통 DTO](../../backend/app/schemas/base.py)에 요청 alias 검증과 응답 직렬화를 구현했습니다. [HTTP 계약 테스트](../../backend/tests/integration/test_api_contract.py)에서 다단어·중첩·선택 필드의 snake_case·혼용 거부와 map 키 보존을 확인합니다. 제품 API는 각 도메인에서 이 기반을 적용하고 실제 계약을 검증합니다. health 응답의 `status`와 본문 모양은 유지합니다.
+**적용 상태:** [공통 DTO](../../backend/app/core/http/schemas.py)에 요청 alias 검증과 응답 직렬화를 구현했습니다. [HTTP 계약 테스트](../../backend/tests/integration/test_api_contract.py)에서 다단어·중첩·선택 필드의 snake_case·혼용 거부와 map 키 보존을 확인합니다. 제품 API는 각 도메인에서 이 기반을 적용하고 실제 계약을 검증합니다. health 응답의 `status`와 본문 모양은 유지합니다.
 
 ## 주석과 검사 예외
 

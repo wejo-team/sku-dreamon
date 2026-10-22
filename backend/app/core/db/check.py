@@ -3,7 +3,7 @@ import asyncio
 from sqlalchemy import text
 
 from app.core.config import Settings
-from app.db.session import create_database
+from app.core.db.session import create_database
 
 
 async def check_connection() -> None:

@@ -40,7 +40,7 @@ CHECK는 다른 테이블을 조회하거나 시간이 지나면 저절로 재�
 
 ## 제약조건·인덱스 이름
 
-[ORM Base의 metadata](../../backend/app/db/base.py)는 이름을 생략한 PK·UQ·FK·일반 인덱스에 아래 기본 규칙을 적용합니다. 도메인 문서에 이름이 명시된 제약·인덱스는 그 이름을 코드에 그대로 전달합니다. 예를 들어 `fk_auth_sessions_account`를 자동 이름으로 바꾸지 않습니다.
+[ORM Base의 metadata](../../backend/app/core/db/base.py)는 이름을 생략한 PK·UQ·FK·일반 인덱스에 아래 기본 규칙을 적용합니다. 도메인 문서에 이름이 명시된 제약·인덱스는 그 이름을 코드에 그대로 전달합니다. 예를 들어 `fk_auth_sessions_account`를 자동 이름으로 바꾸지 않습니다.
 
 | 종류 | 이름을 생략했을 때 |
 | --- | --- |

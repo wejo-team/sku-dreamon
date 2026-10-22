@@ -8,7 +8,8 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.schemas.errors import (
+from app.core.exceptions import AppError
+from app.core.http.schemas import (
     ErrorDetail,
     ErrorResponse,
     ValidationErrorResponse,
@@ -26,25 +27,6 @@ _HTTP_ERRORS = {
     503: ("TEMPORARY_UNAVAILABLE", "일시적으로 이용할 수 없습니다."),
 }
 _HTTP_ERROR_DEFAULT = ("HTTP_ERROR", "요청을 처리할 수 없습니다.")
-
-
-class AppError(Exception):
-    """An expected failure with a safe, client-facing message."""
-
-    def __init__(
-        self,
-        status_code: int,
-        code: str,
-        message: str,
-        headers: dict[str, str] | None = None,
-    ) -> None:
-        if status_code == 422:
-            raise ValueError("422 is reserved for request validation errors")
-        super().__init__(message)
-        self.status_code = status_code
-        self.code = code
-        self.message = message
-        self.headers = headers
 
 
 def _error_response(

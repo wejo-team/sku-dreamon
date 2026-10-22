@@ -1,8 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.base import RequestDTO, ResponseDTO
-from app.schemas.responses import Page, PageMeta, Success
+from app.core.http.schemas import Page, PageMeta, RequestDTO, ResponseDTO, Success
 
 
 class ChildRequest(RequestDTO):

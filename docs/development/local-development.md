@@ -32,7 +32,7 @@ cd backend
 cp .env.example .env
 uv sync --locked
 uv run alembic upgrade head
-uv run python -m app.db.check
+uv run python -m app.core.db.check
 uv run uvicorn app.main:app --reload
 ```
 
@@ -89,7 +89,7 @@ docker compose exec postgres createdb -U wejo wejo_test
 export TEST_DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:5432/wejo_test
 DATABASE_URL="$TEST_DATABASE_URL" uv run alembic upgrade head
 DATABASE_URL="$TEST_DATABASE_URL" uv run alembic check
-DATABASE_URL="$TEST_DATABASE_URL" uv run python -m app.db.check
+DATABASE_URL="$TEST_DATABASE_URL" uv run python -m app.core.db.check
 uv run pytest
 ```
 

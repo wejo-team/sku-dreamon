@@ -6,10 +6,10 @@ from fastapi import APIRouter, FastAPI, Response
 from httpx import AsyncClient
 from pydantic import field_validator
 
-from app.core.errors import AppError, error_responses
-from app.schemas.base import RequestDTO, ResponseDTO
-from app.schemas.responses import Page, PageMeta, Success
-from app.schemas.types import Timestamp, Version
+from app.core.exceptions import AppError
+from app.core.http.handlers import error_responses
+from app.core.http.schemas import Page, PageMeta, RequestDTO, ResponseDTO, Success
+from app.core.http.types import Timestamp, Version
 
 pytestmark = pytest.mark.integration
 

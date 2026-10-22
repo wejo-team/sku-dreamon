@@ -4,6 +4,8 @@
 
 FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, PostgreSQL, Alembic을 사용합니다. 데이터베이스 URL 형식은 `postgresql+asyncpg://...`입니다.
 
+`core`에는 도메인이 함께 사용하는 설정·애플리케이션 예외·DB 기반·HTTP 기반을 둡니다. 각 기능의 라우터·schema·모델·서비스는 `domains/<기능>/`에 필요한 만큼 추가합니다. `core`는 도메인을 import하지 않으며, `core/db`는 HTTP 프레임워크와 `core/http`에 의존하지 않습니다. 전체 배치와 의존 방향은 [구조와 책임 경계](architecture.md#responsibility-boundaries)를 따릅니다.
+
 - API는 `/api/v1` 아래에 리소스 중심 경로로 제공합니다. HTTP 상태 코드를 사용하고 실패를 200 응답으로 감추지 않습니다.
 - 요청·응답은 Pydantic schema로 명시합니다. FastAPI의 기본 validation error 형식과 호환되는 처리를 우선하고, 도메인 오류 계약이 필요하면 프론트와 함께 문서화합니다.
 - 제품 API의 성공 응답 모델은 [공통 성공 응답](../api/conventions.md#success-responses)을 따릅니다. 실제 JSON과 OpenAPI 모두 최상위 `data`를 명시하며, 204의 빈 본문과 쿠키·`Location` 헤더를 보존합니다.
@@ -17,7 +19,7 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 
 ## 공통 API 기반의 책임
 
-[구현 이슈 #99](https://github.com/wejo-team/sku-dreamon/issues/99)의 HTTP 공통 계층은 전송 계약을 담당합니다. ORM 공통 기반은 아래 별도 절처럼 `db`에 둡니다. 업무 권한·상태 전이·정원·조회 SQL은 각 도메인의 서비스가 맡습니다.
+[구현 이슈 #99](https://github.com/wejo-team/sku-dreamon/issues/99)의 `core/http`는 전송 계약과 FastAPI 연결을 담당합니다. ORM 공통 기반은 아래 별도 절처럼 `core/db`에 둡니다. 업무 권한·상태 전이·정원·조회 SQL은 각 도메인의 서비스가 맡습니다.
 
 - 요청 DTO는 camelCase만 받고, 응답 DTO는 Python의 snake_case로 구성하여 camelCase로 보냅니다. 두 책임을 분리하여 응답 생성 편의를 위해 외부 snake_case 입력까지 허용하지 않습니다. 임의 map 키는 변환하지 않습니다.
 - 성공 응답과 페이지 응답은 라우터에서 명시적인 모델로 반환합니다. `Success[T]`의 `T`에는 NULL을 허용하지 않는 영역별 DTO나 배열 타입을 지정하여 실제 검증과 OpenAPI를 일치시킵니다. 응답 본문을 자동으로 감싸는 middleware는 사용하지 않으므로 health·204·쿠키·`Location`의 기존 동작을 유지합니다.
@@ -25,9 +27,19 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 - 업무 오류는 상태·코드·안전한 안내 문구를 가진 예외 하나로 표현합니다. 예상하지 못한 오류와 요청 검증 실패에는 입력 원문을 포함하지 않는 응답을 제공합니다. 오류 응답 모델은 라우터의 `responses`에도 명시하여 OpenAPI와 실제 응답을 맞춥니다.
 - 페이지 모델은 범위와 전송 모양만 검증합니다. 마지막 페이지 보정·권한·필터·동일 읽기 시점의 집계는 실제 목록을 조회하는 도메인이 책임집니다.
 
-구현 원본은 [RequestDTO·ResponseDTO](../../backend/app/schemas/base.py), [공통 타입](../../backend/app/schemas/types.py), [Success·Page·PageMeta](../../backend/app/schemas/responses.py), [오류 모델](../../backend/app/schemas/errors.py)과 [오류 처리](../../backend/app/core/errors.py)입니다. 제품 요청 모델은 `RequestDTO`, 응답 모델은 `ResponseDTO`를 상속합니다. 모델 전체에 `strict=True`를 지정하기보다 숫자 등 해당 필드의 엄격한 타입을 선택하여 정상 UUID·시각 문자열의 파싱을 막지 않습니다.
+구현 원본은 [공통 DTO·성공·페이지·오류 모델](../../backend/app/core/http/schemas.py), [전송 타입](../../backend/app/core/http/types.py), [애플리케이션 예외](../../backend/app/core/exceptions.py)와 [HTTP 예외 핸들러·오류 응답 선언](../../backend/app/core/http/handlers.py)입니다. 제품 요청 모델은 `RequestDTO`, 응답 모델은 `ResponseDTO`를 상속합니다. 모델 전체에 `strict=True`를 지정하기보다 숫자 등 해당 필드의 엄격한 타입을 선택하여 정상 UUID·시각 문자열의 파싱을 막지 않습니다.
+
+각 도메인은 사용하는 공통 요소를 해당 모듈에서 가져옵니다. DTO와 응답 모델의 import 경로는 하나로 모읍니다.
+
+```python
+from app.core.exceptions import AppError
+from app.core.http.handlers import error_responses
+from app.core.http.schemas import RequestDTO, ResponseDTO, Success
+```
 
 제품 라우터는 `responses=error_responses(401, 409, 422, 500, 503)`처럼 자신이 제공할 오류 상태를 명시합니다. 업무 실패는 `AppError(status_code, code, message)`로 전달하며 `message`에 입력 원문을 넣지 않습니다. 422는 요청 검증에만 사용하며 `AppError`로 지정할 수 없습니다. 프레임워크 HTTP 오류의 원래 `detail`과 검증기의 원래 `msg`는 그대로 노출하지 않습니다. 422는 `loc`·`type`과 고정된 안전한 안내를 반환하므로 필드별 화면 안내는 선언한 검증 계약을 함께 사용합니다. 위치 정보가 없는 명시적 `HTTPException(422)`도 같은 `detail` 구조로 반환합니다.
+
+`AppError`는 HTTP 상태·헤더를 포함하는 애플리케이션 예외이며, 전송 방식과 무관한 순수 도메인 예외로 정의하지 않습니다. 예외 정의는 FastAPI 없이 사용할 수 있고, 이를 응답으로 바꾸고 앱에 등록하는 책임은 `core/http/handlers.py`에 둡니다.
 
 오류 처리 시 만든 추적 ID는 `X-Request-ID` 응답 헤더와 최소 오류 로그에 기록하며, 업무 오류 본문의 `requestId`와 같습니다. 422 본문에는 기존 `detail`만 유지합니다. 이 ID는 생성 재시도에 쓰는 도메인 `requestId`와 관계없고 성공 요청 전체를 추적하는 기능은 아닙니다. 공통 핸들러가 남기는 로그에는 요청 본문·검증 입력·예외 문자열을 추가하지 않습니다. 서버 자체의 traceback 로그를 정제하는 기능은 포함하지 않습니다.
 
@@ -35,9 +47,9 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 
 ## ORM 공통 기반
 
-[Base](../../backend/app/db/base.py)는 SQLAlchemy metadata와 [제약조건 네이밍](../database/conventions.md#constraint-names)을 공유합니다. 단일 PK는 `account_id`, `team_id`처럼 `<단수형 테이블명>_id`로 직접 선언합니다. 모든 테이블에 같은 PK·시각 컬럼을 강제하거나 테이블·컬럼 이름을 자동으로 정하지 않습니다. 프로필의 공유 PK, 학사의 정수 ID, 선택지 연결의 복합 PK처럼 테이블마다 식별 방법이 다릅니다.
+[Base](../../backend/app/core/db/base.py)는 SQLAlchemy metadata와 [제약조건 네이밍](../database/conventions.md#constraint-names)을 공유합니다. 단일 PK는 `account_id`, `team_id`처럼 `<단수형 테이블명>_id`로 직접 선언합니다. 모든 테이블에 같은 PK·시각 컬럼을 강제하거나 테이블·컬럼 이름을 자동으로 정하지 않습니다. 프로필의 공유 PK, 학사의 정수 ID, 선택지 연결의 복합 PK처럼 테이블마다 식별 방법이 다릅니다.
 
-[UUID PK 타입](../../backend/app/db/types.py)과 [시각 mixin](../../backend/app/db/mixins.py)은 필요한 컬럼만 조합하여 사용합니다.
+[UUID PK 타입](../../backend/app/core/db/types.py)과 [시각 mixin](../../backend/app/core/db/mixins.py)은 필요한 컬럼만 조합하여 사용합니다.
 
 | 공통 요소 | 책임과 적용 조건 |
 | --- | --- |
@@ -53,9 +65,9 @@ from uuid import UUID
 from sqlalchemy import ForeignKey, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
-from app.db.mixins import CreatedAtMixin, UpdatedAtMixin
-from app.db.types import UUIDPrimaryKey
+from app.core.db.base import Base
+from app.core.db.mixins import CreatedAtMixin, UpdatedAtMixin
+from app.core.db.types import UUIDPrimaryKey
 
 
 class Account(CreatedAtMixin, Base):
@@ -76,13 +88,13 @@ class Profile(CreatedAtMixin, UpdatedAtMixin, Base):
 
 수정 시각은 쓰기 서비스가 `version`과 함께 명시적으로 갱신합니다. 프로필 선택 항목·포트폴리오만 바뀌어도 부모 프로필의 시각·버전을 같은 트랜잭션에서 바꿔야 합니다. 조회와 실제 변경이 없는 재시도에는 갱신하지 않습니다. mixin은 `onupdate`나 DB trigger를 추가하지 않으므로 직접 SQL도 같은 책임을 따릅니다.
 
-DB 의존 코드는 `db`, 전송 형식은 `schemas`, 앱 설정·공통 오류 처리는 `core`에 둡니다. 공통이라는 이유만으로 전부 `core`로 옮기지 않습니다. `AsyncSession.get/add/delete/flush`를 그대로 감싼 범용 CRUD는 현재 추가하지 않습니다. 반복되거나 복잡한 쿼리가 생기면 도메인 repository로 분리하고, commit과 권한·잠금·상태 전이의 조합은 최상위 서비스가 책임집니다.
+도메인 고유의 모델·쿼리는 해당 도메인에 두고, `core/db`에는 함께 사용하는 DB 기반만 둡니다. `AsyncSession.get/add/delete/flush`를 그대로 감싼 범용 CRUD는 현재 추가하지 않습니다. 반복되거나 복잡한 쿼리가 생기면 도메인 repository로 분리하고, 여러 도메인에 같은 필요가 확인되면 공통 기능을 추출합니다. commit과 권한·잠금·상태 전이의 조합은 최상위 서비스가 책임집니다.
 
 ## 엔진과 세션
 
 - `create_async_engine`과 `async_sessionmaker`를 사용합니다. engine·session factory는 앱 수명에 맞춰 구성하고 종료 시 engine을 dispose합니다.
 - `AsyncSession`은 요청 또는 독립 작업 단위로 생성·종료합니다. 전역 Session, 요청 사이의 Session 공유, 하나의 Session을 여러 동시 task에서 공유하는 코드를 만들지 않습니다.
-- 요청 dependency는 세션의 생성과 정리를 담당합니다. dependency 종료 시 무조건 commit하는 정책은 사용하지 않습니다.
+- [DB 세션 기반](../../backend/app/core/db/session.py)의 `Database`·`create_database`는 HTTP 요청을 알지 않습니다. [HTTP 의존성](../../backend/app/core/http/dependencies.py)의 `get_session`·`DatabaseSession`이 요청에 연결된 세션의 생성과 정리를 담당합니다. dependency 종료 시 무조건 commit하는 정책은 사용하지 않습니다.
 - 기본 세션 설정은 `expire_on_commit=False`로 합니다. 이것이 모든 지연 로딩을 비동기로 안전하게 만드는 것은 아닙니다.
 - 응답 직렬화 중 암묵적 쿼리가 발생하지 않도록 필요한 관계를 명시적으로 조회합니다. 관계 조회는 `selectinload` 등의 eager loading을 우선 검토합니다.
 - 종료된 세션에 붙어 있던 객체에서 새 DB 조회가 필요한 속성을 읽지 않습니다. background task에는 기존 요청 Session을 넘기지 않습니다.

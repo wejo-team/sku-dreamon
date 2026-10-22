@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped
 from sqlalchemy.schema import CreateSchema
 
-from app.db.base import Base
-from app.db.mixins import CreatedAtMixin, UpdatedAtMixin
-from app.db.session import create_database
-from app.db.types import UUIDPrimaryKey
+from app.core.db.base import Base
+from app.core.db.mixins import CreatedAtMixin, UpdatedAtMixin
+from app.core.db.session import create_database
+from app.core.db.types import UUIDPrimaryKey
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 

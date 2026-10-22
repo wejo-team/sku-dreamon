@@ -2,7 +2,7 @@
 
 이 문서는 **검토용 전송 설계**입니다. 제품 정책은 [기능 명세](../specs/README.md), 물리 저장 형식은 [DB 공통 기준](../database/conventions.md), 개별 요청·응답 필드는 [영역별 API 문서](README.md)를 따릅니다. 공통 타입·성공 응답·페이지·오류는 여기서만 정의합니다.
 
-**공통 기반 구현:** [DTO 이름 규칙](../../backend/app/schemas/base.py), [공통 타입](../../backend/app/schemas/types.py), [성공·페이지 모델](../../backend/app/schemas/responses.py), [오류 모델](../../backend/app/schemas/errors.py)과 [핸들러](../../backend/app/core/errors.py)를 제공합니다. 아래 계약의 제품 endpoint 적용 여부는 각 영역의 구현 상태를 따릅니다. 상세 사용법과 책임 경계는 [백엔드 공통 기반](../development/backend.md#api-core), 실제 HTTP·OpenAPI 대응은 [계약 테스트](../../backend/tests/integration/test_api_contract.py)에서 확인합니다. 공통 기반 구현이 인증·도메인 API 구현 완료를 뜻하지 않습니다.
+**공통 기반 구현:** [DTO·성공·페이지·오류 모델](../../backend/app/core/http/schemas.py), [전송 타입](../../backend/app/core/http/types.py), [애플리케이션 예외](../../backend/app/core/exceptions.py)와 [HTTP 핸들러](../../backend/app/core/http/handlers.py)를 제공합니다. 아래 계약의 제품 endpoint 적용 여부는 각 영역의 구현 상태를 따릅니다. 상세 사용법과 책임 경계는 [백엔드 공통 기반](../development/backend.md#api-core), 실제 HTTP·OpenAPI 대응은 [계약 테스트](../../backend/tests/integration/test_api_contract.py)에서 확인합니다. 공통 기반 구현이 인증·도메인 API 구현 완료를 뜻하지 않습니다.
 
 <a id="types"></a>
 

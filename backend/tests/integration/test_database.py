@@ -12,7 +12,8 @@ from pydantic import PostgresDsn
 from sqlalchemy import Engine, event, text
 
 from app.core.config import Settings
-from app.db.session import Database, DatabaseSession
+from app.core.db.session import Database
+from app.core.http.dependencies import DatabaseSession
 from app.main import create_app
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]

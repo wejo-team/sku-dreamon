@@ -1,8 +1,5 @@
-from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Annotated, cast
 
-from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -23,12 +20,3 @@ def create_database(url: str) -> Database:
         engine=engine,
         session_factory=async_sessionmaker(engine, expire_on_commit=False),
     )
-
-
-async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
-    database = cast(Database, request.app.state.database)
-    async with database.session_factory() as session:
-        yield session
-
-
-DatabaseSession = Annotated[AsyncSession, Depends(get_session)]

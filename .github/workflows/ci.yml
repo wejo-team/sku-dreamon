@@ -101,7 +101,7 @@ jobs:
       - run: uv run mypy
       - run: uv run alembic upgrade head
       - run: uv run alembic check
-      - run: uv run python -m app.db.check
+      - run: uv run python -m app.core.db.check
       - run: uv run pytest
 
   # Preserve required check names even when an area's expensive tests are skipped.

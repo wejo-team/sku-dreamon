@@ -9,9 +9,9 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.schema import CreateTable
 
-from app.db.base import Base
-from app.db.mixins import CreatedAtMixin, UpdatedAtMixin
-from app.db.types import UUIDPrimaryKey
+from app.core.db.base import Base
+from app.core.db.mixins import CreatedAtMixin, UpdatedAtMixin
+from app.core.db.types import UUIDPrimaryKey
 
 
 class ModelBase(DeclarativeBase):
