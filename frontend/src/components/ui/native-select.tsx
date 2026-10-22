@@ -21,7 +21,7 @@ export function NativeSelect({
       <select
         data-slot="native-select"
         className={cn(
-          'flex h-11 w-full appearance-none rounded-md border border-input bg-card px-3 py-2 pr-9 text-base shadow-xs transition-colors outline-none',
+          'flex h-11 w-full appearance-none rounded-control border border-input bg-card px-3 py-2 pr-9 text-base shadow-xs transition-colors outline-none',
           'focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40',
           'disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive',
           className,

@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 
 // [출처 1, 4] cva 기반 Alert 변형 정의
 const alertVariants = cva(
-  'relative flex w-full gap-3 rounded-lg border p-4 text-sm [&>svg]:size-5 [&>svg]:shrink-0',
+  'relative flex w-full gap-3 rounded-panel border p-4 text-sm [&>svg]:size-5 [&>svg]:shrink-0',
   {
     variants: {
       variant: {

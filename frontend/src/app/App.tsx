@@ -1,11 +1,12 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes } from 'react-router';
+import { AppShell } from '@/components/layout/AppShell';
 import { queryClient } from '@/lib/query-client';
 import { HealthPage } from '@/pages/HealthPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
-import { AppShell } from '@/components/layout/AppShell';
 
-{/*가상 수행 영역 (테스트 코드) */ }
+// 페이지 구현 전 단계: 공통 AppShell 안에서 health 확인 화면과 404만 등록되어 있습니다.
+// 하단 탭·로고의 목적지(/explore, /ai, /workspace, /profile)는 각 페이지 작업에서 라우트를 추가합니다.
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -32,17 +33,3 @@ export function App() {
     </QueryClientProvider>
   );
 }
-
-{/*실제 수행 영역 (실제 수정해야할 영역) */ }
-{/*export function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<HealthPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </BrowserRouter>
-    </QueryClientProvider>
-  );
-}*/}

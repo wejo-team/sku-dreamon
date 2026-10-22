@@ -86,16 +86,6 @@ export interface Application {
   discardReason?: string;
 }
 
-export interface NotificationItem {
-  id: string;
-  title: string;
-  description: string;
-  kind: 'application' | 'applicant';
-  read: boolean;
-  to: string;
-  occurredAt?: string;
-}
-
 // [출처 1, 5] 검증된 공모전 예시 데이터
 export const mockContests: Contest[] = [
   {
@@ -335,28 +325,6 @@ export const initialApplications: Application[] = [
     message: '성북구 지역 상권 활성화에 관심이 많아 지원합니다.',
     submittedAt: '2026.10.16',
     discardReason: '다른 팀 선발로 대기 지원이 폐기됐어요',
-  },
-];
-
-// [출처 1, 5] 알림 목록
-export const initialNotifications: NotificationItem[] = [
-  {
-    id: 'notif-1',
-    title: '지원이 접수됐어요',
-    description: '스마트 캠퍼스 지도 팀에 개발 역할로 지원이 완료되었어요.',
-    kind: 'application',
-    read: false,
-    to: '/workspace?view=applications',
-    occurredAt: '방금 전',
-  },
-  {
-    id: 'notif-2',
-    title: '다른 팀 선발로 대기 지원이 폐기됐어요',
-    description: '성북 청년 공방 팀 지원이 폐기 처리되었어요.',
-    kind: 'application',
-    read: true,
-    to: '/workspace?view=applications',
-    occurredAt: '어제',
   },
 ];
 

@@ -52,6 +52,9 @@
   --ring: #007a55;
   --radius: 0.75rem;
 
+  /* [출처 3] 하단 주 메뉴 전체 높이: 기본 64px + 하단 safe-area (index.html viewport-fit=cover) */
+  --bottom-nav-height: calc(4rem + env(safe-area-inset-bottom));
+
   /* [출처 1] 상태별 시맨틱 컬러 토큰 */
   --destructive: #b91c1c;
   --recruiting-background: #cce9d7;
@@ -128,6 +131,13 @@
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
+  /* [출처 1] 역할별 반경(PR #120 리뷰 반영): rounded-control = 컨트롤·버튼 8px, rounded-panel = 카드·패널 12px */
+  --radius-control: 8px;
+  --radius-panel: 12px;
+
+  /* shadow-card / shadow-panel: 카드·패널 표면 구현 시 이 유틸리티로 그림자 토큰을 소비합니다. */
+  --shadow-card: var(--card-shadow);
+  --shadow-panel: var(--panel-shadow);
 }
 
 @layer base {
