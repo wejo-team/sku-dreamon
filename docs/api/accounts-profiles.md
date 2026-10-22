@@ -91,7 +91,7 @@
 | --- | --- | --- |
 | `VERSION_CONFLICT` | 요청 버전이 현재 버전과 다름 | 최신 값을 확인하고 편집값을 재검토. 조용히 덮어써 재시도하지 않음 |
 | `INVALID_CATALOG_SELECTION` | 선택 코드가 해당 목록·선택 가능 조건에 맞지 않음 | 최신 카탈로그를 확인하고 해당 선택을 수정 |
-| `INVALID_ACADEMIC_PATH` | 학사 경로·미배정 값의 조합이 유효하지 않음 | 학사 경로를 다시 확인하고 유효한 조합으로 수정 |
+| `INVALID_ACADEMIC_PATH` | 선택한 학사 항목의 부모 경로·계층이 유효하지 않음 | 학사 목록을 다시 확인하고 유효한 항목으로 수정 |
 
 저장 흐름은 다음과 같습니다.
 
@@ -106,7 +106,7 @@
 
 ### Profile — 전체 현재 프로필
 
-`Profile`은 아래 서버 필드와 [공통 편집 필드 14개](#profile-fields)를 모두 포함합니다. 모든 필드는 항상 응답하며 미입력은 해당 필드의 `null` 또는 빈 목록으로 표현합니다.
+`Profile`은 아래 서버 필드와 [공통 편집 필드 13개](#profile-fields)를 모두 포함합니다. 모든 필드는 항상 응답하며 미입력은 해당 필드의 `null` 또는 빈 목록으로 표현합니다.
 
 | 서버 필드 | 타입 | null | 의미 |
 | --- | --- | --- | --- |
@@ -124,7 +124,7 @@
 
 ### 프로필 조회·저장의 공통 편집 필드
 
-이 표의 **14개 키를 모두 포함**합니다. 선택 입력도 키를 생략하지 않고 `null` 또는 `[]`를 전송합니다. 문자열 길이의 정책 수치는 아래와 같고, 비밀번호 외 텍스트의 Unicode 계수·정규화 세부는 [PROFILE-07](../specs/profile.md#open-questions)에 남깁니다.
+이 표의 **13개 키를 모두 포함**합니다. 선택 입력도 키를 생략하지 않고 `null` 또는 `[]`를 전송합니다. 문자열 길이의 정책 수치는 아래와 같고, 비밀번호 외 텍스트의 Unicode 계수·정규화 세부는 [PROFILE-07](../specs/profile.md#open-questions)에 남깁니다.
 
 | 필드 | 타입 | null | 값·제약 |
 | --- | --- | --- | --- |
@@ -134,7 +134,6 @@
 | `gradeCode` | CatalogCode | 허용 | `grades` 코드 |
 | `weeklyAvailabilityCode` | CatalogCode | 허용 | `weeklyAvailabilityRanges` 코드. 네 구간 중 하나 또는 미입력 |
 | `academicUnitId` | PositiveBigInt | 허용 | 가장 깊게 선택한 학사 항목 ID. 상위 소속은 [AcademicUnit](#academic-unit)의 부모 연결로 해석 |
-| `majorUnassigned` | boolean | 불가 | 해당 학사 경로에서 허용한 전공 미배정 여부. 경로가 없으면 `false` |
 | `experienceState` | ExperienceState | 불가 | `unspecified`, `none`, `provided`. [상태별 본문 조합](#experience) 적용 |
 | `experienceBody` | string | 허용 | 앞뒤 공백 제거 후 최대 500자. 응답의 상태와 본문은 아래 조합을 충족 |
 | `introduction` | string | 허용 | 앞뒤 공백 제거 후 최대 300자 |
@@ -143,7 +142,7 @@
 | `skillCodes` | CatalogCode[] | 불가 | 목록 내 보유 역량, 중복 불가. 개수 상한 없음. 해제는 `[]` |
 | `portfolio` | [Portfolio](#portfolio) | 허용 | 등록된 URL 1개와 선택 제목. 전체 제거는 `null` |
 
-코드는 [Catalogs](#catalogs)로 표시명을 해석하며 서버의 같은 공통 enum으로 입력을 검증합니다. 새 선택은 현재 유효한 항목이어야 하며, 기존 비활성 학사 경로를 그대로 유지한 다른 항목의 수정은 허용합니다. 학사 경로·전공 미배정 조합은 [학사 저장 정책](../specs/academic-structure.md#selection-policy)에 따라 검증하며, 상위값 변경 시 [유효하지 않은 하위 선택만 초안에서 초기화](../specs/academic-structure.md#dependent-selection)합니다.
+코드는 [Catalogs](#catalogs)로 표시명을 해석하며 서버의 같은 공통 enum으로 입력을 검증합니다. 새 선택은 현재 유효한 항목이어야 하며, 기존 비활성 학사 경로를 그대로 유지한 다른 항목의 수정은 허용합니다. 학사 항목과 부모 경로는 [학사 저장 정책](../specs/academic-structure.md#selection-policy)에 따라 검증하며, 상위값 변경 시 [유효하지 않은 하위 선택만 초안에서 초기화](../specs/academic-structure.md#dependent-selection)합니다.
 
 <a id="experience"></a>
 
@@ -172,7 +171,7 @@
 
 ### ProfileWrite — 전체 편집 요청
 
-전체 키는 [공통 편집 필드 14개](#profile-fields)와 `expectedVersion`입니다. `expectedVersion`은 `NonnegativeBigInt`이며 최초 `"0"`, 수정 시 조회한 `version`을 넣습니다. `accountId`, `version`, `updatedAt`, `isPublic`, `isDemo`는 받지 않습니다.
+전체 키는 [공통 편집 필드 13개](#profile-fields)와 `expectedVersion`입니다. `expectedVersion`은 `NonnegativeBigInt`이며 최초 `"0"`, 수정 시 조회한 `version`을 넣습니다. `accountId`, `version`, `updatedAt`, `isPublic`, `isDemo`는 받지 않습니다.
 
 최초 저장 요청 예시입니다. `FIELD_EXAMPLE`과 `ROLE_EXAMPLE`은 문서용 코드이며 실제 카탈로그 값은 아닙니다.
 
@@ -185,7 +184,6 @@
   "gradeCode": null,
   "weeklyAvailabilityCode": null,
   "academicUnitId": null,
-  "majorUnassigned": false,
   "experienceState": "unspecified",
   "experienceBody": null,
   "introduction": null,
@@ -301,13 +299,13 @@
 #### 선택과 프로필 저장 흐름
 
 1. 클라이언트가 학사 목록과 본인 프로필을 조회하고, `parentId=null`인 대학부터 하위 항목을 표시합니다. 선택한 항목과 조상이 모두 선택 가능한 경우에만 신규 선택으로 제공합니다.
-2. 사용자가 상위 항목을 바꾸면 새 부모 관계에서 유효하지 않은 하위 선택만 편집 초안에서 비웁니다. 학과에 세부전공이 없으면 학과 ID를 사용합니다.
+2. 사용자가 상위 항목을 바꾸면 새 부모 관계에서 유효하지 않은 하위 선택만 편집 초안에서 비웁니다. 학부·학과까지만 선택하면 해당 ID를 사용하고, 세부전공을 선택하면 전공 ID를 사용합니다.
 3. 저장 버튼을 누르면 `PUT /me/profile`의 **전체 편집 객체**에 최종 `academicUnitId`와 `expectedVersion`을 보냅니다. 최초 저장 버전은 `"0"`이며, 이름·부모 ID를 별도 저장값으로 전송하지 않습니다.
 4. 서버는 세션의 본인 계정과 프로필 버전을 확인하고 선택 항목의 존재·부모 경로·선택 가능 여부를 [같은 트랜잭션에서 검증](../database/catalogs.md#academic-write-contract)합니다. 기존 비활성 소속을 그대로 유지한 다른 필드 수정은 허용합니다.
 5. 서버가 `profiles.academic_unit_id`와 다른 프로필 항목을 저장하고 버전을 증가시킨 뒤 커밋한 결과를 반환합니다. 기존 학사 항목을 참조하므로 학사 행이나 새 학사 ID는 생성하지 않습니다.
 6. 실패하면 전체 프로필 저장을 취소하고 편집값을 유지합니다. 버전 충돌이나 유효하지 않은 선택은 위 [프로필 오류 계약](#profile-endpoints)에 따라 최신 값을 확인합니다.
 
-전공 미배정은 기존 `majorUnassigned` 필드로 표현합니다. 학부별 허용 범위와 클라이언트에 전달할 방식은 [ACADEMIC-03](../specs/academic-structure.md#open-questions) 결정 후 정의하며, 이름이나 하위 항목 부재만으로 미배정을 허용하지 않습니다. 실제 초기 목록·부모 관계·기존 데이터의 ID 대응도 [학사 미정 사항](../specs/academic-structure.md#open-questions)을 검토한 뒤 등록합니다.
+프로필 화면은 `academicUnitId`에서 부모를 따라 선택한 항목까지의 소속 경로를 표시합니다. 학부·학과만 선택한 이유나 전공 배정 상태는 별도 필드로 전달하거나 추정하지 않으며, 학사 정보 전체가 미입력이면 `academicUnitId=null`입니다. 실제 초기 목록·부모 관계·기존 데이터의 ID 대응은 [학사 미정 사항](../specs/academic-structure.md#open-questions)을 검토한 뒤 등록합니다.
 
 ## DB 연결과 남은 범위
 

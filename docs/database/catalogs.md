@@ -74,7 +74,6 @@ erDiagram
     profiles {
         uuid account_id PK,FK
         bigint academic_unit_id FK
-        boolean major_unassigned
     }
 ```
 
@@ -115,9 +114,8 @@ erDiagram
 | 자기 참조·순환 없음 | 자기 참조 CHECK와 서버의 부모 경로 검사. 새 행은 이미 존재하는 부모만 참조하고 기존 부모 연결은 고정 |
 | 새 선택은 현행 항목만 사용 | 프로필 저장 시 선택한 항목과 모든 조상의 `is_selectable`을 같은 트랜잭션에서 검사·잠금. 비활성화 작업도 해당 행 잠금과 함께 처리 |
 | 기존 과거 소속은 계속 참조 | 같은 ID를 유지하는 프로필 수정은 비활성이라는 이유로 거절하지 않음. 과거 소속을 삭제·자동 치환하지 않음 |
-| 전공 미배정 범위 | `profiles.major_unassigned`와 선택한 학부의 조합을 검증. 학부별 허용 범위와 전달 방식은 [ACADEMIC-03](../specs/academic-structure.md#open-questions)에서 결정하며 이름·자식 부재만으로 허용하지 않음 |
 
-프로필에는 가장 깊게 선택한 `academic_units.id` 하나를 `academic_unit_id`에 저장합니다. 상위 대학·학부·전공 ID를 중복 저장하지 않으며 표시 정보는 부모 연결을 따라 구성합니다. 전공이 없는 학과는 학과 ID를 저장합니다. 학사 미입력은 NULL, 전공 미배정은 허용된 학부 ID와 `major_unassigned=true`로 구분합니다.
+프로필에는 가장 깊게 선택한 `academic_units.id` 하나를 `academic_unit_id`에 저장합니다. 상위 대학·학부·전공 ID를 중복 저장하지 않으며 표시 정보는 부모 연결을 따라 구성합니다. 학부·학과까지만 선택하면 해당 ID, 세부전공을 선택하면 전공 ID를 저장하고, 학사 정보 전체가 미입력이면 NULL로 둡니다. 전공을 선택하지 않은 이유나 배정 상태는 별도로 저장·추론하지 않습니다.
 
 학사 ID와 부모 ID는 DB에서 `bigint`, [API](../api/accounts-profiles.md#academic-unit)에서는 `PositiveBigInt` 십진 문자열입니다. 사용자의 소속 저장은 기존 항목을 참조할 뿐 새 학사 행이나 ID를 만들지 않습니다. 계정·공고·팀 등 다른 업무 ID는 UUID를 유지합니다.
 

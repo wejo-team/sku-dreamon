@@ -185,7 +185,6 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | `grade_code` | `varchar(64)` | 허용 | `NULL` | 학년. `GradeCode` 검증 |
 | `weekly_availability_code` | `varchar(64)` | 허용 | `NULL` | 주당 참여 가능 시간. `WeeklyAvailabilityCode` 검증 |
 | `academic_unit_id` | `bigint` | 허용 | `NULL` | FK → `academic_units.id`. 가장 깊게 선택한 학사 항목 |
-| `major_unassigned` | `boolean` | 불가 | `false` | 전공 미배정을 명시한 상태 |
 | `experience_state` | `varchar(16)` | 불가 | `unspecified` | `unspecified` / `none` / `provided` |
 | `experience_body` | `text` | 허용 | `NULL` | 현재 경험 본문 |
 | `introduction` | `text` | 허용 | `NULL` | 자기소개 |
@@ -200,7 +199,6 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | `ck_profiles_version` | `version >= 1` |
 | `ck_profiles_real_name` | `real_name`은 빈 문자열이 아님. 공백 정규화·글자 수 검증은 저장 계약 적용 |
 | `ck_profiles_experience` | `unspecified`·`none`이면 본문 `NULL`; `provided`이면 본문이 `NULL`도 빈 문자열도 아님. 다른 상태값 금지 |
-| `ck_profiles_unassigned_path` | `major_unassigned=true`이면 `academic_unit_id`가 반드시 존재 |
 | `ix_profiles_academic_unit` | B-tree (`academic_unit_id`). 선택 항목 참조 확인·학사 조건 조회 |
 | `ix_profiles_public_updated` | B-tree (`updated_at DESC, account_id ASC`), 조건 `is_public=true`. 공개 사람 목록의 정렬·집계 후보 |
 
@@ -259,7 +257,7 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | 복수 선택 개수 | 최종 연결 집합을 [프로필 입력 규칙](../specs/profile.md#input-validation)에 맞춰 검증합니다. 다른 행 개수를 일반 `CHECK`로 계산하지 않습니다. |
 | 선택 코드 | 단일·복수 선택을 해당 공통 enum과 대조하고 새 선택 가능 여부를 검증합니다. 코드 테이블 FK에 의존하지 않습니다. |
 | 텍스트 상한 | 기존 명세의 상한을 서비스에서 검사합니다. [PROFILE-07](../specs/profile.md#open-questions)의 Unicode 계수 계약이 미정이므로 사용자 본문은 `text`로 저장하고 `varchar(n)`으로 임의의 계수 방식을 확정하지 않습니다. |
-| 학사 선택 | 새 항목과 조상의 계층·현행 여부 및 미배정 허용을 [학사 저장 계약](catalogs.md#academic-write-contract)에서 검증합니다. |
+| 학사 선택 | 새 항목과 조상의 계층·현행 여부를 [학사 저장 계약](catalogs.md#academic-write-contract)에서 검증합니다. 가장 깊게 선택한 항목 ID만 저장하고 소속 경로를 표시합니다. |
 | 일반 조회·AI 사람 추천 | [프로필 공개 권한](../specs/profile.md#visibility)에 맞는 후보 조회에서 현재 `is_public`을 확인합니다. 검색 결과 수에도 같은 조건을 적용합니다. |
 | 지원자 검토 | 지원 관계와 팀장을 확인한 후 현재 `profiles`를 조회합니다. 프로필 버전으로 오래된 AI 검토를 식별하며, 지원별 프로필 사본이나 필드별 공개 플래그를 만들지 않습니다. |
 
