@@ -73,13 +73,15 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 | 기존 지원자 AI 검토의 실제 입력 필드·모델 전송 최소화, 대화 보존·삭제·일반 추천 우회 노출 방지 | [MATCH-10·13](../specs/matching.md#open-questions) |
 | 주최 측 공고 조건 변경의 기존 지원·선발·소속 영향(TBD). 개별 자격을 비즈니스 로직으로 제한하지 않음 | [MATCH-08](../specs/matching.md#open-questions), [TEAM-06](../specs/team-recruitment.md#open-questions) |
 | 계정 탈퇴의 세션·열람 효력·보존·복구, 팀 생성/개인화 추천의 프로필 완성 범위 | [PROFILE-03·04](../specs/profile.md#open-questions) |
-| 미선발 처리·선발 취소·폐기 후 재지원·팀 삭제·모집 정보 수정 범위. 팀장 변경·위임은 제공하지 않음 | [TEAM-02~08](../specs/team-recruitment.md#open-questions) |
+| 모집 정보 수정 범위·팀 공간의 추가 편집·외부 메신저. 팀·지원 전이와 재지원·소속은 확정 정책을 따르며 팀장 선발 취소·강퇴·탈퇴·팀 삭제는 MVP 제외 | [TEAM-07·08](../specs/team-recruitment.md#open-questions), [MVP 제외](../specs/team-recruitment.md#membership-exclusions) |
 | 관리자의 공고 수집·검수·등록 도구와 관리자 페이지(TBD), 공고 요약 포함 여부, 공개 후 변경 재확인·운영 갱신 | [공고 미정 사항](../specs/contests.md#open-questions) |
-| 실제 학사 운영 목록·코드·관계, 기타/기존 시간 데이터 전환·구간 저장 ID | [학사 명세](../specs/academic-structure.md), [선택지 미정 사항](../specs/profile-options.md#open-questions) |
+| 실제 학사 운영 목록·ID 대응·관계, 기타/기존 시간 데이터 전환·구간 저장 ID | [학사 명세](../specs/academic-structure.md), [선택지 미정 사항](../specs/profile-options.md#open-questions) |
 | 로그인 세션·보안·복구·실제 유출 비밀번호 차단 목록 공급·갱신 | [인증 미정 사항](../specs/authentication.md#open-questions) |
 | 확정된 알림 중복 규칙의 저장·원자성·재시도 구현, 기기 동기화·보존 | [알림 미정 사항](../specs/notifications.md) |
 
 팀장이 선발하면 즉시 팀원 확정, 팀장 포함 총 정원, 선발 시 자리 차감, 취소 후 자리 반환·현재 조건에 따른 즉시 재지원은 이미 정해진 정책입니다. 학적·학년 선택, 정보 부족 시 원문 안내 후 일반 지원, 신규 지원 공개 필수, 모집 마감/정원 충족 후 기존 지원자 AI 검토도 확정됐습니다. 같은 공모전의 다른 팀에 동시 지원할 수 있고 선발되면 다른 대기 지원은 폐기됩니다. 새 선발 후보는 유효한 지원 완료·검토 중만 포함합니다. 정원 충족으로 모집이 닫힌 후 자리 반환만으로 다시 열리지 않으며 팀장이 직접 재개합니다. 개별 참가 자격은 지원·선발의 자동 차단 조건이 아닙니다. 이를 별도 수락/자격 확인 대기나 새 TBD로 되돌리지 않습니다.
+
+2026-10-21에는 [팀 모집 두 상태·지원별 검토 시작·미선발](../specs/team-recruitment.md#team-state-transitions), [마감 종류별 선발 가능 시점](../specs/team-recruitment.md#selection-window), [재지원·소속 경계](../specs/team-recruitment.md#reapplication)와 팀 생성에 따른 대기 지원 폐기를 추가로 확정했습니다. 이번 PR은 명세·DB·API 설계 반영이며 아래 참고 화면에 새 정책이 구현·검증됐다는 뜻은 아닙니다. 적용 차이는 [디자인 대조 기록](../specs/prototype-alignment.md#policy-follow-up)에서 관리합니다.
 
 ## 재현 경로
 
@@ -96,7 +98,7 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 - `/workspace?view=applications&scenario=team-lifecycle`: 로컬 스튜디오 폐기 이력·사유, 로컬 크루 선발 후 본인 지원 취소 시에도 폐기 이력 유지.
 - `/reference/notices/campus`, `/reference/portfolios/seoyeon`: 실제 기관·개인 사이트를 대신하는 로컬 링크 목적지.
 
-모든 경로에 `/design-preview` 접두사를 붙입니다. `scenario=team-lifecycle`은 페이지를 새로 로드할 때만 예시 상태를 구성하며 로그인 권한을 우회하지 않습니다. 이후 내부 화면 이동 중에는 같은 상태를 유지하고, 기본 예시로 돌아가려면 쿼리 없는 주소로 새로 로드합니다. 현재 시각은 재현을 위해 2026-10-18로 고정한 예시이며 실제 운영 시계가 아닙니다. 마감 계산은 원문 시각·시간대를 우선하고, 누락 시 한국시간·해당 날짜 종료(다음 날 00:00)를 사용하며 서비스 보완 안내를 표시합니다. 기존 지원자의 AI 검토 결과 확인·재요청은 마감/정원 충족 후에도 허용하고 신규 지원·정원 초과 선발 제한과 구분합니다. 마감 후 실제 추가 선발 허용 범위는 팀 명세의 남은 정책을 따릅니다.
+모든 경로에 `/design-preview` 접두사를 붙입니다. `scenario=team-lifecycle`은 페이지를 새로 로드할 때만 예시 상태를 구성하며 로그인 권한을 우회하지 않습니다. 이후 내부 화면 이동 중에는 같은 상태를 유지하고, 기본 예시로 돌아가려면 쿼리 없는 주소로 새로 로드합니다. 현재 시각은 재현을 위해 2026-10-18로 고정한 예시이며 실제 운영 시계가 아닙니다. 마감 계산은 원문 시각·시간대를 우선하고, 누락 시 한국시간·해당 날짜 종료(다음 날 00:00)를 사용하며 서비스 보완 안내를 표시합니다. 기존 지원자의 AI 검토 결과 확인·재요청은 마감/정원 충족 후에도 허용하고 신규 지원·정원 초과 선발 제한과 구분합니다. 마감 후 실제 추가 선발 허용 범위는 [2026-10-21 확정 정책](../specs/team-recruitment.md#selection-window)을 따르며 참고 화면 반영은 후속 작업입니다.
 
 ## 페이지 이동과 공모전별 팀 목록
 
