@@ -35,17 +35,44 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 
 ## ORM 공통 기반
 
-[Base](../../backend/app/db/base.py)는 SQLAlchemy metadata와 [제약조건 네이밍](../database/conventions.md#constraint-names)을 공유합니다. 모든 테이블에 `id`·시각 컬럼을 강제하거나 테이블 이름을 자동으로 정하지 않습니다. 프로필의 공유 PK, 학사의 정수 ID, 선택지 연결의 복합 PK처럼 테이블마다 식별 방법이 다릅니다.
+[Base](../../backend/app/db/base.py)는 SQLAlchemy metadata와 [제약조건 네이밍](../database/conventions.md#constraint-names)을 공유합니다. 단일 PK는 `account_id`, `team_id`처럼 `<단수형 테이블명>_id`로 직접 선언합니다. 모든 테이블에 같은 PK·시각 컬럼을 강제하거나 테이블·컬럼 이름을 자동으로 정하지 않습니다. 프로필의 공유 PK, 학사의 정수 ID, 선택지 연결의 복합 PK처럼 테이블마다 식별 방법이 다릅니다.
 
-[선택 mixin](../../backend/app/db/mixins.py)은 필요한 컬럼만 조합하여 사용합니다.
+[UUID PK 타입](../../backend/app/db/types.py)과 [시각 mixin](../../backend/app/db/mixins.py)은 필요한 컬럼만 조합하여 사용합니다.
 
-| mixin | 책임과 적용 조건 |
+| 공통 요소 | 책임과 적용 조건 |
 | --- | --- |
-| `UUIDPrimaryKeyMixin` | UUID `id`와 애플리케이션의 `uuid4` 기본값. INSERT/flush 때 발급하므로 그 전에 ID가 필요하면 서비스가 명시적으로 전달 |
+| `UUIDPrimaryKey` | 명시한 필드명에 UUID PK와 애플리케이션의 `uuid4` 기본값을 적용. INSERT/flush 때 발급하므로 그 전에 ID가 필요하면 서비스가 명시적으로 전달 |
 | `CreatedAtMixin` | NOT NULL `TIMESTAMPTZ created_at`, DB 생성 기본값 `now()` |
 | `UpdatedAtMixin` | NOT NULL `TIMESTAMPTZ updated_at`, DB 생성 기본값 `now()`. 이후 갱신은 아래 서비스 책임 |
 
-예를 들어 계정은 UUID·생성 시각만, 공고·팀은 세 mixin을 선택할 수 있습니다. `profiles`는 자신의 `account_id` PK에 생성·수정 시각만 조합합니다. 세션 발급·만료처럼 동일한 업무 시각으로 여러 값을 계산해야 하는 경우에는 해당 모델에서 직접 컬럼을 정의합니다. 실제 적용은 각 도메인 모델·migration에서 설계와 대조합니다.
+예를 들어 계정은 UUID PK 타입·생성 시각만, 공고·팀은 여기에 수정 시각을 조합합니다. 다음은 이름과 PK 발급 책임을 보여 주는 최소 예시이며 실제 도메인 모델 전체가 아닙니다.
+
+```python
+from uuid import UUID
+
+from sqlalchemy import ForeignKey, Uuid
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base
+from app.db.mixins import CreatedAtMixin, UpdatedAtMixin
+from app.db.types import UUIDPrimaryKey
+
+
+class Account(CreatedAtMixin, Base):
+    __tablename__ = "accounts"
+
+    account_id: Mapped[UUIDPrimaryKey]
+
+
+class Profile(CreatedAtMixin, UpdatedAtMixin, Base):
+    __tablename__ = "profiles"
+
+    profile_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("accounts.account_id"), primary_key=True
+    )
+```
+
+공유 PK인 `profiles.profile_id`에는 부모 `accounts.account_id`와 같은 값을 전달하며 독립 UUID를 발급하는 `UUIDPrimaryKey`를 쓰지 않습니다. `portfolio_links.portfolio_link_id`도 같은 방식으로 `profiles.profile_id`를 참조합니다. 복합 PK는 기존 컬럼 조합을 모델에서 직접 선언합니다. 세션 발급·만료처럼 동일한 업무 시각으로 여러 값을 계산해야 하는 경우에는 해당 모델에서 직접 컬럼을 정의합니다. 실제 적용은 각 도메인 모델·migration에서 설계와 대조합니다. DB PK 이름과 공개 API 이름이 다르면 DTO를 구성하는 곳에서 명시적으로 연결하며, 이번 네이밍 변경으로 공개 API 필드를 바꾸지 않습니다.
 
 수정 시각은 쓰기 서비스가 `version`과 함께 명시적으로 갱신합니다. 프로필 선택 항목·포트폴리오만 바뀌어도 부모 프로필의 시각·버전을 같은 트랜잭션에서 바꿔야 합니다. 조회와 실제 변경이 없는 재시도에는 갱신하지 않습니다. mixin은 `onupdate`나 DB trigger를 추가하지 않으므로 직접 SQL도 같은 책임을 따릅니다.
 

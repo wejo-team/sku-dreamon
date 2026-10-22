@@ -8,8 +8,9 @@ from sqlalchemy.orm import DeclarativeBase, Mapped
 from sqlalchemy.schema import CreateSchema
 
 from app.db.base import Base
-from app.db.mixins import CreatedAtMixin, UpdatedAtMixin, UUIDPrimaryKeyMixin
+from app.db.mixins import CreatedAtMixin, UpdatedAtMixin
 from app.db.session import create_database
+from app.db.types import UUIDPrimaryKey
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
@@ -18,9 +19,10 @@ class ModelBase(DeclarativeBase):
     metadata = MetaData(naming_convention=Base.metadata.naming_convention)
 
 
-class Record(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, ModelBase):
-    __tablename__ = "mixin_records"
+class Record(CreatedAtMixin, UpdatedAtMixin, ModelBase):
+    __tablename__ = "records"
 
+    record_id: Mapped[UUIDPrimaryKey]
     title: Mapped[str]
 
 
@@ -43,26 +45,30 @@ async def test_uuid_and_timestamp_defaults_and_explicit_updates(
                     seed_id = uuid4()
                     seed_time = datetime(2026, 1, 1, tzinfo=UTC)
                     seeded = Record(
-                        id=seed_id,
+                        record_id=seed_id,
                         title="seeded",
                         created_at=seed_time,
                         updated_at=seed_time,
                     )
                     session.add_all([first, second, seeded])
                     await session.flush()
+                    await session.refresh(seeded)
 
-                    assert isinstance(first.id, UUID)
-                    assert first.id != second.id
+                    assert isinstance(first.record_id, UUID)
+                    assert first.record_id != second.record_id
                     assert first.created_at.utcoffset() == timedelta(0)
                     assert first.created_at == first.updated_at
-                    assert (seeded.id, seeded.created_at, seeded.updated_at) == (
+                    assert (seeded.record_id, seeded.created_at, seeded.updated_at) == (
                         seed_id,
                         seed_time,
                         seed_time,
                     )
 
                     created_at = first.created_at
-                    await session.scalar(select(Record).where(Record.id == first.id))
+                    stored = await session.scalar(
+                        select(Record).where(Record.record_id == first.record_id)
+                    )
+                    assert stored is first
                     await session.refresh(first)
                     assert first.updated_at == created_at
 

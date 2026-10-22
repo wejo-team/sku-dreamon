@@ -67,17 +67,17 @@ def test_generated_names_include_all_composite_columns(metadata: MetaData) -> No
 def test_explicit_full_names_are_preserved_in_postgresql_ddl(
     metadata: MetaData,
 ) -> None:
-    Table("accounts", metadata, Column("id", Integer, primary_key=True))
+    Table("accounts", metadata, Column("account_id", Integer, primary_key=True))
     sessions = Table(
         "auth_sessions",
         metadata,
-        Column("id", Integer),
+        Column("auth_session_id", Integer),
         Column("account_id", Integer),
         Column("token_hash", String),
-        PrimaryKeyConstraint("id", name="pk_auth_sessions"),
+        PrimaryKeyConstraint("auth_session_id", name="pk_auth_sessions"),
         UniqueConstraint("token_hash", name="uq_auth_sessions_token_hash"),
         ForeignKeyConstraint(
-            ["account_id"], ["accounts.id"], name="fk_auth_sessions_account"
+            ["account_id"], ["accounts.account_id"], name="fk_auth_sessions_account"
         ),
         CheckConstraint("token_hash <> ''", name="ck_auth_sessions_token_hash"),
         Index("ix_auth_sessions_account", "account_id"),

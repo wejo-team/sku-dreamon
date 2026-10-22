@@ -1,14 +1,7 @@
 from datetime import datetime
-from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Uuid, func
+from sqlalchemy import DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
-
-
-class UUIDPrimaryKeyMixin:
-    """Generate an ID at INSERT; pass one explicitly when needed before flush."""
-
-    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
 
 
 class CreatedAtMixin:
