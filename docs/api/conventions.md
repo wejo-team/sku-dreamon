@@ -10,9 +10,9 @@
 | --- | --- |
 | 경로 | `/api/v1` 아래 리소스 경로. 아래 영역 문서의 표는 이 접두사를 생략 |
 | 본문 | `application/json`, camelCase. 선언하지 않은 필드·snake_case·혼용 요청은 422 |
-| ID | 사용자·공고·팀·지원·알림 ID는 UUID 문자열. 로그인 아이디·표시명과 분리 |
+| ID | 사용자·공고·팀·지원·알림 ID는 UUID 문자열. 학사 항목 ID는 증가형 BIGINT의 십진 문자열이며 로그인 아이디·표시명과 분리 |
 | 코드 | 분야·역할·역량 등은 최대 64자의 카탈로그 코드. 표시명으로 저장 요청하지 않음 |
-| BIGINT | `version`, `expectedVersion`, `capacity`, `minimumMembers`, `maximumMembers`는 **십진 문자열**. 예: `"4"`. 최대 `9223372036854775807`은 저장 표현 한계이며 서비스 정원 상한이 아님 |
+| BIGINT | `version`, `expectedVersion`, `capacity`, `minimumMembers`, `maximumMembers`, 학사 `id`·`parentId`·`academicUnitId`는 **십진 문자열**. 예: `"4"`. 최대 `9223372036854775807`은 저장 표현 한계이며 서비스 정원 상한이 아님 |
 | 개수·페이지 | `page`, `pageSize`, `total`, `memberCount` 등은 JSON 정수. 안전 정수 범위를 벗어나는 집계가 필요해지면 계약 버전을 먼저 변경 |
 | 시각 | UTC ISO 8601의 `Z` 표기. 원문 시간대·마감 보완 사실은 별도 필드로 제공 |
 | 선택 항목 | 미입력은 `null`, 비어 있는 목록은 `[]`. 필드의 생략 가능 여부와 NULL 허용은 별개이며 영역별 표에 명시 |
@@ -26,7 +26,7 @@
 | --- | --- |
 | `Id` | UUID 문자열. 특정 UUID 생성 버전을 전제하지 않음 |
 | `Timestamp` | 유효한 날짜·시각을 담은 UTC ISO 8601 문자열, 끝은 `Z` |
-| `CatalogCode` | 길이 1~64인 코드 문자열. 해당 분류 목록의 실제 코드인지 별도 확인 |
+| `CatalogCode` | 길이 1~64인 코드 문자열. 공통 선택지 7종은 해당 애플리케이션 enum으로 검증. 학사 선택은 별도 코드 없이 `PositiveBigInt` ID로 참조 |
 | `HttpUrl` | `http://` 또는 `https://`로 시작하는 유효한 절대 URL. 입력 URL의 운영 길이 상한은 PROFILE-07 미정 |
 | `PositiveBigInt` | 1~9223372036854775807의 십진 문자열. 부호·소수점·선행 0 없음 |
 | `NonnegativeBigInt` | `PositiveBigInt` 또는 문자열 `"0"` |

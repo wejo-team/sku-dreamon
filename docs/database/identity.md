@@ -7,7 +7,7 @@
 | 가입·로그인과 입력 규칙 | [인증 명세](../specs/authentication.md#login-identifier) |
 | 서버 세션·쿠키·만료·로그아웃 | [세션 정책](../specs/authentication.md#session-policy) |
 | 프로필 항목·공개·지원 팀장 열람 | [프로필 항목](../specs/profile.md#fields), [공개 범위](../specs/profile.md#visibility) |
-| 선택 코드·학사 경로 | [공통 분류 테이블](catalogs.md) |
+| 선택 코드·학사 경로 | [공통 enum·학사 구조](catalogs.md) |
 | ID·시각·NULL·기본값 표기 | [DB 공통 규칙](conventions.md) |
 
 ## 구조를 먼저 보기
@@ -51,21 +51,21 @@ erDiagram
         bigint version
         text real_name
         boolean is_public
-        uuid academic_placement_id FK
+        bigint academic_unit_id FK
         varchar experience_state
         timestamptz updated_at
     }
     profile_interests {
         uuid account_id PK,FK
-        varchar field_code PK,FK
+        varchar field_code PK
     }
     profile_desired_roles {
         uuid account_id PK,FK
-        varchar role_code PK,FK
+        varchar role_code PK
     }
     profile_skills {
         uuid account_id PK,FK
-        varchar skill_code PK,FK
+        varchar skill_code PK
     }
     portfolio_links {
         uuid account_id PK,FK
@@ -76,7 +76,7 @@ erDiagram
 
 </details>
 
-그림은 이 문서가 정의하는 테이블을 표시합니다. 외부 코드·학사 FK의 대상은 [분류 ERD](catalogs.md)에서 확인합니다. 단일 선택 FK와 전체 컬럼·제약은 아래 정의를 기준으로 합니다. 연결 행의 1~3개·1~2개 제한은 ERD의 `1개 이상` 표기보다 엄격하므로 저장 트랜잭션에서 검증합니다.
+그림은 이 문서가 정의하는 테이블을 표시합니다. 선택 코드는 [공통 enum](catalogs.md#code-enums)으로 검증하며, 학사 FK의 대상은 [학사 ERD](catalogs.md#academic-tables)에서 확인합니다. 전체 컬럼·제약은 아래 정의를 기준으로 합니다. 연결 행의 1~3개·1~2개 제한은 ERD의 `1개 이상` 표기보다 엄격하므로 저장 트랜잭션에서 검증합니다.
 
 <a id="accounts"></a>
 
@@ -180,11 +180,11 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | `version` | `bigint` | 불가 | `1` | 프로필 전체 변경 버전. 하위 선택·포트폴리오 변경도 포함 |
 | `real_name` | `text` | 불가 | 없음 | 등록 실명. 유일성 없음 |
 | `is_public` | `boolean` | 불가 | `false` | 프로필 전체 공개 상태 |
-| `avatar_code` | `varchar(64)` | 허용 | `NULL` | FK → `avatar_presets.code` |
-| `academic_status_code` | `varchar(64)` | 허용 | `NULL` | FK → `academic_statuses.code` |
-| `grade_code` | `varchar(64)` | 허용 | `NULL` | FK → `grades.code` |
-| `weekly_availability_code` | `varchar(64)` | 허용 | `NULL` | FK → `weekly_availability_ranges.code` |
-| `academic_placement_id` | `uuid` | 허용 | `NULL` | FK → `academic_placements.id`. 가장 깊게 선택한 경로 |
+| `profile_image_code` | `varchar(64)` | 허용 | `NULL` | 선택한 프로필 이미지. `ProfileImageCode` 검증 |
+| `academic_status_code` | `varchar(64)` | 허용 | `NULL` | 학적 상태. `AcademicStatusCode` 검증 |
+| `grade_code` | `varchar(64)` | 허용 | `NULL` | 학년. `GradeCode` 검증 |
+| `weekly_availability_code` | `varchar(64)` | 허용 | `NULL` | 주당 참여 가능 시간. `WeeklyAvailabilityCode` 검증 |
+| `academic_unit_id` | `bigint` | 허용 | `NULL` | FK → `academic_units.id`. 가장 깊게 선택한 학사 항목 |
 | `major_unassigned` | `boolean` | 불가 | `false` | 전공 미배정을 명시한 상태 |
 | `experience_state` | `varchar(16)` | 불가 | `unspecified` | `unspecified` / `none` / `provided` |
 | `experience_body` | `text` | 허용 | `NULL` | 현재 경험 본문 |
@@ -192,7 +192,7 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | `created_at` | `timestamptz` | 불가 | `now()` | 첫 프로필 저장 시각 |
 | `updated_at` | `timestamptz` | 불가 | `now()` | 프로필 전체의 마지막 저장 시각 |
 
-**FK:** `fk_profiles_account`, `fk_profiles_avatar`, `fk_profiles_academic_status`, `fk_profiles_grade`, `fk_profiles_weekly_availability`, `fk_profiles_academic_placement`는 위 대상 컬럼을 참조하며 모두 `ON DELETE RESTRICT`입니다. `ON UPDATE`는 공통 규칙을 따릅니다.
+**FK:** `fk_profiles_account`, `fk_profiles_academic_unit`는 위 대상 컬럼을 참조하며 모두 `ON DELETE RESTRICT`입니다. `ON UPDATE`는 공통 규칙을 따릅니다. 네 단일 선택 코드는 FK 없이 저장하고 서버의 [공통 enum 검증](catalogs.md#code-enums)을 적용합니다.
 
 | 제약·인덱스 이름 | 정의와 목적 |
 | --- | --- |
@@ -200,15 +200,15 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | `ck_profiles_version` | `version >= 1` |
 | `ck_profiles_real_name` | `real_name`은 빈 문자열이 아님. 공백 정규화·글자 수 검증은 저장 계약 적용 |
 | `ck_profiles_experience` | `unspecified`·`none`이면 본문 `NULL`; `provided`이면 본문이 `NULL`도 빈 문자열도 아님. 다른 상태값 금지 |
-| `ck_profiles_unassigned_path` | `major_unassigned=true`이면 `academic_placement_id`가 반드시 존재 |
-| `ix_profiles_academic_placement` | B-tree (`academic_placement_id`). 경로 참조 확인·학사 조건 조회 |
+| `ck_profiles_unassigned_path` | `major_unassigned=true`이면 `academic_unit_id`가 반드시 존재 |
+| `ix_profiles_academic_unit` | B-tree (`academic_unit_id`). 선택 항목 참조 확인·학사 조건 조회 |
 | `ix_profiles_public_updated` | B-tree (`updated_at DESC, account_id ASC`), 조건 `is_public=true`. 공개 사람 목록의 정렬·집계 후보 |
 
 가입 완료 시에는 자체 로그인 정보를 포함한 `accounts`와 로그인 세션이 생성되고 프로필은 없습니다. [가입 후 자동 로그인](../specs/authentication.md#session-policy) 상태에서 프로필 설정으로 이동합니다. 프로필 첫 저장은 `expectedVersion="0"`으로 필수 항목·연결 행을 함께 생성하고 `version=1`을 반환합니다. 이후 수정은 조회한 현재 버전을 전송하고, 성공할 때만 1 증가시킵니다. API의 `version`·`expectedVersion`은 JavaScript 정밀도 손실을 피하기 위한 십진 문자열이며 DB에는 `bigint`로 저장합니다. 미완성 편집 초안은 별도 `draft` 행으로 저장하지 않습니다.
 
 ### `profile_interests` · `profile_desired_roles` · `profile_skills`
 
-한 프로필에서 여러 항목을 선택할 수 있도록 선택한 항목마다 연결을 저장합니다. 선택지 자체의 정의는 [공통 분류 테이블](catalogs.md)에 둡니다.
+한 프로필에서 여러 항목을 선택할 수 있도록 선택한 항목마다 연결을 저장합니다. 선택지 자체는 서버의 [공통 enum](catalogs.md#code-enums)으로 정의하며, 이 테이블에는 소유자와 선택 코드만 저장합니다.
 
 - `profile_interests`: 사용자가 관심을 둔 공모전 분야로, 사람 탐색과 추천의 참고 정보입니다.
 - `profile_desired_roles`: 팀에서 맡고 싶은 역할로, 함께할 사람을 찾을 때 참고하는 참여 의향입니다.
@@ -219,17 +219,17 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | 테이블 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·참조 |
 | --- | --- | --- | --- | --- | --- |
 | `profile_interests` | `account_id` | `uuid` | 불가 | 없음 | 복합 PK, FK → `profiles.account_id` |
-| `profile_interests` | `field_code` | `varchar(64)` | 불가 | 없음 | 복합 PK, FK → `fields.code` |
+| `profile_interests` | `field_code` | `varchar(64)` | 불가 | 없음 | 복합 PK. `FieldCode` 검증 |
 | `profile_desired_roles` | `account_id` | `uuid` | 불가 | 없음 | 복합 PK, FK → `profiles.account_id` |
-| `profile_desired_roles` | `role_code` | `varchar(64)` | 불가 | 없음 | 복합 PK, FK → `roles.code` |
+| `profile_desired_roles` | `role_code` | `varchar(64)` | 불가 | 없음 | 복합 PK. `RoleCode` 검증 |
 | `profile_skills` | `account_id` | `uuid` | 불가 | 없음 | 복합 PK, FK → `profiles.account_id` |
-| `profile_skills` | `skill_code` | `varchar(64)` | 불가 | 없음 | 복합 PK, FK → `skills.code` |
+| `profile_skills` | `skill_code` | `varchar(64)` | 불가 | 없음 | 복합 PK. `SkillCode` 검증 |
 
 | 테이블 | PK·FK 이름 | 추가 인덱스 |
 | --- | --- | --- |
-| `profile_interests` | `pk_profile_interests(account_id, field_code)`; `fk_profile_interests_profile`, `fk_profile_interests_field` | `ix_profile_interests_field(field_code, account_id)` |
-| `profile_desired_roles` | `pk_profile_desired_roles(account_id, role_code)`; `fk_profile_desired_roles_profile`, `fk_profile_desired_roles_role` | `ix_profile_desired_roles_role(role_code, account_id)` |
-| `profile_skills` | `pk_profile_skills(account_id, skill_code)`; `fk_profile_skills_profile`, `fk_profile_skills_skill` | `ix_profile_skills_skill(skill_code, account_id)` |
+| `profile_interests` | `pk_profile_interests(account_id, field_code)`; `fk_profile_interests_profile` | `ix_profile_interests_field(field_code, account_id)` |
+| `profile_desired_roles` | `pk_profile_desired_roles(account_id, role_code)`; `fk_profile_desired_roles_profile` | `ix_profile_desired_roles_role(role_code, account_id)` |
+| `profile_skills` | `pk_profile_skills(account_id, skill_code)`; `fk_profile_skills_profile` | `ix_profile_skills_skill(skill_code, account_id)` |
 
 추가 인덱스는 모두 B-tree이며 분야·역할·역량으로 사람을 찾는 역방향 조회에 사용합니다. PK는 같은 코드의 중복 선택을 방지합니다. 순위·대표값 컬럼은 없습니다.
 
@@ -257,8 +257,9 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | 동시 프로필 편집 | 계정 행을 잠근 뒤 프로필 버전을 비교합니다. 첫 저장도 같은 계정 잠금을 사용하여 중복 생성을 막습니다. 요청 버전이 현재 버전과 다르면 덮어쓰지 않고 충돌 응답을 반환합니다. |
 | 저장 단위 | 프로필 본문·선택 연결 행·포트폴리오를 하나의 트랜잭션에서 갱신하고 버전을 1 증가시킵니다. `updated_at`도 같은 저장에서 갱신합니다. |
 | 복수 선택 개수 | 최종 연결 집합을 [프로필 입력 규칙](../specs/profile.md#input-validation)에 맞춰 검증합니다. 다른 행 개수를 일반 `CHECK`로 계산하지 않습니다. |
+| 선택 코드 | 단일·복수 선택을 해당 공통 enum과 대조하고 새 선택 가능 여부를 검증합니다. 코드 테이블 FK에 의존하지 않습니다. |
 | 텍스트 상한 | 기존 명세의 상한을 서비스에서 검사합니다. [PROFILE-07](../specs/profile.md#open-questions)의 Unicode 계수 계약이 미정이므로 사용자 본문은 `text`로 저장하고 `varchar(n)`으로 임의의 계수 방식을 확정하지 않습니다. |
-| 학사 선택 | 새 경로의 계층·현행 여부·미배정 허용을 [학사 저장 계약](catalogs.md#academic-write-contract)에서 검증합니다. |
+| 학사 선택 | 새 항목과 조상의 계층·현행 여부 및 미배정 허용을 [학사 저장 계약](catalogs.md#academic-write-contract)에서 검증합니다. |
 | 일반 조회·AI 사람 추천 | [프로필 공개 권한](../specs/profile.md#visibility)에 맞는 후보 조회에서 현재 `is_public`을 확인합니다. 검색 결과 수에도 같은 조건을 적용합니다. |
 | 지원자 검토 | 지원 관계와 팀장을 확인한 후 현재 `profiles`를 조회합니다. 프로필 버전으로 오래된 AI 검토를 식별하며, 지원별 프로필 사본이나 필드별 공개 플래그를 만들지 않습니다. |
 
@@ -271,6 +272,6 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | [남은 인증·세션 운영 정책](../specs/authentication.md#open-questions) | CSRF 검증 정보·전달 세부, 시도 제한 수치·세션 정리 및 보존 |
 | [탈퇴·보존·복구·아이디 재사용](../specs/profile.md#open-questions) | 탈퇴 상태의 저장 표현, 관련 행 삭제·열람·소속 처리. 자동 연쇄 삭제 없음 |
 | [프로필 Unicode 계수·URL 길이](../specs/profile.md#open-questions) | 본문 서비스 검증·추가 DB CHECK·API validation schema |
-| [실제 공통 코드·학사 목록](../specs/profile-options.md#open-questions) | 기준 데이터 초기 적재. 테이블을 설계한 것이 운영 목록 검증 완료를 뜻하지 않음 |
+| [실제 공통 코드·학사 목록](../specs/profile-options.md#open-questions) | 공통 enum의 실제 코드 사전과 학사 DB 초기 적재. 저장 방식을 정한 것이 운영 목록 검증 완료를 뜻하지 않음 |
 
 [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖의 후속 검토 항목입니다. 복구 테이블·API를 이번에 추가하지 않으며, 복구 방식 결정이 현재 가입·로그인 개발의 선행 조건은 아닙니다.

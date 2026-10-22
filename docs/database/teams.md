@@ -24,10 +24,8 @@ erDiagram
   contests ||--o{ teams : contains
   accounts ||--o{ teams : leads
   teams ||--o{ team_recruitment_roles : recruits
-  roles ||--o{ team_recruitment_roles : describes
   teams ||--o{ applications : receives
   accounts ||--o{ applications : submits
-  roles ||--o{ applications : applies_as
   teams ||--|{ team_memberships : contains
   accounts ||--o{ team_memberships : joins
   applications o|--o| team_memberships : creates
@@ -57,7 +55,7 @@ erDiagram
   }
   team_recruitment_roles {
     uuid team_id PK,FK
-    varchar role_code PK,FK
+    varchar role_code PK
   }
   application_events {
     uuid id PK
@@ -128,14 +126,14 @@ erDiagram
 
 ## `team_recruitment_roles` — 모집 역할
 
-팀별 모집 역할을 공통 역할 선택지인 `roles`와 연결합니다. 모집글에 필요한 역할을 표시하고, 팀 탐색에서 역할로 목록을 좁히는 데 사용합니다.
+팀별 모집 역할을 공통 `RoleCode` enum의 코드로 저장합니다. 모집글에 필요한 역할을 표시하고, 팀 탐색에서 역할로 목록을 좁히는 데 사용합니다.
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
 | `team_id` | `uuid` | 불가 | — | PK 구성, FK → `teams.id` |
-| `role_code` | `varchar(64)` | 불가 | — | PK 구성, FK → `roles.code` |
+| `role_code` | `varchar(64)` | 불가 | — | PK 구성. `RoleCode` 검증, 코드 FK 없음 |
 
-`pk_team_recruitment_roles (team_id, role_code)`로 중복을 막습니다. 저장 서비스가 정원 1명이면 0개, 2명 이상이면 1~6개인지 검사합니다. 팀 행 잠금 아래 팀 생성·정원과 최종 역할 집합을 같은 트랜잭션에서 저장합니다. 역할별 정원·충원 상태·팀별 분야 연결은 추가하지 않습니다.
+`pk_team_recruitment_roles (team_id, role_code)`로 중복을 막습니다. 저장 서비스가 [공통 enum](catalogs.md#code-enums)의 코드·새 선택 가능 여부와 정원 1명이면 0개, 2명 이상이면 1~6개인지 검사합니다. 팀 행 잠금 아래 팀 생성·정원과 최종 역할 집합을 같은 트랜잭션에서 저장합니다. 역할별 정원·충원 상태·팀별 분야 연결은 추가하지 않습니다.
 
 ## `applications` — 지원 시도
 
@@ -149,7 +147,7 @@ erDiagram
 | `team_id` | `uuid` | 불가 | — | 아래 결합 FK 구성 |
 | `contest_id` | `uuid` | 불가 | — | 팀에서 가져온 공모전; 결합 FK로 일치 강제 |
 | `applicant_account_id` | `uuid` | 불가 | — | FK → `accounts.id` |
-| `applied_role_code` | `varchar(64)` | 불가 | — | FK → `roles.code`; 지원 시 선택 역할 |
+| `applied_role_code` | `varchar(64)` | 불가 | — | 지원 시 선택 역할. 서버가 `RoleCode`와 새 선택 가능 여부 검증, 코드 FK 없음 |
 | `message` | `text` | 허용 | `NULL` | 선택 메시지, 공백만 입력하면 NULL |
 | `status` | `varchar(16)` | 불가 | `submitted` | 아래 지원 상태 |
 | `submitted_at` | `timestamptz` | 불가 | `now()` | 최초 접수 시각 |
@@ -268,10 +266,8 @@ erDiagram
 | `fk_teams_contest` | `teams.contest_id` → `contests.id` |
 | `fk_teams_leader` | `teams.leader_account_id` → `accounts.id` |
 | `fk_team_recruitment_roles_team` | `team_recruitment_roles.team_id` → `teams.id` |
-| `fk_team_recruitment_roles_role` | `team_recruitment_roles.role_code` → `roles.code` |
 | `fk_applications_team_context` | `applications.(team_id, contest_id)` → `teams.(id, contest_id)` |
 | `fk_applications_account` | `applications.applicant_account_id` → `accounts.id` |
-| `fk_applications_role` | `applications.applied_role_code` → `roles.code` |
 | `fk_memberships_team_context` | `team_memberships.(team_id, contest_id)` → `teams.(id, contest_id)` |
 | `fk_memberships_account` | `team_memberships.account_id` → `accounts.id` |
 | `fk_memberships_application_context` | `team_memberships.(source_application_id, team_id, contest_id, account_id)` → `applications.(id, team_id, contest_id, applicant_account_id)` |
@@ -294,7 +290,7 @@ PK·UNIQUE가 만드는 인덱스 외의 초기 인덱스입니다. 팀의 공�
 | `ix_applications_account` | B-tree `(applicant_account_id, submitted_at DESC, id DESC)` | 내 지원 목록 |
 | `ix_applications_pending_contest` | B-tree `(applicant_account_id, contest_id, id)`; `status IN (submitted, reviewing)` | 선발·팀 생성 시 다른 대기 지원 잠금·폐기 |
 | `ix_applications_rejected_history` | B-tree `(team_id, applicant_account_id)`; `status = rejected` | 같은 팀 재지원 금지 이력 확인 |
-| `ix_applications_role` | B-tree `(applied_role_code)` | 공통 역할 FK 참조 |
+| `ix_applications_role` | B-tree `(applied_role_code)` | 지원 역할 조건 조회 |
 | `ix_memberships_team_active` | B-tree `(team_id, account_id)`; `ended_at IS NULL` | 현재 팀원·현재 인원 |
 | `ix_memberships_team_history` | B-tree `(team_id, joined_at, id)` | 팀 소속 이력·FK 참조 |
 | `ix_memberships_account_history` | B-tree `(account_id, joined_at DESC, id DESC)` | 계정 소속 이력·FK 참조 |

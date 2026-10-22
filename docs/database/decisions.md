@@ -9,7 +9,9 @@
 | 자체 로그인 정보를 계정에 통합 | MVP의 1:1 저장 구조를 단순화. 업무 FK는 불변 계정 ID를 참조하므로 로그인 아이디 변경·추가 인증 수단과 독립 | [계정 식별 정책](../specs/authentication.md#account-linking), [계정 저장](identity.md#accounts) |
 | PostgreSQL 서버 세션과 쿠키 | 불투명 토큰의 해시·만료·회수를 서버에서 관리하고, 현재 업무 권한은 관계 데이터로 재검사 | [세션 정책](../specs/authentication.md#session-policy), [세션 테이블](identity.md#auth-sessions) |
 | 시연 데이터는 고정 UUID 시드 목록으로 구분 | 업무 테이블에 표시용 컬럼을 추가하지 않고 서버에서 시연 여부를 판정. 이름 변경·중복과 무관하게 대상 식별 | [시연 데이터](../specs/sprint-1.md#demo-data-scope) |
-| 프로필 선택지는 연결 테이블 | 코드 FK·중복 방지·검색을 지원하고 JSON 배열 내부 규칙에 의존하지 않음 | [공통 선택지](../specs/profile-options.md) |
+| 공통 선택지는 애플리케이션 enum | MVP의 고정 목록·표시 정보를 서버 한곳에서 관리하고 코드 수정·배포로 변경. 공통코드 DB 테이블과 목록 동기화 작업을 생략 | [코드 관리 정책](../specs/profile-options.md#catalog-management), [enum과 저장 책임](catalogs.md#code-enums) |
+| 학사는 단일 인접 리스트와 증가형 ID | 부모 ID로 최대 3단계 계층을 구성. 개편은 새 항목으로 등록하고 과거 ID를 보존하여 별도 경로 테이블을 생략 | [학사 저장](catalogs.md#academic-tables), [선택 정책](../specs/academic-structure.md#selection-policy) |
+| 프로필 복수 선택은 연결 테이블 | 소유자 FK·중복 방지·검색을 지원하고 JSON 배열 내부 규칙에 의존하지 않음. 선택 코드의 유효성은 공통 enum으로 검사 | [공통 선택지](../specs/profile-options.md) |
 | 지원 시도와 소속 분리 | 취소 후 재지원 이력과 실제 팀 접근 권한을 구분 | [지원·취소 정책](../specs/team-recruitment.md#application-cancellation) |
 | 팀 모집 상태 두 가지와 개별 지원 검토 | 팀은 모집 중·마감으로 관리하고, 검토·선발·미선발은 개별 지원의 명시적 행동으로 기록 | [팀 상태](../specs/team-recruitment.md#team-state-transitions), [지원 전이](../specs/team-recruitment.md#application-transitions) |
 | 신규 접수 마감과 기존 지원 선발 분리 | 팀 모집이 닫혀도 공고 접수 마감 전·여석 있음 등 현재 조건을 충족하면 기존 지원자를 선발 | [선발 가능 시점](../specs/team-recruitment.md#selection-window) |
@@ -45,7 +47,7 @@
 | 계정 탈퇴·데이터 보존 | 안정된 계정 FK, 종료된 소속·지원 이력 | 연쇄 삭제·익명화·아이디 재사용 정책 | [프로필 미정](../specs/profile.md#open-questions) |
 | 공고·모집 조건 변경 | 현재 조건과 생성·수정 시각 저장 | 기존 지원 자동 취소·소속 변경 | [주최 측 변경](../specs/contests.md#eligibility-changes) |
 | 관리자 운영 | 공고 등록·수정·등록 전 확인의 관리자 책임 | 관리자 계정·인증·권한 저장 방식, 관리자 화면·권한 부여·관리 API | [공고 운영](../specs/contests.md#operation-flow) |
-| 코드·학사 원장 확정 | 안정된 코드·변하지 않는 경로 구조 | 확인하지 않은 실제 원장 식별자·임의 분류 추가 | [선택지](../specs/profile-options.md), [학사 구조](../specs/academic-structure.md) |
+| 코드·학사 원장 확정 | 공통 enum 코드·부모가 고정된 증가형 학사 ID | 확인하지 않은 실제 원장 식별자·임의 분류 추가 | [선택지](../specs/profile-options.md), [학사 구조](../specs/academic-structure.md) |
 | AI 운영·저장·미완성 프로필 | 외부 HTTP 계약·소유·대상 권한 | 내부 제공자·영속화·개인화 허용 범위 | [MATCH 미정](../specs/matching.md#open-questions) |
 | 알림 전달·보존 | DB 저장·읽음·중복 방지·정렬 설계 | 실시간 채널·보존 기한·삭제·운영 상한 | [NOTIFY 미정](../specs/notifications.md) |
 

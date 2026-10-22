@@ -75,7 +75,7 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 | 계정 탈퇴의 세션·열람 효력·보존·복구, 팀 생성/개인화 추천의 프로필 완성 범위 | [PROFILE-03·04](../specs/profile.md#open-questions) |
 | 모집 정보 수정 범위·팀 공간의 추가 편집·외부 메신저. 팀·지원 전이와 재지원·소속은 확정 정책을 따르며 팀장 선발 취소·강퇴·탈퇴·팀 삭제는 MVP 제외 | [TEAM-07·08](../specs/team-recruitment.md#open-questions), [MVP 제외](../specs/team-recruitment.md#membership-exclusions) |
 | 관리자의 공고 수집·검수·등록 도구와 관리자 페이지(TBD), 공고 요약 포함 여부, 공개 후 변경 재확인·운영 갱신 | [공고 미정 사항](../specs/contests.md#open-questions) |
-| 실제 학사 운영 목록·코드·관계, 기타/기존 시간 데이터 전환·구간 저장 ID | [학사 명세](../specs/academic-structure.md), [선택지 미정 사항](../specs/profile-options.md#open-questions) |
+| 실제 학사 운영 목록·ID 대응·관계, 기타/기존 시간 데이터 전환·구간 저장 ID | [학사 명세](../specs/academic-structure.md), [선택지 미정 사항](../specs/profile-options.md#open-questions) |
 | 로그인 세션·보안·복구·실제 유출 비밀번호 차단 목록 공급·갱신 | [인증 미정 사항](../specs/authentication.md#open-questions) |
 | 확정된 알림 중복 규칙의 저장·원자성·재시도 구현, 기기 동기화·보존 | [알림 미정 사항](../specs/notifications.md) |
 

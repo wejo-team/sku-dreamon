@@ -13,7 +13,7 @@
 | 자체 가입·로그인·시연 계정·향후 소셜 연결 | [가입과 로그인](authentication.md) | 인증 정보 공개를 바꾸면 [프로필 공개 범위](profile.md#visibility) |
 | 프로필 입력·사람 탐색·공개·포트폴리오 | [프로필](profile.md) | 선택지를 바꾸면 [공통 선택지](profile-options.md#choices), 학사 입력이면 [학사 선택 흐름](academic-structure.md#selection-flow) |
 | 분야·역할·역량·시간 선택지 | [프로필 선택지](profile-options.md) | 필수 여부를 바꾸면 [프로필 입력 항목](profile.md#fields) |
-| 대학·학부·전공 목록 정비 | [학사 구조](academic-structure.md) | 코드 추가·통합·폐지 시 [공통 데이터 관리](profile-options.md#catalog-management) |
+| 대학·학부·전공 목록 정비 | [학사 구조](academic-structure.md) | 항목 추가·통합·폐지 시 [학사 목록 유지](academic-structure.md#selection-policy) |
 | 공고 탐색·수집·등록·공개 조건·마감 | [공모전 공고](contests.md) | 추천을 바꾸면 [추천 매칭](matching.md), 공고 변경의 지원 영향은 [팀 모집과 지원](team-recruitment.md) |
 | 팀 생성·모집·지원·취소·선발·팀 공간 | [팀 모집과 지원](team-recruitment.md) | LLM 추천은 [추천 매칭](matching.md), 열람 권한은 [프로필 공개 범위](profile.md#visibility) |
 | AI 자연어 탐색·LLM 추천·근거·미정 내부 설계 | [추천 매칭](matching.md) | 입력 분류는 [선택지](profile-options.md), 실제 지원자 상태는 [팀 모집과 지원](team-recruitment.md#states) |

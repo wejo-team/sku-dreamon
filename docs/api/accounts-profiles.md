@@ -129,11 +129,11 @@
 | 필드 | 타입 | null | 값·제약 |
 | --- | --- | --- | --- |
 | `realName` | string | 불가 | 앞뒤 공백 제거 후 1~50자 |
-| `avatarCode` | CatalogCode | 허용 | 제공된 `avatarPresets` 코드. 미선택은 `null`, 화면 기본 이미지는 스콘 |
+| `profileImageCode` | CatalogCode | 허용 | 제공된 `avatarPresets` 코드. 미선택은 `null`, 화면 기본 이미지는 스콘 |
 | `academicStatusCode` | CatalogCode | 허용 | `academicStatuses` 코드 |
 | `gradeCode` | CatalogCode | 허용 | `grades` 코드 |
 | `weeklyAvailabilityCode` | CatalogCode | 허용 | `weeklyAvailabilityRanges` 코드. 네 구간 중 하나 또는 미입력 |
-| `academicPlacementId` | Id | 허용 | 선택한 학사 경로의 ID. 상위 경로는 [AcademicPlacement](#academic-placement)의 부모 연결로 해석 |
+| `academicUnitId` | PositiveBigInt | 허용 | 가장 깊게 선택한 학사 항목 ID. 상위 소속은 [AcademicUnit](#academic-unit)의 부모 연결로 해석 |
 | `majorUnassigned` | boolean | 불가 | 해당 학사 경로에서 허용한 전공 미배정 여부. 경로가 없으면 `false` |
 | `experienceState` | ExperienceState | 불가 | `unspecified`, `none`, `provided`. [상태별 본문 조합](#experience) 적용 |
 | `experienceBody` | string | 허용 | 앞뒤 공백 제거 후 최대 500자. 응답의 상태와 본문은 아래 조합을 충족 |
@@ -143,7 +143,7 @@
 | `skillCodes` | CatalogCode[] | 불가 | 목록 내 보유 역량, 중복 불가. 개수 상한 없음. 해제는 `[]` |
 | `portfolio` | [Portfolio](#portfolio) | 허용 | 등록된 URL 1개와 선택 제목. 전체 제거는 `null` |
 
-코드는 [Catalogs](#catalogs)로 표시명을 해석합니다. 새 선택은 현재 유효한 항목이어야 하며, 기존 비활성 학사 경로를 그대로 유지한 다른 항목의 수정은 허용합니다. 학사 경로·전공 미배정 조합은 [학사 저장 정책](../specs/academic-structure.md#selection-policy)에 따라 검증하며, 상위값 변경 시 [유효하지 않은 하위 선택만 초안에서 초기화](../specs/academic-structure.md#dependent-selection)합니다.
+코드는 [Catalogs](#catalogs)로 표시명을 해석하며 서버의 같은 공통 enum으로 입력을 검증합니다. 새 선택은 현재 유효한 항목이어야 하며, 기존 비활성 학사 경로를 그대로 유지한 다른 항목의 수정은 허용합니다. 학사 경로·전공 미배정 조합은 [학사 저장 정책](../specs/academic-structure.md#selection-policy)에 따라 검증하며, 상위값 변경 시 [유효하지 않은 하위 선택만 초안에서 초기화](../specs/academic-structure.md#dependent-selection)합니다.
 
 <a id="experience"></a>
 
@@ -180,11 +180,11 @@
 {
   "expectedVersion": "0",
   "realName": "예시 사용자",
-  "avatarCode": null,
+  "profileImageCode": null,
   "academicStatusCode": null,
   "gradeCode": null,
   "weeklyAvailabilityCode": null,
-  "academicPlacementId": null,
+  "academicUnitId": null,
   "majorUnassigned": false,
   "experienceState": "unspecified",
   "experienceBody": null,
@@ -214,7 +214,7 @@
 | 메서드·경로 | 접근 | 입력 | 성공 | 오류 |
 | --- | --- | --- | --- | --- |
 | `GET /catalogs` | 공개 | 없음 | 200 [Catalogs](#catalogs) | 공통 500·503 |
-| `GET /catalogs/academic-placements` | 공개 | 없음 | 200 [AcademicCatalog](#academic-placement) | 공통 500·503 |
+| `GET /catalogs/academic-units` | 공개 | 없음 | 200 [AcademicCatalog](#academic-unit) | 공통 500·503 |
 | `GET /people` | 로그인 | 아래 query | 200 `Page<PersonSummary>` | 401 `UNAUTHENTICATED`; 422 |
 | `GET /people/{accountId}` | 로그인 | 필수 path `accountId: Id` | 200 [Profile](#profile) | 401 `UNAUTHENTICATED`; 404 `RESOURCE_NOT_FOUND`; 422 |
 
@@ -241,7 +241,7 @@
 | `accountId` | Id | 불가 | 프로필 소유 계정 |
 | `realName` | string | 불가 | 현재 실명, 프로필의 길이 기준 적용 |
 | `isDemo` | boolean | 불가 | 계정용 고정 UUID 시드 목록에 `accountId`가 포함되는지 서버에서 판정. 카드의 시연 표시 근거 |
-| `avatarCode` | CatalogCode | 허용 | 현재 이미지 선택. 미선택 기본 표시는 Profile과 같음 |
+| `profileImageCode` | CatalogCode | 허용 | 현재 이미지 선택. 미선택 기본 표시는 Profile과 같음 |
 | `introduction` | string | 허용 | 현재 자기소개, 최대 300자 |
 | `fieldCodes` | CatalogCode[] | 불가 | 관심 분야 1~3개, 중복 없음 |
 | `roleCodes` | CatalogCode[] | 불가 | 희망 역할 1~2개, 중복 없음 |
@@ -262,7 +262,7 @@
 | `isSelectable` | boolean | 불가 | 현재 새 선택 가능 여부 |
 | `sortOrder` | integer (int32) | 불가 | 목록 정렬값 |
 
-`CatalogItem`은 위 네 필드입니다. `AvatarPreset`은 위 네 필드와 **필수 `assetUrl: HttpUrl`**을 포함하며 `assetUrl`은 `null`을 허용하지 않습니다. 실제 아바타 코드는 [공통 카탈로그](../database/catalogs.md)에서 관리하며, 별도 파일 업로드 요청을 추가하지 않습니다.
+`CatalogItem`은 위 네 필드입니다. `AvatarPreset`은 위 네 필드와 **필수 `assetUrl: HttpUrl`**을 포함하며 `assetUrl`은 `null`을 허용하지 않습니다. 프로필 이미지 코드는 서버의 `ProfileImageCode` enum으로, 제공 이미지 경로는 같은 [공통 정의](../database/catalogs.md#code-enums)의 메타데이터로 관리합니다. 별도 파일 업로드 요청은 추가하지 않습니다.
 
 <a id="catalogs"></a>
 
@@ -278,36 +278,44 @@
 | `weeklyAvailabilityRanges` | CatalogItem[] | 주당 참여 가능 시간 |
 | `avatarPresets` | AvatarPreset[] | 프로필 이미지 선택지 |
 
-일곱 목록은 모두 필수이며 `null`을 허용하지 않습니다. 각 목록은 `sortOrder ASC, code ASC`로 정렬합니다. 현재 선택 가능 항목과 기존 데이터의 표시를 위한 비활성 항목을 함께 제공합니다. 새 선택에는 `isSelectable=true`만 사용하며 실제 코드 사전은 [카탈로그 관리](../specs/profile-options.md#catalog-management)에서 검토합니다.
+`GET /catalogs`는 DB 코드 테이블 조회 없이 서버의 [공통 enum과 메타데이터](../database/catalogs.md#code-enums)에서 위 일곱 목록을 구성합니다. 프로필·공고·팀·지원의 코드 검증도 같은 정의를 사용하며, 클라이언트는 별도 선택지 목록을 하드코딩하지 않습니다.
+
+일곱 목록은 모두 필수이며 `null`을 허용하지 않습니다. 각 목록은 `sortOrder ASC, code ASC`로 정렬합니다. 현재 선택 가능 항목과 기존 데이터의 표시를 위한 비활성 항목을 함께 제공합니다. 새 선택에는 `isSelectable=true`만 사용합니다. 코드·표시명·정렬·선택 가능 여부 변경은 서버 코드 수정·배포로 반영하고 실제 코드 사전은 [카탈로그 관리](../specs/profile-options.md#catalog-management)에서 검토합니다. 학사 경로 목록은 별도 DB 조회를 유지합니다.
 
 <a id="academic-placement"></a>
+<a id="academic-unit"></a>
 
-### AcademicPlacement와 AcademicCatalog — 학사 경로
+### AcademicUnit와 AcademicCatalog — 학사 계층
 
-`AcademicCatalog`의 전체 필드는 **필수 `items: AcademicPlacement[]`** 하나이며 `null`을 허용하지 않습니다. 현재·비활성 경로를 `id ASC`로 반환하며 부모 관계로 화면 트리를 구성합니다. 정렬은 기술 제안이며 학사 표시 순서 정책을 추가하는 의미가 아닙니다.
+`AcademicCatalog`는 **필수 `items: AcademicUnit[]`** 하나를 가지며 `null`을 허용하지 않습니다. `GET /catalogs/academic-units`는 현행·비활성 항목을 부모와 함께 모두 반환합니다. 서버는 DB의 숫자 ID 기준 `id ASC`로 정렬하며, 이 순서는 학교의 공식 표시 순서를 뜻하지 않습니다.
 
-| AcademicPlacement 필드 | 타입 | null | 의미·허용값 |
+| AcademicUnit 필드 | 타입 | null | 의미·허용값 |
 | --- | --- | --- | --- |
-| `id` | Id | 불가 | 학사 배치 경로 ID |
-| `unitId` | Id | 불가 | 학사 단위 ID |
-| `unitCode` | CatalogCode | 불가 | 학사 단위 불변 코드 |
-| `kind` | string | 불가 | `college`, `department`, `major` |
-| `label` | string | 불가 | 표시 이름 |
-| `parentPlacementId` | Id | 허용 | 부모 경로. 루트는 `null` |
-| `isSelectable` | boolean | 불가 | 현재 새 선택 가능 여부 |
-| `majorSelectionMode` | string | 허용 | `none`, `selectable` 또는 `null` |
-| `allowsUnassigned` | boolean | 불가 | 이 경로에서 전공 미배정 허용 여부 |
-| `effectiveScope` | string | 허용 | 적용 범위 정보. 미입력은 `null` |
-| `sourceReference` | string | 불가 | 공식 웹 주소 또는 공식 자료 식별 참조 |
+| `id` | PositiveBigInt | 불가 | DB가 발급한 증가형 학사 ID. JSON에서는 예: `"3"` |
+| `name` | string | 불가 | 비어 있지 않은 이름, 최대 100자. 항목 식별에 사용하지 않음 |
+| `parentId` | PositiveBigInt | 허용 | 부모 항목 ID. 단과대학 루트는 `null` |
+| `isSelectable` | boolean | 불가 | 해당 항목의 신규 선택 가능 여부. 상위 항목도 함께 확인 |
 
-실제 초기 학사 코드·공식 현행 목록과 미배정 가능 범위는 [학사 미정 사항](../specs/academic-structure.md#open-questions)을 검토한 뒤 등록합니다. 응답 구조가 존재한다는 이유로 이 목록이 확정되었다고 판단하지 않습니다.
+`id`·`parentId`는 UUID나 JSON 숫자가 아닙니다. 클라이언트는 ID를 문자열로 유지하고 `parentId`로 트리를 구성합니다. 루트는 단과대학, 그 아래는 학부·학과, 다음은 전공이며 종류·별도 코드·중복 경로 ID를 응답하지 않습니다. 비활성 항목은 기존 프로필 표시용으로 유지하고 새 선택에서 제외합니다.
+
+#### 선택과 프로필 저장 흐름
+
+1. 클라이언트가 학사 목록과 본인 프로필을 조회하고, `parentId=null`인 대학부터 하위 항목을 표시합니다. 선택한 항목과 조상이 모두 선택 가능한 경우에만 신규 선택으로 제공합니다.
+2. 사용자가 상위 항목을 바꾸면 새 부모 관계에서 유효하지 않은 하위 선택만 편집 초안에서 비웁니다. 학과에 세부전공이 없으면 학과 ID를 사용합니다.
+3. 저장 버튼을 누르면 `PUT /me/profile`의 **전체 편집 객체**에 최종 `academicUnitId`와 `expectedVersion`을 보냅니다. 최초 저장 버전은 `"0"`이며, 이름·부모 ID를 별도 저장값으로 전송하지 않습니다.
+4. 서버는 세션의 본인 계정과 프로필 버전을 확인하고 선택 항목의 존재·부모 경로·선택 가능 여부를 [같은 트랜잭션에서 검증](../database/catalogs.md#academic-write-contract)합니다. 기존 비활성 소속을 그대로 유지한 다른 필드 수정은 허용합니다.
+5. 서버가 `profiles.academic_unit_id`와 다른 프로필 항목을 저장하고 버전을 증가시킨 뒤 커밋한 결과를 반환합니다. 기존 학사 항목을 참조하므로 학사 행이나 새 학사 ID는 생성하지 않습니다.
+6. 실패하면 전체 프로필 저장을 취소하고 편집값을 유지합니다. 버전 충돌이나 유효하지 않은 선택은 위 [프로필 오류 계약](#profile-endpoints)에 따라 최신 값을 확인합니다.
+
+전공 미배정은 기존 `majorUnassigned` 필드로 표현합니다. 학부별 허용 범위와 클라이언트에 전달할 방식은 [ACADEMIC-03](../specs/academic-structure.md#open-questions) 결정 후 정의하며, 이름이나 하위 항목 부재만으로 미배정을 허용하지 않습니다. 실제 초기 목록·부모 관계·기존 데이터의 ID 대응도 [학사 미정 사항](../specs/academic-structure.md#open-questions)을 검토한 뒤 등록합니다.
 
 ## DB 연결과 남은 범위
 
-| API 정보 | DB 원본 |
+| API 정보 | 저장·정의 원본 |
 | --- | --- |
 | `Account`·로그인·`isDemo` | [계정과 프로필 테이블](../database/identity.md), [시연 데이터 식별](../specs/sprint-1.md#demo-data-scope) |
 | `Profile`·버전·연결 목록·포트폴리오 | [계정과 프로필 테이블](../database/identity.md) |
-| 코드·학사 경로 | [공통 카탈로그](../database/catalogs.md) |
+| 공통 선택지 코드·표시 정보 | [애플리케이션 공통 enum](../database/catalogs.md#code-enums) |
+| 학사 경로 | [학사 테이블](../database/catalogs.md#academic-tables) |
 
 계정 탈퇴·파일 업로드·학교 인증 API는 이번 설계에 추가하지 않습니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위에서 제외하므로 복구 API를 만들지 않으며 현재 인증 구현의 선행 조건으로 두지 않습니다. 팀 생성·개인화 추천의 프로필 완성 요구, 일반 텍스트 Unicode 처리, 포트폴리오 URL 길이 등 남은 결정은 [프로필 미정 사항](../specs/profile.md#open-questions)에 둡니다.

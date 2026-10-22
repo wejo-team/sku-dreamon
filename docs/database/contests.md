@@ -15,7 +15,6 @@
 erDiagram
   contests ||--|{ contest_audiences : has
   contests ||--o{ contest_fields : has
-  fields ||--o{ contest_fields : classifies
   contests ||--o{ teams : contains
   contests {
     uuid id PK
@@ -32,10 +31,7 @@ erDiagram
   }
   contest_fields {
     uuid contest_id PK,FK
-    varchar field_code PK,FK
-  }
-  fields {
-    varchar code PK
+    varchar field_code PK
   }
   teams {
     uuid id PK
@@ -135,15 +131,15 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 
 ### `contest_fields`
 
-공고 하나에 공통 목록 `fields`의 분야를 여러 개 연결해 목록 표시·분야 필터에 사용합니다. 해당 공고의 팀도 이 연결을 통해 분야를 읽으므로 분야 정의를 공고·팀마다 복사하지 않습니다.
+공고 하나에 공통 `FieldCode` enum의 분야를 여러 개 저장해 목록 표시·분야 필터에 사용합니다. 해당 공고의 팀도 이 연결을 통해 분야를 읽으며, 표시명은 서버의 공통 정의에서 해석합니다.
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
 | `contest_id` | `uuid` | 불가 | — | PK 구성, FK → `contests.id` |
-| `field_code` | `varchar(64)` | 불가 | — | PK 구성, FK → `fields.code` |
+| `field_code` | `varchar(64)` | 불가 | — | PK 구성. `FieldCode` 검증, 코드 FK 없음 |
 
 - `pk_contest_fields (contest_id, field_code)`: 중복 분야 연결 금지.
-- 저장 서비스가 최종 분야 집합의 개수 0~3개를 검증합니다. 대표 분야·정렬 우선순위 컬럼은 없습니다.
+- 저장 서비스가 [공통 enum](catalogs.md#code-enums)의 코드·새 선택 가능 여부와 최종 분야 집합의 개수 0~3개를 검증합니다. 대표 분야·정렬 우선순위 컬럼은 없습니다.
 
 기존 연결을 교체하는 중간 상태는 사용자에게 노출하지 않습니다. 저장 서비스는 공고 행 잠금 아래 최종 대상·분야 집합을 검사하고 연결 교체와 공고 버전 갱신을 함께 커밋합니다. 여러 행의 개수·조합을 검사하는 DB 트리거는 추가하지 않습니다.
 
@@ -153,7 +149,6 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 | --- | --- | --- |
 | `fk_contest_audiences_contest` | `contest_audiences.contest_id` → `contests.id` | `RESTRICT` |
 | `fk_contest_fields_contest` | `contest_fields.contest_id` → `contests.id` | `RESTRICT` |
-| `fk_contest_fields_field` | `contest_fields.field_code` → `fields.code` | `RESTRICT` |
 
 식별자의 갱신 동작도 `RESTRICT`입니다. 공고 삭제·보존 기간이 미정이므로 연쇄 삭제나 soft-delete 공개 숨김을 추가하지 않습니다.
 
@@ -165,7 +160,7 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 | `ix_contests_closes` | B-tree `(registration_closes_at ASC, id ASC)` | 마감 임박순 |
 | `ix_contest_fields_field` | B-tree `(field_code, contest_id)` | 분야 필터 |
 
-초기 이름·주최자 검색은 `ILIKE` 조건으로 설계합니다. 분야 검색은 `fields` 조인을 사용하며 결과는 공고 단위로 중복 제거합니다. 한글 부분 검색 성능 개선용 확장·전문 검색은 실제 데이터와 실행 계획을 확인한 뒤 결정하며 이 설계에서 `pg_trgm`을 필수 설치하지 않습니다.
+초기 이름·주최자 검색은 `ILIKE` 조건으로 설계합니다. 분야 검색은 검증한 코드를 `contest_fields.field_code`와 비교하며 결과는 공고 단위로 중복 제거합니다. 한글 부분 검색 성능 개선용 확장·전문 검색은 실제 데이터와 실행 계획을 확인한 뒤 결정하며 이 설계에서 `pg_trgm`을 필수 설치하지 않습니다.
 
 | 응답 값 | 계산 원본 |
 | --- | --- |
