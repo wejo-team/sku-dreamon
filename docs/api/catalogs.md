@@ -59,7 +59,7 @@
 
 ### AcademicUnit — 학사 계층
 
-`GET /catalogs/academic-units` 응답의 **필수 `data: AcademicUnit[]`**는 `null`을 허용하지 않으며, 빈 목록은 `[]`입니다. 현행·비활성 항목을 부모와 함께 모두 반환합니다. 서버는 DB의 숫자 ID 기준 `id ASC`로 정렬하며, 이 순서는 학교의 공식 표시 순서를 뜻하지 않습니다.
+`GET /catalogs/academic-units` 응답의 **필수 `data: AcademicUnit[]`**는 `null`을 허용하지 않으며, 빈 목록은 `[]`입니다. 현행·비활성 항목을 부모와 함께 모두 반환합니다. 서버는 DB의 숫자 ID인 `academic_units.academic_unit_id ASC`로 정렬하고 응답의 `id`에 십진 문자열로 매핑합니다. 이 순서는 학교의 공식 표시 순서를 뜻하지 않습니다.
 
 | AcademicUnit 필드 | 타입 | null | 의미·허용값 |
 | --- | --- | --- | --- |

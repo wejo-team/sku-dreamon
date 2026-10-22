@@ -66,13 +66,13 @@ erDiagram
     academic_units o|--o{ academic_units : parent
     academic_units o|--o{ profiles : selected_unit
     academic_units {
-        bigint id PK
+        bigint academic_unit_id PK
         varchar name
         bigint parent_id FK
         boolean is_selectable
     }
     profiles {
-        uuid account_id PK,FK
+        uuid profile_id PK,FK
         bigint academic_unit_id FK
     }
 ```
@@ -85,21 +85,21 @@ erDiagram
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·용도 |
 | --- | --- | --- | --- | --- |
-| `id` | `bigint` | 불가 | `GENERATED ALWAYS AS IDENTITY` | PK. DB가 목록 등록 시 발급하는 양의 증가형 ID |
+| `academic_unit_id` | `bigint` | 불가 | `GENERATED ALWAYS AS IDENTITY` | PK. DB가 목록 등록 시 발급하는 양의 증가형 ID |
 | `name` | `varchar(100)` | 불가 | 없음 | 표시 이름. 서로 다른 항목의 이름 중복 허용 |
-| `parent_id` | `bigint` | 허용 | `NULL` | FK → `academic_units.id`. 단과대학만 부모 없음 |
+| `parent_id` | `bigint` | 허용 | `NULL` | FK → `academic_units.academic_unit_id`. 단과대학만 부모 없음 |
 | `is_selectable` | `boolean` | 불가 | `true` | 신규 소속 선택 가능 여부. 과거 소속의 참조·표시와 구분 |
 
 별도 경로 테이블·고유 코드·종류·학년도·생성/수정 시각 컬럼을 추가하지 않습니다. 루트부터 깊이 0은 단과대학, 1은 학부·학과, 2는 세부전공으로 해석합니다. 학사 적용 대상과 공식 근거는 [학사 명세](../specs/academic-structure.md)와 관련 PR에서 확인하며 자동 참가 자격 판정에 사용하지 않습니다.
 
 | 제약·인덱스 이름 | 정의와 목적 |
 | --- | --- |
-| `pk_academic_units` | PK (`id`) |
-| `fk_academic_units_parent` | `parent_id` → `academic_units.id`, `ON DELETE RESTRICT`, `ON UPDATE RESTRICT` |
-| `ck_academic_units_id` | `id > 0` |
+| `pk_academic_units` | PK (`academic_unit_id`) |
+| `fk_academic_units_parent` | `parent_id` → `academic_units.academic_unit_id`, `ON DELETE RESTRICT`, `ON UPDATE RESTRICT` |
+| `ck_academic_units_id` | `academic_unit_id > 0` |
 | `ck_academic_units_name` | `btrim(name) <> ''`. 입력 길이는 저장 전에 확인하며 자르지 않음 |
-| `ck_academic_units_self_parent` | `parent_id IS NULL OR parent_id <> id` |
-| `ix_academic_units_parent` | B-tree (`parent_id`, `id`). 부모별 하위 선택지 조회 |
+| `ck_academic_units_self_parent` | `parent_id IS NULL OR parent_id <> academic_unit_id` |
+| `ix_academic_units_parent` | B-tree (`parent_id`, `academic_unit_id`). 부모별 하위 선택지 조회 |
 
 이름이나 `(parent_id, name)`에는 UNIQUE를 두지 않습니다. 이름만 같은 다른 항목과 과거·현행 항목을 구분하고, 기준 데이터 중복 적재 여부는 공식 자료와 기존 ID 대응을 확인합니다. 증가형 ID는 정렬 순서·학번·학교 공식 코드가 아니며, 배포마다 목록을 지우고 재생성하지 않습니다.
 
@@ -115,7 +115,7 @@ erDiagram
 | 새 선택은 현행 항목만 사용 | 프로필 저장 시 선택한 항목과 모든 조상의 `is_selectable`을 같은 트랜잭션에서 검사·잠금. 비활성화 작업도 해당 행 잠금과 함께 처리 |
 | 기존 과거 소속은 계속 참조 | 같은 ID를 유지하는 프로필 수정은 비활성이라는 이유로 거절하지 않음. 과거 소속을 삭제·자동 치환하지 않음 |
 
-프로필에는 가장 깊게 선택한 `academic_units.id` 하나를 `academic_unit_id`에 저장합니다. 상위 대학·학부·전공 ID를 중복 저장하지 않으며 표시 정보는 부모 연결을 따라 구성합니다. 학부·학과까지만 선택하면 해당 ID, 세부전공을 선택하면 전공 ID를 저장하고, 학사 정보 전체가 미입력이면 NULL로 둡니다. 전공을 선택하지 않은 이유나 배정 상태는 별도로 저장·추론하지 않습니다.
+프로필에는 가장 깊게 선택한 `academic_units.academic_unit_id` 하나를 `academic_unit_id`에 저장합니다. 상위 대학·학부·전공 ID를 중복 저장하지 않으며 표시 정보는 부모 연결을 따라 구성합니다. 학부·학과까지만 선택하면 해당 ID, 세부전공을 선택하면 전공 ID를 저장하고, 학사 정보 전체가 미입력이면 NULL로 둡니다. 전공을 선택하지 않은 이유나 배정 상태는 별도로 저장·추론하지 않습니다.
 
 학사 ID와 부모 ID는 DB에서 `bigint`, [API](../api/catalogs.md#academic-unit)에서는 `PositiveBigInt` 십진 문자열입니다. 사용자의 소속 저장은 기존 항목을 참조할 뿐 새 학사 행이나 ID를 만들지 않습니다. 계정·공고·팀 등 다른 업무 ID는 UUID를 유지합니다.
 

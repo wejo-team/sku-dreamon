@@ -18,7 +18,7 @@
 | [트랜잭션](transactions.md) | 동시 선발·정원·재시도·조회 일관성 |
 | [설계 결정과 검토](decisions.md) | 구현 전 남은 결정과 검증 사례 |
 
-테이블별 `id`·공유 PK·복합 PK의 선택 이유는 [기본 키 선택 기준](decisions.md#primary-keys)에서 확인합니다.
+단일 PK의 `<단수형 테이블명>_id` 규칙은 [PK 컬럼 이름과 참조](conventions.md#primary-key-names), 대리키·공유 PK·복합 PK의 선택 이유는 [기본 키 선택 기준](decisions.md#primary-keys)에서 확인합니다.
 
 먼저 [전체 ERD](overview.md)로 계정·학사·공고·팀·알림의 연결을 확인한 뒤 도메인별 상세를 읽습니다. 각 도메인의 ERD는 실제 테이블 이름과 키를 사용합니다. 전체 컬럼·복합 키·조건부 인덱스의 원본은 바로 아래 테이블 정의이며, 그림 아래에서 수정 가능한 Mermaid 원본을 펼칠 수 있습니다.
 
