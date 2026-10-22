@@ -17,7 +17,7 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 
 ## 공통 API 기반의 책임
 
-[구현 이슈 #99](https://github.com/wejo-team/sku-dreamon/issues/99)의 공통 기반은 HTTP 계약에 한정합니다. 업무 권한·상태 전이·정원·조회 SQL은 각 도메인의 서비스가 맡으며, 공통 repository나 이벤트 프레임워크를 먼저 만들지 않습니다.
+[구현 이슈 #99](https://github.com/wejo-team/sku-dreamon/issues/99)의 HTTP 공통 계층은 전송 계약을 담당합니다. ORM 공통 기반은 아래 별도 절처럼 `db`에 둡니다. 업무 권한·상태 전이·정원·조회 SQL은 각 도메인의 서비스가 맡습니다.
 
 - 요청 DTO는 camelCase만 받고, 응답 DTO는 Python의 snake_case로 구성하여 camelCase로 보냅니다. 두 책임을 분리하여 응답 생성 편의를 위해 외부 snake_case 입력까지 허용하지 않습니다. 임의 map 키는 변환하지 않습니다.
 - 성공 응답과 페이지 응답은 라우터에서 명시적인 모델로 반환합니다. `Success[T]`의 `T`에는 NULL을 허용하지 않는 영역별 DTO나 배열 타입을 지정하여 실제 검증과 OpenAPI를 일치시킵니다. 응답 본문을 자동으로 감싸는 middleware는 사용하지 않으므로 health·204·쿠키·`Location`의 기존 동작을 유지합니다.
@@ -30,6 +30,26 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 제품 라우터는 `responses=error_responses(401, 409, 422, 500, 503)`처럼 자신이 제공할 오류 상태를 명시합니다. 업무 실패는 `AppError(status_code, code, message)`로 전달하며 `message`에 입력 원문을 넣지 않습니다. 422는 요청 검증에만 사용하며 `AppError`로 지정할 수 없습니다. 프레임워크 HTTP 오류의 원래 `detail`과 검증기의 원래 `msg`는 그대로 노출하지 않습니다. 422는 `loc`·`type`과 고정된 안전한 안내를 반환하므로 필드별 화면 안내는 선언한 검증 계약을 함께 사용합니다. 위치 정보가 없는 명시적 `HTTPException(422)`도 같은 `detail` 구조로 반환합니다.
 
 오류 처리 시 만든 추적 ID는 `X-Request-ID` 응답 헤더와 최소 오류 로그에 기록하며, 업무 오류 본문의 `requestId`와 같습니다. 422 본문에는 기존 `detail`만 유지합니다. 이 ID는 생성 재시도에 쓰는 도메인 `requestId`와 관계없고 성공 요청 전체를 추적하는 기능은 아닙니다. 공통 핸들러가 남기는 로그에는 요청 본문·검증 입력·예외 문자열을 추가하지 않습니다. 서버 자체의 traceback 로그를 정제하는 기능은 포함하지 않습니다.
+
+<a id="orm-foundation"></a>
+
+## ORM 공통 기반
+
+[Base](../../backend/app/db/base.py)는 SQLAlchemy metadata와 [제약조건 네이밍](../database/conventions.md#constraint-names)을 공유합니다. 모든 테이블에 `id`·시각 컬럼을 강제하거나 테이블 이름을 자동으로 정하지 않습니다. 프로필의 공유 PK, 학사의 정수 ID, 선택지 연결의 복합 PK처럼 테이블마다 식별 방법이 다릅니다.
+
+[선택 mixin](../../backend/app/db/mixins.py)은 필요한 컬럼만 조합하여 사용합니다.
+
+| mixin | 책임과 적용 조건 |
+| --- | --- |
+| `UUIDPrimaryKeyMixin` | UUID `id`와 애플리케이션의 `uuid4` 기본값. INSERT/flush 때 발급하므로 그 전에 ID가 필요하면 서비스가 명시적으로 전달 |
+| `CreatedAtMixin` | NOT NULL `TIMESTAMPTZ created_at`, DB 생성 기본값 `now()` |
+| `UpdatedAtMixin` | NOT NULL `TIMESTAMPTZ updated_at`, DB 생성 기본값 `now()`. 이후 갱신은 아래 서비스 책임 |
+
+예를 들어 계정은 UUID·생성 시각만, 공고·팀은 세 mixin을 선택할 수 있습니다. `profiles`는 자신의 `account_id` PK에 생성·수정 시각만 조합합니다. 세션 발급·만료처럼 동일한 업무 시각으로 여러 값을 계산해야 하는 경우에는 해당 모델에서 직접 컬럼을 정의합니다. 실제 적용은 각 도메인 모델·migration에서 설계와 대조합니다.
+
+수정 시각은 쓰기 서비스가 `version`과 함께 명시적으로 갱신합니다. 프로필 선택 항목·포트폴리오만 바뀌어도 부모 프로필의 시각·버전을 같은 트랜잭션에서 바꿔야 합니다. 조회와 실제 변경이 없는 재시도에는 갱신하지 않습니다. mixin은 `onupdate`나 DB trigger를 추가하지 않으므로 직접 SQL도 같은 책임을 따릅니다.
+
+DB 의존 코드는 `db`, 전송 형식은 `schemas`, 앱 설정·공통 오류 처리는 `core`에 둡니다. 공통이라는 이유만으로 전부 `core`로 옮기지 않습니다. `AsyncSession.get/add/delete/flush`를 그대로 감싼 범용 CRUD는 현재 추가하지 않습니다. 반복되거나 복잡한 쿼리가 생기면 도메인 repository로 분리하고, commit과 권한·잠금·상태 전이의 조합은 최상위 서비스가 책임집니다.
 
 ## 엔진과 세션
 

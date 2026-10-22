@@ -10,6 +10,7 @@
 - 백엔드 테스트는 `tests/unit/`과 `tests/integration/`으로 나눕니다. 유닛 테스트는 DTO·값 검증·순수 규칙을, 통합 테스트는 실제 ASGI 요청/응답 또는 PostgreSQL 경계를 검증합니다. HTTP 통합에는 DB가 필요하지 않을 수 있으며, DB가 필요한 테스트만 `database` marker를 함께 붙입니다.
 - 새 동작은 기대 결과를 테스트로 먼저 작성하고 실패를 확인한 뒤 최소 구현으로 통과시킵니다. PR에 실패 원인과 통과 결과를 남기되, 구현 세부사항을 그대로 복사하는 테스트나 실패를 만들기 위한 불필요한 코드는 추가하지 않습니다.
 - 값 조합·경계값은 유닛 테스트에서 검사하고 통합 테스트에는 실제 연결에서 달라질 수 있는 대표 성공·실패 경로만 남깁니다. 같은 검증 조합을 모든 HTTP·DB 계층에서 반복하거나 전체 OpenAPI snapshot으로 고정하지 않습니다. DB 변경이 없는 공통 API 작업에는 새 DB 통합 테스트를 추가하지 않습니다.
+- ORM 기반의 제약 이름·컬럼 조합은 DB 없이 metadata와 PostgreSQL DDL로 검사합니다. UUID·시각 기본값처럼 실제 INSERT/조회/UPDATE 경계가 필요한 부분만 격리된 PostgreSQL의 대표 통합 테스트로 확인합니다. 테스트 모델은 별도 metadata를 사용하여 앱·Alembic에 섞이지 않게 합니다.
 - 비동기 테스트는 pytest-asyncio를 기본 runner로 통일합니다. 실제 DB session·engine의 수명은 event loop 범위와 맞춥니다.
 - 비동기 API 테스트에는 HTTPX AsyncClient와 ASGITransport를 사용합니다. ASGITransport만으로 앱 lifespan이 실행된다고 가정하지 않습니다. lifespan에 의존하는 테스트는 앱 시작·종료를 명시적으로 수행합니다.
 - 다단어 필드를 가진 API DTO를 처음 구현할 때 [컨벤션](conventions.md)의 「API JSON 필드명」 규칙을 실제 HTTP 요청·응답으로 검사합니다. camelCase 요청 허용·응답 이름, snake_case·혼용 요청 거부, 선택 필드의 잘못된 이름, 중첩 DTO·목록에 대한 규칙 적용과 임의 map 키 보존을 확인합니다. 이 검사는 해당 DTO 구현과 함께 추가합니다.

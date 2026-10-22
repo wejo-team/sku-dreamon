@@ -1,5 +1,4 @@
 import asyncio
-import os
 from collections.abc import AsyncIterator
 from typing import cast
 from uuid import uuid4
@@ -17,14 +16,6 @@ from app.db.session import Database, DatabaseSession
 from app.main import create_app
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
-
-
-@pytest.fixture
-def database_url() -> str:
-    url = os.environ.get("TEST_DATABASE_URL")
-    if not url:
-        pytest.skip("Set TEST_DATABASE_URL to an isolated PostgreSQL database")
-    return url
 
 
 @pytest_asyncio.fixture

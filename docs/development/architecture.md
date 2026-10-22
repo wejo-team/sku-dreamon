@@ -22,13 +22,13 @@ backend/
   app/
     api/routes/          # HTTP 입력·응답과 라우터
     core/                # 설정, 공통 오류 처리
-    db/                  # AsyncEngine, sessionmaker, Base
+    db/                  # AsyncEngine, sessionmaker, naming metadata, 선택 ORM mixin
     models/              # SQLAlchemy 테이블 모델
     schemas/             # Pydantic 요청·응답
     services/            # 실제 업무 규칙과 쓰기 트랜잭션
     main.py              # 앱 생성·lifespan·라우터 연결
   alembic/versions/      # DB 변경 이력
-  tests/                 # unit·api·integration, 필요할 때 분리
+  tests/                 # unit / integration (HTTP·PostgreSQL)
   .env.example
   .python-version
   pyproject.toml
@@ -48,6 +48,7 @@ compose.yaml             # 개발용 PostgreSQL
 - 공통 UI는 특정 기능의 API나 query에 의존하지 않습니다. 여러 기능이 사용하는 코드만 공통 위치로 옮깁니다.
 - `lib`에는 앱 전반의 작은 기반 코드만 둡니다. 기능 규칙을 넣는 만능 폴더로 사용하지 않습니다.
 - 백엔드 라우터는 HTTP 처리, 서비스는 업무 규칙을 담당합니다. ORM 모델과 요청·응답 스키마를 분리합니다.
+- ORM의 공통 metadata·선택 컬럼은 `db`, API DTO는 `schemas`에 둡니다. [공통 기반의 책임](backend.md#orm-foundation)에 따라 모델의 PK·컬럼을 선택하며 모든 모델에 같은 `id`·시각 컬럼을 강제하지 않습니다.
 - 반복되거나 복잡한 DB 쿼리가 생기면 `repositories/`를 추가합니다. 모든 기능에 Repository·Factory·interface를 의무화하지 않습니다.
 - 프론트와 백엔드는 HTTP API를 통해 연결합니다. 백엔드 DB 구조를 그대로 프론트의 내부 상태 구조로 강제하지 않습니다.
 
