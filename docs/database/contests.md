@@ -4,7 +4,7 @@
 
 ## 먼저 볼 구조
 
-공모전 한 건에 참가 대상과 분야를 연결합니다. 팀은 `contests.id`를 참조하며 분야를 복제하지 않습니다. 주최 기관은 현재 독립 관리 기능이 없어 이름 문자열로 둡니다.
+공모전 한 건에 참가 대상과 분야를 연결합니다. 팀은 `contests.contest_id`를 참조하며 분야를 복제하지 않습니다. 주최 기관은 현재 독립 관리 기능이 없어 이름 문자열로 둡니다.
 
 ![공모전 물리 ERD](diagrams/contests.svg)
 
@@ -17,7 +17,7 @@ erDiagram
   contests ||--o{ contest_fields : has
   contests ||--o{ teams : contains
   contests {
-    uuid id PK
+    uuid contest_id PK
     text title
     varchar member_limit_kind
     bigint min_members
@@ -34,7 +34,7 @@ erDiagram
     varchar field_code PK
   }
   teams {
-    uuid id PK
+    uuid team_id PK
     uuid contest_id FK
   }
 ```
@@ -51,7 +51,7 @@ erDiagram
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
-| `id` | `uuid` | 불가 | — | PK `pk_contests`; 서버가 생성한 공고 ID |
+| `contest_id` | `uuid` | 불가 | — | PK `pk_contests`; 서버가 생성한 공고 ID |
 | `title` | `text` | 불가 | — | 공모전명; 공백만 있는 값 금지 |
 | `organizer_name` | `text` | 불가 | — | 주최 기관 표시명 |
 | `official_url` | `text` | 불가 | — | 공식 원문 HTTP(S) URL; 유일키 아님 |
@@ -115,7 +115,7 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
-| `contest_id` | `uuid` | 불가 | — | PK 구성, FK → `contests.id` |
+| `contest_id` | `uuid` | 불가 | — | PK 구성, FK → `contests.contest_id` |
 | `audience_code` | `varchar(16)` | 불가 | — | PK 구성, 아래 고정 코드 |
 
 | 코드 | 표시 이름 |
@@ -135,7 +135,7 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
-| `contest_id` | `uuid` | 불가 | — | PK 구성, FK → `contests.id` |
+| `contest_id` | `uuid` | 불가 | — | PK 구성, FK → `contests.contest_id` |
 | `field_code` | `varchar(64)` | 불가 | — | PK 구성. `FieldCode` 검증, 코드 FK 없음 |
 
 - `pk_contest_fields (contest_id, field_code)`: 중복 분야 연결 금지.
@@ -147,8 +147,8 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 
 | FK 이름 | 참조 | 삭제 동작 |
 | --- | --- | --- |
-| `fk_contest_audiences_contest` | `contest_audiences.contest_id` → `contests.id` | `RESTRICT` |
-| `fk_contest_fields_contest` | `contest_fields.contest_id` → `contests.id` | `RESTRICT` |
+| `fk_contest_audiences_contest` | `contest_audiences.contest_id` → `contests.contest_id` | `RESTRICT` |
+| `fk_contest_fields_contest` | `contest_fields.contest_id` → `contests.contest_id` | `RESTRICT` |
 
 식별자의 갱신 동작도 `RESTRICT`입니다. 공고 삭제·보존 기간이 미정이므로 연쇄 삭제나 soft-delete 공개 숨김을 추가하지 않습니다.
 
@@ -156,8 +156,8 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 
 | 인덱스 이름 | 방식·열 | 용도 |
 | --- | --- | --- |
-| `ix_contests_created` | B-tree `(created_at DESC, id DESC)` | 등록순과 동률 순서 |
-| `ix_contests_closes` | B-tree `(registration_closes_at ASC, id ASC)` | 마감 임박순 |
+| `ix_contests_created` | B-tree `(created_at DESC, contest_id DESC)` | 등록순과 동률 순서 |
+| `ix_contests_closes` | B-tree `(registration_closes_at ASC, contest_id ASC)` | 마감 임박순 |
 | `ix_contest_fields_field` | B-tree `(field_code, contest_id)` | 분야 필터 |
 
 초기 이름·주최자 검색은 `ILIKE` 조건으로 설계합니다. 분야 검색은 검증한 코드를 `contest_fields.field_code`와 비교하며 결과는 공고 단위로 중복 제거합니다. 한글 부분 검색 성능 개선용 확장·전문 검색은 실제 데이터와 실행 계획을 확인한 뒤 결정하며 이 설계에서 `pg_trgm`을 필수 설치하지 않습니다.
