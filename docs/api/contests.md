@@ -2,7 +2,7 @@
 
 **상태: 설계 제안 · 미구현.** 공모전 목록·상세 탐색의 전송 계약을 정의합니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
-[공고 저장 모델·접수 규칙](../database/contests.md)은 별도로 구현했습니다. 아래 HTTP 경로와 실제 팀 수 집계는 아직 제공하지 않으며, 조회의 미정 정책·팀 모델 연결 후 검증합니다.
+[공고 저장 모델·접수 규칙](../database/contests.md)은 별도로 구현했습니다. 팀 공개 상세에서 사용하는 [ContestSummary·DeadlineInterpretation](../../backend/app/domains/contests/schemas.py)와 실제 전체 팀 수 집계는 구현했습니다. 아래 공고 목록·상세 HTTP 경로는 아직 제공하지 않으며, 목록의 미정 정책을 별도로 검토합니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
@@ -62,20 +62,7 @@
 
 ### ContestSummary — 목록 카드
 
-| 필드 | 타입 | 의미·제약 |
-| --- | --- | --- |
-| `id` | `Id` | 공고 식별자 |
-| `title` | string | 공고 제목 |
-| `organizer` | string | 주최자 |
-| `fieldCodes` | `CatalogCode[]` | 중복 없이 0~3개 |
-| `posterUrl` | `HttpUrl` 또는 null | 포스터가 없으면 null |
-| `registrationStatus` | `RegistrationStatus` | 현재 접수 상태 |
-| `startsAt` | `Timestamp` | 접수 시작, 포함 경계 |
-| `endsAt` | `Timestamp` | 접수 마감, 제외 경계 |
-| `teamCount` | integer | 상태에 관계없는 연결 팀 전체 수, 0~9,007,199,254,740,991 |
-| `isDemo` | boolean | 공고용 고정 UUID 시드 목록에 `id`가 포함되는지 서버에서 판정 |
-| `createdAt` | `Timestamp` | 등록 시각 |
-| `version` | `Version` | 공고의 현재 버전 |
+정확한 필드는 [ContestSummary](../../backend/app/domains/contests/schemas.py)와 팀 상세의 생성 OpenAPI를 따릅니다. 이 DTO는 현재 공개 팀 상세의 중첩 공고 요약에 사용합니다. 분야는 실제 공고 분야이고, `teamCount`는 상태에 관계없는 연결 팀 전체 수이며, `registrationStatus`는 같은 조회 시각의 시작·마감 경계로 계산합니다. `isDemo`는 [승인된 시연 목록](../../backend/app/domains/demo/manifest.py)을 조회합니다.
 
 D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된 접수 상태 문자열이나 별도 팀 수를 클라이언트가 추정하지 않습니다.
 
@@ -132,14 +119,7 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 
 ### DeadlineInterpretation — 마감 안내 정보
 
-| 필드 | 타입 | 의미 |
-| --- | --- | --- |
-| `sourceDate` | string (`YYYY-MM-DD`) | 원문 또는 사용자가 입력한 날짜 |
-| `sourceTime` | string 또는 null | 원문 시각, 없으면 null |
-| `sourceTimeZone` | string 또는 null | 원문 시간대, 없으면 null |
-| `effectiveTimeZone` | string | 계산에 적용한 시간대 |
-| `timeDefaulted` | boolean | 시각을 날짜 끝까지로 보완했는지 여부 |
-| `timeZoneDefaulted` | boolean | 시간대를 한국시간으로 보완했는지 여부 |
+정확한 필드는 [DeadlineInterpretation](../../backend/app/domains/contests/schemas.py)와 팀 상세의 생성 OpenAPI를 따릅니다. 원문 날짜·선택 시각·선택 시간대와 계산에 적용한 시간대·시각 보완 여부·시간대 보완 여부를 반환합니다. 원문 시각·시간대가 없으면 null을 유지합니다.
 
 실제 마감 경계는 상위의 `endsAt` 또는 `recruitmentEndsAt`으로 제공합니다. 원문 입력과 서비스가 보완한 값을 구분해 안내합니다.
 
