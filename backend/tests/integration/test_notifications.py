@@ -1,5 +1,6 @@
 """격리 PostgreSQL·실제 세션으로 본인 알림 조회와 읽음 권한을 검증한다."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -11,7 +12,7 @@ import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
-from sqlalchemy import Result, update
+from sqlalchemy import Result, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.schema import CreateSchema, DropSchema
 from sqlalchemy.sql import Executable
@@ -27,7 +28,11 @@ from app.domains.auth.models import Account
 from app.domains.auth.session_service import issue_session
 from app.domains.notifications.models import Notification
 from app.domains.notifications.router import router
-from app.domains.notifications.service import list_notifications
+from app.domains.notifications.service import (
+    list_notifications,
+    read_notification,
+    read_notifications,
+)
 from tests.integration.test_team_integrity import application, contest, team
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
@@ -321,3 +326,161 @@ async def test_counts_and_rows_keep_one_snapshot_during_concurrent_reading(
         )
     assert refreshed.data == []
     assert refreshed.unread_count == refreshed.pagination.total == 0
+
+
+async def test_read_one_persists_and_keeps_the_first_timestamp(
+    notification_client: AsyncClient, notification_data: NotificationData
+) -> None:
+    path = f"/api/v1/me/notifications/{notification_data.owned_ids[0]}/read"
+    first = await notification_client.put(path)
+    second = await notification_client.put(path)
+    assert first.status_code == second.status_code == 200
+    assert first.json()["data"]["readAt"] is not None
+    assert first.json()["data"]["readAt"] == second.json()["data"]["readAt"]
+    assert (
+        await notification_client.get("/api/v1/me/notifications/unread-count")
+    ).json() == {"data": {"unreadCount": 1}}
+
+
+async def test_bulk_read_changes_only_requested_ids_and_keeps_already_read_time(
+    notification_client: AsyncClient, notification_data: NotificationData
+) -> None:
+    requested = [str(identifier) for identifier in notification_data.owned_ids[:2]]
+    response = await notification_client.put(
+        "/api/v1/me/notifications/read", json={"notificationIds": requested}
+    )
+    assert response.status_code == 200
+    assert response.json() == {"data": {"updatedIds": requested, "unreadCount": 1}}
+    async with notification_data.database.session() as session:
+        rows = (
+            await session.scalars(
+                select(Notification).order_by(Notification.notification_id)
+            )
+        ).all()
+        assert rows[0].read_at is not None
+        assert rows[1].read_at == NOW + timedelta(seconds=2)
+        assert rows[2].read_at is None
+        assert rows[3].read_at is None
+
+
+@pytest.mark.parametrize("foreign", [False, True])
+async def test_foreign_or_missing_id_fails_the_entire_batch(
+    notification_client: AsyncClient, notification_data: NotificationData, foreign: bool
+) -> None:
+    forbidden = notification_data.other_id if foreign else uuid4()
+    single = await notification_client.put(f"/api/v1/me/notifications/{forbidden}/read")
+    bulk = await notification_client.put(
+        "/api/v1/me/notifications/read",
+        json={"notificationIds": [str(notification_data.owned_ids[0]), str(forbidden)]},
+    )
+    assert single.status_code == bulk.status_code == 404
+    assert (
+        single.json()["error"]["code"]
+        == bulk.json()["error"]["code"]
+        == "RESOURCE_NOT_FOUND"
+    )
+    async with notification_data.database.session() as session:
+        unchanged = await session.get(Notification, notification_data.owned_ids[0])
+        assert unchanged is not None and unchanged.read_at is None
+
+
+async def test_read_requires_authentication_csrf_and_valid_body(
+    notification_client: AsyncClient, notification_data: NotificationData
+) -> None:
+    identifier = str(notification_data.owned_ids[0])
+    path = f"/api/v1/me/notifications/{identifier}/read"
+    async with AsyncClient(
+        transport=ASGITransport(app=notification_data.app),
+        base_url="https://testserver",
+    ) as anonymous:
+        assert (await anonymous.put(path)).status_code == 401
+    del notification_client.headers[CSRF_HEADER_NAME]
+    assert (await notification_client.put(path)).status_code == 403
+    notification_client.headers[CSRF_HEADER_NAME] = notification_data.csrf
+    assert (
+        await notification_client.put(path, headers={"Origin": "https://other.example"})
+    ).status_code == 403
+    invalid_bodies: tuple[dict[str, object], ...] = (
+        {"notificationIds": []},
+        {"notificationIds": [identifier, identifier]},
+        {
+            "notificationIds": [identifier],
+            "accountId": str(notification_data.other_account_id),
+        },
+    )
+    for body in invalid_bodies:
+        assert (
+            await notification_client.put("/api/v1/me/notifications/read", json=body)
+        ).status_code == 422
+    async with notification_data.database.session() as session:
+        unchanged = await session.get(Notification, notification_data.owned_ids[0])
+        assert unchanged is not None and unchanged.read_at is None
+
+
+async def test_concurrent_reads_keep_the_same_first_timestamp(
+    notification_data: NotificationData,
+) -> None:
+    async def read() -> datetime | None:
+        async with notification_data.database.session() as session:
+            response = await read_notification(
+                session, notification_data.account_id, notification_data.owned_ids[0]
+            )
+            return response.read_at
+
+    first, second = await asyncio.gather(read(), read())
+    assert first is not None and first == second
+
+
+async def test_failed_commit_rolls_back_all_read_marks(
+    notification_data: NotificationData, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async with notification_data.database.session() as session:
+
+        async def fail_commit() -> None:
+            raise RuntimeError("commit unavailable")
+
+        monkeypatch.setattr(session, "commit", fail_commit)
+        with pytest.raises(RuntimeError, match="commit unavailable"):
+            await read_notifications(
+                session,
+                notification_data.account_id,
+                [notification_data.owned_ids[0], notification_data.owned_ids[2]],
+            )
+    async with notification_data.database.session() as fresh:
+        rows = (
+            await fresh.scalars(
+                select(Notification).where(
+                    Notification.notification_id.in_(
+                        [notification_data.owned_ids[0], notification_data.owned_ids[2]]
+                    )
+                )
+            )
+        ).all()
+        assert all(row.read_at is None for row in rows)
+
+
+async def test_openapi_matches_the_four_authenticated_endpoints(
+    notification_client: AsyncClient,
+) -> None:
+    schema = (await notification_client.get("/openapi.json")).json()
+    paths = schema["paths"]
+    expected = {
+        "/api/v1/me/notifications": "get",
+        "/api/v1/me/notifications/unread-count": "get",
+        "/api/v1/me/notifications/read": "put",
+        "/api/v1/me/notifications/{notificationId}/read": "put",
+    }
+    for path, method in expected.items():
+        operation = paths[path][method]
+        assert operation["security"] == [{"SessionCookie": []}]
+        assert {"200", "401", "500", "503"} <= set(operation["responses"])
+        if method == "put":
+            assert {"403", "404", "422"} <= set(operation["responses"])
+    models = schema["components"]["schemas"]
+    assert set(models["NotificationPage"]["properties"]) == {
+        "data",
+        "pagination",
+        "unreadCount",
+    }
+    assert models["ReadNotifications"]["additionalProperties"] is False
+    assert models["ReadNotifications"]["required"] == ["notificationIds"]

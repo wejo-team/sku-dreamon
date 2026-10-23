@@ -1,16 +1,31 @@
 """수신자 범위에서 알림과 사건을 조회하고 집계를 한 읽기 시점에 맞춘다."""
 
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, RowMapping, and_, cast, func, select
+from sqlalchemy import (
+    BigInteger,
+    RowMapping,
+    Uuid,
+    and_,
+    any_,
+    bindparam,
+    cast,
+    func,
+    select,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import AppError
 from app.core.http.schemas import PageMeta
 from app.domains.applications.models import ApplicationEvent
 from app.domains.notifications.models import Notification
 from app.domains.notifications.schemas import (
     NotificationPage,
     NotificationResponse,
+    ReadNotificationsResult,
     UnreadCount,
 )
 
@@ -143,3 +158,91 @@ async def get_unread_count(session: AsyncSession, account_id: UUID) -> UnreadCou
         )
     )
     return UnreadCount(unread_count=int(count or 0))
+
+
+async def _mark_owned_notifications(
+    session: AsyncSession, account_id: UUID, notification_ids: Sequence[UUID]
+) -> None:
+    if not notification_ids or len(set(notification_ids)) != len(notification_ids):
+        raise ValueError("Notification IDs must be nonempty and unique")
+    # UUID 배열을 한 매개변수로 전달해 선택 개수에 따른 SQL 인자 상한을 피한다.
+    identifiers = bindparam(
+        "notification_ids", list(notification_ids), type_=ARRAY(Uuid())
+    )
+    rows = (
+        await session.scalars(
+            select(Notification)
+            .where(
+                Notification.recipient_account_id == account_id,
+                Notification.notification_id == any_(identifiers),
+            )
+            .order_by(Notification.notification_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    if len(rows) != len(notification_ids):
+        raise AppError(404, "RESOURCE_NOT_FOUND", "알림을 찾을 수 없습니다.")
+    # 모든 소유자를 확인한 뒤 변경하며 동시 요청도 최초 읽음 시각을 유지한다.
+    read_at = datetime.now(UTC)
+    for row in rows:
+        if row.read_at is None:
+            row.read_at = read_at
+    await session.flush()
+
+
+async def read_notification(
+    session: AsyncSession, account_id: UUID, notification_id: UUID
+) -> NotificationResponse:
+    """본인 항목의 최초 읽음 시각을 저장하고 커밋 성공 뒤 결과를 반환한다."""
+    try:
+        await _mark_owned_notifications(session, account_id, [notification_id])
+        row = (
+            (
+                await session.execute(
+                    select(
+                        Notification.notification_id.label("id"),
+                        Notification.kind,
+                        ApplicationEvent.application_id,
+                        ApplicationEvent.team_id,
+                        ApplicationEvent.to_status.label("event_status"),
+                        ApplicationEvent.reason_code,
+                        ApplicationEvent.occurred_at,
+                        Notification.read_at,
+                    )
+                    .join(
+                        ApplicationEvent,
+                        Notification.event_id == ApplicationEvent.application_event_id,
+                    )
+                    .where(
+                        Notification.recipient_account_id == account_id,
+                        Notification.notification_id == notification_id,
+                    )
+                )
+            )
+            .mappings()
+            .one()
+        )
+        response = _notification_response(row)
+        await session.commit()
+        return response
+    except Exception:
+        await session.rollback()
+        raise
+
+
+async def read_notifications(
+    session: AsyncSession, account_id: UUID, notification_ids: Sequence[UUID]
+) -> ReadNotificationsResult:
+    """제공받은 본인 ID 집합만 원자적으로 읽고 이미 읽은 ID도 결과에 포함한다."""
+    try:
+        await _mark_owned_notifications(session, account_id, notification_ids)
+        count = await get_unread_count(session, account_id)
+        response = ReadNotificationsResult(
+            updated_ids=list(notification_ids), unread_count=count.unread_count
+        )
+        await session.commit()
+        return response
+    except Exception:
+        await session.rollback()
+        raise
