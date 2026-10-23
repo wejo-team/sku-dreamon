@@ -64,3 +64,7 @@ class AuthResult(ResponseDTO):
 class LoginIdAvailability(ResponseDTO):
     normalized_login_id: LoginId
     available: bool
+
+
+class CsrfToken(ResponseDTO):
+    csrf_token: str
