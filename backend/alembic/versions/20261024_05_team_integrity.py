@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20261024_05"
-down_revision: str | Sequence[str] | None = None
+down_revision: str | Sequence[str] | None = "20261024_04"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

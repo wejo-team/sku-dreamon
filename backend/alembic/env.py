@@ -9,10 +9,13 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import Settings
 from app.core.db.base import Base
+from app.domains.applications import models as application_models  # noqa: F401 -- 지원 모델 등록
 from app.domains.auth import models as auth_models  # noqa: F401 -- metadata 모델 등록
 from app.domains.catalogs import models as catalog_models  # noqa: F401 -- 학사 모델 등록
 from app.domains.contests import models as contest_models  # noqa: F401 -- 공고 모델 등록
+from app.domains.notifications import models as notification_models  # noqa: F401 -- 알림 모델 등록
 from app.domains.profiles import models as profile_models  # noqa: F401 -- 프로필 모델 등록
+from app.domains.teams import models as team_models  # noqa: F401 -- 팀 모델 등록
 
 config = context.config
 if config.config_file_name is not None:
