@@ -1,11 +1,14 @@
 """지원의 공개 응답과 명시적인 상태 변경 요청을 정의한다."""
 
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
+
+from pydantic import Field
 
 from app.core.http.schemas import RequestDTO, ResponseDTO, Timestamp, Version
 from app.domains.catalogs.codes import RoleCode
+from app.domains.teams.schemas import TeamSummary
 
 
 class ApplicationStatus(StrEnum):
@@ -40,3 +43,15 @@ class VersionedAction(RequestDTO):
 class CancellationResult(ResponseDTO):
     application: ApplicationResponse
     membership_ended: bool
+
+
+class MyApplication(ResponseDTO):
+    application: ApplicationResponse
+    team: TeamSummary
+    is_current_member: bool
+
+
+class ApplicationSearch(RequestDTO):
+    page: Annotated[int, Field(ge=1, le=9007199254740991)] = 1
+    page_size: Annotated[int, Field(ge=1, le=100)] = 20
+    status: ApplicationStatus | None = None

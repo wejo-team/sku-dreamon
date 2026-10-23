@@ -25,7 +25,7 @@ from app.domains.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME, issue_csrf
 from app.domains.auth.dependencies import SESSION_COOKIE_NAME
 from app.domains.auth.models import Account, AuthSession
 from app.domains.auth.session_service import IssuedSession, issue_session
-from app.domains.contests.models import Contest
+from app.domains.contests.models import Contest, ContestField
 from app.domains.notifications.models import Notification
 from app.domains.teams.models import Team, TeamMembership, TeamRecruitmentRole
 
@@ -102,6 +102,7 @@ async def application_data(database_url: str) -> AsyncIterator[ApplicationData]:
             Account,
             AuthSession,
             Contest,
+            ContestField,
             Team,
             TeamRecruitmentRole,
             Application,
@@ -158,6 +159,28 @@ async def application_data(database_url: str) -> AsyncIterator[ApplicationData]:
             second_team = make_team(contest.contest_id, stranger.account_id, now)
             session.add_all([first_team, second_team])
             await session.flush()
+            session.add_all(
+                [
+                    TeamMembership(
+                        team_id=first_team.team_id,
+                        contest_id=contest.contest_id,
+                        account_id=leader.account_id,
+                        joined_at=now,
+                    ),
+                    TeamMembership(
+                        team_id=second_team.team_id,
+                        contest_id=contest.contest_id,
+                        account_id=stranger.account_id,
+                        joined_at=now,
+                    ),
+                    TeamRecruitmentRole(
+                        team_id=first_team.team_id, role_code="development"
+                    ),
+                    ContestField(
+                        contest_id=contest.contest_id, field_code="it_technology"
+                    ),
+                ]
+            )
             application = make_application(
                 first_team.team_id, contest.contest_id, applicant.account_id, now
             )
