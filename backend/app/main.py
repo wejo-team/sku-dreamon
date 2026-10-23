@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from app.core.config import Settings
 from app.core.db.session import create_database
 from app.core.http.handlers import register_error_handlers
+from app.domains.applications.review_router import router as application_review_router
 from app.domains.applications.router import router as applications_router
 from app.domains.auth.router import router as auth_router
 from app.domains.catalogs.router import router as catalogs_router
@@ -41,6 +42,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(applications_router, prefix="/api/v1")
     app.include_router(team_management_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
+    app.include_router(application_review_router, prefix="/api/v1")
     return app
 
 
