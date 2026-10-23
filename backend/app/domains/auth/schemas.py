@@ -19,7 +19,14 @@ def normalize_login_id(value: str) -> str:
 
 def normalize_password(value: str) -> str:
     """대소문자·공백을 보존한 채 NFC만 적용한다."""
-    return unicodedata.normalize("NFC", value)
+    normalized = unicodedata.normalize("NFC", value)
+    # JSON의 고립 surrogate는 유효한 Unicode 문자열이 아니며 해시기가
+    # 처리할 수 없다. 해시 단계의 500 대신 요청 검증의 422로 거부한다.
+    try:
+        normalized.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise ValueError("Password must contain valid Unicode characters") from error
+    return normalized
 
 
 LoginId = Annotated[
