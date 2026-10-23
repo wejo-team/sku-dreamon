@@ -172,6 +172,8 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 
 ## 현재 프로필
 
+[프로필 ORM](../../backend/app/domains/profiles/models.py)과 [마이그레이션](../../backend/alembic/versions/20261024_04_profiles.py)에 아래 저장 구조를 정의합니다. [PostgreSQL 제약 테스트](../../backend/tests/integration/test_profile_models.py)는 참조 대상의 키만 별도로 제공해 프로필 자체의 무결성을 검사합니다. 인증·학사 모델과의 전체 migration 검증 및 본인 프로필 저장 API는 [#102](https://github.com/wejo-team/sku-dreamon/issues/102)에서 이어서 확인합니다.
+
 ### `profiles`
 
 함께 공모전에 참여할 사람을 찾거나 지원자를 검토할 때 참고하는 계정의 현재 소개 정보입니다. 지원마다 사본을 만드는 대신 하나의 프로필을 참조하여 최신 정보를 확인합니다.
