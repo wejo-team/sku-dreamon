@@ -1,5 +1,6 @@
+"""요청별 DB 세션 격리, 명시적 커밋, 앱 종료 시 연결 풀 해제를 검증한다."""
+
 import asyncio
-import os
 from collections.abc import AsyncIterator
 from typing import cast
 from uuid import uuid4
@@ -13,18 +14,11 @@ from pydantic import PostgresDsn
 from sqlalchemy import Engine, event, text
 
 from app.core.config import Settings
-from app.db.session import Database, DatabaseSession
+from app.core.db.session import Database
+from app.core.http.dependencies import DatabaseSession
 from app.main import create_app
 
-pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def database_url() -> str:
-    url = os.environ.get("TEST_DATABASE_URL")
-    if not url:
-        pytest.skip("Set TEST_DATABASE_URL to an isolated PostgreSQL database")
-    return url
+pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 @pytest_asyncio.fixture
@@ -72,7 +66,7 @@ async def test_request_cleanup_preserves_only_explicit_commits(
     expected_rows: int,
 ) -> None:
     database = cast(Database, database_app.state.database)
-    # A unique, disposable schema keeps every case isolated, including real commits.
+    # 실제 커밋도 다른 테스트에 영향을 주지 않도록 매번 별도 임시 스키마를 쓴다.
     schema = f"wejo_test_{uuid4().hex}"
     async with database.engine.begin() as connection:
         await connection.execute(text(f"CREATE SCHEMA {schema}"))

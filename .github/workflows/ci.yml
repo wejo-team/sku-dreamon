@@ -1,3 +1,4 @@
+# 변경 영향 범위에 따라 앱 검사를 실행하고 필수 검사 결과를 확인한다.
 name: Application CI
 
 on:
@@ -101,10 +102,10 @@ jobs:
       - run: uv run mypy
       - run: uv run alembic upgrade head
       - run: uv run alembic check
-      - run: uv run python -m app.db.check
+      - run: uv run python -m app.core.db.check
       - run: uv run pytest
 
-  # Preserve required check names even when an area's expensive tests are skipped.
+  # 변경 영향이 없어 앱 테스트를 생략해도 필수 검사 이름은 유지한다.
   frontend:
     name: Frontend
     needs: [changes, frontend_checks]

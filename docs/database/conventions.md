@@ -49,6 +49,23 @@ CHECK는 다른 테이블을 조회하거나 시간이 지나면 저절로 재�
 
 모든 PK·UQ는 필요한 인덱스를 포함합니다. 같은 컬럼의 일반 인덱스를 중복 추가하지 않습니다. FK의 자식 쪽 조회 인덱스는 도메인 문서에 별도로 적습니다.
 
+<a id="constraint-names"></a>
+
+## 제약조건·인덱스 이름
+
+[ORM Base의 metadata](../../backend/app/core/db/base.py)는 이름을 생략한 PK·UQ·FK·일반 인덱스에 아래 기본 규칙을 적용합니다. 도메인 문서에 이름이 명시된 제약·인덱스는 그 이름을 코드에 그대로 전달합니다. 예를 들어 `fk_auth_sessions_account`를 자동 이름으로 바꾸지 않습니다.
+
+| 종류 | 이름을 생략했을 때 |
+| --- | --- |
+| PK | `pk_<table>` |
+| UQ | `uq_<table>_<column1>_<column2>...` |
+| FK | `fk_<table>_<column1>_<column2>..._<referred_table>` |
+| 인덱스 | `ix_<table>_<column1>_<column2>...` |
+
+복합 제약에는 선언 순서의 모든 로컬 컬럼 이름을 포함합니다. CHECK는 `ck_<table>_<meaning>` 형태의 **완전한 이름을 직접 선언**하며, 이름이 없으면 metadata 구성 시 오류로 거부합니다. 이미 정한 CHECK 이름에 접두사를 다시 붙이지 않습니다. 같은 컬럼에 다른 조건·정렬·참조 대상을 쓰는 인덱스나 제약은 의미를 구별하는 이름을 명시합니다.
+
+Alembic은 앱과 같은 `Base.metadata`를 사용합니다. 네이밍을 도입했다는 이유로 빈 migration을 만들거나 기존 이름을 일괄 변경하지 않습니다. 실제 테이블 도입 시 생성된 migration과 DB 제약을 함께 검토합니다. 구현 방식은 [SQLAlchemy naming convention](https://docs.sqlalchemy.org/en/20/core/constraints.html#configuring-constraint-naming-conventions)을 따릅니다.
+
 ## 변경·버전·삭제
 
 - `created_at`은 생성 시점, `updated_at`은 저장 내용의 변경 시점입니다. 단순 조회로 갱신하지 않습니다.
