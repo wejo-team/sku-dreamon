@@ -1,6 +1,6 @@
 # 알림 API
 
-**상태: 설계 제안 · 미구현.** 본인 알림함과 읽음 처리의 요청과 응답을 정의합니다. 모든 경로는 `/api/v1` 기준이며 로그인이 필요합니다. 제품 정책은 [알림 명세](../specs/notifications.md)를 참조합니다.
+**상태: 구현 진행 중 — [#113](https://github.com/wejo-team/sku-dreamon/issues/113).** 본인 목록·미읽음 수는 [라우터](../../backend/app/domains/notifications/router.py), [DTO](../../backend/app/domains/notifications/schemas.py), [서비스](../../backend/app/domains/notifications/service.py)에 구현합니다. 읽음 API·앱 연결·프론트 통합과 업무 변경에 따른 알림 생성은 후속 검증 범위입니다. 아래 표는 최종 요청·응답 계약을 설명합니다. 모든 경로는 `/api/v1` 기준이며 로그인이 필요합니다. 제품 정책은 [알림 명세](../specs/notifications.md)를 참조합니다.
 
 | 찾는 내용 | 위치 |
 | --- | --- |
@@ -35,7 +35,7 @@
 | `pageSize` | 1~100 정수, 기본 20 | `NotificationPage`의 `data`·`pagination`에 적용 |
 | `unreadOnly` | 불리언, 기본 `false` | `true`면 미읽음만 반환 |
 
-정렬은 `occurredAt DESC, id DESC`입니다. `total`은 현재 필터와 권한을 적용한 목록 집계이며, `UnreadCount.unreadCount`는 본인의 **전체 미읽음 수**입니다. 목록 열기만으로 읽음 처리하지 않습니다.
+정렬은 `occurredAt DESC, id DESC`입니다. `total`은 현재 필터와 권한을 적용한 목록 집계이며, `UnreadCount.unreadCount`는 본인의 **전체 미읽음 수**입니다. 목록 열기만으로 읽음 처리하지 않습니다. 구현은 목록·페이지 보정·필터 집계·전체 미읽음 수를 단일 SQL로 읽어 같은 DB 스냅샷을 사용합니다. 제목·본문은 사건 상태와 폐기 원인만으로 구성하며 프로필·실명 등 비공개 데이터를 읽지 않습니다.
 
 <a id="notification-fields"></a>
 
