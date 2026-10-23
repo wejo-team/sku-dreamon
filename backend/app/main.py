@@ -25,6 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await database.engine.dispose()
 
     app = FastAPI(title="서경드림온 API", lifespan=lifespan)
+    app.state.settings = config
     register_error_handlers(app)
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(catalogs_router, prefix="/api/v1")
