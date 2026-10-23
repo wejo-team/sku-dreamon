@@ -24,6 +24,9 @@ from app.domains.auth.dependencies import SESSION_COOKIE_NAME
 from app.domains.auth.models import Account, AuthSession
 from app.domains.auth.router import router
 from app.domains.auth.session_service import IssuedSession, issue_session
+from app.domains.catalogs.models import AcademicUnit  # noqa: F401
+from app.domains.demo import manifest
+from app.domains.profiles.models import Profile
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 SIGNING_KEY = "auth-http-test-key-32-bytes-long!!"
@@ -46,6 +49,8 @@ async def http_database(database_url: str) -> AsyncIterator[Database]:
                     tables=[
                         Base.metadata.tables["accounts"],
                         Base.metadata.tables["auth_sessions"],
+                        Base.metadata.tables["academic_units"],
+                        Base.metadata.tables["profiles"],
                     ],
                 )
             )
@@ -215,3 +220,65 @@ async def test_invalid_csrf_cookie_is_replaced(
     operation = http_app.openapi()["paths"]["/api/v1/auth/csrf"]["get"]
     assert {} in operation["security"]
     assert set(operation["responses"]) == {"200", "500", "503"}
+
+
+async def test_me_returns_only_current_account_and_actual_profile_presence(
+    http_client: AsyncClient,
+    http_database: Database,
+    http_app: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    account_id, issued = await create_login(http_database)
+    async with http_database.session() as session:
+        account = await session.get(Account, account_id)
+        assert account is not None
+        account.school_email = "not-exposed@example.com"
+        account.school_email_verified_at = account.created_at
+        created_at = account.created_at.isoformat().replace("+00:00", "Z")
+        other = Account(login_id_normalized="otheruser", password_hash="other-hash")
+        session.add(other)
+        await session.flush()
+        session.add(Profile(profile_id=other.account_id, real_name="다른 사용자"))
+        await session.commit()
+    http_client.cookies.set(SESSION_COOKIE_NAME, issued.token)
+    response = await http_client.get("/api/v1/me")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    expected = {
+        "id": str(account_id),
+        "loginId": "authhttp01",
+        "isDemo": False,
+        "hasProfile": False,
+        "schoolVerification": "unverified",
+        "createdAt": created_at,
+    }
+    assert response.json() == {"data": expected}
+    assert "set-cookie" not in response.headers
+    async with http_database.session() as session:
+        session.add(Profile(profile_id=account_id, real_name="본인", is_public=False))
+        await session.commit()
+    monkeypatch.setattr(manifest, "ACCOUNT_IDS", frozenset({account_id}))
+    expected.update(hasProfile=True, isDemo=True)
+    assert (await http_client.get("/api/v1/me")).json() == {"data": expected}
+    operation = http_app.openapi()["paths"]["/api/v1/me"]["get"]
+    assert operation["security"] == [{"SessionCookie": []}]
+    assert set(operation["responses"]) == {"200", "401", "500", "503"}
+
+
+async def test_me_requires_valid_session(
+    http_client: AsyncClient,
+    http_database: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert (await http_client.get("/api/v1/me")).status_code == 401
+    _, issued = await create_login(http_database)
+    http_client.cookies.set(SESSION_COOKIE_NAME, issued.token)
+    monkeypatch.setattr(
+        session_service,
+        "_utcnow",
+        lambda: issued.session.created_at + timedelta(days=7),
+    )
+    response = await http_client.get("/api/v1/me")
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHENTICATED"
+    assert "authhttp01" not in response.text
