@@ -1,15 +1,29 @@
-"""실제 공고를 공개 팀 상세의 공고 요약과 마감 안내로 변환한다."""
+"""공개 공고 요약·상세와 원문 인원·일정 안내의 전송 계약을 정의한다."""
 
 from collections.abc import Sequence
 from datetime import date, datetime
+from typing import Self
 from uuid import UUID
 
-from pydantic import HttpUrl
+from pydantic import Field, HttpUrl, field_validator, model_validator
 
-from app.core.http.schemas import NonnegativeInt, ResponseDTO, Timestamp, Version
+from app.core.http.schemas import (
+    NonnegativeInt,
+    PositiveBigInt,
+    ResponseDTO,
+    Timestamp,
+    Version,
+)
 from app.domains.catalogs.codes import FieldCode
 from app.domains.contests.models import Contest
-from app.domains.contests.rules import RegistrationStatus, get_registration_status
+from app.domains.contests.rules import (
+    AudienceCode,
+    CapacityKind,
+    RegistrationStatus,
+    get_registration_status,
+    validate_audience_codes,
+    validate_participation_capacity,
+)
 from app.domains.demo.manifest import is_demo_contest
 
 
@@ -35,6 +49,55 @@ class ContestSummary(ResponseDTO):
     is_demo: bool
     created_at: Timestamp
     version: Version
+
+
+class ParticipationCapacity(ResponseDTO):
+    kind: CapacityKind
+    minimum_members: PositiveBigInt | None
+    maximum_members: PositiveBigInt | None
+
+    @model_validator(mode="after")
+    def validate_bounds(self) -> Self:
+        validate_participation_capacity(
+            kind=self.kind,
+            minimum_members=(
+                None if self.minimum_members is None else int(self.minimum_members)
+            ),
+            maximum_members=(
+                None if self.maximum_members is None else int(self.maximum_members)
+            ),
+        )
+        return self
+
+
+class ContestTiming(ResponseDTO):
+    starts_at: Timestamp
+    ends_at: Timestamp
+    open_source_date: date
+    open_source_time: str | None
+    open_source_time_zone: str | None
+    open_effective_time_zone: str
+    open_time_zone_defaulted: bool
+    closing: DeadlineInterpretation
+
+
+class ContestDetail(ContestSummary):
+    field_codes: list[FieldCode] = Field(max_length=3)
+    description: str | None
+    audience_codes: list[AudienceCode] = Field(min_length=1, max_length=2)
+    eligibility_text: str
+    capacity: ParticipationCapacity
+    timing: ContestTiming
+    deliverables: str | None
+    awards: str | None
+    contact: str | None
+    verified_at: Timestamp
+    source_url: HttpUrl
+
+    @field_validator("audience_codes")
+    @classmethod
+    def validate_audiences(cls, codes: list[AudienceCode]) -> list[AudienceCode]:
+        return list(validate_audience_codes(codes))
 
 
 def build_contest_summary(
