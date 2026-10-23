@@ -10,8 +10,15 @@ from pydantic import field_validator
 
 from app.core.exceptions import AppError
 from app.core.http.handlers import error_responses
-from app.core.http.schemas import Page, PageMeta, RequestDTO, ResponseDTO, Success
-from app.core.http.types import Timestamp, Version
+from app.core.http.schemas import (
+    Page,
+    PageMeta,
+    RequestDTO,
+    ResponseDTO,
+    Success,
+    Timestamp,
+    Version,
+)
 
 pytestmark = pytest.mark.integration
 

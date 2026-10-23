@@ -27,14 +27,14 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 - 업무 오류는 상태·코드·안전한 안내 문구를 가진 예외 하나로 표현합니다. 예상하지 못한 오류와 요청 검증 실패에는 입력 원문을 포함하지 않는 응답을 제공합니다. 오류 응답 모델은 라우터의 `responses`에도 명시하여 OpenAPI와 실제 응답을 맞춥니다.
 - 페이지 모델은 범위와 전송 모양만 검증합니다. 마지막 페이지 보정·권한·필터·동일 읽기 시점의 집계는 실제 목록을 조회하는 도메인이 책임집니다.
 
-구현 원본은 [공통 DTO·성공·페이지·오류 모델](../../backend/app/core/http/schemas.py), [전송 타입](../../backend/app/core/http/types.py), [애플리케이션 예외](../../backend/app/core/exceptions.py)와 [HTTP 예외 핸들러·오류 응답 선언](../../backend/app/core/http/handlers.py)입니다. 제품 요청 모델은 `RequestDTO`, 응답 모델은 `ResponseDTO`를 상속합니다. 모델 전체에 `strict=True`를 지정하기보다 숫자 등 해당 필드의 엄격한 타입을 선택하여 정상 UUID·시각 문자열의 파싱을 막지 않습니다.
+구현 원본은 [공통 DTO·응답 모델·전송 타입](../../backend/app/core/http/schemas.py), [애플리케이션 예외](../../backend/app/core/exceptions.py)와 [HTTP 예외 핸들러·오류 응답 선언](../../backend/app/core/http/handlers.py)입니다. 제품 요청 모델은 `RequestDTO`, 응답 모델은 `ResponseDTO`를 상속합니다. 모델 전체에 `strict=True`를 지정하기보다 숫자 등 해당 필드의 엄격한 타입을 선택하여 정상 UUID·시각 문자열의 파싱을 막지 않습니다.
 
-각 도메인은 사용하는 공통 요소를 해당 모듈에서 가져옵니다. DTO와 응답 모델의 import 경로는 하나로 모읍니다.
+각 도메인은 사용하는 공통 요소를 해당 모듈에서 가져옵니다. 공통 DTO·응답 모델과 전송 타입은 `app.core.http.schemas`에서 가져옵니다.
 
 ```python
 from app.core.exceptions import AppError
 from app.core.http.handlers import error_responses
-from app.core.http.schemas import RequestDTO, ResponseDTO, Success
+from app.core.http.schemas import RequestDTO, ResponseDTO, Success, Timestamp, Version
 ```
 
 제품 라우터는 `responses=error_responses(401, 409, 422, 500, 503)`처럼 자신이 제공할 오류 상태를 명시합니다. 업무 실패는 `AppError(status_code, code, message)`로 전달하며 `message`에 입력 원문을 넣지 않습니다. 422는 요청 검증에만 사용하며 `AppError`로 지정할 수 없습니다. 프레임워크 HTTP 오류의 원래 `detail`과 검증기의 원래 `msg`는 그대로 노출하지 않습니다. 422는 `loc`·`type`과 고정된 안전한 안내를 반환하므로 필드별 화면 안내는 선언한 검증 계약을 함께 사용합니다. 위치 정보가 없는 명시적 `HTTPException(422)`도 같은 `detail` 구조로 반환합니다.

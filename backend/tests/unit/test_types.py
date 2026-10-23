@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta, timezone
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from app.core.http.types import (
+from app.core.http.schemas import (
     NonnegativeBigInt,
     NonnegativeInt,
     PageSize,
