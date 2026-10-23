@@ -4,13 +4,18 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Select, and_, func, select
+from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.core.http.schemas import Page, PageMeta
 from app.domains.applications.models import Application, ApplicationEvent
-from app.domains.applications.review_schemas import ApplicantResponse, ApplicantSearch
+from app.domains.applications.review_schemas import (
+    ApplicantResponse,
+    ApplicantSearch,
+    SelectionResult,
+)
 from app.domains.applications.schemas import ApplicationResponse
 from app.domains.applications.service import application_response
 from app.domains.notifications.models import Notification
@@ -23,6 +28,11 @@ from app.domains.teams.locks import (
     lock_teams,
 )
 from app.domains.teams.models import Team, TeamMembership
+from app.domains.teams.queries import get_team_summary
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 async def _read_snapshot(session: AsyncSession) -> None:
@@ -249,6 +259,137 @@ async def change_review_status(
         result = application_response(application, viewer_id=account_id)
         await session.commit()
         return result
+    except BaseException:
+        await session.rollback()
+        raise
+
+
+async def select_application(
+    session: AsyncSession, application_id: UUID, account_id: UUID, expected_version: int
+) -> SelectionResult:
+    """현재 선발·소속 확정·같은 공모전 대기 지원 폐기를 함께 저장한다."""
+    try:
+        applicant_id, contest_id, team_id = await _leader_identity(
+            session, application_id, account_id
+        )
+        await lock_accounts(session, [applicant_id])
+        contest = await lock_contest(session, contest_id)
+        assert contest is not None
+        # 같은 지원자 계정 잠금이 신규 접수와 상태 변경을 직렬화한다.
+        # 대상 팀만 먼저 잠그지 않고 폐기 대상 팀까지 모아 전체를 정렬한다.
+        related = (
+            await session.execute(
+                select(Application.application_id, Application.team_id).where(
+                    Application.applicant_account_id == applicant_id,
+                    Application.contest_id == contest_id,
+                    or_(
+                        Application.application_id == application_id,
+                        Application.status.in_(("submitted", "reviewing")),
+                    ),
+                )
+            )
+        ).all()
+        teams = await lock_teams(session, sorted({row[1] for row in related}))
+        applications = await lock_applications(session, [row[0] for row in related])
+        team = next(item for item in teams if item.team_id == team_id)
+        application = next(
+            item for item in applications if item.application_id == application_id
+        )
+        _check_action(application, team, account_id, expected_version)
+        membership = await session.scalar(
+            select(TeamMembership).where(
+                TeamMembership.account_id == applicant_id,
+                TeamMembership.contest_id == contest_id,
+                TeamMembership.ended_at.is_(None),
+            )
+        )
+        if (
+            application.status == "selected"
+            and membership is not None
+            and membership.source_application_id == application_id
+        ):
+            result = SelectionResult(
+                application=application_response(application, viewer_id=account_id),
+                team=await get_team_summary(session, team_id),
+                membership_id=membership.team_membership_id,
+            )
+            await session.rollback()
+            return result
+        if application.status not in ("submitted", "reviewing"):
+            raise AppError(
+                409,
+                "INVALID_APPLICATION_STATE",
+                "현재 지원 상태에서는 선발할 수 없습니다.",
+            )
+        if membership is not None:
+            raise AppError(
+                409, "MEMBERSHIP_CONFLICT", "같은 공모전의 현재 소속이 있습니다."
+            )
+        now = _utcnow()
+        if not contest.registration_opens_at <= now < contest.registration_closes_at:
+            raise AppError(409, "CONTEST_NOT_OPEN", "현재 공고의 접수 기간이 아닙니다.")
+        member_count = await session.scalar(
+            select(func.count())
+            .select_from(TeamMembership)
+            .where(TeamMembership.team_id == team_id, TeamMembership.ended_at.is_(None))
+        )
+        assert member_count is not None
+        if member_count >= team.target_capacity:
+            raise AppError(409, "TEAM_FULL", "팀 정원이 모두 찼습니다.")
+        team.version += 1
+        team.updated_at = now
+        if member_count + 1 == team.target_capacity:
+            team.recruitment_state = "closed"
+            team.closed_reason = "capacity_reached"
+        selected_event = await _record_change(
+            session,
+            application,
+            status="selected",
+            actor_id=account_id,
+            reason="selected",
+            now=now,
+        )
+        membership = TeamMembership(
+            team_membership_id=uuid4(),
+            team_id=team_id,
+            contest_id=contest_id,
+            account_id=applicant_id,
+            source_application_id=application_id,
+            joined_at=now,
+        )
+        session.add(membership)
+        for other in applications:
+            if other.application_id != application_id and other.status in (
+                "submitted",
+                "reviewing",
+            ):
+                await _record_change(
+                    session,
+                    other,
+                    status="discarded",
+                    actor_id=None,
+                    reason="selected_elsewhere",
+                    now=now,
+                    cause_event_id=selected_event.application_event_id,
+                )
+        await session.flush()
+        result = SelectionResult(
+            application=application_response(application, viewer_id=account_id),
+            team=await get_team_summary(session, team_id, now=now),
+            membership_id=membership.team_membership_id,
+        )
+        await session.commit()
+        return result
+    except IntegrityError as error:
+        await session.rollback()
+        constraint = getattr(error.orig, "constraint_name", None) or getattr(
+            getattr(error.orig, "__cause__", None), "constraint_name", None
+        )
+        if constraint == "uq_memberships_active_contest":
+            raise AppError(
+                409, "MEMBERSHIP_CONFLICT", "같은 공모전의 현재 소속이 있습니다."
+            ) from error
+        raise
     except BaseException:
         await session.rollback()
         raise

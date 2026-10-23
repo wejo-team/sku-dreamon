@@ -1,6 +1,6 @@
 # 지원 API
 
-**상태: 일부 구현.** 본인·받은 팀장의 지원 상세, 본인 지원 목록·취소, 팀장 지원자 목록·상세와 명시적 검토 시작·미선발을 구현했습니다. 신규 지원과 선발은 아직 설계 단계입니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 일부 구현.** 본인·받은 팀장의 지원 상세, 본인 지원 목록·취소, 팀장 지원자 목록·상세와 명시적 검토 시작·미선발·선발을 구현했습니다. 신규 지원은 아직 설계 단계입니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 구현 원본은 [지원 라우터](../../backend/app/domains/applications/router.py), [응답 DTO](../../backend/app/domains/applications/schemas.py), [조회 서비스](../../backend/app/domains/applications/service.py)입니다. [PostgreSQL HTTP 검사](../../backend/tests/integration/test_application_reads.py)는 실제 세션 쿠키의 권한·404 은닉·폐기 원인 공개 범위·조회 시 상태 보존을 검증합니다. 실행 앱의 `/docs`·`/openapi.json`에서 등록한 API 계약을 확인할 수 있습니다.
 
@@ -11,6 +11,8 @@
 팀장 조회는 [검토 라우터](../../backend/app/domains/applications/review_router.py)와 [서비스](../../backend/app/domains/applications/review_service.py)에서 제공합니다. [검증](../../backend/tests/integration/test_applicant_reads.py)은 지원 후 비공개 전환·종결 이후 최신 프로필 열람, 관계별 403·404, 목록·총원·프로필의 같은 읽기 시점을 확인합니다. 인증이 끝난 새 요청 세션에서 REPEATABLE READ를 사용하며 조회는 지원 상태를 바꾸지 않습니다.
 
 검토 시작·미선발은 같은 검토 라우터에서 제공하며, [명령 검증](../../backend/tests/integration/test_application_review_actions.py)은 인증 우선·CSRF, 버전 우선·변경 없는 재요청, 허용 전이와 알림 실패 시 상태·사건의 전체 롤백을 확인합니다. 지원자 계정·공고·팀·지원 순서로 잠그며 팀 정원·모집 상태는 변경하지 않습니다.
+
+선발은 같은 서비스에서 소속 확정·다른 대기 지원 폐기·사건·알림·정원 도달에 따른 모집 마감을 함께 저장합니다. [선발 검증](../../backend/tests/integration/test_application_selection.py)은 마지막 자리 경쟁·같은 사람의 두 팀 동시 선발·취소와의 경합·잠금 대기 중 공고 마감·실패 시 전체 롤백을 확인합니다. 다른 공모전의 지원은 바꾸지 않고, 팀 자체의 모집 마감 뒤에도 공고 기간·여석·소속 조건을 충족한 기존 지원을 선발할 수 있습니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
@@ -133,10 +135,11 @@
 
 | 응답 타입 | 필수 필드 | 의미 |
 | --- | --- | --- |
-| `SelectionResult` | `application: Application`, `team: TeamSummary`, `membershipId: Id` | 선발한 지원·해당 팀·생성된 현재 소속. 다른 팀 지원 목록·메시지·건수는 포함하지 않음 |
 | `CancellationResult` | `application: Application`, `membershipEnded: boolean` | 선발 후 취소로 소속을 종료했다면 true. 이미 취소된 요청은 기존 취소 결과를 유지하며 자리를 다시 반환하지 않음 |
 
 구현된 취소 응답의 필드·타입은 [CancellationResult DTO](../../backend/app/domains/applications/schemas.py)와 생성 OpenAPI를 기준으로 합니다.
+
+선발 응답의 정확한 필드는 [SelectionResult DTO](../../backend/app/domains/applications/review_schemas.py)와 생성 OpenAPI가 원본입니다. 선발한 지원·팀 요약·현재 소속 ID만 제공하고 다른 팀의 지원 목록·메시지·건수는 포함하지 않습니다.
 
 `team: TeamSummary`의 데이터 정의는 [팀 요약](teams.md#team-summary)을 따릅니다. 모집 종료·재개의 `RecruitmentResult`는 [팀 API](teams.md#action-results)에 정의합니다.
 

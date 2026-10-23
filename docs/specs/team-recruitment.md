@@ -1,8 +1,8 @@
 # 팀 모집·지원·선발과 팀 공간
 
-- 구현 상태: 예정
+- 구현 상태: 진행 중
 - 명세 검토: [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17)
-- 구현 작업: 미등록
+- 구현 작업: [지원자 조회·검토 #110](https://github.com/wejo-team/sku-dreamon/issues/110), [선발·소속·폐기 #111](https://github.com/wejo-team/sku-dreamon/issues/111). 서버 구현·검증 범위는 [지원 API](../api/applications.md)를 참조하며 프론트 전체 흐름·배포 완료와 구분합니다.
 - 변경 근거: 2026-10-21 사용자 승인으로 팀 모집 상태 단순화, 검토·미선발·선발 기한, 재지원·소속 경계와 MVP 제외 행동 확정. 2026-10-19 사용자 결정과 [#77](https://github.com/wejo-team/sku-dreamon/issues/77)의 팀 입력·공식 정원·프로필 공개·참가 자격 정책은 유지. 디자인·배포 검증 상태는 [대조 기록](prototype-alignment.md)에서 별도 관리
 
 스프린트 1의 팀 생성부터 지원 결과 확인까지를 정의합니다. LLM 추천 후보·추천 이유는 [추천 매칭](matching.md), 공고 정보와 마감 관리는 [공모전 공고](contests.md), 전체 개발 범위는 [스프린트 1](sprint-1.md)을 따릅니다.
