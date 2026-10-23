@@ -1,21 +1,22 @@
 # API 설계
 
-**검토 상태: 설계 초안 · 제품 API 미구현.** 화면과 서버가 주고받을 요청·응답, 오류와 권한을 Markdown으로 정의합니다. 현재 구현된 health API를 제외한 제품 경로는 설계 대상입니다. 문서 검증 성공이 서버 동작을 뜻하지 않습니다.
+**상태: 일부 API 구현 · 나머지 설계 검토 중.** 화면과 서버가 주고받을 요청·응답, 오류와 권한을 안내합니다. 현재 등록된 경로는 [앱 연결](../../backend/app/main.py)과 실행 앱의 `/docs`·`/openapi.json`에서 확인합니다. 아래 구현 범위는 저장소 코드 기준이며 전체 기능의 완료·운영 배포를 뜻하지 않습니다.
 
 ## 읽는 순서
 
-| 확인할 내용 | 문서 |
-| --- | --- |
-| 타입·필수값·NULL·성공 응답·인증·페이지·오류·재시도 | [공통 계약](conventions.md) |
-| 회원가입·로그인·로그아웃·본인 계정과 세션 | [계정·인증 API](auth.md) |
-| 프로필 편집·공개 전환·사람 탐색 | [프로필 API](profiles.md) |
-| 공통 선택지·학사 목록 | [선택지 API](catalogs.md) |
-| 공모전 목록·상세 | [공모전 API](contests.md) |
-| 팀 탐색·생성·모집·팀원·워크스페이스 | [팀 API](teams.md) |
-| 지원·취소·지원자 조회·검토·미선발·선발 | [지원 API](applications.md) |
-| AI 대화·추천·지원자 AI 검토 | [AI API](ai.md) |
-| 알림 목록·미읽음 수·읽음 처리 | [알림 API](notifications.md) |
-| 정책·DB·API를 함께 검토하는 방법 | [정합성 확인 기준](#consistency) |
+| 문서 | 현재 구현 범위 | 남은 범위 |
+| --- | --- | --- |
+| [공통 계약](conventions.md) | DTO·성공 응답·페이지·오류·인증 의존성 | 후속 API에 같은 기반 적용 |
+| [계정·인증 API](auth.md) | CSRF 조회·본인 계정 조회·현재 세션 로그아웃 | 가입·로그인·아이디 중복 확인 |
+| [프로필 API](profiles.md) | 본인 프로필·공개 사람 목록·상세 조회 | 프로필 저장·공개 전환 |
+| [선택지 API](catalogs.md) | 공통 enum·학사 계층 조회 | 운영 학사 원장 선정·시드 적재 |
+| [공모전 API](contests.md) | 저장 모델·DTO·값 검증 | 공고 목록·상세 HTTP·운영 입력 CLI |
+| [팀 API](teams.md) | 공개 목록·모집글·공고 하위 팀 목록, 내 팀·팀 공간, 모집 종료·재개 | 팀 생성 |
+| [지원 API](applications.md) | 본인 목록·본인/받은 팀장 상세 조회·본인 취소 | 신규 지원·팀장 지원자 목록·검토·미선발·선발 |
+| [AI API](ai.md) | 미구현 | 대화·추천·지원자 AI 검토 |
+| [알림 API](notifications.md) | 본인 목록·미읽음 수·개별/선택 집합 읽음 | 미구현 업무의 사건·알림 생성 연결 |
+
+각 영역 문서에서 실제 라우터·DTO·검증 코드로 이동합니다. 정책·DB·API의 대조 방법은 [정합성 확인 기준](#consistency)을 따릅니다. 학사 원장과 시연 데이터는 아직 적재하지 않았으며, 빈 조회 결과를 실제 운영 데이터가 준비된 상태로 해석하지 않습니다.
 
 각 영역 문서는 **경로·권한·응답 → 요청 조건 → 데이터 필드 → 상태·실패 처리** 순서로 읽습니다. 본문이 있는 성공 응답의 실제 결과는 최상위 `data`에서 읽습니다. 표의 `Success<T>`·`Page<T>`와 본문 없는 204의 구분은 [공통 성공 응답](conventions.md#success-responses)을 참조합니다.
 
@@ -59,10 +60,12 @@
 3. 생성된 OpenAPI와 실제 요청·응답을 이 설계와 대조합니다. 정상 응답뿐 아니라 누락/NULL·금지 필드·권한 거부·409·422·재시도·상태 변경을 해당 API의 검증 범위에 포함합니다.
 4. 해당 API의 구현 상태와 검증 근거를 기능 명세·구현 PR에 남깁니다. **구현이 끝난 API의 상세 필드 표는 실제 코드·자동 생성 문서 링크로 대체**하고, 설계 이유·정책 연결·상태/트랜잭션 설명은 유지합니다. 미구현 API의 설계 표는 계속 남깁니다.
 
-FastAPI의 기본 제공 경로는 `/docs`(Swagger UI), `/redoc`(ReDoc), `/openapi.json`(생성 명세)입니다. 파일 내보내기가 필요해지면 코드에서 생성한 산출물로 취급하며 직접 수정하는 원본을 다시 만들지 않습니다. 현재 제품 endpoint 구현이나 새 자동화·코드 생성 도구를 추가한 것은 아닙니다. [FastAPI 자동 문서](https://fastapi.tiangolo.com/tutorial/first-steps/), [백엔드 작성 규칙](../development/backend.md)
+FastAPI의 기본 제공 경로는 `/docs`(Swagger UI), `/redoc`(ReDoc), `/openapi.json`(생성 명세)입니다. 등록된 제품 API는 라우터·DTO에서 자동 문서를 생성합니다. 파일 내보내기가 필요해지면 코드에서 생성한 산출물로 취급하며 직접 수정하는 원본을 다시 만들지 않습니다. [FastAPI 자동 문서](https://fastapi.tiangolo.com/tutorial/first-steps/), [백엔드 작성 규칙](../development/backend.md)
 
-## 구현 전에 남은 결정
+## 후속 구현에 남은 결정
 
-인증은 만료 기간·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인을 포함한 [서버 세션 정책](../specs/authentication.md#session-policy)과 [쿠키 전달 계약](conventions.md#session-auth)을 적용합니다. 모집·지원의 허용 전이와 선발 기간·재지원은 [모집 상태 변경](teams.md#transitions)과 [지원 상태 변경](applications.md#transitions)을 따릅니다. 쿠키 이름·경로와 CSRF의 구체 전송 계약, 운영 도메인·CORS, 시도 제한 수치·종료된 세션의 정리·보존, 모집 정보·지원 메시지 편집, 공고 변경 영향, LLM 내부 구조와 데이터 보존은 여전히 미정입니다. [공통 계약의 보류 목록](conventions.md#deferred)에서 각 기능 명세로 이동합니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖이며 현재 인증 구현의 선행 조건이 아닙니다.
+인증은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다. 구현된 CSRF 필드·쿠키 속성·실패 처리는 [인증 DTO](../../backend/app/domains/auth/schemas.py), [쿠키 처리](../../backend/app/domains/auth/cookies.py), [CSRF 검사](../../backend/app/domains/auth/csrf.py)가 원본이며 전송 설계는 별도 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)에서 검토합니다. 가입·로그인과 운영 도메인·CORS·로컬 HTTPS 구성까지 완료된 것은 아닙니다.
 
-JSON 이름과 접두사는 [저장소 API 작성 규칙](../development/conventions.md)을 따릅니다. 이 설계에는 SQL·ORM·마이그레이션·제품 API 구현이 포함되지 않습니다.
+일반 텍스트의 NFC·글자 수 기준, 팀 생성에 필요한 프로필 조건, 인증 시도 제한·비밀번호 차단 목록 공급·종료 세션 정리와 보존, 학사 시드 원장의 범위, 공고 목록 정책·운영 입력 CLI, AI 제공자·내부 구조·데이터 보존은 후속 결정으로 남습니다. 모집 정보·지원 메시지 편집과 공고 변경 영향도 [공통 계약의 보류 목록](conventions.md#deferred) 및 각 기능 명세를 따릅니다. 확정된 모집·지원 전이는 [모집 상태 변경](teams.md#transitions)과 [지원 상태 변경](applications.md#transitions)을 참조합니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖이며 현재 인증 구현의 선행 조건이 아닙니다.
+
+JSON 이름과 접두사는 [저장소 API 작성 규칙](../development/conventions.md)을 따릅니다. 저장 모델·마이그레이션의 구현 범위는 [DB 인덱스](../database/README.md), 로컬 실행·검사는 [개발 안내](../development/local-development.md)에서 확인합니다.

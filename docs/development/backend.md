@@ -6,6 +6,8 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 
 `core`에는 도메인이 함께 사용하는 설정·애플리케이션 예외·DB 기반·HTTP 기반을 둡니다. 각 기능의 라우터·schema·모델·서비스는 `domains/<기능>/`에 필요한 만큼 추가합니다. `core`는 도메인을 import하지 않으며, `core/db`는 HTTP 프레임워크와 `core/http`에 의존하지 않습니다. 전체 배치와 의존 방향은 [구조와 책임 경계](architecture.md#responsibility-boundaries)를 따릅니다.
 
+현재 등록된 제품 API와 남은 기능은 [API 인덱스](../api/README.md), 저장 모델·Alembic 적용 범위는 [DB 인덱스](../database/README.md)에서 확인합니다. [앱 구성](../../backend/app/main.py)은 도메인 라우터를 `/api/v1`에 연결하고 실제 라우터·DTO에서 OpenAPI를 생성합니다.
+
 - API는 `/api/v1` 아래에 리소스 중심 경로로 제공합니다. HTTP 상태 코드를 사용하고 실패를 200 응답으로 감추지 않습니다.
 - 요청·응답은 Pydantic schema로 명시합니다. FastAPI의 기본 validation error 형식과 호환되는 처리를 우선하고, 도메인 오류 계약이 필요하면 프론트와 함께 문서화합니다.
 - 제품 API의 성공 응답 모델은 [공통 성공 응답](../api/conventions.md#success-responses)을 따릅니다. 실제 JSON과 OpenAPI 모두 최상위 `data`를 명시하며, 204의 빈 본문과 쿠키·`Location` 헤더를 보존합니다.
@@ -60,7 +62,7 @@ handler는 `Depends(handler)`로 실행됩니다. handler에 선언한 path·que
 
 생성자의 `dependencies`와 각 등록 메서드의 `dependencies`는 함께 적용됩니다. 인증·권한 검사는 도메인이 필요한 의존성을 명시하며, 공통 라우터가 인증 정책을 자동으로 선택하지 않습니다. 기본 오류 응답 선언은 목록에 422·500·503, 상세에 404·422·500·503입니다. `error_statuses`로 401·403 등 해당 작업의 추가 오류를 선언하고, `name`·`summary`로 경로 이름과 OpenAPI 설명을 지정할 수 있습니다. 오류 상태를 선언하는 것만으로 인증 검사나 예외 처리 동작이 추가되지는 않습니다.
 
-아래는 [공모전 API 설계](../api/contests.md#endpoints)를 사용하는 등록 예시입니다. 현재 제품 API는 health만 구현되어 있으며, `ContestSummary`·`Contest`와 `service`는 도메인 구현 시 제공할 요소입니다. 예시에서는 검색·정렬 등 나머지 query를 생략하고 페이지와 UUID 경로 선언만 보여 줍니다.
+아래는 [공모전 경로](../api/contests.md#endpoints)로 등록 형태를 설명하는 예시입니다. `ContestSummary`·`Contest`·`service`는 예시용 이름이며 실제 도메인 구현의 DTO·함수와 구분합니다. 검색·정렬 등 나머지 query를 생략하고 페이지와 UUID 경로 선언만 보여 줍니다. 실제 적용은 [지원 라우터](../../backend/app/domains/applications/router.py)의 `BaseCrudRouter` 등록을 참고합니다.
 
 ```python
 from typing import Annotated
@@ -156,9 +158,9 @@ class Profile(CreatedAtMixin, UpdatedAtMixin, Base):
 
 ## 엔진과 세션
 
-[인증 세션 서비스](../../backend/app/domains/auth/session_service.py)는 불투명 토큰을 발급하고 잠금 후 현재 시각으로 만료·회수를 검사합니다. 요청의 [인증 의존성](../../backend/app/domains/auth/dependencies.py)은 별도의 짧은 DB 세션으로 유효 활동을 커밋하며, 업무 서비스에는 인증 주체 UUID와 별도의 `DatabaseSession`을 전달합니다. 세션 발급·회수 함수는 호출자의 세션을 사용하고 최상위 가입·로그아웃 서비스가 commit합니다.
+[인증 세션 서비스](../../backend/app/domains/auth/session_service.py)는 불투명 토큰을 발급하고 잠금 후 현재 시각으로 만료·회수를 검사합니다. 요청의 [인증 의존성](../../backend/app/domains/auth/dependencies.py)은 별도의 짧은 DB 세션으로 유효 활동을 커밋하며, 업무 서비스에는 인증 주체 UUID와 별도의 `DatabaseSession`을 전달합니다. 세션 발급·회수 함수는 호출자의 세션을 사용하고 커밋은 최상위 유스케이스가 맡습니다. 현재 [로그아웃 서비스](../../backend/app/domains/auth/http_service.py)가 회수를 커밋하며 가입·로그인 HTTP 연결은 아직 구현하지 않았습니다.
 
-[CSRF 검사](../../backend/app/domains/auth/csrf.py)는 `CSRF_SIGNING_KEY`와 정확한 HTTPS origin 목록 `AUTH_ALLOWED_ORIGINS`를 사용합니다. 키 원문은 저장소와 오류 로그에 포함하지 않습니다. 인증 전환·쿠키 발급 HTTP 연결은 후속 단계이며, 자세한 전송 계약은 [설계 PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)에서 검토합니다. 순수 토큰 검증 구현만으로 가입·로그인 API가 완료된 것은 아닙니다.
+[CSRF 검사](../../backend/app/domains/auth/csrf.py)는 `CSRF_SIGNING_KEY`와 정확한 HTTPS origin 목록 `AUTH_ALLOWED_ORIGINS`를 사용합니다. 키 원문은 저장소와 오류 로그에 포함하지 않습니다. [인증 라우터](../../backend/app/domains/auth/router.py)는 현재 인증 상태의 CSRF 조회·본인 계정 조회·로그아웃을 제공하고, [쿠키 처리](../../backend/app/domains/auth/cookies.py)는 유효 토큰 재사용·무효 세션 쿠키 삭제·커밋 후 로그아웃 쿠키 삭제에 연결됩니다. 응답 필드는 [인증 DTO](../../backend/app/domains/auth/schemas.py), 전송 설계는 별도 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)를 참조합니다. 가입·로그인·아이디 중복 확인과 시도 제한·차단 목록의 운영 정책은 후속 범위입니다.
 
 - `create_async_engine`과 `async_sessionmaker`를 사용합니다. engine·session factory는 앱 수명에 맞춰 구성하고 종료 시 engine을 dispose합니다.
 - `AsyncSession`은 요청 또는 독립 작업 단위로 생성·종료합니다. 전역 Session, 요청 사이의 Session 공유, 하나의 Session을 여러 동시 task에서 공유하는 코드를 만들지 않습니다.
@@ -180,7 +182,7 @@ class Profile(CreatedAtMixin, UpdatedAtMixin, Base):
 
 `open_repository()`는 객체 생성 중이나 context 본문에서 예외가 발생해도 세션을 정리하고 예외를 전파합니다. 자동 commit은 없으며, 커밋하지 않은 변경은 세션 정리 시 롤백됩니다. 저장 확정과 실패 처리는 아래 [트랜잭션 책임](#transaction-ownership)을 따릅니다. 여러 레포지토리의 쓰기를 하나로 묶을 때는 같은 세션을 각각의 `create_repository()`에 전달합니다. 각 레포지토리에서 `open_repository()`를 따로 호출하면 서로 다른 세션이 만들어집니다.
 
-다음은 호출 방식의 예시입니다. `AccountRepository`와 업무 서비스는 아직 구현하지 않았으며, 예시의 레포지토리는 생성자에서 `AsyncSession`을 받는다고 가정합니다. 요청에서는 HTTP 의존성이 제공한 세션을 전달합니다.
+다음은 호출 방식의 예시입니다. `AccountRepository`는 예시용 이름이며 생성자에서 `AsyncSession`을 받는다고 가정합니다. 요청에서는 HTTP 의존성이 제공한 세션을 전달합니다. 실제 업무 서비스에 이 레포지토리 계층을 추가하도록 요구하는 예시는 아닙니다.
 
 ```python
 from app.core.db.factories import RepositoryFactory
