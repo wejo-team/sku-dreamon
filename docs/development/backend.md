@@ -156,6 +156,10 @@ class Profile(CreatedAtMixin, UpdatedAtMixin, Base):
 
 ## 엔진과 세션
 
+[인증 세션 서비스](../../backend/app/domains/auth/session_service.py)는 불투명 토큰을 발급하고 잠금 후 현재 시각으로 만료·회수를 검사합니다. 요청의 [인증 의존성](../../backend/app/domains/auth/dependencies.py)은 별도의 짧은 DB 세션으로 유효 활동을 커밋하며, 업무 서비스에는 인증 주체 UUID와 별도의 `DatabaseSession`을 전달합니다. 세션 발급·회수 함수는 호출자의 세션을 사용하고 최상위 가입·로그아웃 서비스가 commit합니다.
+
+[CSRF 검사](../../backend/app/domains/auth/csrf.py)는 `CSRF_SIGNING_KEY`와 정확한 HTTPS origin 목록 `AUTH_ALLOWED_ORIGINS`를 사용합니다. 키 원문은 저장소와 오류 로그에 포함하지 않습니다. 인증 전환·쿠키 발급 HTTP 연결은 후속 단계이며, 자세한 전송 계약은 [설계 PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)에서 검토합니다. 순수 토큰 검증 구현만으로 가입·로그인 API가 완료된 것은 아닙니다.
+
 - `create_async_engine`과 `async_sessionmaker`를 사용합니다. engine·session factory는 앱 수명에 맞춰 구성하고 종료 시 engine을 dispose합니다.
 - `AsyncSession`은 요청 또는 독립 작업 단위로 생성·종료합니다. 전역 Session, 요청 사이의 Session 공유, 하나의 Session을 여러 동시 task에서 공유하는 코드를 만들지 않습니다.
 - [DB 세션 기반](../../backend/app/core/db/session.py)의 `Database`·`create_database`는 HTTP 요청을 알지 않습니다. `Database.session()`은 세션을 생성하고 context 종료 시 정리하므로 HTTP·배치·CLI에서 함께 사용할 수 있습니다. [HTTP 의존성](../../backend/app/core/http/dependencies.py)의 `get_session`·`DatabaseSession`은 이 context를 요청에 연결합니다. context 종료 시 자동으로 commit하지 않습니다.
