@@ -5,7 +5,7 @@ from datetime import date, datetime
 from typing import Self
 from uuid import UUID
 
-from pydantic import Field, HttpUrl, field_validator, model_validator
+from pydantic import AnyHttpUrl, Field, field_validator, model_validator
 
 from app.core.http.schemas import (
     NonnegativeInt,
@@ -41,7 +41,7 @@ class ContestSummary(ResponseDTO):
     title: str
     organizer: str
     field_codes: list[FieldCode]
-    poster_url: HttpUrl | None
+    poster_url: AnyHttpUrl | None
     registration_status: RegistrationStatus
     starts_at: Timestamp
     ends_at: Timestamp
@@ -92,7 +92,7 @@ class ContestDetail(ContestSummary):
     awards: str | None
     contact: str | None
     verified_at: Timestamp
-    source_url: HttpUrl
+    source_url: AnyHttpUrl
 
     @field_validator("audience_codes")
     @classmethod
@@ -115,7 +115,9 @@ def build_contest_summary(
         field_codes=sorted(
             (FieldCode(code) for code in field_codes), key=lambda code: code.sort_order
         ),
-        poster_url=None if contest.poster_url is None else HttpUrl(contest.poster_url),
+        poster_url=None
+        if contest.poster_url is None
+        else AnyHttpUrl(contest.poster_url),
         registration_status=get_registration_status(
             starts_at=contest.registration_opens_at,
             ends_at=contest.registration_closes_at,

@@ -348,3 +348,29 @@ async def test_existing_identity_map_does_not_reuse_old_public_fields(
         detail = await queries.get_contest_detail(session, CONTEST_ID, now=START)
         assert detail.title == "현재 제목"
         assert session.in_transaction()
+
+
+@pytest.mark.parametrize(
+    "column,response_field",
+    [("official_url", "sourceUrl"), ("poster_url", "posterUrl")],
+)
+async def test_long_http_urls_keep_the_stored_value_without_an_implicit_limit(
+    api: ContestApi, column: str, response_field: str
+) -> None:
+    prefix = "https://example.test/resource?source="
+    long_url = prefix + "x" * (2129 - len(prefix))
+    async with api.database.session() as session:
+        await session.execute(
+            update(Contest)
+            .where(Contest.contest_id == CONTEST_ID)
+            .values({column: long_url})
+        )
+        await session.commit()
+    response = await api.client.get(f"/api/v1/contests/{CONTEST_ID}")
+    assert response.status_code == 200
+    assert response.json()["data"][response_field] == long_url
+    document = (await api.client.get("/openapi.json")).json()
+    field = document["components"]["schemas"]["ContestDetail"]["properties"][
+        response_field
+    ]
+    assert "maxLength" not in str(field)

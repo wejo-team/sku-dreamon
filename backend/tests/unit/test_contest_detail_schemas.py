@@ -1,10 +1,10 @@
-"""참가 인원 DTO의 십진 문자열과 필수 nullable 필드 전송을 검증한다."""
+"""공고 상세 DTO의 십진 문자열·필수 nullable·HTTP(S) URL을 검증한다."""
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from app.domains.contests.rules import CapacityKind
-from app.domains.contests.schemas import ParticipationCapacity
+from app.domains.contests.schemas import ContestDetail, ParticipationCapacity
 
 
 def test_large_capacity_is_preserved_as_decimal_strings_in_json() -> None:
@@ -56,3 +56,15 @@ def test_nullable_bounds_must_be_supplied_and_remain_in_json() -> None:
         del payload[omitted]
         with pytest.raises(ValidationError):
             ParticipationCapacity.model_validate(payload)
+
+
+@pytest.mark.parametrize("field", ["source_url", "poster_url"])
+@pytest.mark.parametrize("value", ["ftp://example.test/file", "not a URL"])
+def test_public_urls_keep_the_http_and_https_format_requirement(
+    field: str, value: str
+) -> None:
+    annotation = ContestDetail.model_fields[field].annotation
+    assert annotation is not None
+    adapter = TypeAdapter(annotation)
+    with pytest.raises(ValidationError):
+        adapter.validate_python(value)

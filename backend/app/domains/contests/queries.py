@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from pydantic import HttpUrl
+from pydantic import AnyHttpUrl
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -107,5 +107,5 @@ async def get_contest_detail(
         awards=contest.awards,
         contact=contest.contact_info,
         verified_at=contest.verified_at,
-        source_url=HttpUrl(contest.official_url),
+        source_url=AnyHttpUrl(contest.official_url),
     )
