@@ -12,6 +12,7 @@ from app.core.db.base import Base
 from app.domains.auth import models as auth_models  # noqa: F401 -- metadata 모델 등록
 from app.domains.catalogs import models as catalog_models  # noqa: F401 -- 학사 모델 등록
 from app.domains.contests import models as contest_models  # noqa: F401 -- 공고 모델 등록
+from app.domains.profiles import models as profile_models  # noqa: F401 -- 프로필 모델 등록
 
 config = context.config
 if config.config_file_name is not None:
