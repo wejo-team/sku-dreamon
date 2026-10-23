@@ -410,3 +410,14 @@ async def test_existing_identity_map_does_not_override_a_current_database_read(
             await writer.commit()
         result = await queries.get_team_detail(reader, existing.team_id)
         assert result.name == "현재 팀명" and result.version == "2"
+
+
+@pytest.mark.parametrize(
+    "path", ["/api/v1/teams", f"/api/v1/contests/{UUID(int=1)}/teams"]
+)
+async def test_team_search_rejects_nul_before_database_lookup(
+    api: TeamApi, path: str
+) -> None:
+    response = await api.client.get(path, params={"q": "검색\x00어"})
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"][0]["loc"] == ["query", "q"]

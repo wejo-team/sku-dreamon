@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.core.http.schemas import (
     PositiveBigInt,
@@ -28,6 +28,19 @@ class TeamSearch(RequestDTO):
     q: str | None = None
     role_code: RoleCode | None = None
     recruiting_only: bool = False
+
+    @field_validator("q")
+    @classmethod
+    def validate_search_text(cls, value: str | None) -> str | None:
+        if value is not None:
+            # PostgreSQL text는 NUL과 UTF-8로 표현할 수 없는 문자를 받지 않는다.
+            if "\x00" in value:
+                raise ValueError("검색어에 사용할 수 없는 문자가 있습니다.")
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError as error:
+                raise ValueError("검색어에 사용할 수 없는 문자가 있습니다.") from error
+        return value
 
 
 class AllTeamSearch(TeamSearch):
