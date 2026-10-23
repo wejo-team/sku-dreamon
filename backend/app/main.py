@@ -10,6 +10,7 @@ from app.core.db.session import create_database
 from app.core.http.handlers import register_error_handlers
 from app.domains.catalogs.router import router as catalogs_router
 from app.domains.health.router import router as health_router
+from app.domains.profiles.router import router as profiles_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -29,6 +30,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_error_handlers(app)
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(catalogs_router, prefix="/api/v1")
+    app.include_router(profiles_router, prefix="/api/v1")
     return app
 
 
