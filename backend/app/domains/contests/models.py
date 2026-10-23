@@ -23,13 +23,27 @@ from app.core.db.base import Base
 from app.core.db.mixins import CreatedAtMixin, UpdatedAtMixin
 from app.core.db.types import UUIDPrimaryKey
 
+# Python 3.13 str.isspace()의 문자집합을 고정해 PostgreSQL locale과 무관하게 검사한다.
+_REQUIRED_TEXT_WHITESPACE = (
+    r"\0009\000A\000B\000C\000D\001C\001D\001E\001F\0020"
+    r"\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007"
+    r"\2008\2009\200A\2028\2029\202F\205F\3000"
+)
+
 
 class Contest(CreatedAtMixin, UpdatedAtMixin, Base):
     __tablename__ = "contests"
     __table_args__ = (
         CheckConstraint(
-            "title ~ '[^[:space:]]' AND organizer_name ~ '[^[:space:]]' "
-            "AND eligibility_text ~ '[^[:space:]]' AND official_url ~ '[^[:space:]]'",
+            " AND ".join(
+                f"btrim({column}, U&'{_REQUIRED_TEXT_WHITESPACE}') <> ''"
+                for column in (
+                    "title",
+                    "organizer_name",
+                    "eligibility_text",
+                    "official_url",
+                )
+            ),
             name="ck_contests_required_text",
         ),
         CheckConstraint(

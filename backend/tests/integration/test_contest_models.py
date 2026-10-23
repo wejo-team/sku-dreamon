@@ -5,17 +5,19 @@ from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 from types import ModuleType
+from typing import cast
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import Connection, delete, inspect, select
+from sqlalchemy import Connection, Table, delete, inspect, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.schema import CreateSchema
 
+from app.core.db.base import Base
 from app.core.db.session import create_database
 from app.domains.contests.models import Contest, ContestAudience, ContestField
 
@@ -43,7 +45,9 @@ def run_migration(connection: Connection, *, downgrade: bool = False) -> None:
 
 
 @pytest_asyncio.fixture
-async def session(database_url: str) -> AsyncIterator[AsyncSession]:
+async def session(
+    database_url: str, request: pytest.FixtureRequest
+) -> AsyncIterator[AsyncSession]:
     database = create_database(database_url)
     schema = f"contest_test_{uuid4().hex}"
     try:
@@ -52,7 +56,16 @@ async def session(database_url: str) -> AsyncIterator[AsyncSession]:
             try:
                 await connection.execute(CreateSchema(schema))
                 await connection.exec_driver_sql(f'SET LOCAL search_path TO "{schema}"')
-                await connection.run_sync(run_migration)
+                if getattr(request, "param", "migration") == "models":
+                    tables = [
+                        cast(Table, model.__table__)
+                        for model in (Contest, ContestAudience, ContestField)
+                    ]
+                    await connection.run_sync(
+                        lambda conn: Base.metadata.create_all(conn, tables=tables)
+                    )
+                else:
+                    await connection.run_sync(run_migration)
                 async with AsyncSession(
                     connection,
                     expire_on_commit=False,
@@ -208,3 +221,34 @@ async def test_migration_downgrade_removes_only_its_tables(
     await connection.run_sync(lambda conn: run_migration(conn, downgrade=True))
     tables = await connection.run_sync(lambda conn: inspect(conn).get_table_names())
     assert not {"contests", "contest_fields", "contest_audiences"}.intersection(tables)
+
+
+@pytest.mark.parametrize(
+    "column", ["title", "organizer_name", "eligibility_text", "official_url"]
+)
+@pytest.mark.parametrize("whitespace", ["\u00a0", "\u2007"])
+async def test_database_rejects_unicode_whitespace_only_required_text(
+    session: AsyncSession, column: str, whitespace: str
+) -> None:
+    session.add(new_contest(**{column: whitespace}))
+    with pytest.raises(IntegrityError):
+        await session.flush()
+
+
+@pytest.mark.parametrize("session", ["migration", "models"], indirect=True)
+async def test_required_text_matches_python_whitespace_without_rewriting_content(
+    session: AsyncSession,
+) -> None:
+    whitespace = [chr(code) for code in range(0x110000) if chr(code).isspace()]
+    for character in whitespace:
+        with pytest.raises(IntegrityError):
+            async with session.begin_nested():
+                session.add(new_contest(title=character))
+                await session.flush()
+
+    original = "\u00a0공고 이름\u2007"
+    contest = new_contest(title=original)
+    session.add(contest)
+    await session.flush()
+    await session.refresh(contest)
+    assert contest.title == original
