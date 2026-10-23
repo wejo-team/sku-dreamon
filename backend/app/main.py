@@ -12,6 +12,7 @@ from app.domains.applications.review_router import router as application_review_
 from app.domains.applications.router import router as applications_router
 from app.domains.auth.router import router as auth_router
 from app.domains.catalogs.router import router as catalogs_router
+from app.domains.contests.router import router as contests_router
 from app.domains.health.router import router as health_router
 from app.domains.notifications.router import router as notifications_router
 from app.domains.profiles.router import router as profiles_router
@@ -43,6 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(team_management_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(application_review_router, prefix="/api/v1")
+    app.include_router(contests_router, prefix="/api/v1")
     return app
 
 
