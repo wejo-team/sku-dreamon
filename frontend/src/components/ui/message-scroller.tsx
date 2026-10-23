@@ -1,0 +1,133 @@
+/**
+ * [참조 출처]
+ * 1. design-reference/src/components/ui/message-scroller.tsx - shadcn/ui 원본
+ * 2. docs/design/tokens.md - 「shadcn/ui 사용 맵」 AI 대화 스크롤
+ * 3. docs/development/frontend.md - 「모바일 UI」 필요한 shadcn/ui만 추가, 44px 조작 영역
+ * 4. design-reference/src/components/ui/LICENSE.shadcn - 채팅 구성 요소 출처·라이선스
+ */
+
+// Adapted from shadcn/ui (MIT). See LICENSE.shadcn.
+// Source: https://github.com/shadcn-ui/ui/blob/main/apps/v4/registry/new-york-v4/ui/message-scroller.tsx
+'use client';
+
+import type { ComponentProps } from 'react';
+import { MessageScroller as MessageScrollerPrimitive } from '@shadcn/react/message-scroller';
+import { cn } from '@/lib/utils';
+import { ArrowDownIcon } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+
+// [출처 1, 2] AI 대화 스크롤
+function MessageScrollerProvider(
+  props: ComponentProps<typeof MessageScrollerPrimitive.Provider>,
+) {
+  return <MessageScrollerPrimitive.Provider {...props} />;
+}
+
+function MessageScroller({
+  className,
+  ...props
+}: ComponentProps<typeof MessageScrollerPrimitive.Root>) {
+  return (
+    <MessageScrollerPrimitive.Root
+      data-slot="message-scroller"
+      className={cn(
+        'group/message-scroller relative flex size-full min-h-0 flex-col overflow-hidden',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function MessageScrollerViewport({
+  className,
+  ...props
+}: ComponentProps<typeof MessageScrollerPrimitive.Viewport>) {
+  return (
+    <MessageScrollerPrimitive.Viewport
+      data-slot="message-scroller-viewport"
+      aria-label="대화 내용"
+      className={cn(
+        'size-full min-h-0 min-w-0 scroll-fade-b scrollbar-thin scrollbar-gutter-stable overflow-y-auto overscroll-contain contain-content data-autoscrolling:scrollbar-none data-pending-scroll:invisible',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function MessageScrollerContent({
+  className,
+  ...props
+}: ComponentProps<typeof MessageScrollerPrimitive.Content>) {
+  return (
+    <MessageScrollerPrimitive.Content
+      data-slot="message-scroller-content"
+      className={cn('flex h-max min-h-full flex-col gap-8', className)}
+      {...props}
+    />
+  );
+}
+
+function MessageScrollerItem({
+  className,
+  scrollAnchor = false,
+  ...props
+}: ComponentProps<typeof MessageScrollerPrimitive.Item>) {
+  return (
+    <MessageScrollerPrimitive.Item
+      data-slot="message-scroller-item"
+      scrollAnchor={scrollAnchor}
+      className={cn(
+        'min-w-0 shrink-0 [contain-intrinsic-size:auto_10rem] [content-visibility:auto]',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function MessageScrollerButton({
+  direction = 'end',
+  className,
+  children,
+  render,
+  variant = 'outline',
+  label = direction === 'end' ? '최신 메시지로 이동' : '첫 메시지로 이동',
+  ...props
+}: ComponentProps<typeof MessageScrollerPrimitive.Button> &
+  Pick<ComponentProps<typeof Button>, 'variant'> & { label?: string }) {
+  return (
+    <MessageScrollerPrimitive.Button
+      data-slot="message-scroller-button"
+      data-direction={direction}
+      data-variant={variant}
+      aria-label={label}
+      direction={direction}
+      className={cn(
+        'size-11 min-h-11 min-w-11 rounded-full p-0',
+        'absolute inset-s-1/2 -translate-x-1/2 border-border bg-background text-foreground transition-[translate,scale,opacity] duration-200 hover:bg-muted hover:text-foreground data-[active=false]:pointer-events-none data-[active=false]:scale-95 data-[active=false]:opacity-0 data-[active=false]:duration-400 data-[active=false]:ease-[cubic-bezier(0.7,0,0.84,0)] data-[active=true]:translate-y-0 data-[active=true]:scale-100 data-[active=true]:opacity-100 data-[active=true]:ease-[cubic-bezier(0.23,1,0.32,1)] data-[direction=end]:bottom-4 data-[direction=end]:data-[active=false]:translate-y-full data-[direction=start]:top-4 data-[direction=start]:data-[active=false]:-translate-y-full rtl:translate-x-1/2 data-[direction=start]:[&_svg]:rotate-180',
+        className,
+      )}
+      render={render ?? <Button variant={variant} />}
+      {...props}
+    >
+      {children ?? (
+        <>
+          <ArrowDownIcon aria-hidden="true" />
+          <span className="sr-only">{label}</span>
+        </>
+      )}
+    </MessageScrollerPrimitive.Button>
+  );
+}
+
+export {
+  MessageScrollerProvider,
+  MessageScroller,
+  MessageScrollerViewport,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerButton,
+};

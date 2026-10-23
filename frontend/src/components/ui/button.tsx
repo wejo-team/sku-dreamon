@@ -1,24 +1,42 @@
+/**
+ * [참조 출처]
+ * 1. design-reference/src/components/ui/button.tsx - shadcn/ui 원본
+ * 2. docs/design/tokens.md - 「shadcn/ui 사용 맵」 주요·보조 행동
+ * 3. docs/development/frontend.md - 「모바일 UI」 필요한 shadcn/ui만 추가, 44px 조작 영역
+ */
+
 import type { ComponentProps } from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-4 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        default: 'bg-primary text-primary-foreground hover:bg-primary-hover',
         outline: 'border bg-card hover:bg-accent hover:text-accent-foreground',
+        ghost: 'hover:bg-accent hover:text-accent-foreground',
+        destructive: 'bg-destructive text-white hover:bg-destructive/90',
+        link: 'text-primary underline-offset-4 hover:underline',
+      },
+      size: {
+        default: 'h-11 px-4 py-2',
+        sm: 'h-9 px-3 text-xs',
+        lg: 'h-12 px-6',
+        icon: 'size-11 p-0',
       },
     },
-    defaultVariants: { variant: 'default' },
+    defaultVariants: { variant: 'default', size: 'default' },
   },
 );
 
+// [출처 1, 2] 주요·보조 행동
 function Button({
   className,
   variant,
+  size,
   asChild = false,
   ...props
 }: ComponentProps<'button'> &
@@ -28,7 +46,8 @@ function Button({
   return (
     <Comp
       data-slot="button"
-      className={cn(buttonVariants({ variant, className }))}
+      data-variant={variant ?? 'default'}
+      className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
   );
