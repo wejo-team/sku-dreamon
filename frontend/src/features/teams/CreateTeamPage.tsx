@@ -180,7 +180,11 @@ export function CreateTeamPage() {
                 contests={contests.filter((contest) => isContestOpen(contest))}
                 value={field.value}
                 onChange={(id) => {
+                  // [출처 2] 정원·역할은 공모전의 공식 인원에 따라 달라지므로 공모전이 실제로 바뀔 때만 초기화합니다.
+                  // 같은 공모전을 다시 고르면 작성 중인 값을 유지합니다(PR #121 리뷰).
+                  const changed = id !== field.value;
                   field.onChange(id);
+                  if (!changed) return;
                   const contest = contests.find((item) => item.id === id);
                   setValue(
                     'capacity',

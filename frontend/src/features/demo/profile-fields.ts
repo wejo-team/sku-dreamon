@@ -246,6 +246,18 @@ export const weeklyAvailabilityOptions = [
 // Preview counting convention; the production non-password Unicode contract
 // remains TBD. Leading/trailing whitespace is omitted, internal whitespace counts.
 // [출처 3] 코드 포인트 기준 길이
+// [출처 3] 포트폴리오 주소의 단일 기준: http/https만 허용하고 URL 표준 형태(href)로 정규화합니다.
+// 폼 검증·저장·공개 변환이 같은 함수를 써서 저장한 링크와 공개되는 링크가 일치합니다(PR #121 리뷰).
+// 예: 'https:/example.com/portfolio' → 'https://example.com/portfolio', 허용하지 않는 값은 ''.
+export function normalizeWebUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
 export const profileTextLength = (value: string) =>
   Array.from(value.trim()).length;
 

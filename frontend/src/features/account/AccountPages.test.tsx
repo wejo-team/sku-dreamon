@@ -662,6 +662,97 @@ describe('design preview account flows', () => {
     );
   });
 
+  // PR #121 리뷰: 현재 공모전을 다시 고르면 입력한 정원·역할을 유지하고, 다른 공모전일 때만 초기화한다.
+  it('keeps capacity and roles when the same contest is chosen again and resets them for a different contest', async () => {
+    renderAccount('/teams/new?contestId=campus', { teams: [] });
+    const user = userEvent.setup();
+    const capacity = screen.getByLabelText('팀장 포함 총 정원');
+    await user.type(capacity, '4');
+    const planning = () =>
+      within(screen.getByRole('group', { name: /모집할 역할/ })).getByLabelText(
+        '기획',
+      );
+    await user.click(planning());
+    expect(planning()).toBeChecked();
+
+    const chooseContest = async (name: RegExp) => {
+      await user.click(screen.getByLabelText('참여 공모전'));
+      const drawer = await screen.findByRole('dialog', { name: '공모전 선택' });
+      await user.click(within(drawer).getByRole('option', { name }));
+      await waitFor(() => expect(drawer).not.toBeInTheDocument());
+    };
+
+    await chooseContest(/더 나은 캠퍼스 아이디어 공모전/);
+    expect(capacity).toHaveValue(4);
+    expect(planning()).toBeChecked();
+
+    await chooseContest(/우리 동네를 새롭게, 로컬 브랜딩/);
+    expect(capacity).toHaveValue(null);
+    expect(
+      screen.queryByRole('group', { name: /모집할 역할/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  // PR #121 리뷰: 폼이 허용한 주소는 저장 시 정규화해 내 프로필과 공개 미리보기에 같은 링크를 보여준다.
+  it('normalizes an accepted portfolio URL so the saved and public links match', async () => {
+    await renderProfileFlow();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
+    await user.type(
+      screen.getByLabelText('포트폴리오 링크 (선택)'),
+      'https:/example.com/portfolio',
+    );
+    await user.type(
+      screen.getByLabelText('포트폴리오 제목 (선택)'),
+      '나의 작업',
+    );
+    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+    expect(screen.getByRole('link', { name: /나의 작업/ })).toHaveAttribute(
+      'href',
+      'https://example.com/portfolio',
+    );
+    await user.click(screen.getByRole('switch', { name: '프로필 공개' }));
+    await user.click(screen.getByRole('button', { name: '공개로 전환' }));
+    await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
+    expect(screen.getByRole('link', { name: /나의 작업/ })).toHaveAttribute(
+      'href',
+      'https://example.com/portfolio',
+    );
+  });
+
+  // PR #121 리뷰: 비로그인으로 연 프로필 보완 화면은 로그인 후 편집 상태와 팀 복귀 경로를 유지한다.
+  it('keeps the profile edit intent and team return path through login', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={['/profile?edit=details&returnTo=%2Fteams%2Fmakers']}
+      >
+        <DemoProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="*" element={<CurrentLocation />} />
+          </Routes>
+        </DemoProvider>
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    const login = screen.getByRole('link', { name: '로그인' });
+    expect(login).toHaveAttribute(
+      'href',
+      `/login?returnTo=${encodeURIComponent('/profile?edit=details&returnTo=%2Fteams%2Fmakers')}`,
+    );
+    await user.click(login);
+    await enterLogin(user);
+    await user.click(screen.getByRole('button', { name: '로그인' }));
+    expect(
+      await screen.findByRole('heading', { name: '프로필 수정' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+    expect(
+      await screen.findByText('이동한 경로: /teams/makers'),
+    ).toBeInTheDocument();
+  });
+
   it('keeps the global privacy state when saving profile details without field-level toggles', async () => {
     const state = renderAccount('/profile?edit=details');
     const user = userEvent.setup();

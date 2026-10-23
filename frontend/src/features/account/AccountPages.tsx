@@ -24,7 +24,7 @@ import {
   useWatch,
   type UseFormRegister,
 } from 'react-hook-form';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { z } from 'zod';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -77,16 +77,14 @@ import {
   signupPasswordSchema,
 } from '@/features/demo/auth-policy';
 import {
+  normalizeWebUrl,
   profileTextLength,
   weeklyAvailabilityOptions,
 } from '@/features/demo/profile-fields';
 
+// [출처 3] 저장·공개 변환과 같은 기준(normalizeWebUrl)으로 포트폴리오 주소를 판단합니다.
 function isWebUrl(value: string) {
-  try {
-    return ['http:', 'https:'].includes(new URL(value).protocol);
-  } catch {
-    return false;
-  }
+  return normalizeWebUrl(value) !== '';
 }
 
 const requiredProfileSchema = z.object({
@@ -442,15 +440,20 @@ function ProfileEditor({
       className="preview-panel preview-form"
       noValidate
       onSubmit={handleSubmit((values) => {
+        // [출처 3] 검증을 통과한 주소는 정규화된 형태로 저장해 공개 미리보기와 같은 링크를 사용합니다.
+        const portfolio = values.portfolio
+          ? normalizeWebUrl(values.portfolio)
+          : '';
         saveProfile({
           ...values,
+          portfolio,
           experienceState:
             values.experienceState === 'provided' && !values.experience
               ? 'unspecified'
               : values.experienceState,
           experience:
             values.experienceState === 'provided' ? values.experience : '',
-          portfolioTitle: values.portfolio ? values.portfolioTitle : '',
+          portfolioTitle: portfolio ? values.portfolioTitle : '',
         });
         onDone();
       })}
@@ -632,14 +635,23 @@ function ProfileEditor({
 export function ProfilePage() {
   const { signedIn, profile, signOut, saveProfile } = useDemo();
   const [search] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const returnTo = search.get('returnTo');
   const [editing, setEditing] = useState(
     ['visibility', 'details'].includes(search.get('edit') ?? ''),
   );
   const [saved, setSaved] = useState(false);
+  // [출처 5] 로그인 후에도 편집 의도(edit)와 팀 복귀 주소(returnTo)를 잃지 않도록 현재 경로 전체를 넘깁니다.
+  // 복귀 주소의 안전성은 LoginPage의 safeReturnTo가 다시 검사합니다(PR #121 리뷰).
   if (!signedIn)
-    return <LoginGate returnTo="/profile" title="내 프로필" rootPage />;
+    return (
+      <LoginGate
+        returnTo={`${location.pathname}${location.search}`}
+        title="내 프로필"
+        rootPage
+      />
+    );
   return (
     <div
       className={`preview-detail preview-stack preview-own-profile${editing ? ' preview-account-page' : ''}`}

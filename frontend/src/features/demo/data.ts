@@ -13,6 +13,7 @@ import {
   defaultMascotAvatarId,
   type MascotAvatarId,
 } from '@/features/demo/mascot-avatars';
+import { normalizeWebUrl } from '@/features/demo/profile-fields';
 
 // [출처 3] 공고 예시 타입
 export type Contest = {
@@ -136,7 +137,8 @@ export function profileToPerson(profile: Profile, id = 'me'): Person {
     major: profile.major,
     skills: [...profile.skills],
     availability: profile.availability,
-    portfolio: /^https?:\/\//i.test(profile.portfolio) ? profile.portfolio : '',
+    // 프로필 폼과 같은 기준으로 공개 링크를 정합니다(profile-fields.ts normalizeWebUrl).
+    portfolio: normalizeWebUrl(profile.portfolio),
     portfolioTitle: profile.portfolioTitle,
   };
 }
