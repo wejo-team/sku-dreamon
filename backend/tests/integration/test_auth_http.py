@@ -11,15 +11,20 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
 from pydantic import SecretStr
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 from app.core.config import Settings
 from app.core.db.base import Base
 from app.core.db.session import Database
+from app.core.http.dependencies import get_session
 from app.core.http.handlers import register_error_handlers
 from app.domains.auth import session_service
-from app.domains.auth.csrf import CSRF_COOKIE_NAME, validate_csrf_token
+from app.domains.auth.csrf import (
+    CSRF_COOKIE_NAME,
+    CSRF_HEADER_NAME,
+    validate_csrf_token,
+)
 from app.domains.auth.dependencies import SESSION_COOKIE_NAME
 from app.domains.auth.models import Account, AuthSession
 from app.domains.auth.router import router
@@ -282,3 +287,135 @@ async def test_me_requires_valid_session(
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "UNAUTHENTICATED"
     assert "authhttp01" not in response.text
+
+
+async def test_logout_commits_current_revocation_then_deletes_both_cookies(
+    http_client: AsyncClient, http_database: Database, http_app: FastAPI
+) -> None:
+    account_id, first = await create_login(http_database)
+    async with http_database.session() as session:
+        second = await issue_session(session, account_id)
+        await session.commit()
+    http_client.cookies.set(
+        SESSION_COOKIE_NAME, first.token, domain="api.example.com", path="/"
+    )
+    token = (await http_client.get("/api/v1/auth/csrf")).json()["data"]["csrfToken"]
+    response = await http_client.post(
+        "/api/v1/auth/logout", headers={"Origin": ORIGIN, CSRF_HEADER_NAME: token}
+    )
+    assert response.status_code == 204
+    assert response.content == b""
+    assert response.headers["cache-control"] == "no-store"
+    cookies = read_cookies(response)
+    assert set(cookies) == {SESSION_COOKIE_NAME, CSRF_COOKIE_NAME}
+    for cookie in cookies.values():
+        assert cookie.value == ""
+        assert cookie["max-age"] == "0"
+    async with http_database.session() as session:
+        revoked = await session.get(AuthSession, first.session.auth_session_id)
+        untouched = await session.get(AuthSession, second.session.auth_session_id)
+        assert revoked is not None and revoked.revoked_at is not None
+        assert untouched is not None and untouched.revoked_at is None
+        assert untouched.expires_at == second.session.expires_at
+        assert untouched.last_seen_at == second.session.last_seen_at
+    assert (await http_client.get("/api/v1/me")).status_code == 401
+    anonymous = (await http_client.get("/api/v1/auth/csrf")).json()["data"]["csrfToken"]
+    assert anonymous != token
+    assert validate_csrf_token(anonymous, SIGNING_KEY, None)
+    assert (await http_client.post("/api/v1/auth/logout")).status_code == 401
+    http_client.cookies.set(
+        SESSION_COOKIE_NAME, second.token, domain="api.example.com", path="/"
+    )
+    assert (await http_client.get("/api/v1/me")).status_code == 200
+    operation = http_app.openapi()["paths"]["/api/v1/auth/logout"]["post"]
+    assert "content" not in operation["responses"]["204"]
+    assert set(operation["responses"]) == {"204", "401", "403", "500", "503"}
+
+
+@pytest.mark.parametrize("failure", ["missing", "origin", "anonymous"])
+async def test_logout_authenticates_before_csrf_and_rejects_untrusted_requests(
+    http_client: AsyncClient, http_database: Database, failure: str
+) -> None:
+    response = await http_client.post("/api/v1/auth/logout")
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHENTICATED"
+    assert "set-cookie" not in response.headers
+    anonymous = (await http_client.get("/api/v1/auth/csrf")).json()["data"]["csrfToken"]
+    _, issued = await create_login(http_database)
+    http_client.cookies.set(SESSION_COOKIE_NAME, issued.token)
+    token = (await http_client.get("/api/v1/auth/csrf")).json()["data"]["csrfToken"]
+    headers = {"Origin": ORIGIN, CSRF_HEADER_NAME: token}
+    if failure == "missing":
+        headers.pop(CSRF_HEADER_NAME)
+    elif failure == "origin":
+        headers["Origin"] = "https://untrusted.example.com"
+    else:
+        http_client.cookies.set(
+            CSRF_COOKIE_NAME, anonymous, domain="api.example.com", path="/"
+        )
+        headers[CSRF_HEADER_NAME] = anonymous
+    response = await http_client.post("/api/v1/auth/logout", headers=headers)
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
+    assert "set-cookie" not in response.headers
+    async with http_database.session() as session:
+        row = await session.get(AuthSession, issued.session.auth_session_id)
+        assert row is not None and row.revoked_at is None
+
+
+async def test_logout_commit_failure_keeps_cookies_and_rolls_back_revocation(
+    http_client: AsyncClient, http_database: Database, http_app: FastAPI
+) -> None:
+    _, issued = await create_login(http_database)
+    http_client.cookies.set(SESSION_COOKIE_NAME, issued.token)
+    token = (await http_client.get("/api/v1/auth/csrf")).json()["data"]["csrfToken"]
+
+    class FailedCommitSession(AsyncSession):
+        async def commit(self) -> None:
+            row = await self.get(AuthSession, issued.session.auth_session_id)
+            assert row is not None and row.revoked_at is not None
+            raise RuntimeError("simulated commit failure")
+
+    async def failed_session() -> AsyncIterator[AsyncSession]:
+        async with FailedCommitSession(bind=http_database.engine) as session:
+            yield session
+
+    http_app.dependency_overrides[get_session] = failed_session
+    response = await http_client.post(
+        "/api/v1/auth/logout", headers={"Origin": ORIGIN, CSRF_HEADER_NAME: token}
+    )
+    assert response.status_code == 500
+    assert "set-cookie" not in response.headers
+    async with http_database.session() as session:
+        row = await session.get(AuthSession, issued.session.auth_session_id)
+        assert row is not None and row.revoked_at is None
+    http_app.dependency_overrides.clear()
+    assert (await http_client.get("/api/v1/me")).status_code == 200
+
+
+async def test_logout_rechecks_expiry_before_mutation(
+    http_client: AsyncClient,
+    http_database: Database,
+    http_app: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, issued = await create_login(http_database)
+    http_client.cookies.set(SESSION_COOKIE_NAME, issued.token)
+    token = (await http_client.get("/api/v1/auth/csrf")).json()["data"]["csrfToken"]
+    now = [issued.session.created_at + timedelta(hours=1)]
+    monkeypatch.setattr(session_service, "_utcnow", lambda: now[0])
+
+    async def expires_after_authentication() -> AsyncIterator[AsyncSession]:
+        now[0] = issued.session.expires_at
+        async with http_database.session() as session:
+            yield session
+
+    http_app.dependency_overrides[get_session] = expires_after_authentication
+    response = await http_client.post(
+        "/api/v1/auth/logout", headers={"Origin": ORIGIN, CSRF_HEADER_NAME: token}
+    )
+    assert response.status_code == 401
+    assert "set-cookie" not in response.headers
+    async with http_database.session() as session:
+        row = await session.get(AuthSession, issued.session.auth_session_id)
+        assert row is not None and row.revoked_at is None

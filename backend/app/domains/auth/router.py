@@ -2,19 +2,30 @@
 
 from typing import cast
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 
 from app.core.config import Settings
 from app.core.http.dependencies import DatabaseSession
 from app.core.http.handlers import error_responses
 from app.core.http.schemas import Success
 from app.domains.auth import http_service
-from app.domains.auth.cookies import delete_session_cookie, set_csrf_cookie
-from app.domains.auth.csrf import CSRF_COOKIE_NAME, get_or_create_csrf_token
+from app.domains.auth.cookies import (
+    delete_auth_cookies,
+    delete_session_cookie,
+    set_csrf_cookie,
+)
+from app.domains.auth.csrf import (
+    CSRF_COOKIE_NAME,
+    CSRF_HEADER_NAME,
+    get_or_create_csrf_token,
+    require_csrf,
+)
 from app.domains.auth.dependencies import (
     SESSION_COOKIE_NAME,
     CurrentAccount,
+    CurrentSession,
     OptionalSession,
+    get_current_session,
 )
 from app.domains.auth.schemas import AccountResponse, CsrfToken
 
@@ -58,3 +69,29 @@ async def get_me(
     account = await http_service.get_account(session, account_id)
     response.headers["Cache-Control"] = "no-store"
     return Success(data=account)
+
+
+@router.post(
+    "/auth/logout",
+    status_code=204,
+    response_class=Response,
+    responses=error_responses(401, 403, 500, 503),
+    dependencies=[Depends(get_current_session), Depends(require_csrf)],
+    openapi_extra={
+        "parameters": [
+            {
+                "name": CSRF_HEADER_NAME,
+                "in": "header",
+                "required": True,
+                "schema": {"type": "string"},
+                "description": "현재 CSRF 쿠키와 같은 토큰. 누락·불일치 시 403.",
+            }
+        ]
+    },
+    summary="현재 세션 로그아웃",
+)
+async def logout(principal: CurrentSession, session: DatabaseSession) -> Response:
+    await http_service.logout(session, principal)
+    response = Response(status_code=204, headers={"Cache-Control": "no-store"})
+    delete_auth_cookies(response)
+    return response
