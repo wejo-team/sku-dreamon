@@ -1,6 +1,6 @@
 # 팀 API
 
-**상태: 공개 팀 조회 구현 · 생성·워크스페이스 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/domains/teams/router.py), [요청·응답 DTO](../../backend/app/domains/teams/schemas.py), [조회](../../backend/app/domains/teams/queries.py)를 구현했습니다. 생성·모집 변경·워크스페이스 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 공개 팀 조회·워크스페이스 구현 · 생성·모집 변경 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/domains/teams/router.py), [요청·응답 DTO](../../backend/app/domains/teams/schemas.py), [조회](../../backend/app/domains/teams/queries.py)를 구현했습니다. 현재 소속 목록·팀 공간은 [워크스페이스 라우터](../../backend/app/domains/teams/management_router.py), [DTO](../../backend/app/domains/teams/management_schemas.py), [관계 조회](../../backend/app/domains/teams/membership_queries.py)에 구현했습니다. 생성·모집 변경 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
@@ -36,7 +36,7 @@
 | `PUT /teams/{teamId}/recruitment/closure` | 해당 팀장, 팀 UUID·`VersionedAction` | 200 `Success<RecruitmentResult>` | 403 권한, 404 팀 없음, 409 상태·버전 충돌 |
 | `PUT /teams/{teamId}/recruitment/reopening` | 해당 팀장, 팀 UUID·`VersionedAction` | 200 `Success<RecruitmentResult>` | 403 권한, 404 팀 없음, 409 기한·정원·상태·버전 충돌 |
 
-`GET /me/teams`는 현재 팀장·확정 팀원인 팀만 반환합니다. 대기 지원은 [내 지원 목록](applications.md#endpoints)에서 조회합니다. 팀 공간과 최신 프로필의 열람 범위는 [팀원 데이터](#team-member)에 정의합니다.
+`GET /me/teams`는 현재 팀장·확정 팀원인 팀만 반환합니다. 워크스페이스 조회는 읽기 전용 반복 읽기 트랜잭션에서 현재 소속·총원·페이지·팀원·허가된 프로필을 같은 스냅샷으로 구성하며, 응답에 `Cache-Control: no-store`를 적용합니다. 대기 지원은 [내 지원 목록](applications.md#endpoints)에서 조회합니다. 팀 공간과 최신 프로필의 열람 범위는 [팀원 데이터](#team-member)에 정의합니다.
 
 <a id="queries"></a>
 
@@ -140,31 +140,19 @@
 
 ### TeamMember — 현재 팀원의 소속 표시
 
-| 필드 | 타입 | 의미 |
-| --- | --- | --- |
-| `membershipId` | `Id` | 현재 소속 식별자 |
-| `accountId` | `Id` | 소속 계정 식별자 |
-| `realName` | string | 현재 같은 팀 구성원을 식별하는 실명 |
-| `isDemo` | boolean | 계정용 고정 UUID 시드 목록에 `accountId`가 포함되는지 서버에서 판정. 전체 프로필 열람 여부와 별개로 팀원 시연 표시 제공 |
-| `membershipRole` | `leader` 또는 `member` | 팀장/팀원 구분 |
-| `roleCode` | `CatalogCode` 또는 null | 선발된 지원 역할. 지원을 통해 생성되지 않은 팀장 소속은 null |
-| `joinedAt` | `Timestamp` | 소속 시작 시각 |
-| `profile` | [Profile](profiles.md#profile) 또는 null | 전체 현재 프로필. 본인·공개 프로필·지원받은 팀장 권한에서만 제공 |
+정확한 필드와 타입은 [TeamMember](../../backend/app/domains/teams/management_schemas.py)와 생성 OpenAPI를 따릅니다. 현재 소속의 식별자·실명·역할·가입 시각을 제공하고, 전체 프로필은 아래 열람 권한에 따라 포함합니다.
 
 **소속 표시와 프로필 열람을 분리합니다.** 현재 팀원에게는 팀 화면의 실명 표시 정책에 맞춰 `realName`과 소속 정보를 제공하지만, 일반 팀원이 비공개 팀원을 조회하면 `profile=null`입니다. 이때도 [시연 데이터 안내](../specs/sprint-1.md#demo-data-scope)를 위해 `isDemo`는 제공합니다. 비공개 사진·학사 정보·경험·포트폴리오를 소속 응답에 별도 복제하지 않습니다. `realName`은 팀 공간 접근 권한 안에서만 제공하며 일반 검색·AI 사람 추천의 공개 예외로 확대하지 않습니다.
 
-근거는 [팀 화면의 실명 표시](../specs/team-recruitment.md)와 [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access), [프로필 공개 범위](../specs/profile.md#visibility)입니다. 팀장이라는 이유만으로 지원 관계가 없는 비공개 프로필까지 열람할 수는 없습니다.
+근거는 [팀 화면의 실명 표시](../specs/team-recruitment.md)와 [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access), [프로필 공개 범위](../specs/profile.md#visibility)입니다. 팀장이라는 이유만으로 지원 관계가 없는 비공개 프로필까지 열람할 수는 없습니다. 해당 팀에 제출된 지원 관계는 현재 지원 상태와 무관하게 판정합니다.
+
+가입은 프로필 생성을 보장하지 않으며 팀 생성의 프로필 완성 요구는 [PROFILE-03](../specs/profile.md#open-questions)에서 미정입니다. 현재 소속 계정에 프로필 행이 없으면 필수 실명을 구성할 수 없으므로 해당 팀원을 누락하거나 임의 실명을 반환하지 않고 500으로 실패합니다.
 
 <a id="team-space"></a>
 
 ### TeamSpace — 팀 공간
 
-| 필드 | 타입 | 의미·제약 |
-| --- | --- | --- |
-| `team` | `Team` | 팀 상세 |
-| `members` | `TeamMember[]` | 현재 구성원, 팀장 포함 최소 1명 |
-| `viewerRole` | `leader` 또는 `member` | 현재 조회자의 소속 역할 |
-| `pendingApplicationCount` | integer 또는 null | 팀장에게만 0~9,007,199,254,740,991 범위의 대기 지원 수. 일반 팀원에게 null |
+정확한 필드와 타입은 [TeamSpace](../../backend/app/domains/teams/management_schemas.py)와 생성 OpenAPI를 따릅니다. 현재 팀 상세·구성원·조회자 역할을 반환하며, 대기 지원 수는 팀장에게만 제공하고 일반 팀원에게는 null입니다.
 
 지원자 내용은 별도의 [팀장 지원자 API](applications.md#endpoints)로 조회합니다. 팀 공간에 일반 팀원의 지원자 관리 권한을 추가하지 않습니다.
 
@@ -172,13 +160,7 @@
 
 ### WorkspaceTeam — 내 팀 목록 항목
 
-| 필드 | 타입 | 의미 |
-| --- | --- | --- |
-| `team` | `TeamSummary` | 현재 소속 팀 요약 |
-| `membershipId` | `Id` | 본인 현재 소속 식별자 |
-| `membershipRole` | `leader` 또는 `member` | 본인 소속 역할 |
-| `roleCode` | `CatalogCode` 또는 null | 본인 선발 역할. 팀장 소속은 null |
-| `pendingApplicationCount` | integer 또는 null | 팀장에게만 대기 지원 수, 일반 팀원에게 null. 범위는 `TeamSpace`와 같음 |
+정확한 필드와 타입은 [WorkspaceTeam](../../backend/app/domains/teams/management_schemas.py)와 생성 OpenAPI를 따릅니다. 팀 요약과 현재 본인 소속을 반환하며, 대기 지원 수는 팀장에게만 제공합니다.
 
 <a id="action-results"></a>
 
