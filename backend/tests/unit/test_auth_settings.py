@@ -40,3 +40,17 @@ def test_auth_settings_reject_unusable_or_overbroad_origins(origin: str) -> None
 def test_auth_settings_reject_a_short_hmac_key() -> None:
     with pytest.raises(ValidationError):
         Settings(csrf_signing_key=SecretStr("too-short"), _env_file=None)
+
+
+def test_rejected_environment_key_is_not_exposed_in_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    key = "invalid-short-review-key"
+    monkeypatch.setenv("CSRF_SIGNING_KEY", key)
+
+    with pytest.raises(ValidationError) as caught:
+        Settings(_env_file=None)
+
+    assert "csrf_signing_key" in str(caught.value)
+    assert key not in str(caught.value)
+    assert key not in repr(caught.value)
