@@ -17,6 +17,7 @@ import sys
 for module in (
     "app.core.db.base",
     "app.core.db.check",
+    "app.core.db.factories",
     "app.core.db.mixins",
     "app.core.db.session",
     "app.core.db.types",

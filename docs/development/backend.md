@@ -88,16 +88,58 @@ class Profile(CreatedAtMixin, UpdatedAtMixin, Base):
 
 수정 시각은 쓰기 서비스가 `version`과 함께 명시적으로 갱신합니다. 프로필 선택 항목·포트폴리오만 바뀌어도 부모 프로필의 시각·버전을 같은 트랜잭션에서 바꿔야 합니다. 조회와 실제 변경이 없는 재시도에는 갱신하지 않습니다. mixin은 `onupdate`나 DB trigger를 추가하지 않으므로 직접 SQL도 같은 책임을 따릅니다.
 
-도메인 고유의 모델·쿼리는 해당 도메인에 두고, `core/db`에는 함께 사용하는 DB 기반만 둡니다. `AsyncSession.get/add/delete/flush`를 그대로 감싼 범용 CRUD는 현재 추가하지 않습니다. 반복되거나 복잡한 쿼리가 생기면 도메인 repository로 분리하고, 여러 도메인에 같은 필요가 확인되면 공통 기능을 추출합니다. commit과 권한·잠금·상태 전이의 조합은 최상위 서비스가 책임집니다.
+도메인 고유의 모델·쿼리는 해당 도메인에 두고, `core/db`에는 함께 사용하는 DB 기반과 [레포지토리 생성](#repository-factory)을 둡니다. `AsyncSession.get/add/delete/flush`를 그대로 감싼 범용 CRUD는 현재 추가하지 않습니다. 반복되거나 복잡한 쿼리가 생기면 도메인 repository로 분리하고, 여러 도메인에 같은 필요가 확인되면 공통 기능을 추출합니다. commit과 권한·잠금·상태 전이의 조합은 최상위 서비스가 책임집니다.
 
 ## 엔진과 세션
 
 - `create_async_engine`과 `async_sessionmaker`를 사용합니다. engine·session factory는 앱 수명에 맞춰 구성하고 종료 시 engine을 dispose합니다.
 - `AsyncSession`은 요청 또는 독립 작업 단위로 생성·종료합니다. 전역 Session, 요청 사이의 Session 공유, 하나의 Session을 여러 동시 task에서 공유하는 코드를 만들지 않습니다.
-- [DB 세션 기반](../../backend/app/core/db/session.py)의 `Database`·`create_database`는 HTTP 요청을 알지 않습니다. [HTTP 의존성](../../backend/app/core/http/dependencies.py)의 `get_session`·`DatabaseSession`이 요청에 연결된 세션의 생성과 정리를 담당합니다. dependency 종료 시 무조건 commit하는 정책은 사용하지 않습니다.
+- [DB 세션 기반](../../backend/app/core/db/session.py)의 `Database`·`create_database`는 HTTP 요청을 알지 않습니다. `Database.session()`은 세션을 생성하고 context 종료 시 정리하므로 HTTP·배치·CLI에서 함께 사용할 수 있습니다. [HTTP 의존성](../../backend/app/core/http/dependencies.py)의 `get_session`·`DatabaseSession`은 이 context를 요청에 연결합니다. context 종료 시 자동으로 commit하지 않습니다.
 - 기본 세션 설정은 `expire_on_commit=False`로 합니다. 이것이 모든 지연 로딩을 비동기로 안전하게 만드는 것은 아닙니다.
 - 응답 직렬화 중 암묵적 쿼리가 발생하지 않도록 필요한 관계를 명시적으로 조회합니다. 관계 조회는 `selectinload` 등의 eager loading을 우선 검토합니다.
 - 종료된 세션에 붙어 있던 객체에서 새 DB 조회가 필요한 속성을 읽지 않습니다. background task에는 기존 요청 Session을 넘기지 않습니다.
+
+<a id="repository-factory"></a>
+
+## 레포지토리 생성
+
+[RepositoryFactory](../../backend/app/core/db/factories.py)는 `AsyncSession`을 받는 생성자를 주입하고 반환 타입을 유지합니다. HTTP 요청·도메인 모델·CRUD 메서드를 알지 않으며, 레포지토리에 특정 부모 클래스나 공통 PK를 요구하지 않습니다. `repository_class`의 타입은 `Callable[[AsyncSession], RepositoryType]`이므로 클래스 또는 추가 설정을 묶은 생성 함수를 전달할 수 있습니다.
+
+| 호출 | 세션 소유권과 동작 |
+| --- | --- |
+| `factory.create_repository(session)` | 호출자가 제공한 세션으로 객체를 생성. 팩토리는 세션을 종료하거나 commit하지 않음 |
+| `async with factory.open_repository() as repository` | 생성자에 전달한 `database`의 `session()`으로 새 세션을 열고 context 종료 시 정리. `database`가 없으면 `ValueError` |
+
+`open_repository()`는 객체 생성 중이나 context 본문에서 예외가 발생해도 세션을 정리하고 예외를 전파합니다. 자동 commit은 없으며, 커밋하지 않은 변경은 세션 정리 시 롤백됩니다. 저장 확정과 실패 처리는 아래 [트랜잭션 책임](#transaction-ownership)을 따릅니다. 여러 레포지토리의 쓰기를 하나로 묶을 때는 같은 세션을 각각의 `create_repository()`에 전달합니다. 각 레포지토리에서 `open_repository()`를 따로 호출하면 서로 다른 세션이 만들어집니다.
+
+다음은 호출 방식의 예시입니다. `AccountRepository`와 업무 서비스는 아직 구현하지 않았으며, 예시의 레포지토리는 생성자에서 `AsyncSession`을 받는다고 가정합니다. 요청에서는 HTTP 의존성이 제공한 세션을 전달합니다.
+
+```python
+from app.core.db.factories import RepositoryFactory
+from app.core.http.dependencies import DatabaseSession
+
+account_factory = RepositoryFactory(repository_class=AccountRepository)
+
+
+def get_account_repository(session: DatabaseSession) -> AccountRepository:
+    return account_factory.create_repository(session)
+```
+
+독립 작업에서는 앱 또는 작업의 수명에 맞춰 준비한 `database`를 사용합니다. 아래 코드는 비동기 작업 본문이며, 작업을 끝낸 뒤 DB 엔진을 해제하는 책임은 `database`를 만든 진입점에 있습니다.
+
+```python
+account_factory = RepositoryFactory(
+    repository_class=AccountRepository,
+    database=database,
+)
+
+async with account_factory.open_repository() as repository:
+    account = await repository.get_by_id(account_id)
+```
+
+이 구조는 [aioia-core의 팩토리](https://github.com/algorima/aioia-core/blob/76f0cdd03afbace4132bbf2a6b27cd900e3e0cff/python/aioia_core/factories/base_repository_factory.py)의 생성자 주입과 제네릭 패턴을 참고해 우리 비동기 기반에 맞게 구현했습니다. 참고 기준은 커밋 `76f0cdd03afbace4132bbf2a6b27cd900e3e0cff`입니다. 외부 패키지를 의존성으로 추가하지 않습니다. 해당 버전의 [Python 지원 범위](https://github.com/algorima/aioia-core/blob/76f0cdd03afbace4132bbf2a6b27cd900e3e0cff/python/pyproject.toml)는 3.13 미만이며, [원본 레포지토리](https://github.com/algorima/aioia-core/blob/76f0cdd03afbace4132bbf2a6b27cd900e3e0cff/python/aioia_core/repositories.py)는 동기 세션·내부 commit·문자열 `id`를 전제합니다. 우리 코어는 비동기 세션, 명시적인 세션 소유권, 서비스의 commit, 도메인별 PK·DTO를 유지합니다.
+
+<a id="transaction-ownership"></a>
 
 ## 트랜잭션 책임
 

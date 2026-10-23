@@ -23,7 +23,7 @@ backend/
     core/                # 도메인이 함께 사용하는 기반
       config.py          # 환경설정
       exceptions.py      # 애플리케이션 오류 정의
-      db/                # ORM metadata·선택 컬럼, 비동기 엔진·세션, 연결 검사
+      db/                # ORM metadata·선택 컬럼, 비동기 엔진·세션, repository factory
       http/              # 공통 DTO·응답, 예외 핸들러, 요청 의존성
     domains/
       health/            # 현재 구현된 health API
@@ -54,9 +54,9 @@ compose.yaml             # 개발용 PostgreSQL
 - 공통 UI는 특정 기능의 API나 query에 의존하지 않습니다. 여러 기능이 사용하는 코드만 공통 위치로 옮깁니다.
 - `lib`에는 앱 전반의 작은 기반 코드만 둡니다. 기능 규칙을 넣는 만능 폴더로 사용하지 않습니다.
 - 백엔드 `domains/<기능>/`에 해당 기능의 라우터·요청과 응답 스키마·ORM 모델·서비스를 모읍니다. 라우터는 HTTP 처리, 서비스는 업무 규칙과 쓰기 트랜잭션을 담당합니다. ORM 모델과 요청·응답 스키마를 분리하며, 실제로 필요한 파일만 만듭니다.
-- `core`는 여러 도메인이 사용하는 기반입니다. ORM의 공통 metadata·선택 컬럼과 엔진·세션은 `core/db`, 공통 DTO·응답·예외 핸들러·요청 의존성은 `core/http`에 둡니다. [공통 기반의 책임](backend.md#orm-foundation)에 따라 모델의 PK·컬럼을 선택하며 모든 모델에 같은 `id`·시각 컬럼을 강제하지 않습니다.
-- 의존 방향은 도메인에서 `core`로 향합니다. `core`는 개별 도메인을 import하지 않고, `core/db`는 FastAPI·Starlette나 `core/http`를 import하지 않습니다. 요청에서 DB 세션을 꺼내는 처리는 `core/http/dependencies.py`, 엔진·세션 생성은 `core/db/session.py`, 앱 수명과 라우터 연결은 `main.py`가 맡습니다.
-- 반복되거나 복잡한 DB 쿼리가 생기면 해당 도메인에 `repository.py`를 추가합니다. 여러 도메인에서 실제로 반복되는 기능만 검토해 공통화하며, 모든 기능에 Repository·Factory·interface를 의무화하지 않습니다.
+- `core`는 여러 도메인이 사용하는 기반입니다. ORM의 공통 metadata·선택 컬럼과 엔진·세션·repository factory는 `core/db`, 공통 DTO·응답·예외 핸들러·요청 의존성은 `core/http`에 둡니다. [공통 기반의 책임](backend.md#orm-foundation)에 따라 모델의 PK·컬럼을 선택하며 모든 모델에 같은 `id`·시각 컬럼을 강제하지 않습니다.
+- 의존 방향은 도메인에서 `core`로 향합니다. `core`는 개별 도메인을 import하지 않고, `core/db`는 FastAPI·Starlette나 `core/http`를 import하지 않습니다. 엔진 생성과 세션의 생성·정리는 `core/db/session.py`의 `create_database`·`Database.session()`이 맡고, `core/http/dependencies.py`는 이를 요청에 연결합니다. 앱 수명과 라우터 연결은 `main.py`가 맡습니다.
+- 반복되거나 복잡한 DB 쿼리가 생기면 해당 도메인에 `repository.py`를 추가합니다. [RepositoryFactory](backend.md#repository-factory)는 레포지토리 생성과 독립 작업의 세션 관리를 공통으로 제공합니다. 도메인은 필요한 생성자를 전달하며, 공통 CRUD 상속이나 도메인별 factory·interface를 의무적으로 만들지 않습니다. 현재 업무 도메인의 repository·service는 아직 구현하지 않았습니다.
 - 프론트와 백엔드는 HTTP API를 통해 연결합니다. 백엔드 DB 구조를 그대로 프론트의 내부 상태 구조로 강제하지 않습니다.
 
 ## 개발 환경
@@ -69,7 +69,7 @@ compose.yaml             # 개발용 PostgreSQL
 ## 실행 기반의 구성
 
 1. 실행 기반: 런타임 버전·의존성·환경변수 예시·PostgreSQL Compose.
-2. 백엔드: 앱 생성, 설정 로딩, async DB 세션, Alembic 환경, health API.
+2. 백엔드: 앱 생성, 설정 로딩, async DB 세션과 repository factory, Alembic 환경, health API.
 3. 프론트: router·provider·모바일 레이아웃·공통 HTTP 클라이언트·백엔드 연결 확인.
 4. 검사: formatter·linter·타입 검사와 실제 코드에 대한 테스트, GitHub Actions 연결.
 5. 문서: [로컬 실행](local-development.md)에 설치·실행·검사·마이그레이션 명령 기록.
