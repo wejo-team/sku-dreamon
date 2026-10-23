@@ -1,6 +1,6 @@
 # 선택지 API
 
-**상태: 설계 제안 · 미구현.** 공통 선택지와 학사 목록을 조회하는 2개 공개 API를 정의합니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
+**상태: 구현 진행 중 — [#101](https://github.com/wejo-team/sku-dreamon/issues/101).** [선택지 코드](../../backend/app/domains/catalogs/codes.py), [응답 DTO](../../backend/app/domains/catalogs/schemas.py), [공개 라우터](../../backend/app/domains/catalogs/router.py)를 구현합니다. 앱 연결·학사 원장·프론트 통합의 완료 여부는 구현 PR의 검증 결과를 따릅니다. 아래 표는 전송 계약을 설명하며 생성 OpenAPI와 대조합니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
 
 | 확인할 내용 | 위치 |
 | --- | --- |
@@ -53,6 +53,8 @@
 `GET /catalogs`는 DB 코드 테이블 조회 없이 서버의 [공통 enum과 메타데이터](../database/catalogs.md#code-enums)에서 위 일곱 목록을 구성합니다. 프로필·공고·팀·지원의 코드 검증도 같은 정의를 사용하며, 클라이언트는 별도 선택지 목록을 하드코딩하지 않습니다.
 
 일곱 목록은 모두 필수이며 `null`을 허용하지 않습니다. 각 목록은 `sortOrder ASC, code ASC`로 정렬합니다. 현재 선택 가능 항목과 기존 데이터의 표시를 위한 비활성 항목을 함께 제공합니다. 새 선택에는 `isSelectable=true`만 사용합니다. 코드·표시명·정렬·선택 가능 여부 변경은 서버 코드 수정·배포로 반영하고 실제 코드 사전은 [카탈로그 관리](../specs/profile-options.md#catalog-management)에서 검토합니다. 학사 경로 목록은 별도 DB 조회를 유지합니다.
+
+초기 기술 코드는 서버 enum에서 명시적인 영문 `snake_case`로 정의하며 표시명으로 실행 시 생성하지 않습니다. 예를 들어 `FieldCode.IT_TECHNOLOGY="it_technology"`, `RoleCode.PLANNING="planning"`입니다. 코드는 한 번 공개한 뒤 의미를 바꾸거나 재사용하지 않습니다. 기존 운영 데이터의 이관이나 새 학사 원장의 확정을 뜻하지 않습니다. 프로필 이미지의 `assetUrl`은 [공식 자산 출처](../design/assets.md)에 기록한 학교 PNG URL을 제공합니다.
 
 <a id="academic-placement"></a>
 <a id="academic-unit"></a>
