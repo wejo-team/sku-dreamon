@@ -1,7 +1,11 @@
+"""격리된 설정의 앱과 수명 주기를 관리하는 HTTP 클라이언트를 제공한다."""
+
 from collections.abc import AsyncIterator
 
+import pytest
 import pytest_asyncio
 from asgi_lifespan import LifespanManager
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import PostgresDsn
 
@@ -9,17 +13,22 @@ from app.core.config import Settings
 from app.main import create_app
 
 
-@pytest_asyncio.fixture
-async def client() -> AsyncIterator[AsyncClient]:
+@pytest.fixture
+def app() -> FastAPI:
     settings = Settings(
         database_url=PostgresDsn(
             "postgresql+asyncpg://unused:unused@127.0.0.1:1/unused"
         ),
         _env_file=None,
     )
-    app = create_app(settings)
+    return create_app(settings)
+
+
+@pytest_asyncio.fixture
+async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
     async with LifespanManager(app) as manager:
         async with AsyncClient(
-            transport=ASGITransport(app=manager.app), base_url="http://test"
+            transport=ASGITransport(app=manager.app, raise_app_exceptions=False),
+            base_url="http://test",
         ) as client:
             yield client

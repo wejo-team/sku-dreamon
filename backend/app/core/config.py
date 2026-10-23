@@ -1,3 +1,5 @@
+"""환경설정을 읽고 비동기 PostgreSQL 연결에 필요한 값을 검증한다."""
+
 from pydantic import PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

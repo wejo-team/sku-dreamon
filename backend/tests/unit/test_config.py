@@ -1,3 +1,5 @@
+"""DB 연결 설정이 PostgreSQL의 asyncpg 드라이버만 허용하는지 검증한다."""
+
 import pytest
 from pydantic import ValidationError
 

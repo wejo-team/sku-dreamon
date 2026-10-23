@@ -1,3 +1,5 @@
+"""공통 ORM metadata와 비동기 DB 연결로 Alembic 실행 환경을 구성한다."""
+
 import asyncio
 from logging.config import fileConfig
 
@@ -6,13 +8,13 @@ from sqlalchemy import Connection, pool
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import Settings
-from app.db.base import Base
+from app.core.db.base import Base
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import domain model modules here when they are introduced so metadata includes them.
+# 도메인 모델을 추가할 때 이곳에서 import하여 metadata에 포함한다.
 target_metadata = Base.metadata
 
 

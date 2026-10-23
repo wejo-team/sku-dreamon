@@ -1,8 +1,10 @@
 """${message}
 
-Revision ID: ${up_revision}
-Revises: ${down_revision | comma,n}
-Create Date: ${create_date}
+DB 스키마 변경과 복원을 정의한다.
+
+리비전 ID: ${up_revision}
+이전 리비전: ${down_revision | comma,n}
+생성 시각: ${create_date}
 """
 
 from collections.abc import Sequence
