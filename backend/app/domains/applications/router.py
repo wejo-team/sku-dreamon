@@ -16,7 +16,7 @@ from app.domains.applications.schemas import (
     VersionedAction,
 )
 from app.domains.auth.csrf import require_csrf
-from app.domains.auth.dependencies import CurrentAccount
+from app.domains.auth.dependencies import CurrentAccount, get_current_account
 
 
 async def get_application(
@@ -41,7 +41,7 @@ router = applications.router
 
 @router.put(
     "/applications/{applicationId}/cancellation",
-    dependencies=[Depends(require_csrf)],
+    dependencies=[Depends(get_current_account), Depends(require_csrf)],
     responses=error_responses(401, 403, 404, 409, 422, 500, 503),
     summary="본인 지원 취소",
 )

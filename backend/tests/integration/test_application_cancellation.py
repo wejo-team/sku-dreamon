@@ -9,6 +9,7 @@ from sqlalchemy import event, func, select
 
 from app.domains.applications.models import Application, ApplicationEvent
 from app.domains.auth.csrf import CSRF_HEADER_NAME
+from app.domains.auth.models import AuthSession
 from app.domains.notifications.models import Notification
 from app.domains.teams.models import Team, TeamMembership
 from tests.integration.application_support import ApplicationData, application_client
@@ -148,6 +149,29 @@ async def test_permission_csrf_and_strict_version(
         assert (
             await client.put(path, json={"expectedVersion": "1"})
         ).status_code == 403
+
+
+async def test_anonymous_and_revoked_session_fail_auth_before_csrf(
+    application_data: ApplicationData,
+) -> None:
+    data = application_data
+    path = f"/api/v1/applications/{data.application_id}/cancellation"
+    async with application_client(data, None) as client:
+        assert (
+            await client.put(path, json={"expectedVersion": "1"})
+        ).status_code == 401
+    async with data.database.session() as session:
+        auth_session = await session.get(
+            AuthSession, data.sessions[data.applicant_id].session.auth_session_id
+        )
+        assert auth_session is not None
+        auth_session.revoked_at = datetime.now(UTC)
+        await session.commit()
+    async with application_client(data, data.applicant_id) as client:
+        del client.headers[CSRF_HEADER_NAME]
+        assert (
+            await client.put(path, json={"expectedVersion": "1"})
+        ).status_code == 401
 
 
 async def test_notification_failure_rolls_back_membership_event_and_application(
