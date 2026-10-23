@@ -10,6 +10,7 @@ from app.core.http.schemas import (
     RequestDTO,
     ResponseDTO,
     Timestamp,
+    Version,
 )
 from app.domains.catalogs.codes import RoleCode
 from app.domains.profiles.schemas import ProfileResponse
@@ -19,6 +20,10 @@ from app.domains.teams.schemas import TeamDetail, TeamSummary
 class WorkspaceSearch(RequestDTO):
     page: Annotated[int, Field(ge=1, le=9007199254740991)] = 1
     page_size: Annotated[int, Field(ge=1, le=100)] = 20
+
+
+class RecruitmentAction(RequestDTO):
+    expected_version: Version
 
 
 class TeamMember(ResponseDTO):
@@ -45,3 +50,7 @@ class WorkspaceTeam(ResponseDTO):
     membership_role: Literal["leader", "member"]
     role_code: RoleCode | None
     pending_application_count: NonnegativeInt | None
+
+
+class RecruitmentResult(ResponseDTO):
+    team: TeamSummary
