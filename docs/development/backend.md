@@ -22,7 +22,7 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 [구현 이슈 #99](https://github.com/wejo-team/sku-dreamon/issues/99)의 `core/http`는 전송 계약과 FastAPI 연결을 담당합니다. ORM 공통 기반은 아래 별도 절처럼 `core/db`에 둡니다. 업무 권한·상태 전이·정원·조회 SQL은 각 도메인의 서비스가 맡습니다.
 
 - 요청 DTO는 camelCase만 받고, 응답 DTO는 Python의 snake_case로 구성하여 camelCase로 보냅니다. 두 책임을 분리하여 응답 생성 편의를 위해 외부 snake_case 입력까지 허용하지 않습니다. 임의 map 키는 변환하지 않습니다.
-- 성공 응답과 페이지 응답은 라우터에서 명시적인 모델로 반환합니다. `Success[T]`의 `T`에는 NULL을 허용하지 않는 영역별 DTO나 배열 타입을 지정하여 실제 검증과 OpenAPI를 일치시킵니다. 응답 본문을 자동으로 감싸는 middleware는 사용하지 않으므로 health·204·쿠키·`Location`의 기존 동작을 유지합니다.
+- 성공 응답과 페이지 응답은 라우터에서 명시적인 모델로 반환합니다. `Success[T]`의 `T`에는 NULL을 허용하지 않는 영역별 DTO나 배열 타입을 지정하여 실제 검증과 OpenAPI를 일치시킵니다. [공통 조회 라우터](#read-router)는 등록한 상세 조회의 DTO를 `Success[T]`로 한 번 감쌉니다. 응답 본문을 자동으로 감싸는 middleware는 사용하지 않으므로 health·204·쿠키·`Location`의 기존 동작을 유지합니다.
 - BIGINT는 DTO 경계에서 엄격한 십진 문자열, 시각은 시간대가 있는 값으로 검증해 UTC `Z`로 보냅니다. DB 정수를 응답에 담을 때의 `str()` 변환은 해당 DTO를 만드는 곳에서 명시합니다.
 - 업무 오류는 상태·코드·안전한 안내 문구를 가진 예외 하나로 표현합니다. 예상하지 못한 오류와 요청 검증 실패에는 입력 원문을 포함하지 않는 응답을 제공합니다. 오류 응답 모델은 라우터의 `responses`에도 명시하여 OpenAPI와 실제 응답을 맞춥니다.
 - 페이지 모델은 범위와 전송 모양만 검증합니다. 마지막 페이지 보정·권한·필터·동일 읽기 시점의 집계는 실제 목록을 조회하는 도메인이 책임집니다.
@@ -42,6 +42,70 @@ from app.core.http.schemas import RequestDTO, ResponseDTO, Success, Timestamp, V
 `AppError`는 HTTP 상태·헤더를 포함하는 애플리케이션 예외이며, 전송 방식과 무관한 순수 도메인 예외로 정의하지 않습니다. 예외 정의는 FastAPI 없이 사용할 수 있고, 이를 응답으로 바꾸고 앱에 등록하는 책임은 `core/http/handlers.py`에 둡니다.
 
 오류 처리 시 만든 추적 ID는 `X-Request-ID` 응답 헤더와 최소 오류 로그에 기록하며, 업무 오류 본문의 `requestId`와 같습니다. 422 본문에는 기존 `detail`만 유지합니다. 이 ID는 생성 재시도에 쓰는 도메인 `requestId`와 관계없고 성공 요청 전체를 추적하는 기능은 아닙니다. 공통 핸들러가 남기는 로그에는 요청 본문·검증 입력·예외 문자열을 추가하지 않습니다. 서버 자체의 traceback 로그를 정제하는 기능은 포함하지 않습니다.
+
+<a id="read-router"></a>
+
+## 공통 조회 라우터
+
+[BaseCrudRouter](../../backend/app/core/http/routers.py)는 목록·상세 GET의 등록, 응답 모델, 오류 응답 선언을 공통화합니다. 도메인이 `prefix`, 선택적인 `tags`·`dependencies`를 전달해 생성하고 필요한 작업만 등록합니다. 생성만으로 경로가 추가되지 않으며, `.router`는 앱에 연결할 `APIRouter`입니다.
+
+| 등록 메서드 | handler의 반환값 | 등록할 response_model과 동작 |
+| --- | --- | --- |
+| `add_list(path="", handler=..., response_model=...)` | `Page[Summary]` 또는 이를 확장한 페이지 DTO | 실제 페이지 DTO 타입을 지정. handler가 만든 `data`·`pagination`·추가 메타데이터를 반환 |
+| `add_detail(path, handler=..., response_model=...)` | `Detail` DTO | `Success[Detail]`을 지정. 반환 DTO를 `data`에 한 번 감싸 반환 |
+
+`Summary`·`Detail`은 `ResponseDTO`를 상속하며 목록과 상세에서 서로 다른 DTO를 사용할 수 있습니다. 목록의 전체 개수·페이지 보정·집계 등 메타데이터 계산은 서비스가 책임집니다. 확장 페이지를 사용하면 `response_model`에도 그 타입을 지정합니다. 상세 handler는 이미 감싼 `Success`를 반환하지 않습니다. 대상이 없으면 서비스가 `AppError(404, ...)`를 발생시키며, 라우터가 `None`을 자동으로 404로 바꾸지 않습니다.
+
+handler는 `Depends(handler)`로 실행됩니다. handler에 선언한 path·query 타입과 검증 조건은 요청 처리와 OpenAPI에 반영되며, 중첩 `Depends`도 실행됩니다. 주입된 `Response`에 설정한 헤더·쿠키는 응답에 보존됩니다. handler는 도메인 라우터에 두는 얇은 HTTP 함수이며, 파싱된 값과 세션을 서비스에 전달합니다. 비동기 DB·서비스 호출은 `async def` handler에서 `await`하고, 동기 handler는 DTO·페이지 객체를 직접 반환합니다. 서비스에 `Request`·`Depends` 같은 FastAPI 의존성을 추가하지 않습니다.
+
+생성자의 `dependencies`와 각 등록 메서드의 `dependencies`는 함께 적용됩니다. 인증·권한 검사는 도메인이 필요한 의존성을 명시하며, 공통 라우터가 인증 정책을 자동으로 선택하지 않습니다. 기본 오류 응답 선언은 목록에 422·500·503, 상세에 404·422·500·503입니다. `error_statuses`로 401·403 등 해당 작업의 추가 오류를 선언하고, `name`·`summary`로 경로 이름과 OpenAPI 설명을 지정할 수 있습니다. 오류 상태를 선언하는 것만으로 인증 검사나 예외 처리 동작이 추가되지는 않습니다.
+
+아래는 [공모전 API 설계](../api/contests.md#endpoints)를 사용하는 등록 예시입니다. 현재 제품 API는 health만 구현되어 있으며, `ContestSummary`·`Contest`와 `service`는 도메인 구현 시 제공할 요소입니다. 예시에서는 검색·정렬 등 나머지 query를 생략하고 페이지와 UUID 경로 선언만 보여 줍니다.
+
+```python
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import Path, Query
+
+from app.core.http.dependencies import DatabaseSession
+from app.core.http.routers import BaseCrudRouter
+from app.core.http.schemas import Page, Success
+
+
+async def list_contests(
+    session: DatabaseSession,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
+) -> Page[ContestSummary]:
+    return await service.list_contests(session, page=page, page_size=page_size)
+
+
+async def get_contest(
+    contest_id: Annotated[UUID, Path(alias="contestId")],
+    session: DatabaseSession,
+) -> Contest:
+    return await service.get_contest(session, contest_id)
+
+
+contests = BaseCrudRouter(prefix="/contests", tags=["contests"])
+contests.add_list(
+    handler=list_contests,
+    response_model=Page[ContestSummary],
+    name="list_contests",
+    summary="공모전 목록",
+)
+contests.add_detail(
+    "/{contestId}",
+    handler=get_contest,
+    response_model=Success[Contest],
+    name="get_contest",
+    summary="공모전 상세",
+)
+router = contests.router
+```
+
+이 `router`를 기존 앱의 `/api/v1` prefix 아래에 연결합니다. 생성·수정·삭제, 업무 명령, 204, redirect, streaming 응답은 `.router`에 일반 `APIRouter` 경로로 개별 등록합니다. 공통 라우터는 SQL 필터·PK·레포지토리 구현을 추정하거나 트랜잭션을 시작·commit하지 않습니다. DB 접근 구성은 [RepositoryFactory](#repository-factory), 쓰기의 성공·실패는 [최상위 서비스](#transaction-ownership)의 책임입니다.
 
 <a id="orm-foundation"></a>
 
