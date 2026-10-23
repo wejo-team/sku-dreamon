@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import Field, HttpUrl
 
-from app.core.http.schemas import ResponseDTO
+from app.core.http.schemas import PositiveBigInt, ResponseDTO
 from app.domains.catalogs.codes import (
     AcademicStatusCode,
     CatalogCode,
@@ -36,6 +36,13 @@ class Catalogs(ResponseDTO):
     grades: list[CatalogItem]
     weekly_availability_ranges: list[CatalogItem]
     avatar_presets: list[AvatarPreset]
+
+
+class AcademicUnitResponse(ResponseDTO):
+    id: PositiveBigInt
+    name: Annotated[str, Field(min_length=1, max_length=100)]
+    parent_id: PositiveBigInt | None
+    is_selectable: bool
 
 
 def _items(enum_type: type[CatalogCode]) -> list[CatalogItem]:

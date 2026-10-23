@@ -4,6 +4,7 @@ import pytest
 
 from app.core.exceptions import AppError
 from app.domains.catalogs.codes import (
+    CatalogCode,
     FieldCode,
     ProfileImageCode,
     RoleCode,
@@ -55,3 +56,12 @@ def test_selection_validation_is_specific_to_the_catalog_kind() -> None:
 def test_display_names_are_not_accepted_as_storage_codes() -> None:
     with pytest.raises(AppError):
         validate_catalog_selection(FieldCode, "IT·기술")
+
+
+def test_inactive_codes_can_only_be_kept_as_the_previous_selection() -> None:
+    class RetiredCode(CatalogCode):
+        OLD = "old", "이전 선택", 0, False
+
+    with pytest.raises(AppError):
+        validate_catalog_selection(RetiredCode, "old")
+    assert validate_catalog_selection(RetiredCode, "old", "old") is RetiredCode.OLD

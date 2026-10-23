@@ -1,8 +1,8 @@
 # 대학·학부·전공 분류
 
-- 구현 상태: 예정
+- 구현 상태: 진행 중
 - 명세 검토: [PR #14](https://github.com/wejo-team/sku-dreamon/pull/14), PDF 대조·명세 연결 보완 [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17)
-- 구현 작업: 미등록
+- 구현 작업: [학사 기반·조회 API #101](https://github.com/wejo-team/sku-dreamon/issues/101). 계층·선택 검증과 조회를 구현하며 검증된 운영 원장 적재는 남아 있습니다.
 - 변경 근거: 2026-10-19 [#77 최신 사용자 결정](https://github.com/wejo-team/sku-dreamon/issues/77#issuecomment-6260435650)의 동일 의미 표기·식별자 보존 및 학사 종속값 처리 반영. 실제 현행 목록 검증·디자인·서버 구현 완료는 별도
 
 서경대학교 학사 분류를 기획 원문에서 옮긴 초안입니다. 아래 목록은 원문 보존용 이관 목록이며, 적용 학년도와 공식 자료 전체와의 일치는 아직 확정되지 않았습니다.
