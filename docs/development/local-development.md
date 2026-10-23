@@ -38,7 +38,7 @@ uv run uvicorn app.main:app --reload
 
 API는 `http://127.0.0.1:8000`, 대화형 API 문서는 `/docs`입니다. `GET /api/v1/health`는 `{"status":"ok"}`를 반환합니다. health는 프로세스 연결 확인이며 DB 준비 상태 검사가 아닙니다.
 
-도메인 모델과 최초 migration은 아직 없습니다. `upgrade head`는 현재 비동기 Alembic 연결 경로를 실행하며 서비스 테이블을 생성하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
+`upgrade head`는 계정·서버 세션 테이블의 migration을 적용합니다. 저장 모델의 존재가 로그인 API 구현 완료를 뜻하지는 않습니다. 각 기능의 구현 상태는 [인증 명세](../specs/authentication.md)를 확인하고, 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
 
 ## 프론트엔드 — 별도 터미널
 

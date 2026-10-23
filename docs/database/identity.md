@@ -2,6 +2,8 @@
 
 이 문서는 PostgreSQL 17 기준 **물리 설계 초안**입니다. 계정 식별·서버 세션·현재 프로필의 저장 구조를 정의합니다. 세션 정리·보존 기간·탈퇴처럼 미정인 제품 결정을 테이블 설계로 확정하지 않습니다.
 
+**구현 진행:** `accounts`·`auth_sessions`의 [ORM 모델](../../backend/app/domains/auth/models.py)과 [migration](../../backend/alembic/versions/20261024_03_auth.py), [DB 제약 테스트](../../backend/tests/integration/test_auth_models.py)를 추가했습니다. 프로필 테이블과 인증 HTTP·세션 서비스는 후속 구현 범위이며, 저장 기반 검증을 로그인 기능 완료로 취급하지 않습니다.
+
 | 먼저 확인할 내용 | 원본 |
 | --- | --- |
 | 가입·로그인과 입력 규칙 | [인증 명세](../specs/authentication.md#login-identifier) |
