@@ -4,7 +4,7 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
-from app.core.http.schemas import ResponseDTO, Timestamp, Version
+from app.core.http.schemas import RequestDTO, ResponseDTO, Timestamp, Version
 from app.domains.catalogs.codes import RoleCode
 
 
@@ -31,3 +31,12 @@ class ApplicationResponse(ResponseDTO):
     discarded_by_team_id: UUID | None
     submitted_at: Timestamp
     updated_at: Timestamp
+
+
+class VersionedAction(RequestDTO):
+    expected_version: Version
+
+
+class CancellationResult(ResponseDTO):
+    application: ApplicationResponse
+    membership_ended: bool
