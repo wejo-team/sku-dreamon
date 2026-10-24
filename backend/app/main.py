@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from app.core.config import Settings
 from app.core.db.session import create_database
 from app.core.http.handlers import register_error_handlers
+from app.routers.applications import router as applications_router
 from app.routers.catalogs import router as catalogs_router
 from app.routers.health import router as health_router
 from app.routers.notifications import router as notifications_router
@@ -35,6 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(profiles_router, prefix="/api/v1")
     app.include_router(notifications_router, prefix="/api/v1")
     app.include_router(teams_router, prefix="/api/v1")
+    app.include_router(applications_router, prefix="/api/v1")
     return app
 
 

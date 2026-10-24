@@ -1,6 +1,8 @@
 # 지원 API
 
-**상태: 설계 제안 · 미구현.** 신규 지원·취소와 팀장 검토·미선발·선발의 전송 계약을 정의합니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 일부 구현.** 본인·받은 팀장의 지원 상세 조회를 구현했습니다. 신규 지원·취소·목록과 팀장 상태 변경은 아직 설계 단계입니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+
+구현 원본은 [지원 라우터](../../backend/app/routers/applications.py), [응답 DTO](../../backend/app/schemas/applications.py), [조회 서비스](../../backend/app/services/applications.py)입니다. [PostgreSQL HTTP 검사](../../backend/tests/integration/test_application_reads.py)는 실제 세션 쿠키의 권한·404 은닉·폐기 원인 공개 범위·조회 시 상태 보존을 검증합니다. 실행 앱의 `/docs`·`/openapi.json`에서 등록한 API 계약을 확인할 수 있습니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
@@ -97,19 +99,7 @@
 
 ### Application — 지원서
 
-| 필드 | 타입 | 의미·제약 |
-| --- | --- | --- |
-| `id` | `Id` | 지원 시도 식별자. 신규·재지원마다 새 ID |
-| `version` | `Version` | 현재 지원 버전 |
-| `teamId`, `contestId` | `Id` | 지원한 팀과 공고 |
-| `applicantAccountId` | `Id` | 지원자 계정 |
-| `roleCode` | `CatalogCode` | 지원 역할 하나 |
-| `message` | string 또는 null | 선택 메시지, 최대 1,000자 |
-| `status` | `ApplicationStatus` | 현재 지원 상태 |
-| `discardReason` | `selected_elsewhere`, `team_created_elsewhere` 또는 null | 다른 팀 선발 또는 본인 팀 생성에 따른 폐기 사유. `discarded`일 때 필수 값, 그 외 null |
-| `discardedByApplicationId` | `Id` 또는 null | 다른 팀 선발로 폐기된 경우 원인 지원 ID. 해당 지원도 열람할 수 있는 본인에게만 제공하며 받은 팀장에게는 null |
-| `discardedByTeamId` | `Id` 또는 null | 본인 팀 생성으로 폐기된 경우 생성한 팀 ID. 본인에게만 제공하며 받은 팀장에게는 null |
-| `submittedAt`, `updatedAt` | `Timestamp` | 최초 접수·마지막 변경 시각 |
+필드·타입·필수 여부는 [ApplicationResponse](../../backend/app/schemas/applications.py)와 생성 OpenAPI를 따릅니다. `id`는 접수 시도마다 새로 발급하고 `updatedAt`은 마지막 상태 변경 시각입니다. 폐기 사유는 `selected_elsewhere`·`team_created_elsewhere`이며 폐기 외 상태에서는 null입니다.
 
 `Application`에는 프로필을 포함하지 않습니다. 지원서 열람 권한만으로 모든 조회자에게 팀장 검토용 최신 전체 프로필을 제공하지 않습니다. 폐기 원인 ID 두 필드는 동시에 값을 갖지 않습니다. 받은 팀장에게도 폐기 사유는 제공하지만 다른 팀·지원의 원인 ID는 제공하지 않습니다. 팀 생성 폐기의 원인 팀은 DB에 기록한 팀장 소속에서 조회하며 가상의 선발 지원 ID를 만들지 않습니다.
 
