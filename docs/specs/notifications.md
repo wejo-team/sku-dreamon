@@ -2,7 +2,7 @@
 
 - 구현 상태: 진행 중
 - 명세 검토: 2026-10-18 공식 디자인 반영, 2026-10-19 [#77 F14](https://github.com/wejo-team/sku-dreamon/issues/77)의 생성·이력·중복 방지와 마감 알림 제외 결정 반영
-- 구현 작업: [본인 알림 조회·읽음 #113](https://github.com/wejo-team/sku-dreamon/issues/113). 서버 조회·읽음과 프론트 전체 흐름, 업무 변경에 따른 생성을 구분해 검증합니다.
+- 구현 작업: [본인 알림 조회·읽음 #113](https://github.com/wejo-team/sku-dreamon/issues/113). 서버 조회·읽음과 업무 변경에 따른 생성은 구현했습니다. 신규 지원·팀 생성 연결은 [#153](https://github.com/wejo-team/sku-dreamon/pull/153)·[#154](https://github.com/wejo-team/sku-dreamon/pull/154), 검증은 [구현 현황](../development/implementation-status.md)을 따릅니다. 프론트 전체 흐름은 후속 범위입니다.
 
 상단 알림 버튼에서 사용자가 본인의 지원 상태 변경과 팀장으로서 받은 신규 지원을 확인합니다. 현재는 이 두 계열만 서비스 내부 알림함에서 제공하며 공모전·팀 모집 마감 알림은 제외합니다. 알림은 당시 발생한 사실을 전달하고 [팀 모집과 지원](team-recruitment.md)의 현재 업무 상태를 대체하지 않습니다.
 
