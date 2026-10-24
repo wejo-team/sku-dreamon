@@ -15,14 +15,12 @@ from app.models.teams import Team, TeamMembership
 from app.schemas.team_create import TeamCreate
 from app.services import team_create
 from app.services.application_review import select_application
+from tests.integration.application_review_support import review_data as review_data
 from tests.integration.application_support import ApplicationData
+from tests.integration.application_support import application_data as application_data
 from tests.integration.creation_support import creation_client
 from tests.integration.test_team_creation import payload
 
-pytest_plugins = [
-    "tests.integration.application_support",
-    "tests.integration.application_review_support",
-]
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 

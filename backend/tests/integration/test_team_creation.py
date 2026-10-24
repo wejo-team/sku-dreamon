@@ -13,12 +13,10 @@ from app.models.notifications import Notification
 from app.models.teams import Team, TeamMembership
 from app.schemas.team_create import TeamCreate
 from app.services.team_create import create_team
+from tests.integration.application_review_support import review_data as review_data
 from tests.integration.application_support import ApplicationData
+from tests.integration.application_support import application_data as application_data
 
-pytest_plugins = [
-    "tests.integration.application_support",
-    "tests.integration.application_review_support",
-]
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
