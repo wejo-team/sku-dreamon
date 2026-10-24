@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
+from app.core.http.schemas import Page, PageMeta
 from app.models.applications import Application, ApplicationEvent
 from app.repositories import applications as repository
 from app.repositories import teams as team_repository
@@ -21,9 +22,11 @@ from app.schemas.applications import (
     ApplicationResponse,
     ApplicationStatus,
     CancellationResult,
+    MyApplication,
 )
 from app.services import notifications as notification_service
 from app.services import teams as team_service
+from app.services.teams import build_team_summary
 
 
 def application_response(
@@ -74,6 +77,54 @@ async def get_application(
         reason=row.reason,
         source_application_id=row.source_application_id,
         source_team_id=row.source_team_id,
+    )
+
+
+async def list_my_applications(
+    session: AsyncSession,
+    account_id: UUID,
+    *,
+    page: int,
+    page_size: int,
+    status: ApplicationStatus | None,
+) -> Page[MyApplication]:
+    result = await repository.list_my_application_records(
+        session,
+        account_id,
+        page=page,
+        page_size=page_size,
+        status=status.value if status is not None else None,
+    )
+    now = datetime.now(UTC)
+    items = [
+        MyApplication(
+            application=application_response(
+                row.application,
+                viewer_id=account_id,
+                reason=row.reason,
+                source_application_id=row.source_application_id,
+                source_team_id=row.source_team_id,
+            ),
+            team=build_team_summary(
+                row.team,
+                row.contest,
+                field_codes=row.field_codes or [],
+                role_codes=row.role_codes or [],
+                member_count=row.member_count,
+                now=now,
+            ),
+            is_current_member=row.is_current_member,
+        )
+        for row in result.items
+    ]
+    return Page(
+        data=items,
+        pagination=PageMeta(
+            page=result.page,
+            page_size=page_size,
+            total=result.total,
+            total_pages=result.total_pages,
+        ),
     )
 
 

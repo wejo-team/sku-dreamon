@@ -3,17 +3,19 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, Path
+from fastapi import Depends, Path, Query
 
 from app.core.http.dependencies import DatabaseSession
 from app.core.http.handlers import error_responses
 from app.core.http.routers import BaseCrudRouter
-from app.core.http.schemas import Success
+from app.core.http.schemas import Page, Success
 from app.dependencies.auth import CurrentAccount, get_current_account
 from app.dependencies.csrf import require_csrf
 from app.schemas.applications import (
     ApplicationResponse,
+    ApplicationSearch,
     CancellationResult,
+    MyApplication,
     VersionedAction,
 )
 from app.services import applications as service
@@ -27,7 +29,29 @@ async def get_application(
     return await service.get_application(session, application_id, account_id)
 
 
+async def list_my_applications(
+    query: Annotated[ApplicationSearch, Query()],
+    account_id: CurrentAccount,
+    session: DatabaseSession,
+) -> Page[MyApplication]:
+    return await service.list_my_applications(
+        session,
+        account_id,
+        page=query.page,
+        page_size=query.page_size,
+        status=query.status,
+    )
+
+
 applications = BaseCrudRouter(prefix="", tags=["applications"])
+applications.add_list(
+    "/me/applications",
+    handler=list_my_applications,
+    response_model=Page[MyApplication],
+    error_statuses=(401,),
+    name="list_my_applications",
+    summary="내 지원 현황",
+)
 applications.add_detail(
     "/applications/{applicationId}",
     handler=get_application,

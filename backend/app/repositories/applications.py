@@ -3,12 +3,14 @@
 from typing import NamedTuple
 from uuid import UUID
 
-from sqlalchemy import and_, select
+from sqlalchemy import BigInteger, and_, func, select, true
+from sqlalchemy import cast as sql_cast
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.models.applications import Application, ApplicationEvent
-from app.models.teams import Team, TeamMembership
+from app.models.contests import Contest, ContestField
+from app.models.teams import Team, TeamMembership, TeamRecruitmentRole
 
 
 class ApplicationDetailRecord(NamedTuple):
@@ -55,6 +57,160 @@ async def get_application_record(
         )
     ).one_or_none()
     return ApplicationDetailRecord(*row) if row is not None else None
+
+
+class MyApplicationRecord(NamedTuple):
+    application: Application
+    team: Team
+    contest: Contest
+    reason: str | None
+    source_application_id: UUID | None
+    source_team_id: UUID | None
+    field_codes: list[str]
+    role_codes: list[str]
+    member_count: int
+    is_current_member: bool
+
+
+class MyApplicationsPage(NamedTuple):
+    total: int
+    total_pages: int
+    page: int
+    items: list[MyApplicationRecord]
+
+
+async def list_my_application_records(
+    session: AsyncSession,
+    account_id: UUID,
+    *,
+    page: int,
+    page_size: int,
+    status: str | None,
+) -> MyApplicationsPage:
+    filters = [Application.applicant_account_id == account_id]
+    if status is not None:
+        filters.append(Application.status == status)
+    total = (
+        select(func.count().label("total"))
+        .select_from(Application)
+        .where(*filters)
+        .cte("application_total")
+    )
+    total_pages = sql_cast(func.ceil(total.c.total / page_size), BigInteger)
+    meta = select(
+        total.c.total,
+        total_pages.label("total_pages"),
+        func.least(page, func.greatest(total_pages, 1)).label("page"),
+    ).cte("application_page")
+    page_ids = (
+        select(Application.application_id)
+        .where(*filters)
+        .order_by(Application.submitted_at.desc(), Application.application_id.desc())
+        .limit(page_size)
+        .offset(select((meta.c.page - 1) * page_size).scalar_subquery())
+        .cte("page_applications")
+    )
+    fields = (
+        select(func.array_agg(ContestField.field_code))
+        .where(ContestField.contest_id == Contest.contest_id)
+        .correlate(Contest)
+        .scalar_subquery()
+    )
+    roles = (
+        select(func.array_agg(TeamRecruitmentRole.role_code))
+        .where(TeamRecruitmentRole.team_id == Team.team_id)
+        .correlate(Team)
+        .scalar_subquery()
+    )
+    member_count = (
+        select(func.count())
+        .select_from(TeamMembership)
+        .where(
+            TeamMembership.team_id == Team.team_id, TeamMembership.ended_at.is_(None)
+        )
+        .correlate(Team)
+        .scalar_subquery()
+    )
+    is_member = (
+        select(TeamMembership.team_membership_id)
+        .where(
+            TeamMembership.team_id == Team.team_id,
+            TeamMembership.account_id == account_id,
+            TeamMembership.ended_at.is_(None),
+        )
+        .correlate(Team)
+        .exists()
+    )
+    source_event = aliased(ApplicationEvent)
+    source_membership = aliased(TeamMembership)
+    # 집계·페이지 보정·지원·소속·원인·팀 요약을 한 SQL 스냅샷에서 읽는다.
+    rows = (
+        await session.execute(
+            select(
+                meta.c.total,
+                meta.c.total_pages,
+                meta.c.page,
+                Application,
+                Team,
+                Contest,
+                ApplicationEvent.reason_code,
+                source_event.application_id,
+                source_membership.team_id,
+                fields,
+                roles,
+                member_count,
+                is_member,
+            )
+            .select_from(meta)
+            .outerjoin(page_ids, true())
+            .outerjoin(
+                Application, Application.application_id == page_ids.c.application_id
+            )
+            .outerjoin(Team, Team.team_id == Application.team_id)
+            .outerjoin(Contest, Contest.contest_id == Team.contest_id)
+            .outerjoin(
+                ApplicationEvent,
+                and_(
+                    ApplicationEvent.application_id == Application.application_id,
+                    ApplicationEvent.application_version == Application.version,
+                ),
+            )
+            .outerjoin(
+                source_event,
+                source_event.application_event_id == ApplicationEvent.cause_event_id,
+            )
+            .outerjoin(
+                source_membership,
+                source_membership.team_membership_id
+                == ApplicationEvent.cause_membership_id,
+            )
+            .order_by(
+                Application.submitted_at.desc(), Application.application_id.desc()
+            )
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    return MyApplicationsPage(
+        total=rows[0][0],
+        total_pages=rows[0][1],
+        page=rows[0][2],
+        items=[
+            MyApplicationRecord(
+                application=row[3],
+                team=row[4],
+                contest=row[5],
+                reason=row[6],
+                source_application_id=row[7],
+                source_team_id=row[8],
+                field_codes=list(row[9] or []),
+                role_codes=list(row[10] or []),
+                member_count=row[11],
+                is_current_member=row[12],
+            )
+            for row in rows
+            if row[3] is not None
+        ],
+    )
 
 
 class ApplicationIdentity(NamedTuple):

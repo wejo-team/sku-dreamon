@@ -1,13 +1,14 @@
 """지원의 공개 응답과 명시적인 상태 변경 요청을 정의한다."""
 
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import Field
 
 from app.core.http.schemas import RequestDTO, ResponseDTO, Timestamp, Version
 from app.rules.catalogs import RoleCode
+from app.schemas.teams import TeamSummary
 
 
 class ApplicationStatus(StrEnum):
@@ -96,4 +97,41 @@ class CancellationResult(ResponseDTO):
             "선발 후 취소로 소속을 종료했는지 여부. 이미 취소된 "
             "요청은 기존 결과를 유지합니다."
         )
+    )
+
+
+class MyApplication(ResponseDTO):
+    """본인 지원 현황과 지원한 팀의 요약."""
+
+    application: ApplicationResponse = Field(description="본인의 해당 지원 시도 정보.")
+    team: TeamSummary = Field(description="지원한 팀의 현재 요약 정보.")
+    is_current_member: bool = Field(
+        description="조회 시점에 본인이 해당 팀의 현재 구성원인지 여부."
+    )
+
+
+class ApplicationSearch(RequestDTO):
+    """본인 지원 목록의 상태 필터와 페이지 조건."""
+
+    page: Annotated[
+        int,
+        Field(
+            ge=1,
+            le=9007199254740991,
+            description=(
+                "요청 페이지 번호. 1부터 시작하며 마지막 페이지를 넘으면 "
+                "마지막 유효 페이지로 보정합니다."
+            ),
+        ),
+    ] = 1
+    page_size: Annotated[
+        int,
+        Field(
+            ge=1,
+            le=100,
+            description="페이지당 항목 수. 1~100개이며 기본값은 20개입니다.",
+        ),
+    ] = 20
+    status: ApplicationStatus | None = Field(
+        default=None, description="조회할 지원 상태. 생략 시 모든 상태를 조회합니다."
     )
