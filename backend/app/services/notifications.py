@@ -2,12 +2,14 @@
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.core.http.schemas import PageMeta
+from app.models.notifications import Notification
 from app.repositories import notifications as repository
 from app.schemas.notifications import (
     NotificationPage,
@@ -136,3 +138,18 @@ async def read_notifications(
     except Exception:
         await session.rollback()
         raise
+
+
+async def create_notification(
+    session: AsyncSession,
+    *,
+    event_id: UUID,
+    recipient_id: UUID,
+    kind: Literal["application_status_changed", "new_application"],
+) -> Notification:
+    """이미 확정한 사건·수신자를 저장하고 커밋과 실패 처리는 호출자에게 맡긴다."""
+    notification = Notification(
+        event_id=event_id, recipient_account_id=recipient_id, kind=kind
+    )
+    await repository.add_notification(session, notification)
+    return notification

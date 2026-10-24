@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from app.core.http.schemas import ResponseDTO, Timestamp, Version
+from app.core.http.schemas import RequestDTO, ResponseDTO, Timestamp, Version
 from app.rules.catalogs import RoleCode
 
 
@@ -71,4 +71,29 @@ class ApplicationResponse(ResponseDTO):
     )
     updated_at: Timestamp = Field(
         description="지원을 마지막으로 변경한 시각. UTC 기준입니다."
+    )
+
+
+class VersionedAction(RequestDTO):
+    """조회한 지원 버전을 지정하는 상태 변경 요청."""
+
+    expected_version: Version = Field(
+        description=(
+            "클라이언트가 조회한 지원 버전의 십진 문자열. 현재 버전과 "
+            "다르면 변경을 거부합니다."
+        )
+    )
+
+
+class CancellationResult(ResponseDTO):
+    """본인 지원 취소 결과와 소속 종료 여부."""
+
+    application: ApplicationResponse = Field(
+        description="취소 처리 결과가 반영된 본인 지원 정보."
+    )
+    membership_ended: bool = Field(
+        description=(
+            "선발 후 취소로 소속을 종료했는지 여부. 이미 취소된 "
+            "요청은 기존 결과를 유지합니다."
+        )
     )

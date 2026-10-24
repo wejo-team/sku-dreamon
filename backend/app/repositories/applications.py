@@ -55,3 +55,34 @@ async def get_application_record(
         )
     ).one_or_none()
     return ApplicationDetailRecord(*row) if row is not None else None
+
+
+class ApplicationIdentity(NamedTuple):
+    applicant_id: UUID
+    contest_id: UUID
+    team_id: UUID
+    leader_id: UUID
+
+
+async def get_application_identity(
+    session: AsyncSession, application_id: UUID
+) -> ApplicationIdentity | None:
+    row = (
+        await session.execute(
+            select(
+                Application.applicant_account_id,
+                Application.contest_id,
+                Application.team_id,
+                Team.leader_account_id,
+            )
+            .join(Team, Team.team_id == Application.team_id)
+            .where(Application.application_id == application_id)
+        )
+    ).one_or_none()
+    return ApplicationIdentity(*row) if row is not None else None
+
+
+async def add_event(session: AsyncSession, event: ApplicationEvent) -> None:
+    """서비스가 확정한 사건과 같은 세션의 변경을 기존 시점에 flush한다."""
+    session.add(event)
+    await session.flush()

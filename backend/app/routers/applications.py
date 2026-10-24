@@ -3,13 +3,19 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Path
+from fastapi import Depends, Path
 
 from app.core.http.dependencies import DatabaseSession
+from app.core.http.handlers import error_responses
 from app.core.http.routers import BaseCrudRouter
 from app.core.http.schemas import Success
-from app.dependencies.auth import CurrentAccount
-from app.schemas.applications import ApplicationResponse
+from app.dependencies.auth import CurrentAccount, get_current_account
+from app.dependencies.csrf import require_csrf
+from app.schemas.applications import (
+    ApplicationResponse,
+    CancellationResult,
+    VersionedAction,
+)
 from app.services import applications as service
 
 
@@ -31,3 +37,22 @@ applications.add_detail(
     summary="본인 또는 받은 팀장의 지원 조회",
 )
 router = applications.router
+
+
+@router.put(
+    "/applications/{applicationId}/cancellation",
+    dependencies=[Depends(get_current_account), Depends(require_csrf)],
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
+    summary="본인 지원 취소",
+)
+async def cancel_application(
+    application_id: Annotated[UUID, Path(alias="applicationId")],
+    body: VersionedAction,
+    account_id: CurrentAccount,
+    session: DatabaseSession,
+) -> Success[CancellationResult]:
+    return Success(
+        data=await service.cancel_application(
+            session, application_id, account_id, int(body.expected_version)
+        )
+    )

@@ -10,7 +10,7 @@ from app.core.demo_data import is_demo_team
 from app.core.exceptions import AppError
 from app.core.http.schemas import Page, PageMeta
 from app.models.contests import Contest
-from app.models.teams import Team
+from app.models.teams import Team, TeamMembership
 from app.repositories import teams as repository
 from app.rules.catalogs import FieldCode, RoleCode
 from app.schemas.contests import DeadlineInterpretation
@@ -163,3 +163,15 @@ def build_team_summary(
             time_zone_defaulted=team.deadline_timezone_assumed,
         ),
     )
+
+
+def end_application_membership(
+    team: Team, membership: TeamMembership | None, *, now: datetime
+) -> None:
+    """호출자가 잠근 팀의 선발 소속을 종료하며 모집 상태는 보존한다."""
+    if membership is None or membership.ended_at is not None:
+        raise RuntimeError("Selected application requires active membership")
+    membership.ended_at = now
+    membership.end_reason = "application_canceled"
+    team.version += 1
+    team.updated_at = now

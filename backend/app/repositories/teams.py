@@ -191,3 +191,15 @@ async def list_teams(
         if team is not None
     ]
     return TeamListResult(items, total, page, found)
+
+
+async def get_application_membership(
+    session: AsyncSession, application_id: UUID
+) -> TeamMembership | None:
+    """지원 시도에 연결된 소속 이력을 같은 업무 세션에서 조회한다."""
+    membership: TeamMembership | None = await session.scalar(
+        select(TeamMembership).where(
+            TeamMembership.source_application_id == application_id
+        )
+    )
+    return membership

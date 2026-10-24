@@ -206,3 +206,8 @@ async def lock_notifications(
 
 async def flush_notifications(session: AsyncSession) -> None:
     await session.flush()
+
+
+async def add_notification(session: AsyncSession, notification: Notification) -> None:
+    session.add(notification)
+    await session.flush()
