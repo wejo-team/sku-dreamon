@@ -2,7 +2,7 @@
 
 **상태: 조회 3개 구현 · 쓰기 2개 설계 제안.** `GET /me/profile`, `GET /people`, `GET /people/{accountId}`를 [프로필 라우터](../../backend/app/routers/profiles.py)에서 제공합니다. 본인 프로필 저장·공개 전환의 두 PUT 경로는 아직 미구현입니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
 
-구현된 조회의 정확한 필드·query·오류 응답은 [응답 DTO와 query 모델](../../backend/app/schemas/profiles.py), 실행 앱의 `/docs`·`/openapi.json`이 원본입니다. [HTTP·PostgreSQL 검증](../../backend/tests/integration/test_people_api.py)에서 공개 범위·필터·페이지 보정·동시 공개 변경과 읽기 시점의 일치를 확인합니다. 읽기 서비스는 저장된 텍스트를 반환하며 미정인 입력 정규화·길이 계약을 확정하지 않습니다.
+구현된 조회의 정확한 필드·query·오류 응답은 [응답 DTO와 query 모델](../../backend/app/schemas/profiles.py), 실행 앱의 `/docs`·`/openapi.json`이 원본입니다. [HTTP·PostgreSQL 검증](../../backend/tests/integration/test_people_api.py)에서 공개 범위·필터·페이지 보정·동시 공개 변경과 읽기 시점의 일치를 확인합니다. 읽기 서비스는 저장된 텍스트를 반환합니다. 새 입력은 아래 NFC·코드 포인트 계약을 따릅니다.
 
 | 확인할 내용 | 위치 |
 | --- | --- |
@@ -55,7 +55,7 @@
 
 ### 프로필 저장의 편집 필드 설계
 
-이 표의 **13개 키를 모두 포함**합니다. 선택 입력도 키를 생략하지 않고 `null` 또는 `[]`를 전송합니다. 문자열 길이의 정책 수치는 아래와 같고, 비밀번호 외 텍스트의 Unicode 계수·정규화 세부는 [PROFILE-07](../specs/profile.md#open-questions)에 남깁니다.
+이 표의 **13개 키를 모두 포함**합니다. 선택 입력도 키를 생략하지 않고 `null` 또는 `[]`를 전송합니다. 문자열 길이의 정책 수치는 아래와 같고, 일반 텍스트는 NFC·trim 후 Unicode 코드 포인트로 셉니다.
 
 | 필드 | 타입 | null | 값·제약 |
 | --- | --- | --- | --- |
@@ -169,4 +169,4 @@
 | --- | --- |
 | `Profile`·버전·연결 목록·포트폴리오 | [계정과 프로필 테이블](../database/identity.md) |
 
-파일 업로드 API는 이번 설계에 추가하지 않습니다. 팀 생성·개인화 추천의 프로필 완성 요구, 일반 텍스트 Unicode 처리, 포트폴리오 URL 길이 등 남은 결정은 [프로필 미정 사항](../specs/profile.md#open-questions)에 둡니다. 계정·로그인 응답은 [인증 API](auth.md), 선택지 응답은 [선택지 API](catalogs.md)가 원본입니다.
+파일 업로드 API는 이번 설계에 추가하지 않습니다. 팀 생성은 필수 프로필을 요구하고 공개는 필수가 아닙니다. 개인화 추천의 프로필 완성 요구·포트폴리오 URL 길이 등 남은 결정은 [프로필 미정 사항](../specs/profile.md#open-questions)에 둡니다. 계정·로그인 응답은 [인증 API](auth.md), 선택지 응답은 [선택지 API](catalogs.md)가 원본입니다.
