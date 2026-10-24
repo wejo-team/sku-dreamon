@@ -1,6 +1,6 @@
 # 팀 API
 
-**상태: 공개 팀 조회·모집 변경·워크스페이스 구현 · 생성 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/domains/teams/router.py), [요청·응답 DTO](../../backend/app/domains/teams/schemas.py), [조회](../../backend/app/domains/teams/queries.py)를 구현했습니다. 현재 소속 목록·팀 공간은 [워크스페이스 라우터](../../backend/app/domains/teams/management_router.py), [DTO](../../backend/app/domains/teams/management_schemas.py), [관계 조회](../../backend/app/domains/teams/membership_queries.py)에 구현했습니다. 팀장 모집 종료·재개는 같은 [관리 라우터](../../backend/app/domains/teams/management_router.py)와 [모집 서비스](../../backend/app/domains/teams/management.py)에 구현했습니다. 생성 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 공개 팀 조회·모집 변경·워크스페이스 구현 · 생성 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/routers/teams.py), [요청·응답 DTO](../../backend/app/schemas/teams.py), [조회](../../backend/app/queries/teams.py)를 구현했습니다. 현재 소속 목록·팀 공간은 [워크스페이스 라우터](../../backend/app/routers/team_management.py), [DTO](../../backend/app/schemas/team_management.py), [조회](../../backend/app/queries/team_memberships.py)와 [스냅샷·권한 서비스](../../backend/app/services/team_memberships.py)에 구현했습니다. 팀장 모집 종료·재개는 같은 [관리 라우터](../../backend/app/routers/team_management.py)와 [모집 서비스](../../backend/app/services/teams.py)에 구현했습니다. 생성 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
@@ -44,7 +44,7 @@
 
 경로 변수 `contestId`, `teamId`는 해당 경로에서 모두 필수 `Id`입니다. 목록의 아래 query는 모두 선택 입력입니다.
 
-공개 조회의 정확한 query 이름·타입·기본값은 [TeamSearch·AllTeamSearch](../../backend/app/domains/teams/schemas.py)와 서버의 `/docs`, `/openapi.json`에서 확인합니다. 페이지는 기본 1·20, 크기는 최대 100이며 마지막 페이지 보정은 [공통 계약](conventions.md)을 따릅니다. `roleCode`는 모집 역할 일치, `recruitingOnly`는 현재 공통 모집 가능 조건으로 제한합니다. `contestId`는 전체 팀 경로에서만 받습니다.
+공개 조회의 정확한 query 이름·타입·기본값은 [TeamSearch·AllTeamSearch](../../backend/app/schemas/teams.py)와 서버의 `/docs`, `/openapi.json`에서 확인합니다. 페이지는 기본 1·20, 크기는 최대 100이며 마지막 페이지 보정은 [공통 계약](conventions.md)을 따릅니다. `roleCode`는 모집 역할 일치, `recruitingOnly`는 현재 공통 모집 가능 조건으로 제한합니다. `contestId`는 전체 팀 경로에서만 받습니다.
 
 검색어는 앞뒤 공백을 제거하고 빈 값이면 검색하지 않습니다. `%`·`_`는 와일드카드가 아닌 문자로 검색합니다. 목록과 총원·페이지 보정·현재 인원은 같은 SQL 스냅샷에서 계산합니다.
 
@@ -126,7 +126,7 @@
 
 ### TeamSummary — 팀 목록
 
-정확한 필드는 [TeamSummary](../../backend/app/domains/teams/schemas.py)와 생성 OpenAPI를 따릅니다. `memberCount`는 종료되지 않은 실제 소속을 팀장 포함 집계하고, `fieldCodes`는 현재 공고의 분야입니다. `isDemo`는 [승인된 시연 목록](../../backend/app/domains/demo/manifest.py)을 조회합니다.
+정확한 필드는 [TeamSummary](../../backend/app/schemas/teams.py)와 생성 OpenAPI를 따릅니다. `memberCount`는 종료되지 않은 실제 소속을 팀장 포함 집계하고, `fieldCodes`는 현재 공고의 분야입니다. `isDemo`는 [승인된 시연 목록](../../backend/app/core/demo_data.py)을 조회합니다.
 
 `isRecruiting`은 저장 상태 `open`, 공고 접수 시작 이상·마감 미만, 팀 마감 미만, 잔여 정원을 모두 만족할 때만 참입니다. 저장 상태가 열려 있어도 기한이 지나거나 정원이 찼으면 거짓이며, 특정 회원의 신규 지원 성공을 보장하지 않습니다. 종료·정원 충족·접수 예정 팀도 공개 조회할 수 있습니다.
 
@@ -134,13 +134,13 @@
 
 ### TeamDetail — 공개 모집글
 
-[TeamDetail](../../backend/app/domains/teams/schemas.py)은 `TeamSummary`에 현재 팀장 계정과 연결 공고의 [ContestSummary](contests.md#contest-summary)를 추가합니다. 공고 요약의 `teamCount`는 모집 가능 여부와 무관한 연결 팀 전체 수입니다. 지원서·지원자 프로필·팀 공간의 비공개 데이터는 포함하지 않습니다.
+[TeamDetail](../../backend/app/schemas/teams.py)은 `TeamSummary`에 현재 팀장 계정과 연결 공고의 [ContestSummary](contests.md#contest-summary)를 추가합니다. 공고 요약의 `teamCount`는 모집 가능 여부와 무관한 연결 팀 전체 수입니다. 지원서·지원자 프로필·팀 공간의 비공개 데이터는 포함하지 않습니다.
 
 <a id="team-member"></a>
 
 ### TeamMember — 현재 팀원의 소속 표시
 
-정확한 필드와 타입은 [TeamMember](../../backend/app/domains/teams/management_schemas.py)와 생성 OpenAPI를 따릅니다. 현재 소속의 식별자·실명·역할·가입 시각을 제공하고, 전체 프로필은 아래 열람 권한에 따라 포함합니다.
+정확한 필드와 타입은 [TeamMember](../../backend/app/schemas/team_management.py)와 생성 OpenAPI를 따릅니다. 현재 소속의 식별자·실명·역할·가입 시각을 제공하고, 전체 프로필은 아래 열람 권한에 따라 포함합니다.
 
 **소속 표시와 프로필 열람을 분리합니다.** 현재 팀원에게는 팀 화면의 실명 표시 정책에 맞춰 `realName`과 소속 정보를 제공하지만, 일반 팀원이 비공개 팀원을 조회하면 `profile=null`입니다. 이때도 [시연 데이터 안내](../specs/sprint-1.md#demo-data-scope)를 위해 `isDemo`는 제공합니다. 비공개 사진·학사 정보·경험·포트폴리오를 소속 응답에 별도 복제하지 않습니다. `realName`은 팀 공간 접근 권한 안에서만 제공하며 일반 검색·AI 사람 추천의 공개 예외로 확대하지 않습니다.
 
@@ -152,7 +152,7 @@
 
 ### TeamSpace — 팀 공간
 
-정확한 필드와 타입은 [TeamSpace](../../backend/app/domains/teams/management_schemas.py)와 생성 OpenAPI를 따릅니다. 현재 팀 상세·구성원·조회자 역할을 반환하며, 대기 지원 수는 팀장에게만 제공하고 일반 팀원에게는 null입니다.
+정확한 필드와 타입은 [TeamSpace](../../backend/app/schemas/team_management.py)와 생성 OpenAPI를 따릅니다. 현재 팀 상세·구성원·조회자 역할을 반환하며, 대기 지원 수는 팀장에게만 제공하고 일반 팀원에게는 null입니다.
 
 지원자 내용은 별도의 [팀장 지원자 API](applications.md#endpoints)로 조회합니다. 팀 공간에 일반 팀원의 지원자 관리 권한을 추가하지 않습니다.
 
@@ -160,13 +160,13 @@
 
 ### WorkspaceTeam — 내 팀 목록 항목
 
-정확한 필드와 타입은 [WorkspaceTeam](../../backend/app/domains/teams/management_schemas.py)와 생성 OpenAPI를 따릅니다. 팀 요약과 현재 본인 소속을 반환하며, 대기 지원 수는 팀장에게만 제공합니다.
+정확한 필드와 타입은 [WorkspaceTeam](../../backend/app/schemas/team_management.py)와 생성 OpenAPI를 따릅니다. 팀 요약과 현재 본인 소속을 반환하며, 대기 지원 수는 팀장에게만 제공합니다.
 
 <a id="action-results"></a>
 
 ### 모집 처리 결과
 
-[RecruitmentResult](../../backend/app/domains/teams/management_schemas.py)는 변경 후 현재 상태와 버전을 포함한 `TeamSummary`를 반환합니다. 정확한 필드는 코드와 생성 OpenAPI를 따릅니다.
+[RecruitmentResult](../../backend/app/schemas/team_management.py)는 변경 후 현재 상태와 버전을 포함한 `TeamSummary`를 반환합니다. 정확한 필드는 코드와 생성 OpenAPI를 따릅니다.
 
 <a id="transitions"></a>
 

@@ -5,9 +5,9 @@ from uuid import UUID
 
 import pytest
 
-from app.domains.contests.models import Contest
-from app.domains.teams.models import Team
-from app.domains.teams.schemas import build_team_summary
+from app.models.contests import Contest
+from app.models.teams import Team
+from app.queries.teams import build_team_summary
 
 NOW = datetime(2026, 10, 24, 12, tzinfo=UTC)
 

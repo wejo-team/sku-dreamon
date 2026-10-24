@@ -5,8 +5,8 @@ from uuid import uuid4
 import pytest
 
 from app.core.db.session import Database
-from app.domains.auth.models import Account
-from app.domains.teams.models import Team
+from app.models.auth import Account
+from app.models.teams import Team
 from tests.integration.team_management_http_support import management_client
 from tests.integration.team_management_support import (
     management_database as management_database,

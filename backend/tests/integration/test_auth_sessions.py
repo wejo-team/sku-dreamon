@@ -16,15 +16,15 @@ from sqlalchemy.schema import CreateSchema, DropSchema
 from app.core.db.base import Base
 from app.core.db.session import Database
 from app.core.http.handlers import register_error_handlers
-from app.domains.auth import session_service
-from app.domains.auth.dependencies import (
+from app.dependencies.auth import (
     SESSION_COOKIE_NAME,
     CurrentAccount,
     CurrentSession,
     OptionalAccount,
 )
-from app.domains.auth.models import Account, AuthSession
-from app.domains.auth.session_service import (
+from app.models.auth import Account, AuthSession
+from app.services import sessions as session_service
+from app.services.sessions import (
     IssuedSession,
     authenticate_session,
     issue_session,
