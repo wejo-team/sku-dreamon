@@ -7,11 +7,11 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.session import Database
 from app.models.auth import AuthSession
+from app.repositories import auth as auth_repository
 
 IDLE_LIFETIME = timedelta(hours=24)
 ABSOLUTE_LIFETIME = timedelta(days=7)
@@ -59,8 +59,7 @@ async def issue_session(session: AsyncSession, account_id: UUID) -> IssuedSessio
         last_seen_at=now,
         expires_at=now + ABSOLUTE_LIFETIME,
     )
-    session.add(login_session)
-    await session.flush()
+    await auth_repository.add_session(session, login_session)
     return IssuedSession(token=token, session=login_session)
 
 
@@ -76,10 +75,8 @@ async def authenticate_session(
         return None
     token_hash = hashlib.sha256(token.encode("ascii")).digest()
     async with database.session() as session:
-        login_session = await session.scalar(
-            select(AuthSession)
-            .where(AuthSession.token_hash == token_hash)
-            .with_for_update()
+        login_session = await auth_repository.lock_session_by_token_hash(
+            session, token_hash
         )
         now = _utcnow()
         if login_session is None or not _is_valid(login_session, now):
@@ -98,18 +95,15 @@ async def authenticate_session(
 
 async def revoke_session(session: AsyncSession, principal: SessionPrincipal) -> bool:
     """현재 세션만 회수하며 쿠키 삭제 전 커밋은 상위 로그아웃 서비스가 맡는다."""
-    login_session = await session.scalar(
-        select(AuthSession)
-        .where(
-            AuthSession.auth_session_id == principal.auth_session_id,
-            AuthSession.account_id == principal.account_id,
-            AuthSession.token_hash == principal.token_hash,
-        )
-        .with_for_update()
+    login_session = await auth_repository.lock_session(
+        session,
+        principal.auth_session_id,
+        principal.account_id,
+        principal.token_hash,
     )
     now = _utcnow()
     if login_session is None or not _is_valid(login_session, now):
         return False
     login_session.revoked_at = max(now, login_session.created_at)
-    await session.flush()
+    await auth_repository.flush_session_changes(session)
     return True
