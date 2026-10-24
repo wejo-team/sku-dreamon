@@ -1,8 +1,8 @@
 # 공모전 API
 
-**상태: 공개 상세 구현 · 목록 설계.** 공모전 상세의 [라우터](../../backend/app/routers/contests.py), [조회 서비스](../../backend/app/services/contests.py)와 [저장 조회](../../backend/app/repositories/contests.py), [응답 DTO](../../backend/app/schemas/contests.py)를 구현했습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 공개 목록·상세 구현.** 공모전 상세의 [라우터](../../backend/app/routers/contests.py), [조회 서비스](../../backend/app/services/contests.py)와 [저장 조회](../../backend/app/repositories/contests.py), [응답 DTO](../../backend/app/schemas/contests.py)를 구현했습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
-[공고 저장 모델·접수 규칙](../database/contests.md)은 별도로 구현했습니다. 팀 공개 상세에서 사용하는 [ContestSummary·DeadlineInterpretation](../../backend/app/schemas/contests.py)와 실제 전체 팀 수 집계는 구현했습니다. 상세는 원문·대상·분야·전체 팀 수를 단일 SQL 스냅샷으로 반환합니다. 공고 목록 HTTP 경로는 아직 제공하지 않으며, 목록 기본 상태·정렬 및 공고 등록·수정 운영 정책은 별도로 검토합니다.
+[공고 저장 모델·접수 규칙](../database/contests.md)은 별도로 구현했습니다. 팀 공개 상세에서 사용하는 [ContestSummary·DeadlineInterpretation](../../backend/app/schemas/contests.py)와 실제 전체 팀 수 집계는 구현했습니다. 상세는 원문·대상·분야·전체 팀 수를 단일 SQL 스냅샷으로 반환합니다. 공고 목록도 제공합니다. 목록은 상태 생략 시 예정·중·마감 전체를 포함하고 기본 최신 등록순입니다. 공고 등록·수정 운영 정책은 별도입니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
@@ -45,7 +45,7 @@
 
 `Contest.teamCount`는 연결된 **전체 팀 수**이고 페이지의 `pagination.total`은 현재 권한·필터에 맞는 결과 수입니다.
 
-`registrationStatus` 생략 시 마감 공고의 기본 포함·배치는 [CONTEST-05](../specs/contests.md#open-questions) 결정이 필요합니다. 등록순 기본 정렬만으로 이 제품 정책을 확정하지 않습니다.
+2026-10-24 사용자 결정으로 상태 생략 시 예정·중·마감 전체를 포함하며 기본 최신 등록순입니다. 정확한 query는 [ContestSearch](../../backend/app/schemas/contests.py)를 따릅니다.
 
 <a id="values"></a>
 
@@ -107,3 +107,7 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 ## DB 연결
 
 - 공고의 물리 항목·일정·분류: [공모전 테이블](../database/contests.md)
+
+## 목록 검증
+
+[목록 테스트](../../backend/tests/integration/test_contest_list.py)는 미인증 탐색, 제목·주최자·분야 표시명 검색, 리터럴 와일드카드, 분야·접수 상태, 안정 정렬과 마지막 페이지 보정을 확인합니다. [조회 서비스](../../backend/app/services/contests.py)는 읽기 전용 반복 읽기 트랜잭션으로 총원·목록·연결 팀 수를 같은 시점에서 읽고 응답의 접수 상태도 같은 시각으로 계산합니다.
