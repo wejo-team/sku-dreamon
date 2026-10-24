@@ -7,7 +7,7 @@ import pytest
 
 from app.models.contests import Contest
 from app.models.teams import Team
-from app.queries.teams import build_team_summary
+from app.services.teams import build_team_summary
 
 NOW = datetime(2026, 10, 24, 12, tzinfo=UTC)
 

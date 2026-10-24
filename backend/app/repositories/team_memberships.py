@@ -1,35 +1,31 @@
-"""호출자가 연 읽기 스냅샷에서 현재 소속과 팀 공간 자료를 조회한다."""
+"""현재 소속과 팀 공간 자료를 호출자가 연 읽기 스냅샷에서 조회한다."""
 
-from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
+from collections.abc import Sequence
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.demo_data import is_demo_account
-from app.core.http.schemas import Page, PageMeta
 from app.models.applications import Application
 from app.models.contests import Contest, ContestField
 from app.models.profiles import Profile
 from app.models.teams import Team, TeamMembership, TeamRecruitmentRole
-from app.queries.teams import build_team_summary
-from app.rules.catalogs import RoleCode
-from app.schemas.profiles import ProfileResponse
-from app.schemas.team_management import TeamMember, WorkspaceTeam
+
+
+class WorkspaceTeamsResult(NamedTuple):
+    rows: Sequence[tuple[TeamMembership, Team, Contest, str | None]]
+    field_codes: dict[UUID, list[str]]
+    role_codes: dict[UUID, list[str]]
+    member_counts: dict[UUID, int]
+    pending_counts: dict[UUID, int]
+    total: int
+    page: int
 
 
 async def list_workspace_teams(
-    session: AsyncSession,
-    account_id: UUID,
-    *,
-    page: int = 1,
-    page_size: int = 20,
-) -> Page[WorkspaceTeam]:
-    """현재 소속만 안정 정렬하며 총원·페이지·표시 집계를 같은 스냅샷에서 읽는다.
-
-    호출자가 시작한 읽기 스냅샷에서 조회하며 트랜잭션을 변경하지 않는다.
-    """
+    session: AsyncSession, account_id: UUID, *, page: int, page_size: int
+) -> WorkspaceTeamsResult:
     membership_filter = (
         TeamMembership.account_id == account_id,
         TeamMembership.ended_at.is_(None),
@@ -42,33 +38,31 @@ async def list_workspace_teams(
     )
     total_pages = (total + page_size - 1) // page_size
     current_page = min(page, max(total_pages, 1))
-    pagination = PageMeta(
-        page=current_page,
-        page_size=page_size,
-        total=total,
-        total_pages=total_pages,
-    )
     if total == 0:
-        return Page[WorkspaceTeam](data=[], pagination=pagination)
+        return WorkspaceTeamsResult([], {}, {}, {}, {}, total, current_page)
     rows = (
-        await session.execute(
-            select(TeamMembership, Team, Contest, Application.applied_role_code)
-            .join(Team, Team.team_id == TeamMembership.team_id)
-            .join(Contest, Contest.contest_id == Team.contest_id)
-            .outerjoin(
-                Application,
-                Application.application_id == TeamMembership.source_application_id,
+        (
+            await session.execute(
+                select(TeamMembership, Team, Contest, Application.applied_role_code)
+                .join(Team, Team.team_id == TeamMembership.team_id)
+                .join(Contest, Contest.contest_id == Team.contest_id)
+                .outerjoin(
+                    Application,
+                    Application.application_id == TeamMembership.source_application_id,
+                )
+                .where(*membership_filter)
+                .order_by(
+                    TeamMembership.joined_at.desc(),
+                    TeamMembership.team_membership_id.desc(),
+                )
+                .limit(page_size)
+                .offset((current_page - 1) * page_size)
+                .execution_options(populate_existing=True)
             )
-            .where(*membership_filter)
-            .order_by(
-                TeamMembership.joined_at.desc(),
-                TeamMembership.team_membership_id.desc(),
-            )
-            .limit(page_size)
-            .offset((current_page - 1) * page_size)
-            .execution_options(populate_existing=True)
         )
-    ).all()
+        .tuples()
+        .all()
+    )
     team_ids = [row[1].team_id for row in rows]
     contest_ids = [row[2].contest_id for row in rows]
     fields: dict[UUID, list[str]] = {}
@@ -113,35 +107,9 @@ async def list_workspace_teams(
         .tuples()
         .all()
     )
-    now = datetime.now(UTC)
-    data = [
-        WorkspaceTeam(
-            team=build_team_summary(
-                team,
-                contest,
-                field_codes=fields.get(contest.contest_id, []),
-                role_codes=roles.get(team.team_id, []),
-                member_count=members[team.team_id],
-                now=now,
-            ),
-            membership_id=membership.team_membership_id,
-            membership_role="leader"
-            if team.leader_account_id == account_id
-            else "member",
-            role_code=(
-                RoleCode(role_code)
-                if team.leader_account_id != account_id and role_code is not None
-                else None
-            ),
-            pending_application_count=(
-                pending.get(team.team_id, 0)
-                if team.leader_account_id == account_id
-                else None
-            ),
-        )
-        for membership, team, contest, role_code in rows
-    ]
-    return Page[WorkspaceTeam](data=data, pagination=pagination)
+    return WorkspaceTeamsResult(
+        rows, fields, roles, members, pending, total, current_page
+    )
 
 
 async def get_membership_context(
@@ -211,28 +179,3 @@ async def get_pending_application_count(session: AsyncSession, team_id: UUID) ->
         )
         or 0
     )
-
-
-def build_team_members(
-    rows: Sequence[tuple[TeamMembership, Profile, str | None]],
-    leader_id: UUID,
-    visible_profiles: Mapping[UUID, ProfileResponse],
-) -> list[TeamMember]:
-    """서비스가 허용한 전체 프로필만 이미 조회한 현재 소속 정보와 연결한다."""
-    return [
-        TeamMember(
-            membership_id=membership.team_membership_id,
-            account_id=membership.account_id,
-            real_name=profile.real_name,
-            is_demo=is_demo_account(membership.account_id),
-            membership_role="leader"
-            if membership.account_id == leader_id
-            else "member",
-            role_code=RoleCode(role_code)
-            if membership.account_id != leader_id and role_code is not None
-            else None,
-            joined_at=membership.joined_at,
-            profile=visible_profiles.get(membership.account_id),
-        )
-        for membership, profile, role_code in rows
-    ]

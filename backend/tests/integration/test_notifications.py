@@ -26,10 +26,13 @@ from app.dependencies.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 from app.models.applications import ApplicationEvent
 from app.models.auth import Account
 from app.models.notifications import Notification
-from app.queries.notifications import list_notifications
 from app.routers.notifications import router
 from app.security.csrf import issue_csrf_token
-from app.services.notifications import read_notification, read_notifications
+from app.services.notifications import (
+    list_notifications,
+    read_notification,
+    read_notifications,
+)
 from app.services.sessions import issue_session
 from tests.integration.test_team_integrity import application, contest, team
 
