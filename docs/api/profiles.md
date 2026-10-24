@@ -1,6 +1,8 @@
 # 프로필 API
 
-**상태: 설계 제안 · 미구현.** 본인 프로필 편집·공개 전환과 공개 사람 탐색의 5개 API를 정의합니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
+**상태: 조회 3개 구현 · 쓰기 2개 설계 제안.** `GET /me/profile`, `GET /people`, `GET /people/{accountId}`를 [프로필 라우터](../../backend/app/routers/profiles.py)에서 제공합니다. 본인 프로필 저장·공개 전환의 두 PUT 경로는 아직 미구현입니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
+
+구현된 조회의 정확한 필드·query·오류 응답은 [응답 DTO와 query 모델](../../backend/app/schemas/profiles.py), 실행 앱의 `/docs`·`/openapi.json`이 원본입니다. [HTTP·PostgreSQL 검증](../../backend/tests/integration/test_people_api.py)에서 공개 범위·필터·페이지 보정·동시 공개 변경과 읽기 시점의 일치를 확인합니다. 읽기 서비스는 저장된 텍스트를 반환하며 미정인 입력 정규화·길이 계약을 확정하지 않습니다.
 
 | 확인할 내용 | 위치 |
 | --- | --- |
@@ -43,15 +45,7 @@
 
 ### Profile — 전체 현재 프로필
 
-`Profile`은 아래 서버 필드와 [공통 편집 필드 13개](#profile-fields)를 모두 포함합니다. 모든 필드는 항상 응답하며 미입력은 해당 필드의 `null` 또는 빈 목록으로 표현합니다.
-
-| 서버 필드 | 타입 | null | 의미 |
-| --- | --- | --- | --- |
-| `accountId` | Id | 불가 | 프로필 소유 계정 |
-| `version` | Version | 불가 | 현재 프로필 버전. 양의 BIGINT 십진 문자열 |
-| `isPublic` | boolean | 불가 | 현재 전체 프로필 공개 상태 |
-| `isDemo` | boolean | 불가 | 계정용 고정 UUID 시드 목록에 `accountId`가 포함되는지 서버에서 판정. 사람 카드·지원자 상세에서도 같은 기준 사용 |
-| `updatedAt` | Timestamp | 불가 | 마지막 프로필 변경 시각 |
+`ProfileResponse`의 전체 필드는 [응답 모델](../../backend/app/schemas/profiles.py)과 생성 OpenAPI에서 확인합니다. `accountId`는 공유 PK인 `profiles.profile_id`를 명시적으로 매핑하고, `version`·`academicUnitId`는 십진 문자열로 전달합니다. 모든 키를 항상 반환하며 미입력은 해당 필드의 `null` 또는 빈 목록으로 표현합니다. 아래 [공통 편집 필드](#profile-fields)는 아직 구현하지 않은 저장 요청의 설계로 유지합니다.
 
 [시연 데이터 정책](../specs/sprint-1.md#demo-data-scope)에 따라 서버가 리소스 종류와 고정 UUID 시드 목록으로 `isDemo`를 계산합니다. 이름·모델 출력·클라이언트의 추측으로 판정하지 않으며, 프로필 저장·공개 전환 요청에서 이 값을 받지 않습니다.
 
@@ -59,7 +53,7 @@
 
 <a id="profile-fields"></a>
 
-### 프로필 조회·저장의 공통 편집 필드
+### 프로필 저장의 편집 필드 설계
 
 이 표의 **13개 키를 모두 포함**합니다. 선택 입력도 키를 생략하지 않고 `null` 또는 `[]`를 전송합니다. 문자열 길이의 정책 수치는 아래와 같고, 비밀번호 외 텍스트의 Unicode 계수·정규화 세부는 [PROFILE-07](../specs/profile.md#open-questions)에 남깁니다.
 
@@ -153,15 +147,11 @@
 
 ### 사람 목록 검색 조건
 
-| query | 타입 | 필수·기본값 | 의미 |
-| --- | --- | --- | --- |
-| `q` | string | 선택, 생략은 검색 없음 | 앞뒤 공백 제거. 빈 문자열도 검색 없음. 이름·자기소개·분야·역할·역량 표시명 검색 제안 |
-| `fieldCode` | CatalogCode | 선택, 생략은 분야 제한 없음 | 관심 분야 중 해당 코드 하나를 포함하는 사람 |
-| `roleCode` | CatalogCode | 선택, 생략은 역할 제한 없음 | 희망 역할 중 해당 코드 하나를 포함하는 사람 |
-| `page` | integer | 선택, `1` | 1 이상 안전 정수. 마지막 페이지 초과는 마지막 유효 페이지로 보정 |
-| `pageSize` | integer | 선택, `20` | 1~100. 기본·최대 크기는 기술 제안 |
+정확한 query 이름·타입·기본값·범위는 [PeopleQuery](../../backend/app/schemas/profiles.py)와 생성 OpenAPI를 따릅니다. 선언하지 않은 query와 snake_case 이름은 422로 거부합니다. `q`는 앞뒤 공백을 제거하고 이름·자기소개·분야·역할·역량의 표시명을 검색하며, 빈 문자열은 검색 없음입니다. `%`·`_`는 SQL 패턴이 아닌 검색 문자로 취급합니다. 분야·역할 필터는 해당 선택 코드가 포함된 사람만 반환하며 여러 일치 항목 때문에 한 사람이 중복되지 않습니다.
 
 정렬은 `updatedAt DESC, accountId ASC`입니다. `Page<PersonSummary>`는 필수 `data: PersonSummary[]`, `pagination: PageMeta`로 구성됩니다. 두 값은 `null`을 허용하지 않으며 [공통 페이지 계약](conventions.md#pagination)의 조회·집계 일치와 빈 결과 처리를 적용합니다.
+
+[조회 서비스](../../backend/app/services/profiles.py)와 [저장 접근](../../backend/app/repositories/profiles.py)는 별도 인증 처리가 끝난 새 요청 DB 세션에서 REPEATABLE READ로 읽습니다. 목록·총원·프로필 선택 항목을 같은 스냅샷에서 조회하고, 범위를 넘는 페이지는 마지막 페이지로 보정합니다. 공개 변경 이후 시작한 다음 요청은 새 공개 상태를 반영합니다. 이 서비스는 commit하지 않으며 요청 세션 종료 시 읽기 트랜잭션을 정리합니다.
 
 현재 공개 프로필만 목록·집계에 포함합니다. 비공개·미존재 상세는 같은 404로 처리합니다. 지원받은 팀장도 `/people`에서는 이 경계를 지키며 비공개 열람 예외는 [지원자 상세 API](applications.md#applicant)의 `/applications/{applicationId}/applicant`에서 관계를 확인합니다. 제품 정책 원본은 [사람 탐색](../specs/profile.md#people-directory)입니다.
 
@@ -169,16 +159,7 @@
 
 ### PersonSummary — 공개 사람 카드
 
-| 필드 | 타입 | null | 의미·제약 |
-| --- | --- | --- | --- |
-| `accountId` | Id | 불가 | 프로필 소유 계정 |
-| `realName` | string | 불가 | 현재 실명, 프로필의 길이 기준 적용 |
-| `isDemo` | boolean | 불가 | 계정용 고정 UUID 시드 목록에 `accountId`가 포함되는지 서버에서 판정. 카드의 시연 표시 근거 |
-| `profileImageCode` | CatalogCode | 허용 | 현재 이미지 선택. 미선택 기본 표시는 Profile과 같음 |
-| `introduction` | string | 허용 | 현재 자기소개, 최대 300자 |
-| `fieldCodes` | CatalogCode[] | 불가 | 관심 분야 1~3개, 중복 없음 |
-| `roleCodes` | CatalogCode[] | 불가 | 희망 역할 1~2개, 중복 없음 |
-| `skillCodes` | CatalogCode[] | 불가 | 역량 목록, 중복 없음. 미선택은 `[]` |
+정확한 필드·필수값·NULL·선택 코드 타입은 [PersonSummary](../../backend/app/schemas/profiles.py)와 생성 OpenAPI가 원본입니다. 카드에는 소유 계정 ID와 현재 이름·이미지·소개·분야·역할·역량 및 고정 UUID 목록 기반 시연 표시를 제공합니다. 인증정보나 비공개 프로필은 이 객체를 통해 노출하지 않습니다.
 
 학사 정보·포트폴리오 등 상세 항목은 권한을 확인한 `Profile` 조회로 제공합니다. 공개 미리보기는 본인의 현재 프로필을 화면에 보여주는 동작이며 실제 공개 전환 요청이 아닙니다.
 
