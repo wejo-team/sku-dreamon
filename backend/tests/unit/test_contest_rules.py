@@ -5,8 +5,8 @@ from datetime import UTC, date, datetime, time, timedelta, timezone
 import pytest
 
 from app.core.exceptions import AppError
-from app.domains.catalogs.codes import FieldCode
-from app.domains.contests.rules import (
+from app.rules.catalogs import FieldCode
+from app.rules.contests import (
     CapacityKind,
     RegistrationStatus,
     get_registration_status,
