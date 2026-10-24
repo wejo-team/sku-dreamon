@@ -1,6 +1,6 @@
 # 팀 API
 
-**상태: 공개 팀 조회 구현 · 생성·워크스페이스 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/domains/teams/router.py), [요청·응답 DTO](../../backend/app/domains/teams/schemas.py), [조회](../../backend/app/domains/teams/queries.py)를 구현했습니다. 생성·모집 변경·워크스페이스 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 공개 팀 조회 구현 · 생성·워크스페이스 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/routers/teams.py), [요청·응답 DTO](../../backend/app/schemas/teams.py), [조회](../../backend/app/queries/teams.py)를 구현했습니다. 생성·모집 변경·워크스페이스 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
@@ -44,7 +44,7 @@
 
 경로 변수 `contestId`, `teamId`는 해당 경로에서 모두 필수 `Id`입니다. 목록의 아래 query는 모두 선택 입력입니다.
 
-공개 조회의 정확한 query 이름·타입·기본값은 [TeamSearch·AllTeamSearch](../../backend/app/domains/teams/schemas.py)와 서버의 `/docs`, `/openapi.json`에서 확인합니다. 페이지는 기본 1·20, 크기는 최대 100이며 마지막 페이지 보정은 [공통 계약](conventions.md)을 따릅니다. `roleCode`는 모집 역할 일치, `recruitingOnly`는 현재 공통 모집 가능 조건으로 제한합니다. `contestId`는 전체 팀 경로에서만 받습니다.
+공개 조회의 정확한 query 이름·타입·기본값은 [TeamSearch·AllTeamSearch](../../backend/app/schemas/teams.py)와 서버의 `/docs`, `/openapi.json`에서 확인합니다. 페이지는 기본 1·20, 크기는 최대 100이며 마지막 페이지 보정은 [공통 계약](conventions.md)을 따릅니다. `roleCode`는 모집 역할 일치, `recruitingOnly`는 현재 공통 모집 가능 조건으로 제한합니다. `contestId`는 전체 팀 경로에서만 받습니다.
 
 검색어는 앞뒤 공백을 제거하고 빈 값이면 검색하지 않습니다. `%`·`_`는 와일드카드가 아닌 문자로 검색합니다. 목록과 총원·페이지 보정·현재 인원은 같은 SQL 스냅샷에서 계산합니다.
 
@@ -126,7 +126,7 @@
 
 ### TeamSummary — 팀 목록
 
-정확한 필드는 [TeamSummary](../../backend/app/domains/teams/schemas.py)와 생성 OpenAPI를 따릅니다. `memberCount`는 종료되지 않은 실제 소속을 팀장 포함 집계하고, `fieldCodes`는 현재 공고의 분야입니다. `isDemo`는 [승인된 시연 목록](../../backend/app/domains/demo/manifest.py)을 조회합니다.
+정확한 필드는 [TeamSummary](../../backend/app/schemas/teams.py)와 생성 OpenAPI를 따릅니다. `memberCount`는 종료되지 않은 실제 소속을 팀장 포함 집계하고, `fieldCodes`는 현재 공고의 분야입니다. `isDemo`는 [승인된 시연 목록](../../backend/app/core/demo_data.py)을 조회합니다.
 
 `isRecruiting`은 저장 상태 `open`, 공고 접수 시작 이상·마감 미만, 팀 마감 미만, 잔여 정원을 모두 만족할 때만 참입니다. 저장 상태가 열려 있어도 기한이 지나거나 정원이 찼으면 거짓이며, 특정 회원의 신규 지원 성공을 보장하지 않습니다. 종료·정원 충족·접수 예정 팀도 공개 조회할 수 있습니다.
 
@@ -134,7 +134,7 @@
 
 ### TeamDetail — 공개 모집글
 
-[TeamDetail](../../backend/app/domains/teams/schemas.py)은 `TeamSummary`에 현재 팀장 계정과 연결 공고의 [ContestSummary](contests.md#contest-summary)를 추가합니다. 공고 요약의 `teamCount`는 모집 가능 여부와 무관한 연결 팀 전체 수입니다. 지원서·지원자 프로필·팀 공간의 비공개 데이터는 포함하지 않습니다.
+[TeamDetail](../../backend/app/schemas/teams.py)은 `TeamSummary`에 현재 팀장 계정과 연결 공고의 [ContestSummary](contests.md#contest-summary)를 추가합니다. 공고 요약의 `teamCount`는 모집 가능 여부와 무관한 연결 팀 전체 수입니다. 지원서·지원자 프로필·팀 공간의 비공개 데이터는 포함하지 않습니다.
 
 <a id="team-member"></a>
 

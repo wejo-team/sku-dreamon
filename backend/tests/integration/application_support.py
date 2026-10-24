@@ -19,15 +19,16 @@ from app.core.config import Settings
 from app.core.db.base import Base
 from app.core.db.session import Database
 from app.core.http.handlers import register_error_handlers
-from app.domains.applications.models import Application, ApplicationEvent
-from app.domains.applications.router import router
-from app.domains.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME, issue_csrf_token
-from app.domains.auth.dependencies import SESSION_COOKIE_NAME
-from app.domains.auth.models import Account, AuthSession
-from app.domains.auth.session_service import IssuedSession, issue_session
-from app.domains.contests.models import Contest
-from app.domains.notifications.models import Notification
-from app.domains.teams.models import Team, TeamMembership, TeamRecruitmentRole
+from app.dependencies.auth import SESSION_COOKIE_NAME
+from app.dependencies.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from app.models.applications import Application, ApplicationEvent
+from app.models.auth import Account, AuthSession
+from app.models.contests import Contest
+from app.models.notifications import Notification
+from app.models.teams import Team, TeamMembership, TeamRecruitmentRole
+from app.routers.applications import router
+from app.security.csrf import issue_csrf_token
+from app.services.sessions import IssuedSession, issue_session
 
 ORIGIN = "https://api.example.test"
 SIGNING_KEY = "application-tests-only-signing-key-32-bytes"
