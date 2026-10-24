@@ -11,7 +11,6 @@ from app.core.http.routers import BaseCrudRouter
 from app.core.http.schemas import Page, Success
 from app.dependencies.auth import CurrentAccount, get_current_account
 from app.dependencies.csrf import require_csrf
-from app.queries import applications as application_queries
 from app.schemas.applications import (
     ApplicationResponse,
     ApplicationSearch,
@@ -27,9 +26,7 @@ async def get_application(
     account_id: CurrentAccount,
     session: DatabaseSession,
 ) -> ApplicationResponse:
-    return await application_queries.get_application(
-        session, application_id, account_id
-    )
+    return await service.get_application(session, application_id, account_id)
 
 
 async def list_my_applications(
@@ -37,7 +34,7 @@ async def list_my_applications(
     account_id: CurrentAccount,
     session: DatabaseSession,
 ) -> Page[MyApplication]:
-    return await application_queries.list_my_applications(
+    return await service.list_my_applications(
         session,
         account_id,
         page=query.page,

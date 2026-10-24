@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -36,3 +37,12 @@ def create_database(url: str) -> Database:
         engine=engine,
         session_factory=async_sessionmaker(engine, expire_on_commit=False),
     )
+
+
+async def begin_read_snapshot(
+    session: AsyncSession, *, read_only: bool = False
+) -> None:
+    """호출자가 첫 DB 접근 전에 선택한 읽기 트랜잭션 설정을 적용한다."""
+    await session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+    if read_only:
+        await session.execute(text("SET TRANSACTION READ ONLY"))

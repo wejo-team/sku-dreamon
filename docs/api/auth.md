@@ -31,6 +31,8 @@
 
 로그인 실패는 아이디 존재 여부와 비밀번호 오류를 구분하지 않는 `INVALID_CREDENTIALS` 응답을 제안합니다. 화면은 [실패·만료 안내 정책](../specs/authentication.md#auth-failures)에 따라 간단히 안내하고 다시 로그인을 시도할 수 있게 합니다. 로그인 성공 시 새 서버 세션의 저장이 커밋된 뒤 `Set-Cookie`로 토큰을 전달하고, JSON 본문의 `data`에는 아래 `LoginResult`의 계정 데이터만 반환합니다. 세션 저장에 실패하면 로그인 성공 응답이나 새 인증 쿠키를 발급하지 않습니다.
 
+[인증 서비스](../../backend/app/services/auth.py)는 [인증 Repository](../../backend/app/repositories/auth.py)의 계정·프로필 존재 조회 결과를 응답 DTO로 구성합니다. 세션 유효성 판단·활동 시각 변경·회수는 [세션 서비스](../../backend/app/services/sessions.py)가 맡으며 Repository는 조회·행 잠금·flush만 수행합니다. 인증 활동의 독립 트랜잭션과 업무 트랜잭션을 합치지 않습니다.
+
 `GET /me`와 다른 인증 필요 요청은 [공통 서버 세션 검사](conventions.md#session-auth)로 계정을 식별합니다. 만료된 세션은 401을 반환하고 화면에서 재로그인을 안내합니다. 로그아웃은 현재 서버 세션을 즉시 회수하고, 회수를 커밋한 뒤 쿠키를 만료시켜 204를 반환합니다. 동시 로그인을 허용하며 다른 로그인 세션의 상태·수명은 변경하지 않습니다. 성공 후 클라이언트는 계정별 AI 화면·초안을 지우고 진행 중 응답을 취소합니다.
 
 **인증 방식·세션 수명·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다.** 별도 로그인 유지 선택 없이 같은 지속 쿠키를 사용하며, 브라우저 재시작으로 세션 만료 시각을 연장하지 않습니다. 로그인·로그아웃·가입에도 [쿠키·CSRF 전송 계약](conventions.md#session-auth)을 적용합니다. `CsrfToken`은 필수·NULL 불가 문자열 `csrfToken` 하나를 갖습니다. 로그인 세션 토큰과 다른 값이며 인증 수단으로 사용할 수 없습니다. 차단 목록·시도 제한·보존 등 운영 결정은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 따릅니다.
