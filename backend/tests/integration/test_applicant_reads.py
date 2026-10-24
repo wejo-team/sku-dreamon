@@ -5,10 +5,10 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import Select, update
 
-from app.domains.applications import review_service
-from app.domains.applications.models import Application
-from app.domains.applications.review_schemas import ApplicantSearch
-from app.domains.profiles.models import Profile
+from app.models.applications import Application
+from app.models.profiles import Profile
+from app.schemas.application_review import ApplicantSearch
+from app.services import application_review as review_service
 from tests.integration.application_review_support import review_client
 from tests.integration.application_review_support import review_data as review_data
 from tests.integration.application_support import ApplicationData

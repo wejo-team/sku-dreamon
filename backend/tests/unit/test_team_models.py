@@ -8,9 +8,9 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Dialect
 from sqlalchemy.schema import CreateIndex, CreateTable
 
-from app.domains.applications.models import Application, ApplicationEvent
-from app.domains.notifications.models import Notification
-from app.domains.teams.models import Team, TeamMembership, TeamRecruitmentRole
+from app.models.applications import Application, ApplicationEvent
+from app.models.notifications import Notification
+from app.models.teams import Team, TeamMembership, TeamRecruitmentRole
 
 DIALECT = cast(Callable[[], Dialect], postgresql.dialect)()
 

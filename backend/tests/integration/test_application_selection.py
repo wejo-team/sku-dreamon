@@ -8,14 +8,14 @@ import pytest
 from sqlalchemy import event, func, select, text, update
 
 from app.core.exceptions import AppError
-from app.domains.applications import review_service
-from app.domains.applications.models import Application, ApplicationEvent
-from app.domains.applications.service import cancel_application
-from app.domains.auth.csrf import CSRF_HEADER_NAME
-from app.domains.auth.models import Account
-from app.domains.contests.models import Contest
-from app.domains.notifications.models import Notification
-from app.domains.teams.models import Team, TeamMembership
+from app.dependencies.csrf import CSRF_HEADER_NAME
+from app.models.applications import Application, ApplicationEvent
+from app.models.auth import Account
+from app.models.contests import Contest
+from app.models.notifications import Notification
+from app.models.teams import Team, TeamMembership
+from app.services import application_review as review_service
+from app.services.applications import cancel_application
 from tests.integration.application_review_support import review_client
 from tests.integration.application_review_support import review_data as review_data
 from tests.integration.application_support import (
