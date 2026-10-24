@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, Path, Query
+from fastapi import Depends, Path, Query, Response
 
 from app.core.http.dependencies import DatabaseSession
 from app.core.http.handlers import error_responses
@@ -11,6 +11,7 @@ from app.core.http.routers import BaseCrudRouter
 from app.core.http.schemas import Page, Success
 from app.dependencies.auth import CurrentAccount, get_current_account
 from app.dependencies.csrf import require_csrf
+from app.schemas.application_create import ApplicationCreate
 from app.schemas.applications import (
     ApplicationResponse,
     ApplicationSearch,
@@ -19,6 +20,7 @@ from app.schemas.applications import (
     VersionedAction,
 )
 from app.services import applications as service
+from app.services.application_create import submit_application
 
 
 async def get_application(
@@ -80,3 +82,27 @@ async def cancel_application(
             session, application_id, account_id, int(body.expected_version)
         )
     )
+
+
+@router.post(
+    "/teams/{teamId}/applications",
+    status_code=201,
+    response_model=Success[ApplicationResponse],
+    responses={
+        200: {"model": Success[ApplicationResponse]},
+        **error_responses(401, 403, 404, 409, 422, 500, 503),
+    },
+    summary="신규 지원 접수",
+)
+async def post_application(
+    team_id: Annotated[UUID, Path(alias="teamId")],
+    account_id: CurrentAccount,
+    session: DatabaseSession,
+    body: ApplicationCreate,
+    response: Response,
+    csrf: Annotated[None, Depends(require_csrf)],
+) -> Success[ApplicationResponse]:
+    result, created = await submit_application(session, account_id, team_id, body)
+    response.status_code = 201 if created else 200
+    response.headers["Cache-Control"] = "no-store"
+    return Success(data=result)
