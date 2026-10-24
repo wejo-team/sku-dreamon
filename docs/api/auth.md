@@ -82,7 +82,7 @@ CSRF 조회는 같은 인증 상태의 유효한 쿠키를 재사용하고 `Cach
 | `LoginResult` | `account: Account` | 본인 계정 데이터. 세션 토큰은 본문에 포함하지 않고 별도 `Set-Cookie`로 전달 |
 | `LoginIdAvailability` | `normalizedLoginId: string`, `available: boolean` | 정규화한 아이디와 현재 중복 여부. 아이디 형식은 `^[a-z0-9]{4,24}$` |
 
-모든 필드는 필수이며 `null`을 허용하지 않습니다. 가입·로그인 제한 수치와 기간은 미정이며 429 계약만 제안합니다.
+모든 필드는 필수이며 `null`을 허용하지 않습니다. 2026-10-24 결정에 따른 PostgreSQL 시도 제한과 429를 적용합니다. 수치·공급 방식은 [인증 운영 기준](../specs/authentication.md#auth-operation-settings)을 따릅니다.
 
 ## DB 연결과 남은 범위
 
