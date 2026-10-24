@@ -107,3 +107,21 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 ## DB 연결
 
 - 공고의 물리 항목·일정·분류: [공모전 테이블](../database/contests.md)
+
+<a id="contest-import-cli"></a>
+
+## 운영 입력 CLI
+
+확인된 공고 한 건을 JSON으로 입력하는 [CLI](../../backend/app/cli/contests.py)를 제공합니다. 입력 필드와 검증 원본은 [ContestImport](../../backend/app/schemas/contest_import.py), [예시 자료](../../backend/tests/unit/test_contest_import.py)의 `payload`입니다. 예시는 테스트 자료이며 실제 운영 공고가 아닙니다.
+
+```bash
+cd backend
+uv run python -m app.cli.contests /path/to/confirmed-contest.json
+uv run python -m app.cli.contests /path/to/confirmed-contest.json --apply
+```
+
+기본 실행은 DB 연결 없이 검증만 합니다. `--apply`는 `DATABASE_URL`의 DB에 새 공고·대상·분야를 함께 커밋하고 공고 ID를 반환합니다. 매번 새 등록이므로 성공 후 같은 파일을 반복 실행하지 않습니다. 입력 오류는 종료 코드 2, DB 오류는 1이며 입력 원문·접속 정보는 오류에 출력하지 않습니다.
+
+시작 시각은 원문에서 추가 확인한 값을 반드시 입력합니다. 마감 시각 생략은 다음 날 00:00, 시간대 생략은 한국시간으로 계산하고 원문과 보완 여부를 함께 저장합니다. 미확인 대상·인원, 중복 분류, 역전된 기간, 잘못된 URL은 거부합니다. 별도 관리자 HTTP API·수정·삭제·크롤링은 제공하지 않습니다. 기존 공고 조건 변경의 영향 정책은 계속 후속 범위입니다.
+
+[입력 테스트](../../backend/tests/unit/test_contest_import.py)와 [DB·CLI 테스트](../../backend/tests/integration/test_contest_import.py)에서 검증만 실행할 때 DB에 접근하지 않는 동작, 원문 저장, 분류 저장 후 실패의 전체 롤백을 확인합니다.
