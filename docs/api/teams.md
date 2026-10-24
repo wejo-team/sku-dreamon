@@ -1,6 +1,6 @@
 # 팀 API
 
-**상태: 공개 팀 조회·워크스페이스 구현 · 생성·모집 변경 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/routers/teams.py), [요청·응답 DTO](../../backend/app/schemas/teams.py), [조회](../../backend/app/queries/teams.py)를 구현했습니다. 현재 소속 목록·팀 공간은 [워크스페이스 라우터](../../backend/app/routers/team_management.py), [DTO](../../backend/app/schemas/team_management.py), [조회](../../backend/app/queries/team_memberships.py)와 [스냅샷·권한 서비스](../../backend/app/services/team_memberships.py)에 구현했습니다. 생성·모집 변경 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 공개 팀 조회·워크스페이스 구현 · 생성·모집 변경 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/routers/teams.py), [요청·응답 DTO](../../backend/app/schemas/teams.py), [조회 서비스](../../backend/app/services/teams.py)와 [저장 조회](../../backend/app/repositories/teams.py)를 구현했습니다. 현재 소속 목록·팀 공간은 [워크스페이스 라우터](../../backend/app/routers/team_management.py), [DTO](../../backend/app/schemas/team_management.py), [저장 조회](../../backend/app/repositories/team_memberships.py)와 [스냅샷·권한 서비스](../../backend/app/services/team_memberships.py)에 구현했습니다. 생성·모집 변경 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
