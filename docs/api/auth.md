@@ -1,6 +1,6 @@
 # 계정·인증 API
 
-**상태: 설계 제안 · 미구현.** 가입·로그인·로그아웃과 본인 계정의 5개 API를 정의합니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
+**상태: 설계 제안 · 미구현.** 가입·로그인·로그아웃·본인 계정과 CSRF 발급 API를 정의합니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
 
 | 확인할 내용 | 위치 |
 | --- | --- |
@@ -18,6 +18,7 @@
 
 | 메서드·경로 | 접근 | 요청 | 성공 | 오류 |
 | --- | --- | --- | --- | --- |
+| `GET /auth/csrf` | 공개 | 본문 없음 | 200 `Success<CsrfToken>`, CSRF 쿠키 | 공통 500·503 |
 | `POST /accounts` | 공개 | 본문 [Credentials](#credentials) | 201 [Success&lt;SignupResult&gt;](#auth-results) | 409 `LOGIN_ID_TAKEN`; 422; 429 `RATE_LIMITED` |
 | `GET /auth/login-id-availability` | 공개 | 필수 query `loginId: string` | 200 [Success&lt;LoginIdAvailability&gt;](#auth-results) | 422; 429 `RATE_LIMITED` |
 | `POST /auth/login` | 공개 | 본문 [Credentials](#credentials) | 200 [Success&lt;LoginResult&gt;](#auth-results) | 401 `INVALID_CREDENTIALS`; 422; 429 `RATE_LIMITED` |
@@ -32,7 +33,7 @@
 
 `GET /me`와 다른 인증 필요 요청은 [공통 서버 세션 검사](conventions.md#session-auth)로 계정을 식별합니다. 만료된 세션은 401을 반환하고 화면에서 재로그인을 안내합니다. 로그아웃은 현재 서버 세션을 즉시 회수하고, 회수를 커밋한 뒤 쿠키를 만료시켜 204를 반환합니다. 동시 로그인을 허용하며 다른 로그인 세션의 상태·수명은 변경하지 않습니다. 성공 후 클라이언트는 계정별 AI 화면·초안을 지우고 진행 중 응답을 취소합니다.
 
-**인증 방식·세션 수명·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다.** 별도 로그인 유지 선택 없이 같은 지속 쿠키를 사용하며, 브라우저 재시작으로 세션 만료 시각을 연장하지 않습니다. 로그인·로그아웃·가입에도 [공통 인증·CSRF 계약](conventions.md#session-auth)을 적용하고, 쿠키 이름·경로와 CSRF의 구체 전송 계약 등 남은 결정은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 따릅니다.
+**인증 방식·세션 수명·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다.** 별도 로그인 유지 선택 없이 같은 지속 쿠키를 사용하며, 브라우저 재시작으로 세션 만료 시각을 연장하지 않습니다. 로그인·로그아웃·가입에도 [쿠키·CSRF 전송 계약](conventions.md#csrf-transport)을 적용합니다. `CsrfToken`은 필수·NULL 불가 문자열 `csrfToken` 하나를 갖습니다. 로그인 세션 토큰과 다른 값이며 인증 수단으로 사용할 수 없습니다. 차단 목록·시도 제한·보존 등 운영 결정은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 따릅니다.
 
 <a id="credentials"></a>
 
