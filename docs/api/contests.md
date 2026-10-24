@@ -45,7 +45,7 @@
 
 `Contest.teamCount`는 연결된 **전체 팀 수**이고 페이지의 `pagination.total`은 현재 권한·필터에 맞는 결과 수입니다.
 
-`registrationStatus` 생략 시 마감 공고의 기본 포함·배치는 [CONTEST-05](../specs/contests.md#open-questions) 결정이 필요합니다. 등록순 기본 정렬만으로 이 제품 정책을 확정하지 않습니다.
+2026-10-24 사용자 결정으로 `registrationStatus` 생략 시 접수 예정·중·마감 전체를 포함하며 기본 최신 등록순으로 정렬합니다. 상태를 지정하면 해당 상태만 조회합니다.
 
 <a id="values"></a>
 
