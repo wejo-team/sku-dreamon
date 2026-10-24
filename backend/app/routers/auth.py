@@ -5,13 +5,19 @@ from typing import cast
 from fastapi import APIRouter, Request, Response
 
 from app.core.config import Settings
+from app.core.http.dependencies import DatabaseSession
 from app.core.http.handlers import error_responses
 from app.core.http.schemas import Success
-from app.dependencies.auth import SESSION_COOKIE_NAME, OptionalSession
+from app.dependencies.auth import (
+    SESSION_COOKIE_NAME,
+    CurrentAccount,
+    OptionalSession,
+)
 from app.dependencies.csrf import CSRF_COOKIE_NAME
 from app.routers.auth_cookies import delete_session_cookie, set_csrf_cookie
-from app.schemas.auth import CsrfToken
+from app.schemas.auth import AccountResponse, CsrfToken
 from app.security.csrf import get_or_create_csrf_token
+from app.services import auth as http_service
 
 router = APIRouter(tags=["auth"])
 
@@ -39,3 +45,17 @@ async def get_csrf(
         delete_session_cookie(response)
     set_csrf_cookie(response, token)
     return Success(data=CsrfToken(csrf_token=token))
+
+
+@router.get(
+    "/me",
+    response_model=Success[AccountResponse],
+    responses=error_responses(401, 500, 503),
+    summary="본인 계정",
+)
+async def get_me(
+    response: Response, account_id: CurrentAccount, session: DatabaseSession
+) -> Success[AccountResponse]:
+    account = await http_service.get_account(session, account_id)
+    response.headers["Cache-Control"] = "no-store"
+    return Success(data=account)

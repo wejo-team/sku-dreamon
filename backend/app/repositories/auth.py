@@ -5,7 +5,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.auth import AuthSession
+from app.models.auth import Account, AuthSession
+from app.models.profiles import Profile
 
 
 async def add_session(session: AsyncSession, login_session: AuthSession) -> None:
@@ -44,3 +45,19 @@ async def lock_session(
 
 async def flush_session_changes(session: AsyncSession) -> None:
     await session.flush()
+
+
+async def get_account_with_profile(
+    session: AsyncSession, account_id: UUID
+) -> tuple[Account, bool] | None:
+    """계정과 프로필 존재 여부를 단일 SELECT로 읽는다."""
+    result = await session.execute(
+        select(
+            Account,
+            select(Profile.profile_id)
+            .where(Profile.profile_id == Account.account_id)
+            .exists(),
+        ).where(Account.account_id == account_id)
+    )
+    row = result.one_or_none()
+    return (row[0], row[1]) if row is not None else None
