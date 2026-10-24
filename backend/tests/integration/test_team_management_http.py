@@ -8,9 +8,9 @@ import pytest
 from sqlalchemy import event
 
 from app.core.db.session import Database
-from app.domains.auth.csrf import CSRF_HEADER_NAME
-from app.domains.teams import management
-from app.domains.teams.models import Team
+from app.dependencies.csrf import CSRF_HEADER_NAME
+from app.models.teams import Team
+from app.services import teams as management
 from tests.integration.team_management_http_support import management_client
 from tests.integration.team_management_support import NOW, prepare_team, seed_account
 from tests.integration.team_management_support import (

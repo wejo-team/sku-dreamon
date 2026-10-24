@@ -16,9 +16,9 @@ from sqlalchemy.schema import CreateSchema, DropSchema
 from app.core.exceptions import AppError
 from app.core.http.dependencies import get_session
 from app.core.http.handlers import register_error_handlers
-from app.domains.catalogs.models import AcademicUnit
-from app.domains.catalogs.router import router
-from app.domains.catalogs.service import (
+from app.models.academic_units import AcademicUnit
+from app.routers.catalogs import router
+from app.services.catalogs import (
     create_academic_unit,
     set_academic_selectable,
     validate_academic_selection,

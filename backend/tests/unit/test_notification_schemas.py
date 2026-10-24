@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.domains.notifications.schemas import ReadNotifications
+from app.schemas.notifications import ReadNotifications
 
 
 def test_read_notifications_accepts_a_nonempty_unique_uuid_list() -> None:
