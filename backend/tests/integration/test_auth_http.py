@@ -249,7 +249,6 @@ async def test_me_returns_only_current_account_and_actual_profile_presence(
     expected = {
         "id": str(account_id),
         "loginId": "authhttp01",
-        "isDemo": False,
         "hasProfile": False,
         "schoolVerification": "unverified",
         "createdAt": created_at,
@@ -260,9 +259,13 @@ async def test_me_returns_only_current_account_and_actual_profile_presence(
         session.add(Profile(profile_id=account_id, real_name="본인", is_public=False))
         await session.commit()
     monkeypatch.setattr(manifest, "ACCOUNT_IDS", frozenset({account_id}))
-    expected.update(hasProfile=True, isDemo=True)
+    expected.update(hasProfile=True)
     assert (await http_client.get("/api/v1/me")).json() == {"data": expected}
-    operation = http_app.openapi()["paths"]["/api/v1/me"]["get"]
+    schema = http_app.openapi()
+    assert set(schema["components"]["schemas"]["AccountResponse"]["properties"]) == set(
+        expected
+    )
+    operation = schema["paths"]["/api/v1/me"]["get"]
     assert operation["security"] == [{"SessionCookie": []}]
     assert set(operation["responses"]) == {"200", "401", "500", "503"}
 

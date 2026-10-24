@@ -67,7 +67,6 @@ def test_account_response_requires_real_profile_state_and_omits_credentials() ->
     response = AccountResponse(
         id=account_id,
         login_id="validuser",
-        is_demo=False,
         has_profile=True,
         school_verification="unverified",
         created_at=datetime(2026, 10, 24, tzinfo=UTC),
@@ -75,7 +74,6 @@ def test_account_response_requires_real_profile_state_and_omits_credentials() ->
     assert response.model_dump(mode="json") == {
         "id": str(account_id),
         "loginId": "validuser",
-        "isDemo": False,
         "hasProfile": True,
         "schoolVerification": "unverified",
         "createdAt": "2026-10-24T00:00:00Z",

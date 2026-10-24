@@ -75,11 +75,6 @@ class AccountResponse(ResponseDTO):
             "정규화된 로그인 아이디. ASCII 영문 소문자와 숫자로 이루어진 4~24자."
         )
     )
-    is_demo: bool = Field(
-        description=(
-            "계정용 고정 UUID 시드 목록을 기준으로 서버가 판정한 시연용 계정 여부."
-        )
-    )
     has_profile: bool = Field(description="저장된 프로필의 존재 여부.")
     school_verification: Literal["unverified"] = Field(
         description="학교 인증 상태. 현재는 미인증을 나타내는 unverified만 사용합니다."
