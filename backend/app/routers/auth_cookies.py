@@ -1,5 +1,7 @@
 """인증 쿠키의 HTTPS·호스트 전용 속성을 발급과 삭제에 동일하게 적용한다."""
 
+from datetime import UTC, datetime
+
 from fastapi import Response
 
 from app.dependencies.auth import SESSION_COOKIE_NAME
@@ -15,7 +17,9 @@ def set_session_cookie(response: Response, issued: IssuedSession) -> None:
         secure=True,
         httponly=True,
         samesite="lax",
-        max_age=7 * 24 * 60 * 60,
+        max_age=max(
+            0, int((issued.session.expires_at - datetime.now(UTC)).total_seconds())
+        ),
         expires=issued.session.expires_at,
     )
 
