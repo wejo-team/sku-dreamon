@@ -1,6 +1,8 @@
 # 팀·지원·소속 테이블
 
-이 문서는 [팀 모집·지원 명세](../specs/team-recruitment.md)를 PostgreSQL 테이블과 제약으로 옮긴 **미구현 설계안**입니다. 사용자 흐름·권한·정책은 원문 링크로 참조하고, 여기서는 저장 구조와 정합성에 집중합니다. 공통 타입·기본값·삭제 규칙은 [공통 규칙](conventions.md), 여러 테이블을 함께 바꾸는 처리 순서는 [트랜잭션 설계](transactions.md)가 원본입니다.
+이 문서는 [팀 모집·지원 명세](../specs/team-recruitment.md)의 PostgreSQL 저장 구조와 제약을 설명합니다. **저장 모델·행 제약은 구현했으며 업무 서비스·API는 미구현입니다.** 사용자 흐름·권한·정책은 원문 링크로 참조하고, 공통 타입·기본값·삭제 규칙은 [공통 규칙](conventions.md), 여러 테이블을 함께 바꾸는 처리 순서는 [트랜잭션 설계](transactions.md)를 따릅니다.
+
+구현 원본은 [팀·소속 모델](../../backend/app/models/teams.py), [지원·사건 모델](../../backend/app/models/applications.py), [마이그레이션](../../backend/alembic/versions/20261024_05_team_integrity.py)입니다. [PostgreSQL 통합 검사](../../backend/tests/integration/test_team_integrity.py)는 복합 참조·현재 소속과 지원의 중복·상태 사건 제약·트랜잭션 롤백·마이그레이션 정합성을 검증합니다. 실제 행동의 권한·잠금 순서·정원 보호는 후속 유스케이스 구현에서 검증합니다.
 
 ## 구조와 책임
 
@@ -315,4 +317,4 @@ PK·UNIQUE가 만드는 인덱스 외의 초기 인덱스입니다. 팀의 공�
 
 [공고 조건 변경의 기존 팀 영향](../specs/contests.md#eligibility-changes) 등 남은 질문은 별도 정책 결정이며, 위 확정 전이의 구현을 모두 보류한다는 뜻은 아닙니다.
 
-이 문서는 DDL·마이그레이션·트리거·서버 코드가 아닙니다. 구현 단계에서 제약과 [동시성 검증 사례](transactions.md)를 실제 PostgreSQL에서 검증해야 합니다.
+DB 행 제약만으로 실제 선발·팀 생성의 정원·권한·교차 행 상태가 보장되지는 않습니다. 후속 서비스는 [트랜잭션 경계](transactions.md)와 동시성 검증 사례를 적용하고, HTTP 동작까지 확인한 뒤 해당 기능의 완료 조건을 갱신합니다.

@@ -1,6 +1,6 @@
 # 알림 테이블
 
-**상태: 물리 설계 제안.** 수신자별 알림과 읽음 시각을 PostgreSQL에 저장합니다. 기능의 대상·문구·이동·예외는 [서비스 알림 명세](../specs/notifications.md)를 참조합니다.
+**상태: 저장 모델·제약 구현, 알림 생성 서비스와 조회·읽음 API 미구현.** 수신자별 알림과 읽음 시각은 [알림 모델](../../backend/app/models/notifications.py)과 [마이그레이션](../../backend/alembic/versions/20261024_05_team_integrity.py)에서 정의합니다. 기능의 대상·문구·이동·예외는 [서비스 알림 명세](../specs/notifications.md)를 참조합니다.
 
 ## ERD
 
