@@ -3,8 +3,8 @@
 import pytest
 from pydantic import ValidationError
 
-from app.domains.profiles.schemas import PeopleQuery
-from app.domains.teams.schemas import AllTeamSearch, TeamSearch
+from app.schemas.profiles import PeopleQuery
+from app.schemas.teams import AllTeamSearch, TeamSearch
 
 
 @pytest.mark.parametrize("schema", [TeamSearch, AllTeamSearch, PeopleQuery])

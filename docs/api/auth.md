@@ -1,6 +1,6 @@
 # 계정·인증 API
 
-**상태: 구현 중.** CSRF·본인 계정 조회와 현재 세션 로그아웃의 [라우터](../../backend/app/domains/auth/router.py)·[응답 DTO](../../backend/app/domains/auth/schemas.py)·[HTTPS 통합 테스트](../../backend/tests/integration/test_auth_http.py)를 구현했습니다. 가입·로그인·아이디 중복 확인은 후속 범위입니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
+**상태: 구현 중.** CSRF·본인 계정 조회와 현재 세션 로그아웃의 [라우터](../../backend/app/routers/auth.py)·[응답 DTO](../../backend/app/schemas/auth.py)·[HTTPS 통합 테스트](../../backend/tests/integration/test_auth_http.py)를 구현했습니다. 가입·로그인·아이디 중복 확인은 후속 범위입니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
 
 | 확인할 내용 | 위치 |
 | --- | --- |
@@ -65,7 +65,7 @@ CSRF 조회는 같은 인증 상태의 유효한 쿠키를 재사용하고 `Cach
 | `schoolVerification` | string | 불가 | 현재 허용값은 `unverified` 하나 |
 | `createdAt` | Timestamp | 불가 | 계정 생성 시각 |
 
-`Account`는 본인에게만 반환하며 `Cache-Control: no-store`를 적용합니다. 계정과 저장된 프로필의 존재 여부를 같은 SELECT에서 읽습니다. 다른 사람의 프로필·팀원·AI 응답에 로그인 아이디나 인증 정보를 섞지 않습니다. 학교 이메일·연락처·권한 부여 이력·비밀번호 해시·세션 값은 이 객체에 포함하지 않습니다. 실제 필드 정의는 [AccountResponse](../../backend/app/domains/auth/schemas.py)와 라우터에서 생성한 OpenAPI를 따릅니다.
+`Account`는 본인에게만 반환하며 `Cache-Control: no-store`를 적용합니다. 계정과 저장된 프로필의 존재 여부를 같은 SELECT에서 읽습니다. 다른 사람의 프로필·팀원·AI 응답에 로그인 아이디나 인증 정보를 섞지 않습니다. 학교 이메일·연락처·권한 부여 이력·비밀번호 해시·세션 값은 이 객체에 포함하지 않습니다. 실제 필드 정의는 [AccountResponse](../../backend/app/schemas/auth.py)와 라우터에서 생성한 OpenAPI를 따릅니다.
 
 [계정 DB 설계](../database/identity.md#accounts)의 학교 이메일·인증 완료 시각은 후속 인증 기능을 위한 저장 필드입니다. 현재 입력·응답 필드나 인증 API를 추가하지 않으며, `schoolVerification`은 계속 `unverified`만 반환합니다.
 

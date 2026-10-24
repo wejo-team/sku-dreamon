@@ -12,18 +12,19 @@ from pydantic import SecretStr
 from app.core.config import Settings
 from app.core.db.base import Base
 from app.core.http.handlers import register_error_handlers
-from app.domains.applications.review_router import router
-from app.domains.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME, issue_csrf_token
-from app.domains.auth.dependencies import SESSION_COOKIE_NAME
-from app.domains.catalogs.models import AcademicUnit
-from app.domains.contests.models import ContestField
-from app.domains.profiles.models import (
+from app.dependencies.auth import SESSION_COOKIE_NAME
+from app.dependencies.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from app.models.academic_units import AcademicUnit
+from app.models.contests import ContestField
+from app.models.profiles import (
     PortfolioLink,
     Profile,
     ProfileDesiredRole,
     ProfileInterest,
     ProfileSkill,
 )
+from app.routers.application_review import router
+from app.security.csrf import issue_csrf_token
 from tests.integration.application_support import (
     ORIGIN,
     SIGNING_KEY,

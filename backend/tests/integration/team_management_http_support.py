@@ -11,10 +11,11 @@ from pydantic import SecretStr
 from app.core.config import Settings
 from app.core.db.session import Database
 from app.core.http.handlers import register_error_handlers
-from app.domains.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME, issue_csrf_token
-from app.domains.auth.dependencies import SESSION_COOKIE_NAME
-from app.domains.auth.session_service import issue_session
-from app.domains.teams.management_router import router
+from app.dependencies.auth import SESSION_COOKIE_NAME
+from app.dependencies.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from app.routers.team_management import router
+from app.security.csrf import issue_csrf_token
+from app.services.sessions import issue_session
 
 ORIGIN = "https://api.example.test"
 SIGNING_KEY = "team-management-tests-only-signing-key"

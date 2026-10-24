@@ -2,13 +2,13 @@
 
 **상태: 일부 구현.** 본인·받은 팀장의 지원 상세, 본인 지원 목록·취소, 팀장 지원자 목록·상세와 명시적 검토 시작·미선발을 구현했습니다. 신규 지원과 선발은 아직 설계 단계입니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
-구현 원본은 [지원 라우터](../../backend/app/domains/applications/router.py), [응답 DTO](../../backend/app/domains/applications/schemas.py), [조회 서비스](../../backend/app/domains/applications/service.py)입니다. [PostgreSQL HTTP 검사](../../backend/tests/integration/test_application_reads.py)는 실제 세션 쿠키의 권한·404 은닉·폐기 원인 공개 범위·조회 시 상태 보존을 검증합니다. 실행 앱의 `/docs`·`/openapi.json`에서 등록한 API 계약을 확인할 수 있습니다.
+구현 원본은 [지원 라우터](../../backend/app/routers/applications.py), [응답 DTO](../../backend/app/schemas/applications.py), [조회 쿼리](../../backend/app/queries/applications.py)입니다. [PostgreSQL HTTP 검사](../../backend/tests/integration/test_application_reads.py)는 실제 세션 쿠키의 권한·404 은닉·폐기 원인 공개 범위·조회 시 상태 보존을 검증합니다. 실행 앱의 `/docs`·`/openapi.json`에서 등록한 API 계약을 확인할 수 있습니다.
 
-취소는 [계정·공고·팀·지원 잠금](../../backend/app/domains/teams/locks.py)을 공유합니다. [취소 통합 검사](../../backend/tests/integration/test_application_cancellation.py)는 버전 우선 비교·변경 없는 재요청·선발 소속 종료·모집 상태 유지·알림 실패 시 전체 롤백·독립 연결의 동시 취소를 검증합니다.
+취소는 [계정·공고·팀·지원 잠금](../../backend/app/services/recruitment_locks.py)을 공유합니다. [취소 통합 검사](../../backend/tests/integration/test_application_cancellation.py)는 버전 우선 비교·변경 없는 재요청·선발 소속 종료·모집 상태 유지·알림 실패 시 전체 롤백·독립 연결의 동시 취소를 검증합니다.
 
-본인 목록은 [지원 목록 서비스](../../backend/app/domains/applications/service.py)의 단일 SQL에서 총수·마지막 페이지 보정·지원 이력·팀 요약·현재 소속을 함께 읽습니다. [목록 통합 검사](../../backend/tests/integration/test_my_applications.py)는 본인 범위·상태 필터·안정 정렬·빈 목록·마지막 페이지·취소 전후 현재 소속을 확인합니다.
+본인 목록은 [지원 목록 쿼리](../../backend/app/queries/applications.py)의 단일 SQL에서 총수·마지막 페이지 보정·지원 이력·팀 요약·현재 소속을 함께 읽습니다. [목록 통합 검사](../../backend/tests/integration/test_my_applications.py)는 본인 범위·상태 필터·안정 정렬·빈 목록·마지막 페이지·취소 전후 현재 소속을 확인합니다.
 
-팀장 조회는 [검토 라우터](../../backend/app/domains/applications/review_router.py)와 [서비스](../../backend/app/domains/applications/review_service.py)에서 제공합니다. [검증](../../backend/tests/integration/test_applicant_reads.py)은 지원 후 비공개 전환·종결 이후 최신 프로필 열람, 관계별 403·404, 목록·총원·프로필의 같은 읽기 시점을 확인합니다. 인증이 끝난 새 요청 세션에서 REPEATABLE READ를 사용하며 조회는 지원 상태를 바꾸지 않습니다.
+팀장 조회는 [검토 라우터](../../backend/app/routers/application_review.py)와 [서비스](../../backend/app/services/application_review.py)에서 제공합니다. [검증](../../backend/tests/integration/test_applicant_reads.py)은 지원 후 비공개 전환·종결 이후 최신 프로필 열람, 관계별 403·404, 목록·총원·프로필의 같은 읽기 시점을 확인합니다. 인증이 끝난 새 요청 세션에서 REPEATABLE READ를 사용하며 조회는 지원 상태를 바꾸지 않습니다.
 
 검토 시작·미선발은 같은 검토 라우터에서 제공하며, [명령 검증](../../backend/tests/integration/test_application_review_actions.py)은 인증 우선·CSRF, 버전 우선·변경 없는 재요청, 허용 전이와 알림 실패 시 상태·사건의 전체 롤백을 확인합니다. 지원자 계정·공고·팀·지원 순서로 잠그며 팀 정원·모집 상태는 변경하지 않습니다.
 
@@ -95,7 +95,7 @@
 
 ### 상태 변경 본문
 
-검토 시작·미선발·선발·취소에는 **지원의 버전**을 [VersionedAction](conventions.md#versioned-action)의 필수 `expectedVersion`으로 보냅니다. 구현한 취소 본문은 [VersionedAction DTO](../../backend/app/domains/applications/schemas.py)가 정의합니다. 모집 종료·재개는 [팀 API](teams.md#requests)의 버전을 사용합니다.
+검토 시작·미선발·선발·취소에는 **지원의 버전**을 [VersionedAction](conventions.md#versioned-action)의 필수 `expectedVersion`으로 보냅니다. 구현한 취소 본문은 [VersionedAction DTO](../../backend/app/schemas/applications.py)가 정의합니다. 모집 종료·재개는 [팀 API](teams.md#requests)의 버전을 사용합니다.
 
 ```json
 { "expectedVersion": "3" }
@@ -107,7 +107,7 @@
 
 ### Application — 지원서
 
-필드·타입·필수 여부는 [ApplicationResponse](../../backend/app/domains/applications/schemas.py)와 생성 OpenAPI를 따릅니다. `id`는 접수 시도마다 새로 발급하고 `updatedAt`은 마지막 상태 변경 시각입니다. 폐기 사유는 `selected_elsewhere`·`team_created_elsewhere`이며 폐기 외 상태에서는 null입니다.
+필드·타입·필수 여부는 [ApplicationResponse](../../backend/app/schemas/applications.py)와 생성 OpenAPI를 따릅니다. `id`는 접수 시도마다 새로 발급하고 `updatedAt`은 마지막 상태 변경 시각입니다. 폐기 사유는 `selected_elsewhere`·`team_created_elsewhere`이며 폐기 외 상태에서는 null입니다.
 
 `Application`에는 프로필을 포함하지 않습니다. 지원서 열람 권한만으로 모든 조회자에게 팀장 검토용 최신 전체 프로필을 제공하지 않습니다. 폐기 원인 ID 두 필드는 동시에 값을 갖지 않습니다. 받은 팀장에게도 폐기 사유는 제공하지만 다른 팀·지원의 원인 ID는 제공하지 않습니다. 팀 생성 폐기의 원인 팀은 DB에 기록한 팀장 소속에서 조회하며 가상의 선발 지원 ID를 만들지 않습니다.
 
@@ -115,7 +115,7 @@
 
 ### MyApplication — 내 지원 목록 항목
 
-필드·타입은 [MyApplication DTO](../../backend/app/domains/applications/schemas.py)와 생성 OpenAPI를 따릅니다. `application`은 본인 지원 시도, `team`은 [TeamSummary](teams.md#team-summary), `isCurrentMember`는 현재 해당 팀의 활성 소속 여부입니다. 검색 입력은 같은 파일의 `ApplicationSearch`가 정의합니다.
+필드·타입은 [MyApplication DTO](../../backend/app/schemas/applications.py)와 생성 OpenAPI를 따릅니다. `application`은 본인 지원 시도, `team`은 [TeamSummary](teams.md#team-summary), `isCurrentMember`는 현재 해당 팀의 활성 소속 여부입니다. 검색 입력은 같은 파일의 `ApplicationSearch`가 정의합니다.
 
 취소·폐기된 이전 시도와 신규 지원을 구분합니다. 과거 지원의 보존 기간은 별도 미정입니다.
 
@@ -123,7 +123,7 @@
 
 ### Applicant — 팀장 검토 항목
 
-정확한 필드와 query는 [ApplicantResponse·ApplicantSearch](../../backend/app/domains/applications/review_schemas.py) 및 생성 OpenAPI가 원본입니다. 받은 지원서와 최신 전체 프로필을 함께 제공합니다. `isSelectionCandidate`는 현재 지원이 `submitted`·`reviewing`이고 같은 공모전의 확정 소속이 없는지를 나타내며, 마감·정원까지 검증한 실제 선발 실행 허가는 아닙니다.
+정확한 필드와 query는 [ApplicantResponse·ApplicantSearch](../../backend/app/schemas/application_review.py) 및 생성 OpenAPI가 원본입니다. 받은 지원서와 최신 전체 프로필을 함께 제공합니다. `isSelectionCandidate`는 현재 지원이 `submitted`·`reviewing`이고 같은 공모전의 확정 소속이 없는지를 나타내며, 마감·정원까지 검증한 실제 선발 실행 허가는 아닙니다.
 
 지원 후 비공개 전환, 취소·미선발·폐기 이후에도 받은 팀장의 [최신 프로필 열람 관계](../specs/profile.md#application-profile)를 유지합니다. 새 후보 여부와 기존 AI 검토 가능 여부는 다르며, 이 관계를 일반 사람 검색에 확대하지 않습니다.
 
@@ -136,7 +136,7 @@
 | `SelectionResult` | `application: Application`, `team: TeamSummary`, `membershipId: Id` | 선발한 지원·해당 팀·생성된 현재 소속. 다른 팀 지원 목록·메시지·건수는 포함하지 않음 |
 | `CancellationResult` | `application: Application`, `membershipEnded: boolean` | 선발 후 취소로 소속을 종료했다면 true. 이미 취소된 요청은 기존 취소 결과를 유지하며 자리를 다시 반환하지 않음 |
 
-구현된 취소 응답의 필드·타입은 [CancellationResult DTO](../../backend/app/domains/applications/schemas.py)와 생성 OpenAPI를 기준으로 합니다.
+구현된 취소 응답의 필드·타입은 [CancellationResult DTO](../../backend/app/schemas/applications.py)와 생성 OpenAPI를 기준으로 합니다.
 
 `team: TeamSummary`의 데이터 정의는 [팀 요약](teams.md#team-summary)을 따릅니다. 모집 종료·재개의 `RecruitmentResult`는 [팀 API](teams.md#action-results)에 정의합니다.
 
