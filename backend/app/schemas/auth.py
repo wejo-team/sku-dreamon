@@ -115,8 +115,11 @@ class LoginIdAvailability(ResponseDTO):
 
 
 class CsrfToken(ResponseDTO):
-    """현재 로그인 세션에 결합된 CSRF 보호 토큰."""
+    """현재 익명 상태 또는 로그인 세션에 결합된 CSRF 보호 토큰."""
 
     csrf_token: str = Field(
-        description=("상태 변경 요청의 CSRF 헤더에 전달하는 현재 세션용 토큰.")
+        description=(
+            "상태 변경 요청의 CSRF 헤더에 전달할 토큰. "
+            "현재 익명 상태 또는 로그인 세션에 결합됩니다."
+        )
     )

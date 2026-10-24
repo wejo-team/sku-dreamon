@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from datetime import datetime
 
-from pydantic import HttpUrl
+from pydantic import AnyHttpUrl
 
 from app.core.demo_data import is_demo_contest
 from app.models.contests import Contest
@@ -27,7 +27,9 @@ def build_contest_summary(
         field_codes=sorted(
             (FieldCode(code) for code in field_codes), key=lambda code: code.sort_order
         ),
-        poster_url=None if contest.poster_url is None else HttpUrl(contest.poster_url),
+        poster_url=None
+        if contest.poster_url is None
+        else AnyHttpUrl(contest.poster_url),
         registration_status=get_registration_status(
             starts_at=contest.registration_opens_at,
             ends_at=contest.registration_closes_at,
