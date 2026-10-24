@@ -1,6 +1,8 @@
 """환경설정을 읽고 비동기 PostgreSQL 연결에 필요한 값을 검증한다."""
 
-from pydantic import HttpUrl, PostgresDsn, SecretStr, field_validator
+from pathlib import Path
+
+from pydantic import Field, HttpUrl, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +19,12 @@ class Settings(BaseSettings):
     )
     csrf_signing_key: SecretStr | None = None
     auth_allowed_origins: tuple[str, ...] = ()
+    password_blocklist_path: Path | None = None
+    password_blocklist_version: str = ""
+    auth_login_account_limit: int = Field(default=10, ge=1)
+    auth_login_ip_limit: int = Field(default=100, ge=1)
+    auth_signup_ip_limit: int = Field(default=10, ge=1)
+    auth_availability_ip_limit: int = Field(default=100, ge=1)
 
     @field_validator("csrf_signing_key")
     @classmethod

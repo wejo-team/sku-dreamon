@@ -24,6 +24,7 @@ from app.dependencies.auth import SESSION_COOKIE_NAME
 from app.dependencies.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 from app.models.academic_units import AcademicUnit  # noqa: F401
 from app.models.auth import Account, AuthSession
+from app.models.auth_attempts import AuthAttempt  # noqa: F401
 from app.models.profiles import Profile
 from app.routers.auth import router
 from app.security.csrf import validate_csrf_token
@@ -50,6 +51,7 @@ async def http_database(database_url: str) -> AsyncIterator[Database]:
                     sync,
                     tables=[
                         Base.metadata.tables["accounts"],
+                        Base.metadata.tables["auth_attempts"],
                         Base.metadata.tables["auth_sessions"],
                         Base.metadata.tables["academic_units"],
                         Base.metadata.tables["profiles"],

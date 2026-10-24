@@ -1,7 +1,7 @@
 """공개 공고 요약·상세와 원문 인원·일정 안내의 전송 계약을 정의한다."""
 
 from datetime import date
-from typing import Self
+from typing import Literal, Self
 from uuid import UUID
 
 from pydantic import AnyHttpUrl, Field, field_validator, model_validator
@@ -9,6 +9,7 @@ from pydantic import AnyHttpUrl, Field, field_validator, model_validator
 from app.core.http.schemas import (
     NonnegativeInt,
     PositiveBigInt,
+    RequestDTO,
     ResponseDTO,
     Timestamp,
     Version,
@@ -21,6 +22,35 @@ from app.rules.contests import (
     validate_audience_codes,
     validate_participation_capacity,
 )
+
+
+class ContestSearch(RequestDTO):
+    """공개 공고의 검색·상태·분야·번호 페이지 조건."""
+
+    q: str | None = Field(default=None, description="제목·주최자·분야 표시명 검색어.")
+    field_code: FieldCode | None = Field(default=None, description="포함할 공고 분야.")
+    registration_status: RegistrationStatus | None = Field(
+        default=None, description="접수 상태. 생략하면 전체."
+    )
+    sort: Literal["created_desc", "deadline_asc"] = Field(
+        default="created_desc", description="최신 등록순 또는 마감순."
+    )
+    page: int = Field(
+        default=1,
+        ge=1,
+        le=9007199254740991,
+        description="페이지 번호. 초과하면 마지막 페이지.",
+    )
+    page_size: int = Field(default=20, ge=1, le=100, description="페이지 크기.")
+
+    @field_validator("q")
+    @classmethod
+    def storable_search(cls, value: str | None) -> str | None:
+        if value is not None:
+            if "\x00" in value:
+                raise ValueError("NUL is not supported")
+            value.encode("utf-8")
+        return value
 
 
 class DeadlineInterpretation(ResponseDTO):

@@ -7,14 +7,18 @@ from uuid import UUID
 from pydantic import AnyHttpUrl
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db.session import begin_read_snapshot
 from app.core.demo_data import is_demo_contest
 from app.core.exceptions import AppError
+from app.core.http.schemas import Page, PageMeta
 from app.models.contests import Contest
+from app.repositories import contest_list as listing
 from app.repositories import contests as repository
 from app.rules.catalogs import FieldCode
 from app.rules.contests import AudienceCode, CapacityKind, get_registration_status
 from app.schemas.contests import (
     ContestDetail,
+    ContestSearch,
     ContestSummary,
     ContestTiming,
     DeadlineInterpretation,
@@ -24,6 +28,47 @@ from app.schemas.contests import (
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+async def list_contests(
+    session: AsyncSession, query: ContestSearch
+) -> Page[ContestSummary]:
+    if session.in_transaction():
+        raise RuntimeError("Contest listing requires a fresh transaction")
+    await begin_read_snapshot(session, read_only=True)
+    current = _utcnow()
+    needle = (query.q or "").strip()
+    filters = listing.ContestFilter(
+        needle=needle,
+        matching_fields=[
+            code.value
+            for code in FieldCode
+            if needle.casefold() in code.display_name.casefold()
+        ],
+        field_code=query.field_code,
+        registration_status=query.registration_status,
+        now=current,
+    )
+    total = await listing.count_contests(session, filters)
+    pages = (total + query.page_size - 1) // query.page_size
+    page = min(query.page, max(pages, 1))
+    rows = await listing.list_contests(
+        session, filters, sort=query.sort, page=page, page_size=query.page_size
+    )
+    return Page(
+        data=[
+            build_contest_summary(
+                row.contest,
+                field_codes=row.field_codes,
+                team_count=row.team_count,
+                now=current,
+            )
+            for row in rows
+        ],
+        pagination=PageMeta(
+            page=page, page_size=query.page_size, total=total, total_pages=pages
+        ),
+    )
 
 
 async def get_contest_detail(
