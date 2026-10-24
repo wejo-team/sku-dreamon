@@ -13,7 +13,7 @@ from sqlalchemy.schema import CreateSchema
 
 from app.core.db.base import Base
 from app.core.db.session import create_database
-from app.domains.auth.models import Account, AuthSession
+from app.models.auth import Account, AuthSession
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 

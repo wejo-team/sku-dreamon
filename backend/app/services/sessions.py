@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.session import Database
-from app.domains.auth.models import AuthSession
+from app.models.auth import AuthSession
 
 IDLE_LIFETIME = timedelta(hours=24)
 ABSOLUTE_LIFETIME = timedelta(days=7)

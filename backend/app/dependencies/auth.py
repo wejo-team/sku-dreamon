@@ -8,7 +8,7 @@ from fastapi.security import APIKeyCookie
 
 from app.core.db.session import Database
 from app.core.exceptions import AppError
-from app.domains.auth.session_service import SessionPrincipal, authenticate_session
+from app.services.sessions import SessionPrincipal, authenticate_session
 
 SESSION_COOKIE_NAME = "__Host-sku-dreamon-session"
 _session_cookie = APIKeyCookie(
