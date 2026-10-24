@@ -1,8 +1,8 @@
 # 공모전 테이블
 
-이 문서는 공모전 원문 정보와 분류의 PostgreSQL 저장 계약을 정의합니다. **ORM 모델·마이그레이션·순수 규칙과 공개 상세 조회를 구현했습니다.** 공고 목록과 관리자 등록·수정 경로는 아직 미구현이며, 상세의 실제 전송 계약은 [공고 API](../api/contests.md)에서 코드로 연결합니다. 등록·공개·참가 조건은 [공모전 기능 명세](../specs/contests.md)가 원본이며, 이 문서에서는 각 테이블의 업무상 의미와 컬럼·무결성을 설명합니다. 타입·기본값·삭제 원칙은 [공통 규칙](conventions.md)을 따릅니다.
+이 문서는 공모전 원문 정보와 분류의 PostgreSQL 저장 계약을 정의합니다. **ORM 모델·마이그레이션·순수 규칙과 공개 상세 조회를 구현했습니다.** 공고 신규 입력 CLI는 [공고 API 안내](../api/contests.md#운영-입력-cli)를 따릅니다. 공고 목록과 관리자 수정 경로는 아직 미구현이며, 상세의 실제 전송 계약은 [공고 API](../api/contests.md)에서 코드로 연결합니다. 등록·공개·참가 조건은 [공모전 기능 명세](../specs/contests.md)가 원본이며, 이 문서에서는 각 테이블의 업무상 의미와 컬럼·무결성을 설명합니다. 타입·기본값·삭제 원칙은 [공통 규칙](conventions.md)을 따릅니다.
 
-구현 원본은 [공고 모델](../../backend/app/models/contests.py), [접수·인원·분류 규칙](../../backend/app/rules/contests.py), [마이그레이션](../../backend/alembic/versions/20261024_02_contests.py)입니다. [규칙 테스트](../../backend/tests/unit/test_contest_rules.py)와 [PostgreSQL 제약·마이그레이션 테스트](../../backend/tests/integration/test_contest_models.py)가 저장 제약과 시간 경계를 검증합니다. URL·원문/적용 시각의 일치와 분류 집합을 한 트랜잭션에서 검증하는 운영 저장 서비스는 후속 구현이며, 모델 생성만으로 등록 전 확인을 완료한 것으로 취급하지 않습니다.
+구현 원본은 [공고 모델](../../backend/app/models/contests.py), [접수·인원·분류 규칙](../../backend/app/rules/contests.py), [마이그레이션](../../backend/alembic/versions/20261024_02_contests.py)입니다. [규칙 테스트](../../backend/tests/unit/test_contest_rules.py)와 [PostgreSQL 제약·마이그레이션 테스트](../../backend/tests/integration/test_contest_models.py)가 저장 제약과 시간 경계를 검증합니다. URL·원문/적용 시각의 일치와 분류 집합을 한 트랜잭션에서 검증하는 [신규 등록 서비스](../../backend/app/services/contest_import.py)를 구현했으며, 모델 생성만으로 등록 전 확인을 완료한 것으로 취급하지 않습니다.
 
 ## 먼저 볼 구조
 

@@ -8,6 +8,7 @@ import pytest
 
 APP = Path(__file__).resolve().parents[2] / "app"
 ALLOWED = {
+    "cli": {"core", "schemas", "services"},
     "core": {"core"},
     "models": {"core", "models", "rules"},
     "schemas": {"core", "schemas", "rules"},
