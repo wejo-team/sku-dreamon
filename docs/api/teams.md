@@ -1,6 +1,6 @@
 # 팀 API
 
-**상태: 공개 팀 조회·모집 변경·워크스페이스 구현 · 생성 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/routers/teams.py), [요청·응답 DTO](../../backend/app/schemas/teams.py), [조회 서비스](../../backend/app/services/teams.py)와 [저장 조회](../../backend/app/repositories/teams.py)를 구현했습니다. 현재 소속 목록·팀 공간은 [워크스페이스 라우터](../../backend/app/routers/team_management.py), [DTO](../../backend/app/schemas/team_management.py), [저장 조회](../../backend/app/repositories/team_memberships.py)와 [스냅샷·권한 서비스](../../backend/app/services/team_memberships.py)에 구현했습니다. 팀장 모집 종료·재개는 같은 [관리 라우터](../../backend/app/routers/team_management.py)와 [모집 서비스](../../backend/app/services/teams.py)에 구현했습니다. 생성 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 생성·공개 조회·모집 변경·워크스페이스 구현.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/routers/teams.py), [요청·응답 DTO](../../backend/app/schemas/teams.py), [조회 서비스](../../backend/app/services/teams.py)와 [저장 조회](../../backend/app/repositories/teams.py)를 구현했습니다. 현재 소속 목록·팀 공간은 [워크스페이스 라우터](../../backend/app/routers/team_management.py), [DTO](../../backend/app/schemas/team_management.py), [저장 조회](../../backend/app/repositories/team_memberships.py)와 [스냅샷·권한 서비스](../../backend/app/services/team_memberships.py)에 구현했습니다. 팀장 모집 종료·재개는 같은 [관리 라우터](../../backend/app/routers/team_management.py)와 [모집 서비스](../../backend/app/services/teams.py)에 구현했습니다. 생성 API는 [요청 DTO](../../backend/app/schemas/team_create.py), [서비스](../../backend/app/services/team_create.py), [DB 테스트](../../backend/tests/integration/test_team_creation.py)와 [HTTP·경합 테스트](../../backend/tests/integration/test_team_creation_http.py)를 따릅니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
@@ -30,7 +30,7 @@
 
 | 메서드·경로 | 권한·입력 | 성공 응답 | 추가 실패 |
 | --- | --- | --- | --- |
-| `POST /teams` | 로그인, `TeamCreate` | 첫 생성 201 `Success<Team>`, 동일 요청 재전송 200 `Success<Team>` | 404 공고 없음, 409 공고·정원·소속·코드·요청 ID 충돌 |
+| `POST /teams` | 로그인, `TeamCreate` | 첫 생성 201 `Success<TeamDetail>`, 동일 요청 재전송 200 `Success<TeamDetail>` | 404 공고 없음, 409 공고·정원·소속·코드·요청 ID 충돌 |
 | `GET /me/teams` | 본인, 페이지 조건 | 200 `Page<WorkspaceTeam>` | — |
 | `GET /teams/{teamId}/space` | 현재 팀장·확정 팀원, 팀 UUID | 200 `Success<TeamSpace>` | 403 현재 소속 아님, 404 팀 없음 |
 | `PUT /teams/{teamId}/recruitment/closure` | 해당 팀장, 팀 UUID·`VersionedAction` | 200 `Success<RecruitmentResult>` | 403 권한, 404 팀 없음, 409 상태·버전 충돌 |
@@ -74,15 +74,7 @@
 
 ### TeamCreate — 팀 생성
 
-| 필드 | 타입 | 필수 | 제약·처리 |
-| --- | --- | --- | --- |
-| `requestId` | `Id` | 예 | 생성 시도 식별 UUID. 같은 시도의 재전송은 같은 값 |
-| `contestId` | `Id` | 예 | 참여할 공고 |
-| `name` | string | 예 | 팀명 2~40자 |
-| `introduction` | string | 예 | 소개/목표 10~1,000자 |
-| `capacity` | `PositiveBigInt` | 예 | 팀장 포함 목표 정원의 십진 문자열. 공식 인원 조건에 맞아야 함 |
-| `roleCodes` | `CatalogCode[]` | 예 | 중복 불가. `capacity="1"`이면 `[]`, 2명 이상이면 1~6개 |
-| `recruitmentDeadline` | `DeadlineInput` | 예 | 입력 날짜·선택 시각·선택 시간대 |
+정확한 필드·길이·역할 개수는 [TeamCreate](../../backend/app/schemas/team_create.py)와 생성 OpenAPI를 따릅니다. 팀명·소개는 NFC·trim 후 코드 포인트로 셉니다. 요청 ID는 본문과 인증 주체에 결합하며 모집 역할 배열은 정렬한 후 비교합니다.
 
 선택 역할은 공통 목록을 사용합니다. 공고 분야·개인/팀 유형·주당 시간·팀장 ID는 입력에 없습니다. 서버가 인증 주체를 팀장으로 사용합니다. 팀·팀장 소속 생성과 같은 공모전에서 본인이 제출한 `submitted`·`reviewing` 지원의 폐기·사건·본인 알림을 한 트랜잭션에서 처리합니다. 다른 공모전이나 이미 종결된 지원은 변경하지 않으며, 생성 실패 시 대기 지원도 유지합니다. 근거는 [동시 지원과 소속 확정](../specs/team-recruitment.md#parallel-applications)에 있습니다. 정원에 기본값이나 별도 서비스 상한을 추가하지 않으며 [공식 정원과 생성 항목](../specs/team-recruitment.md#official-capacity)을 따릅니다.
 
@@ -146,7 +138,7 @@
 
 근거는 [팀 화면의 실명 표시](../specs/team-recruitment.md)와 [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access), [프로필 공개 범위](../specs/profile.md#visibility)입니다. 팀장이라는 이유만으로 지원 관계가 없는 비공개 프로필까지 열람할 수는 없습니다. 해당 팀에 제출된 지원 관계는 현재 지원 상태와 무관하게 판정합니다.
 
-가입은 프로필 생성을 보장하지 않으며 팀 생성의 프로필 완성 요구는 [PROFILE-03](../specs/profile.md#open-questions)에서 미정입니다. 현재 소속 계정에 프로필 행이 없으면 필수 실명을 구성할 수 없으므로 해당 팀원을 누락하거나 임의 실명을 반환하지 않고 500으로 실패합니다.
+가입은 프로필 생성을 보장하지 않으므로 팀 생성 직전에 필수 프로필을 검사합니다. 현재 소속 계정에 프로필 행이 없으면 필수 실명을 구성할 수 없으므로 해당 팀원을 누락하거나 임의 실명을 반환하지 않고 500으로 실패합니다.
 
 <a id="team-space"></a>
 
@@ -176,7 +168,7 @@
 
 팀 생성에서 서버는 인증 주체·경로·정규화한 최초 입력으로 같은 시도를 판별합니다. 첫 생성은 201, 같은 `requestId`와 같은 입력의 재전송은 기존 리소스를 200으로 반환합니다. 같은 ID의 다른 입력은 409 `REQUEST_ID_REUSED`입니다. 이후 팀의 상태가 바뀌어도 과거 생성 재시도를 새 행동으로 실행하지 않습니다.
 
-팀 생성의 프로필 완성 요구는 [PROFILE-03](../specs/profile.md#open-questions)에 남깁니다. 지원의 생성·재지원은 [지원 API의 재시도 계약](applications.md#transitions)을 따릅니다.
+팀 생성은 2026-10-24 사용자 결정으로 필수 프로필을 요구하되 공개 상태는 요구하지 않습니다. 지원의 생성·재지원은 [지원 API의 재시도 계약](applications.md#transitions)을 따릅니다.
 
 ### 버전이 있는 행동
 
@@ -195,7 +187,7 @@ no-op은 버전·수정 시각·사건·알림을 추가하지 않습니다. 팀
 
 | 요청 | 정의한 오류 코드 |
 | --- | --- |
-| 팀 생성 | `CONTEST_NOT_OPEN`, `CAPACITY_OUT_OF_RANGE`, `MEMBERSHIP_CONFLICT`, `INVALID_CATALOG_SELECTION`, `REQUEST_ID_REUSED` |
+| 팀 생성 | `PROFILE_REQUIRED`, `CONTEST_NOT_OPEN`, `CAPACITY_OUT_OF_RANGE`, `MEMBERSHIP_CONFLICT`, `INVALID_CATALOG_SELECTION`, `REQUEST_ID_REUSED` |
 | 모집 종료 | `VERSION_CONFLICT`, `INVALID_RECRUITMENT_STATE` |
 | 모집 재개 | `VERSION_CONFLICT`, `CONTEST_NOT_OPEN`, `TEAM_FULL`, `RECRUITMENT_DEADLINE_PASSED`, `INVALID_RECRUITMENT_STATE` |
 
@@ -207,3 +199,7 @@ no-op은 버전·수정 시각·사건·알림을 추가하지 않습니다. 팀
 
 - 팀·지원·현재 소속·상태 사건: [팀과 지원 테이블](../database/teams.md)
 - 선발·취소·멱등성과 잠금: [트랜잭션 설계](../database/transactions.md)
+
+## 생성 검증
+
+팀과 팀장 소속, 같은 공고의 본인 대기 지원 폐기·원인 소속·알림을 한 번에 저장합니다. 현재 소속과 재시도는 계정 잠금으로 직렬화하며 관련 팀·지원도 ID 순서로 잠급니다. 같은 요청 재전송은 현재 팀을 200으로 반환하고 부수효과를 반복하지 않습니다. 정원 1은 팀장만으로 모집 종료 상태가 됩니다. 테스트에서 선발과 생성 경합, 동일 요청 동시 생성, 알림 실패의 전체 롤백을 확인합니다.
