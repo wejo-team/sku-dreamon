@@ -1,11 +1,11 @@
 """학사 조회와 같은 트랜잭션 안의 소속 검증·기준 데이터 쓰기를 처리한다."""
 
 from pydantic import HttpUrl
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.models.academic_units import AcademicUnit
+from app.repositories import catalogs as catalogs_repository
 from app.rules.catalogs import (
     AcademicStatusCode,
     CatalogCode,
@@ -35,28 +35,14 @@ async def _locked_path(session: AsyncSession, unit_id: int) -> list[AcademicUnit
         if current_id in seen or len(seen) >= 3:
             raise _invalid_path()
         seen.add(current_id)
-        row = (
-            await session.execute(
-                select(AcademicUnit.parent_id).where(
-                    AcademicUnit.academic_unit_id == current_id
-                )
-            )
-        ).one_or_none()
+        row = await catalogs_repository.get_academic_parent(session, current_id)
         if row is None:
             raise _invalid_path()
-        current_id = row.parent_id
+        current_id = row[0]
 
     # 부모는 변경하지 않는 계약이다. 공유 잠금은 ID 순서로 얻어 같은
     # 조상의 동시 선택 및 여러 항목의 비활성화와 잠금 순서를 맞춘다.
-    units = list(
-        await session.scalars(
-            select(AcademicUnit)
-            .where(AcademicUnit.academic_unit_id.in_(seen))
-            .order_by(AcademicUnit.academic_unit_id)
-            .with_for_update(read=True)
-            .execution_options(populate_existing=True)
-        )
-    )
+    units = await catalogs_repository.lock_academic_path(session, seen)
     by_id = {unit.academic_unit_id: unit for unit in units}
     path: list[AcademicUnit] = []
     current_id = unit_id
@@ -89,9 +75,7 @@ async def validate_academic_selection(
 
 
 async def list_academic_units(session: AsyncSession) -> list[AcademicUnitResponse]:
-    units = await session.scalars(
-        select(AcademicUnit).order_by(AcademicUnit.academic_unit_id)
-    )
+    units = await catalogs_repository.list_academic_units(session)
     return [
         AcademicUnitResponse(
             id=str(unit.academic_unit_id),
@@ -123,8 +107,7 @@ async def create_academic_unit(
     unit = AcademicUnit(
         name=normalized_name, parent_id=parent_id, is_selectable=is_selectable
     )
-    session.add(unit)
-    await session.flush()
+    await catalogs_repository.add_academic_unit(session, unit)
     return unit
 
 
@@ -132,16 +115,11 @@ async def set_academic_selectable(
     session: AsyncSession, academic_unit_id: int, is_selectable: bool
 ) -> None:
     """신규 선택과 경합하는 변경을 행 잠금으로 직렬화하고 commit은 맡긴다."""
-    unit = await session.scalar(
-        select(AcademicUnit)
-        .where(AcademicUnit.academic_unit_id == academic_unit_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
+    unit = await catalogs_repository.lock_academic_unit(session, academic_unit_id)
     if unit is None:
         raise _invalid_path()
     unit.is_selectable = is_selectable
-    await session.flush()
+    await catalogs_repository.flush_academic_changes(session)
 
 
 def _items(enum_type: type[CatalogCode]) -> list[CatalogItem]:
