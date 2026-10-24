@@ -11,6 +11,7 @@ from app.core.config import Settings
 from app.core.db.base import Base
 from app.models import academic_units as catalog_models  # noqa: F401 -- 학사 모델 등록
 from app.models import auth as auth_models  # noqa: F401 -- metadata 모델 등록
+from app.models import contests as contest_models  # noqa: F401 -- 공고 모델 등록
 
 config = context.config
 if config.config_file_name is not None:

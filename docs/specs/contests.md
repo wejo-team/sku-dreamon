@@ -1,8 +1,8 @@
 # 공모전 공고 탐색과 관리
 
-- 구현 상태: 예정
+- 구현 상태: 진행 중
 - 명세 검토: [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17)
-- 구현 작업: 미등록
+- 구현 작업: [#105](https://github.com/wejo-team/sku-dreamon/issues/105). [저장 모델·접수 규칙](../database/contests.md)은 구현하고, 실제 목록·상세와 팀 수 집계·관리 경로는 후속으로 진행합니다.
 - 변경 근거: 2026-10-19 [#77 사용자 결정](https://github.com/wejo-team/sku-dreamon/issues/77)의 참가 대상·분야·접수 상태·인원·팀 집계와 #33·#36·#46 정책. 디자인·배포 검증 상태는 [대조 기록](prototype-alignment.md)에서 별도 관리
 
 공고의 출처·등록 전 확인·접수 상태·마감과 사용자 탐색을 정의합니다. LLM 추천 후보와 근거는 [추천 매칭](matching.md), 공고를 선택한 뒤의 팀 생성·지원은 [팀 모집과 지원](team-recruitment.md)에서 관리합니다.
