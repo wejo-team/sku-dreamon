@@ -1,6 +1,7 @@
 """지원 생성의 동시 중복·실패 롤백·현재 모집 조건과 과거 재전송을 검증한다."""
 
 import asyncio
+import json
 from datetime import datetime
 from typing import Literal
 from uuid import UUID, uuid4
@@ -26,6 +27,29 @@ from tests.integration.creation_support import creation_client
 from tests.integration.test_application_submission import make_public
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
+
+
+@pytest.mark.parametrize("role_code", ["\ud800", "\udfff"])
+async def test_http_rejects_invalid_unicode_role_code(
+    review_data: ApplicationData, role_code: str
+) -> None:
+    values = {"requestId": str(uuid4()), "roleCode": role_code}
+    async with creation_client(review_data, review_data.applicant_id) as client:
+        response = await client.post(
+            f"/api/v1/teams/{review_data.other_team_id}/applications",
+            content=json.dumps(values).encode("ascii"),
+            headers={"Content-Type": "application/json"},
+        )
+        assert response.status_code == 422, response.text
+    async with review_data.database.session() as session:
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(Application)
+                .where(Application.team_id == review_data.other_team_id)
+            )
+            == 0
+        )
 
 
 async def test_concurrent_same_request_has_one_event_pair(

@@ -24,6 +24,12 @@ class ApplicationCreate(RequestDTO):
         default=None, description="선택 메시지. NFC·trim 후 최대 1000 코드 포인트."
     )
 
+    @field_validator("role_code")
+    @classmethod
+    def unicode_role(cls, value: str) -> str:
+        value.encode("utf-8")
+        return value
+
     @field_validator("message")
     @classmethod
     def empty_message(cls, value: str | None) -> str | None:
