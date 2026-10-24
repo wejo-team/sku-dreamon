@@ -1,6 +1,6 @@
 # 알림 API
 
-**상태: 설계 제안 · 미구현.** 본인 알림함과 읽음 처리의 요청과 응답을 정의합니다. 모든 경로는 `/api/v1` 기준이며 로그인이 필요합니다. 제품 정책은 [알림 명세](../specs/notifications.md)를 참조합니다.
+**상태: 구현 진행 중 — [#113](https://github.com/wejo-team/sku-dreamon/issues/113).** 본인 목록·미읽음 수는 [라우터](../../backend/app/routers/notifications.py), [DTO](../../backend/app/schemas/notifications.py), [저장 접근](../../backend/app/repositories/notifications.py)와 [읽음 서비스](../../backend/app/services/notifications.py)에 구현합니다. 개별·선택 집합 읽음도 구현하며 최초 읽음 시각과 전체 실패 원자성을 보장합니다. 앱 연결·프론트 통합과 업무 변경에 따른 알림 생성은 별도 검증 범위입니다. 아래 표는 최종 요청·응답 계약을 설명합니다. 모든 경로는 `/api/v1` 기준이며 로그인이 필요합니다. 제품 정책은 [알림 명세](../specs/notifications.md)를 참조합니다.
 
 | 찾는 내용 | 위치 |
 | --- | --- |
@@ -24,8 +24,8 @@
 | --- | --- | --- | --- |
 | `GET /me/notifications` | `page`, `pageSize`, `unreadOnly` query | 200 `NotificationPage` | 422 |
 | `GET /me/notifications/unread-count` | 없음 | 200 `Success<UnreadCount>` | 없음 |
-| `PUT /me/notifications/{notificationId}/read` | 본문 없음 | 200 `Success<Notification>` | 404, 422 |
-| `PUT /me/notifications/read` | `ReadNotifications` | 200 `Success<ReadNotificationsResult>` | 404, 422 |
+| `PUT /me/notifications/{notificationId}/read` | 본문 없음 | 200 `Success<Notification>` | 403 CSRF, 404, 422 |
+| `PUT /me/notifications/read` | `ReadNotifications` | 200 `Success<ReadNotificationsResult>` | 403 CSRF, 404, 422 |
 
 모든 알림 경로는 인증 주체 **본인**만 대상으로 합니다. query·본문에 다른 수신자 ID를 받지 않습니다. 다른 사람의 알림이나 없는 ID는 404 `RESOURCE_NOT_FOUND`입니다.
 
@@ -35,7 +35,7 @@
 | `pageSize` | 1~100 정수, 기본 20 | `NotificationPage`의 `data`·`pagination`에 적용 |
 | `unreadOnly` | 불리언, 기본 `false` | `true`면 미읽음만 반환 |
 
-정렬은 `occurredAt DESC, id DESC`입니다. `total`은 현재 필터와 권한을 적용한 목록 집계이며, `UnreadCount.unreadCount`는 본인의 **전체 미읽음 수**입니다. 목록 열기만으로 읽음 처리하지 않습니다.
+정렬은 `occurredAt DESC, id DESC`입니다. `total`은 현재 필터와 권한을 적용한 목록 집계이며, `UnreadCount.unreadCount`는 본인의 **전체 미읽음 수**입니다. 목록 열기만으로 읽음 처리하지 않습니다. 구현은 목록·페이지 보정·필터 집계·전체 미읽음 수를 단일 SQL로 읽어 같은 DB 스냅샷을 사용합니다. 제목·본문은 사건 상태와 폐기 원인만으로 구성하며 프로필·실명 등 비공개 데이터를 읽지 않습니다.
 
 <a id="notification-fields"></a>
 
@@ -76,7 +76,7 @@
 | `ReadNotificationsResult` | `updatedIds` | `Id[]` | 성공한 본인 ID. 이미 읽은 ID도 포함 |
 | `ReadNotificationsResult` | `unreadCount` | 음이 아닌 안전 정수 | 처리 후 본인의 전체 미읽음 수 |
 
-모두 읽음은 현재 사용자에게 **이미 제공된 ID의 합집합**을 전송합니다. 그 사이 도착했지만 아직 제공하지 않은 알림은 변경하지 않습니다. 이미 읽은 항목은 최초 `readAt`을 유지하고, 하나라도 타인·없는 ID가 있으면 404로 **전체 변경 없이 실패**합니다.
+모두 읽음은 현재 사용자에게 **이미 제공된 ID의 합집합**을 전송합니다. 그 사이 도착했지만 아직 제공하지 않은 알림은 변경하지 않습니다. 이미 읽은 항목은 최초 `readAt`을 유지하고, 하나라도 타인·없는 ID가 있으면 404로 **전체 변경 없이 실패**합니다. 구현은 본인 ID들을 UUID 오름차순으로 잠근 뒤 전체 소유권을 확인하고, 미읽음 항목만 갱신한 트랜잭션의 커밋 성공 후 응답합니다. 동시 읽음도 먼저 저장한 시각을 유지하며, 성공한 `updatedIds`는 요청 순서와 같습니다.
 
 상태 변경과 알림 생성은 [알림 생성 정책](../specs/notifications.md#generation-policy), 저장·중복 방지는 [알림 테이블](../database/notifications.md)을 참조합니다. 명시적 검토 시작·미선발과 본인 팀 생성에 따른 폐기는 기존 `application_status_changed` 계열로 전달하며 새 `kind`를 추가하지 않습니다. 실제 변경이 없는 조회·재요청이나 모집 종료·기한 경과만으로 상태 변경 알림을 만들지 않습니다. 읽음 성공 후 목적지로 이동하며, 목적지에서 현재 권한·존재 여부를 다시 확인합니다. 알림의 제목·본문도 비공개 프로필을 우회 노출하지 않습니다.
 
@@ -89,4 +89,4 @@
 
 ## 미정·범위 밖 항목
 
-마감 알림·푸시·이메일은 추가하지 않습니다. 알림 보존·실시간 전달은 [알림 명세](../specs/notifications.md)의 미정 범위를 유지합니다. 인증에는 [서버 세션·쿠키 계약](conventions.md#session-auth)을 적용하며, CSRF 등 남은 전송 세부는 해당 계약의 미정 항목을 따릅니다.
+마감 알림·푸시·이메일은 추가하지 않습니다. 알림 보존·실시간 전달은 [알림 명세](../specs/notifications.md)의 미정 범위를 유지합니다. 인증에는 [서버 세션·쿠키 계약](conventions.md#session-auth)을 적용하며, 쓰기 경로는 현재 인증 의존성의 세션 결합 CSRF 쿠키·헤더와 HTTPS 출처 검증을 적용합니다. 전송 세부는 [인증 API](auth.md)를 따릅니다.
