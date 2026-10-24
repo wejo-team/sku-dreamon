@@ -1,6 +1,6 @@
 # 선택지 API
 
-**상태: 구현 진행 중 — [#101](https://github.com/wejo-team/sku-dreamon/issues/101).** [선택지 코드](../../backend/app/domains/catalogs/codes.py), [응답 DTO](../../backend/app/domains/catalogs/schemas.py), [공개 라우터](../../backend/app/domains/catalogs/router.py)를 구현합니다. 앱 연결·학사 원장·프론트 통합의 완료 여부는 구현 PR의 검증 결과를 따릅니다. 아래 표는 전송 계약을 설명하며 생성 OpenAPI와 대조합니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
+**상태: 구현 진행 중 — [#101](https://github.com/wejo-team/sku-dreamon/issues/101).** [선택지 코드](../../backend/app/rules/catalogs.py), [응답 DTO](../../backend/app/schemas/catalogs.py), [응답 구성](../../backend/app/services/catalogs.py), [공개 라우터](../../backend/app/routers/catalogs.py)를 구현합니다. 앱 연결·학사 원장·프론트 통합의 완료 여부는 구현 PR의 검증 결과를 따릅니다. 아래 표는 전송 계약을 설명하며 생성 OpenAPI와 대조합니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
 
 | 확인할 내용 | 위치 |
 | --- | --- |
@@ -83,7 +83,7 @@
 
 프로필 화면은 `academicUnitId`에서 부모를 따라 선택한 항목까지의 소속 경로를 표시합니다. 학부·학과만 선택한 이유나 전공 배정 상태는 별도 필드로 전달하거나 추정하지 않으며, 학사 정보 전체가 미입력이면 `academicUnitId=null`입니다. 실제 초기 목록·부모 관계·기존 데이터의 ID 대응은 [학사 미정 사항](../specs/academic-structure.md#open-questions)을 검토한 뒤 등록합니다. 현재 migration은 빈 테이블만 만들며, 미검증 31행을 운영 seed로 적재하지 않습니다. 빈 원장 조회는 `200 {"data": []}`입니다.
 
-[학사 서비스](../../backend/app/domains/catalogs/service.py)의 `validate_academic_selection`은 대상·모든 조상의 행을 ID 오름차순으로 공유 잠금하고 같은 트랜잭션에서 유효성을 확인합니다. `set_academic_selectable`의 변경 잠금은 신규 선택과 경합하며 여러 항목을 바꾸는 내부 작업도 ID 오름차순을 따릅니다. 최상위 프로필/원장 작업이 commit을 소유합니다. 기준 데이터 신규 생성은 `create_academic_unit`을 사용하고 기존 `parent_id`를 수정하는 기능은 제공하지 않습니다. 소속 변경은 새 행 등록과 기존 행 비활성화로 처리합니다.
+[학사 서비스](../../backend/app/services/catalogs.py)의 `validate_academic_selection`은 대상·모든 조상의 행을 ID 오름차순으로 공유 잠금하고 같은 트랜잭션에서 유효성을 확인합니다. `set_academic_selectable`의 변경 잠금은 신규 선택과 경합하며 여러 항목을 바꾸는 내부 작업도 ID 오름차순을 따릅니다. 최상위 프로필/원장 작업이 commit을 소유합니다. 기준 데이터 신규 생성은 `create_academic_unit`을 사용하고 기존 `parent_id`를 수정하는 기능은 제공하지 않습니다. 소속 변경은 새 행 등록과 기존 행 비활성화로 처리합니다.
 
 ## DB 연결과 남은 범위
 

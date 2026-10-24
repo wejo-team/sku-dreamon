@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import select
 
-from app.domains.applications.models import Application, ApplicationEvent
+from app.models.applications import Application, ApplicationEvent
 from tests.integration.application_support import (
     ApplicationData,
     application_client,

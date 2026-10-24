@@ -2,7 +2,7 @@
 
 이 문서는 PostgreSQL 17 기준 **물리 설계 초안**입니다. 계정 식별·서버 세션·현재 프로필의 저장 구조를 정의합니다. 세션 정리·보존 기간·탈퇴처럼 미정인 제품 결정을 테이블 설계로 확정하지 않습니다.
 
-**구현 진행:** `accounts`·`auth_sessions`의 [ORM 모델](../../backend/app/domains/auth/models.py)과 [migration](../../backend/alembic/versions/20261024_03_auth.py), [DB 제약 테스트](../../backend/tests/integration/test_auth_models.py)를 추가했습니다. 프로필 테이블과 인증 HTTP·세션 서비스는 후속 구현 범위이며, 저장 기반 검증을 로그인 기능 완료로 취급하지 않습니다.
+**구현 진행:** `accounts`·`auth_sessions`의 [ORM 모델](../../backend/app/models/auth.py)과 [migration](../../backend/alembic/versions/20261024_03_auth.py), [DB 제약 테스트](../../backend/tests/integration/test_auth_models.py)를 추가했습니다. 프로필 저장 모델·조회와 서버 세션·CSRF·본인 계정 조회·로그아웃도 구현했습니다. 실제 범위는 [프로필 API](../api/profiles.md)와 [인증 API](../api/auth.md)를 따르며, 가입·로그인·프로필 저장 API는 후속 범위입니다.
 
 | 먼저 확인할 내용 | 원본 |
 | --- | --- |
@@ -172,7 +172,7 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 
 ## 현재 프로필
 
-[프로필 ORM](../../backend/app/domains/profiles/models.py)과 [마이그레이션](../../backend/alembic/versions/20261024_04_profiles.py)에 아래 저장 구조를 정의합니다. [PostgreSQL 제약 테스트](../../backend/tests/integration/test_profile_models.py)는 참조 대상의 키만 별도로 제공해 프로필 자체의 무결성을 검사합니다. 인증·학사 모델과의 전체 migration 검증 및 본인 프로필 저장 API는 [#102](https://github.com/wejo-team/sku-dreamon/issues/102)에서 이어서 확인합니다.
+[프로필 ORM](../../backend/app/models/profiles.py)과 [마이그레이션](../../backend/alembic/versions/20261024_04_profiles.py)에 아래 저장 구조를 정의합니다. [PostgreSQL 제약 테스트](../../backend/tests/integration/test_profile_models.py)는 참조 대상의 키만 별도로 제공해 프로필 자체의 무결성을 검사합니다. 인증·학사 모델과의 전체 migration 검증 및 본인 프로필 저장 API는 [#102](https://github.com/wejo-team/sku-dreamon/issues/102)에서 이어서 확인합니다.
 
 ### `profiles`
 

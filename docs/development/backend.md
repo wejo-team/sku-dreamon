@@ -4,9 +4,9 @@
 
 FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, PostgreSQL, Alembic을 사용합니다. 데이터베이스 URL 형식은 `postgresql+asyncpg://...`입니다.
 
-`core`에는 도메인이 함께 사용하는 설정·애플리케이션 예외·DB 기반·HTTP 기반을 둡니다. 각 기능의 라우터·schema·모델·서비스는 `domains/<기능>/`에 필요한 만큼 추가합니다. `core`는 도메인을 import하지 않으며, `core/db`는 HTTP 프레임워크와 `core/http`에 의존하지 않습니다. 전체 배치와 의존 방향은 [구조와 책임 경계](architecture.md#responsibility-boundaries)를 따릅니다.
+백엔드는 `routers`·`dependencies`·`services`·`queries`·`models`·`schemas`·`rules`·`security`의 전역 계층으로 나눕니다. 각 계층에는 필요한 기능 모듈만 추가합니다. `core`는 공통 설정·예외·DB·HTTP 기반을 제공하며 기능별 상위 계층을 import하지 않습니다. 기존 `core/http`는 공통 HTTP 어댑터로 유지하고, `core/db`는 HTTP 프레임워크와 `core/http`에 의존하지 않습니다. 전체 배치와 의존 방향은 [구조와 책임 경계](architecture.md#responsibility-boundaries)를 따릅니다.
 
-현재 등록된 제품 API와 남은 기능은 [API 인덱스](../api/README.md), 저장 모델·Alembic 적용 범위는 [DB 인덱스](../database/README.md)에서 확인합니다. [앱 구성](../../backend/app/main.py)은 도메인 라우터를 `/api/v1`에 연결하고 실제 라우터·DTO에서 OpenAPI를 생성합니다.
+현재 등록된 제품 API와 남은 기능은 [API 인덱스](../api/README.md), 저장 모델·Alembic 적용 범위는 [DB 인덱스](../database/README.md)에서 확인합니다. [앱 구성](../../backend/app/main.py)은 기능 라우터를 `/api/v1`에 연결하고 실제 라우터·DTO에서 OpenAPI를 생성합니다.
 
 - API는 `/api/v1` 아래에 리소스 중심 경로로 제공합니다. HTTP 상태 코드를 사용하고 실패를 200 응답으로 감추지 않습니다.
 - 요청·응답은 Pydantic schema로 명시합니다. FastAPI의 기본 validation error 형식과 호환되는 처리를 우선하고, 도메인 오류 계약이 필요하면 프론트와 함께 문서화합니다.
@@ -21,7 +21,7 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 
 ## 공통 API 기반의 책임
 
-[구현 이슈 #99](https://github.com/wejo-team/sku-dreamon/issues/99)의 `core/http`는 전송 계약과 FastAPI 연결을 담당합니다. ORM 공통 기반은 아래 별도 절처럼 `core/db`에 둡니다. 업무 권한·상태 전이·정원·조회 SQL은 각 도메인의 서비스가 맡습니다.
+[구현 이슈 #99](https://github.com/wejo-team/sku-dreamon/issues/99)의 `core/http`는 전송 계약과 FastAPI 연결을 담당합니다. ORM 공통 기반은 아래 별도 절처럼 `core/db`에 둡니다. 업무 권한·상태 전이·정원과 요청 트랜잭션은 `services`, 읽기 SQL과 ORM 결과의 DTO 구성은 `queries`가 맡습니다. `schemas`는 ORM을 import하지 않으며 DTO의 값과 전송 계약을 정의합니다.
 
 - 요청 DTO는 camelCase만 받고, 응답 DTO는 Python의 snake_case로 구성하여 camelCase로 보냅니다. 두 책임을 분리하여 응답 생성 편의를 위해 외부 snake_case 입력까지 허용하지 않습니다. 임의 map 키는 변환하지 않습니다.
 - 성공 응답과 페이지 응답은 라우터에서 명시적인 모델로 반환합니다. `Success[T]`의 `T`에는 NULL을 허용하지 않는 영역별 DTO나 배열 타입을 지정하여 실제 검증과 OpenAPI를 일치시킵니다. [공통 조회 라우터](#read-router)는 등록한 상세 조회의 DTO를 `Success[T]`로 한 번 감쌉니다. 응답 본문을 자동으로 감싸는 middleware는 사용하지 않으므로 health·204·쿠키·`Location`의 기존 동작을 유지합니다.
@@ -58,11 +58,11 @@ from app.core.http.schemas import RequestDTO, ResponseDTO, Success, Timestamp, V
 
 `Summary`·`Detail`은 `ResponseDTO`를 상속하며 목록과 상세에서 서로 다른 DTO를 사용할 수 있습니다. 목록의 전체 개수·페이지 보정·집계 등 메타데이터 계산은 서비스가 책임집니다. 확장 페이지를 사용하면 `response_model`에도 그 타입을 지정합니다. 상세 handler는 이미 감싼 `Success`를 반환하지 않습니다. 대상이 없으면 서비스가 `AppError(404, ...)`를 발생시키며, 라우터가 `None`을 자동으로 404로 바꾸지 않습니다.
 
-handler는 `Depends(handler)`로 실행됩니다. handler에 선언한 path·query 타입과 검증 조건은 요청 처리와 OpenAPI에 반영되며, 중첩 `Depends`도 실행됩니다. 주입된 `Response`에 설정한 헤더·쿠키는 응답에 보존됩니다. handler는 도메인 라우터에 두는 얇은 HTTP 함수이며, 파싱된 값과 세션을 서비스에 전달합니다. 비동기 DB·서비스 호출은 `async def` handler에서 `await`하고, 동기 handler는 DTO·페이지 객체를 직접 반환합니다. 서비스에 `Request`·`Depends` 같은 FastAPI 의존성을 추가하지 않습니다.
+handler는 `Depends(handler)`로 실행됩니다. handler에 선언한 path·query 타입과 검증 조건은 요청 처리와 OpenAPI에 반영되며, 중첩 `Depends`도 실행됩니다. 주입된 `Response`에 설정한 헤더·쿠키는 응답에 보존됩니다. handler는 `routers`에 두는 얇은 HTTP 함수이며, 파싱된 값과 세션을 서비스나 조회 함수에 전달합니다. 비동기 DB·서비스 호출은 `async def` handler에서 `await`하고, 동기 handler는 DTO·페이지 객체를 직접 반환합니다. 서비스에 `Request`·`Depends` 같은 FastAPI 의존성을 추가하지 않습니다.
 
 생성자의 `dependencies`와 각 등록 메서드의 `dependencies`는 함께 적용됩니다. 인증·권한 검사는 도메인이 필요한 의존성을 명시하며, 공통 라우터가 인증 정책을 자동으로 선택하지 않습니다. 기본 오류 응답 선언은 목록에 422·500·503, 상세에 404·422·500·503입니다. `error_statuses`로 401·403 등 해당 작업의 추가 오류를 선언하고, `name`·`summary`로 경로 이름과 OpenAPI 설명을 지정할 수 있습니다. 오류 상태를 선언하는 것만으로 인증 검사나 예외 처리 동작이 추가되지는 않습니다.
 
-아래는 [공모전 경로](../api/contests.md#endpoints)로 등록 형태를 설명하는 예시입니다. `ContestSummary`·`Contest`·`service`는 예시용 이름이며 실제 도메인 구현의 DTO·함수와 구분합니다. 검색·정렬 등 나머지 query를 생략하고 페이지와 UUID 경로 선언만 보여 줍니다. 실제 적용은 [지원 라우터](../../backend/app/domains/applications/router.py)의 `BaseCrudRouter` 등록을 참고합니다.
+아래는 [공모전 경로](../api/contests.md#endpoints)로 등록 형태를 설명하는 예시입니다. `ContestSummary`·`Contest`·`service`는 예시용 이름이며 실제 도메인 구현의 DTO·함수와 구분합니다. 검색·정렬 등 나머지 query를 생략하고 페이지와 UUID 경로 선언만 보여 줍니다. 실제 적용은 [지원 라우터](../../backend/app/routers/applications.py)의 `BaseCrudRouter` 등록을 참고합니다.
 
 ```python
 from typing import Annotated
@@ -154,13 +154,13 @@ class Profile(CreatedAtMixin, UpdatedAtMixin, Base):
 
 수정 시각은 쓰기 서비스가 `version`과 함께 명시적으로 갱신합니다. 프로필 선택 항목·포트폴리오만 바뀌어도 부모 프로필의 시각·버전을 같은 트랜잭션에서 바꿔야 합니다. 조회와 실제 변경이 없는 재시도에는 갱신하지 않습니다. mixin은 `onupdate`나 DB trigger를 추가하지 않으므로 직접 SQL도 같은 책임을 따릅니다.
 
-도메인 고유의 모델·쿼리는 해당 도메인에 두고, `core/db`에는 함께 사용하는 DB 기반과 [레포지토리 생성](#repository-factory)을 둡니다. `AsyncSession.get/add/delete/flush`를 그대로 감싼 범용 CRUD는 현재 추가하지 않습니다. 반복되거나 복잡한 쿼리가 생기면 도메인 repository로 분리하고, 여러 도메인에 같은 필요가 확인되면 공통 기능을 추출합니다. commit과 권한·잠금·상태 전이의 조합은 최상위 서비스가 책임집니다.
+ORM 모델은 `models`, 읽기 SQL과 ORM 결과의 DTO 구성은 `queries`에 둡니다. `services`는 필요한 모델·조회 함수를 사용해 업무 권한·잠금·상태 전이와 트랜잭션을 조합합니다. `core/db`에는 함께 사용하는 DB 기반과 [레포지토리 생성](#repository-factory)을 둡니다. `AsyncSession`의 기본 메서드를 그대로 감싼 범용 CRUD나 구조만을 위한 repository·Unit of Work는 추가하지 않습니다.
 
 ## 엔진과 세션
 
-[인증 세션 서비스](../../backend/app/domains/auth/session_service.py)는 불투명 토큰을 발급하고 잠금 후 현재 시각으로 만료·회수를 검사합니다. 요청의 [인증 의존성](../../backend/app/domains/auth/dependencies.py)은 별도의 짧은 DB 세션으로 유효 활동을 커밋하며, 업무 서비스에는 인증 주체 UUID와 별도의 `DatabaseSession`을 전달합니다. 세션 발급·회수 함수는 호출자의 세션을 사용하고 커밋은 최상위 유스케이스가 맡습니다. 현재 [로그아웃 서비스](../../backend/app/domains/auth/http_service.py)가 회수를 커밋하며 가입·로그인 HTTP 연결은 아직 구현하지 않았습니다.
+[인증 세션 서비스](../../backend/app/services/sessions.py)는 불투명 토큰을 발급하고 잠금 후 현재 시각으로 만료·회수를 검사합니다. 요청의 [인증 의존성](../../backend/app/dependencies/auth.py)은 별도의 짧은 DB 세션으로 유효 활동을 커밋하며, 업무 서비스에는 인증 주체 UUID와 별도의 `DatabaseSession`을 전달합니다. 세션 발급·회수 함수는 호출자의 세션을 사용하고 커밋은 최상위 유스케이스가 맡습니다. 현재 [로그아웃 서비스](../../backend/app/services/auth.py)가 회수를 커밋하며 가입·로그인 HTTP 연결은 아직 구현하지 않았습니다.
 
-[CSRF 검사](../../backend/app/domains/auth/csrf.py)는 `CSRF_SIGNING_KEY`와 정확한 HTTPS origin 목록 `AUTH_ALLOWED_ORIGINS`를 사용합니다. 키 원문은 저장소와 오류 로그에 포함하지 않습니다. [인증 라우터](../../backend/app/domains/auth/router.py)는 현재 인증 상태의 CSRF 조회·본인 계정 조회·로그아웃을 제공하고, [쿠키 처리](../../backend/app/domains/auth/cookies.py)는 유효 토큰 재사용·무효 세션 쿠키 삭제·커밋 후 로그아웃 쿠키 삭제에 연결됩니다. 응답 필드는 [인증 DTO](../../backend/app/domains/auth/schemas.py), 전송 설계는 별도 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)를 참조합니다. 가입·로그인·아이디 중복 확인과 시도 제한·차단 목록의 운영 정책은 후속 범위입니다.
+[CSRF 요청 검사](../../backend/app/dependencies/csrf.py)와 [서명 계산](../../backend/app/security/csrf.py)은 `CSRF_SIGNING_KEY`와 정확한 HTTPS origin 목록 `AUTH_ALLOWED_ORIGINS`를 사용합니다. 키 원문은 저장소와 오류 로그에 포함하지 않습니다. [인증 라우터](../../backend/app/routers/auth.py)는 현재 인증 상태의 CSRF 조회·본인 계정 조회·로그아웃을 제공하고, [쿠키 처리](../../backend/app/routers/auth_cookies.py)는 유효 토큰 재사용·무효 세션 쿠키 삭제·커밋 후 로그아웃 쿠키 삭제에 연결됩니다. 응답 필드는 [인증 DTO](../../backend/app/schemas/auth.py), 전송 설계는 별도 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)를 참조합니다. 가입·로그인·아이디 중복 확인과 시도 제한·차단 목록의 운영 정책은 후속 범위입니다.
 
 - `create_async_engine`과 `async_sessionmaker`를 사용합니다. engine·session factory는 앱 수명에 맞춰 구성하고 종료 시 engine을 dispose합니다.
 - `AsyncSession`은 요청 또는 독립 작업 단위로 생성·종료합니다. 전역 Session, 요청 사이의 Session 공유, 하나의 Session을 여러 동시 task에서 공유하는 코드를 만들지 않습니다.
@@ -216,7 +216,7 @@ async with account_factory.open_repository() as repository:
 - 하나의 쓰기 유스케이스를 맡는 최상위 서비스가 트랜잭션의 성공·실패를 책임집니다.
 - 최상위 서비스는 필요한 변경을 수행한 뒤 `await session.commit()`을 한 번 호출합니다. 실패하면 `await session.rollback()` 후 오류를 전파합니다. commit은 성공 응답을 반환하기 전에 완료합니다.
 - 하위 query 함수·repository·보조 서비스는 독자적으로 commit하지 않습니다. 생성된 ID나 제약조건 확인이 필요하면 `flush()`를 사용합니다.
-- 여러 쓰기를 하나로 묶는 기능은 가장 바깥 유스케이스가 commit을 소유합니다. 이미 commit하는 최상위 서비스를 그대로 중첩 호출하지 않습니다.
+- 서비스 간 호출을 허용하며, 한 유스케이스의 팀·지원·알림 변경에는 같은 `AsyncSession`을 전달합니다. 가장 바깥 쓰기 서비스가 commit·rollback을 소유하고 하위 변경 함수는 필요한 경우 flush만 수행합니다. 이미 commit하는 최상위 서비스를 그대로 중첩 호출하지 않습니다.
 - 인증·권한 조회 등 앞선 SELECT가 autobegin을 만들 수 있습니다. 세션 상태를 고려하지 않고 모든 서비스에 `session.begin()`을 추가하지 않습니다. begin context를 사용하려면 그 코드가 트랜잭션 전체 경계를 소유함을 보장합니다.
 - 읽기 전용 작업에 불필요한 commit을 추가하지 않습니다. 실패한 세션을 재사용하려면 rollback을 먼저 수행합니다.
 - 느린 AI·외부 API 응답을 기다리는 동안 DB 트랜잭션과 잠금을 오래 유지하지 않습니다. 외부 호출과 DB 변경의 순서·실패 처리는 기능 단위로 설계합니다.
