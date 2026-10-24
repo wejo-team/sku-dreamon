@@ -1,10 +1,10 @@
 # 팀 API
 
-**상태: 설계 제안 · 미구현.** 팀 탐색·생성·모집과 워크스페이스의 전송 계약을 정의합니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 공개 팀 조회 구현 · 생성·워크스페이스 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/routers/teams.py), [요청·응답 DTO](../../backend/app/schemas/teams.py), [조회 서비스](../../backend/app/services/teams.py)와 [저장 조회](../../backend/app/repositories/teams.py)를 구현했습니다. 생성·모집 변경·워크스페이스 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
-- 입력은 [검색 조건](#queries)과 [요청 본문](#requests), 출력은 [팀 데이터](#team-summary) 표에서 확인합니다.
+- 입력은 [검색 조건](#queries)과 [요청 본문](#requests), 출력은 [팀 데이터](#team-summary)의 코드와 남은 설계 표에서 확인합니다.
 
 - ID·코드·시각·정원·버전은 [공통 타입](conventions.md#types), 실패는 [공통 오류](conventions.md#errors)를 사용합니다. 단건·복합 성공은 [Success&lt;T&gt;](conventions.md#success-responses), 목록은 [Page&lt;T&gt;](conventions.md#pagination)를 사용하며 `Page<T>`는 `data: T[]`와 `pagination`을 가진 응답입니다.
 
@@ -22,7 +22,7 @@
 | --- | --- | --- | --- |
 | `GET /contests/{contestId}/teams` | 공개, 공고 UUID·팀 검색 조건 | 200 `Page<TeamSummary>` | 404 공고 없음 |
 | `GET /teams` | 공개, 팀 검색 조건·선택 `contestId` | 200 `Page<TeamSummary>` | — |
-| `GET /teams/{teamId}` | 공개, 팀 UUID | 200 `Success<Team>` | 404 팀 없음 |
+| `GET /teams/{teamId}` | 공개, 팀 UUID | 200 `Success<TeamDetail>` | 404 팀 없음 |
 
 공개 팀 응답에는 지원서·지원자 프로필·팀 공간 데이터를 포함하지 않습니다. 화면별 정보 구분은 [공고 탐색](../specs/contests.md#exploration-ui)과 [팀 모집 명세](../specs/team-recruitment.md)를 따릅니다. 공모전 목록·상세 조회는 [공모전 API](contests.md#endpoints)에 정의합니다.
 
@@ -44,13 +44,9 @@
 
 경로 변수 `contestId`, `teamId`는 해당 경로에서 모두 필수 `Id`입니다. 목록의 아래 query는 모두 선택 입력입니다.
 
-| query | 타입·기본값 | 적용 범위·의미 |
-| --- | --- | --- |
-| `page`, `pageSize` | 정수, 기본 1·20, 페이지 크기 최대 100 | 모든 페이지 목록. 범위·마지막 페이지 보정은 [공통 계약](conventions.md) |
-| `q` | 문자열, 생략 또는 trim 후 빈 값은 검색 없음 | 팀 탐색. 검색 대상은 아래 표 |
-| `roleCode` | `CatalogCode`, 생략 시 제한 없음 | 팀 목록. 모집 역할 하나와 일치하는 팀 |
-| `recruitingOnly` | boolean, 기본 `false` | 팀 목록. `true`이면 공통 모집 가능 조건을 충족한 팀만 |
-| `contestId` | `Id`, 생략 시 제한 없음 | `GET /teams`만. 해당 공고의 팀으로 제한 |
+공개 조회의 정확한 query 이름·타입·기본값은 [TeamSearch·AllTeamSearch](../../backend/app/schemas/teams.py)와 서버의 `/docs`, `/openapi.json`에서 확인합니다. 페이지는 기본 1·20, 크기는 최대 100이며 마지막 페이지 보정은 [공통 계약](conventions.md)을 따릅니다. `roleCode`는 모집 역할 일치, `recruitingOnly`는 현재 공통 모집 가능 조건으로 제한합니다. `contestId`는 전체 팀 경로에서만 받습니다.
+
+검색어는 앞뒤 공백을 제거하고 빈 값이면 검색하지 않습니다. `%`·`_`는 와일드카드가 아닌 문자로 검색합니다. 목록과 총원·페이지 보정·현재 인원은 같은 SQL 스냅샷에서 계산합니다.
 
 | 목록 | 검색 대상 | 안정 정렬 |
 | --- | --- | --- |
@@ -130,35 +126,15 @@
 
 ### TeamSummary — 팀 목록
 
-| 필드 | 타입 | 의미·제약 |
-| --- | --- | --- |
-| `id` | `Id` | 팀 식별자 |
-| `version` | `Version` | 현재 팀 버전 |
-| `contestId` | `Id` | 연결 공고 |
-| `contestTitle` | string | 연결 공고 제목 |
-| `name`, `introduction` | string | 팀명·소개/목표 |
-| `fieldCodes` | `CatalogCode[]` | 연결 공고에서 조회한 분야, 중복 없이 0~3개 |
-| `roleCodes` | `CatalogCode[]` | 모집 역할, 중복 없이 최대 6개. 정원 1명은 빈 배열 |
-| `capacity` | `PositiveBigInt` | 팀장 포함 목표 정원 |
-| `memberCount` | integer | 현재 팀장·확정 팀원 수, 1~9,007,199,254,740,991 |
-| `recruitmentState` | `RecruitmentState` | 저장된 `open`·`closed` 상태. 기한·정원을 반영한 현재 접수 가능 여부는 `isRecruiting` |
-| `closedReason` | `capacity_reached`, `leader_closed` 또는 null | 저장 상태가 `closed`일 때 사유, `open`이면 null. 단순 기한 경과의 사유값은 추가하지 않음 |
-| `recruitmentEndsAt` | `Timestamp` | 팀 모집 마감의 제외 경계 |
-| `isRecruiting` | boolean | 현재 공통 모집 가능 조건에 따른 계산값 |
-| `isDemo` | boolean | 팀용 고정 UUID 시드 목록에 `id`가 포함되는지 서버에서 판정 |
-| `createdAt` | `Timestamp` | 팀 생성 시각 |
-| `recruitmentDeadline` | [DeadlineInterpretation](contests.md#deadline-interpretation) | 모집 마감의 원문·보완 정보 |
+정확한 필드는 [TeamSummary](../../backend/app/schemas/teams.py)와 생성 OpenAPI를 따릅니다. `memberCount`는 종료되지 않은 실제 소속을 팀장 포함 집계하고, `fieldCodes`는 현재 공고의 분야입니다. `isDemo`는 [승인된 시연 목록](../../backend/app/core/demo_data.py)을 조회합니다.
+
+`isRecruiting`은 저장 상태 `open`, 공고 접수 시작 이상·마감 미만, 팀 마감 미만, 잔여 정원을 모두 만족할 때만 참입니다. 저장 상태가 열려 있어도 기한이 지나거나 정원이 찼으면 거짓이며, 특정 회원의 신규 지원 성공을 보장하지 않습니다. 종료·정원 충족·접수 예정 팀도 공개 조회할 수 있습니다.
 
 <a id="team"></a>
 
-### Team — 공개 모집글
+### TeamDetail — 공개 모집글
 
-`TeamSummary`의 **모든 필드**에 아래 필드를 추가합니다.
-
-| 추가 필드 | 타입 | 의미 |
-| --- | --- | --- |
-| `ownerAccountId` | `Id` | 팀장 계정 식별자 |
-| `contest` | [ContestSummary](contests.md#contest-summary) | 연결된 공고 요약 |
+[TeamDetail](../../backend/app/schemas/teams.py)은 `TeamSummary`에 현재 팀장 계정과 연결 공고의 [ContestSummary](contests.md#contest-summary)를 추가합니다. 공고 요약의 `teamCount`는 모집 가능 여부와 무관한 연결 팀 전체 수입니다. 지원서·지원자 프로필·팀 공간의 비공개 데이터는 포함하지 않습니다.
 
 <a id="team-member"></a>
 

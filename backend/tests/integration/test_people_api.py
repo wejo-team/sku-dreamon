@@ -449,3 +449,11 @@ async def test_generated_contract_exposes_camelcase_queries_and_response_fields(
         "skillCodes",
         "portfolio",
     }
+
+
+async def test_people_search_rejects_nul_before_database_lookup(
+    people_client: AsyncClient,
+) -> None:
+    response = await people_client.get("/api/v1/people", params={"q": "검색\x00어"})
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"][0]["loc"] == ["query", "q"]
