@@ -32,16 +32,34 @@ def normalize_password(value: str) -> str:
 LoginId = Annotated[
     StrictStr,
     AfterValidator(normalize_login_id),
-    Field(min_length=4, max_length=24, pattern=r"^[a-z0-9]{4,24}$"),
+    Field(
+        min_length=4,
+        max_length=24,
+        pattern=r"^[a-z0-9]{4,24}$",
+        description=(
+            "로그인 아이디. 앞뒤 공백을 제거하고 ASCII 영문 대문자를 소문자로 "
+            "변환한 뒤 영문 소문자와 숫자로 이루어진 4~24자인지 검사합니다."
+        ),
+        examples=["dreamon01"],
+    ),
 ]
 Password = Annotated[
     StrictStr,
     AfterValidator(normalize_password),
-    Field(min_length=15, max_length=128),
+    Field(
+        min_length=15,
+        max_length=128,
+        description=(
+            "비밀번호. NFC 정규화 후 Unicode 코드 포인트 기준 15~128자이며, "
+            "대소문자와 앞뒤·중간 공백을 보존합니다. 요청 전용 필드입니다."
+        ),
+    ),
 ]
 
 
 class Credentials(RequestDTO):
+    """회원가입과 로그인에 사용하는 아이디·비밀번호 입력."""
+
     login_id: LoginId
     password: Password = Field(
         repr=False, exclude=True, json_schema_extra={"writeOnly": True}
@@ -49,18 +67,48 @@ class Credentials(RequestDTO):
 
 
 class AccountResponse(ResponseDTO):
-    id: UUID
-    login_id: LoginId
-    is_demo: bool
-    has_profile: bool
-    school_verification: Literal["unverified"]
-    created_at: Timestamp
+    """로그인한 본인에게 제공하는 계정 정보."""
+
+    id: UUID = Field(description="로그인 아이디와 별개로 계정을 식별하는 UUID.")
+    login_id: LoginId = Field(
+        description=(
+            "정규화된 로그인 아이디. ASCII 영문 소문자와 숫자로 이루어진 4~24자."
+        )
+    )
+    is_demo: bool = Field(
+        description=(
+            "계정용 고정 UUID 시드 목록을 기준으로 서버가 판정한 시연용 계정 여부."
+        )
+    )
+    has_profile: bool = Field(description="저장된 프로필의 존재 여부.")
+    school_verification: Literal["unverified"] = Field(
+        description="학교 인증 상태. 현재는 미인증을 나타내는 unverified만 사용합니다."
+    )
+    created_at: Timestamp = Field(
+        description="계정 생성 시각. UTC 기준이며 Z로 끝나는 ISO 8601 문자열."
+    )
 
 
 class AuthResult(ResponseDTO):
-    account: AccountResponse
+    """회원가입·로그인 성공 시 반환하는 본인 계정 정보."""
+
+    account: AccountResponse = Field(
+        description="가입하거나 로그인한 본인의 계정 정보."
+    )
 
 
 class LoginIdAvailability(ResponseDTO):
-    normalized_login_id: LoginId
-    available: bool
+    """정규화된 로그인 아이디의 사용 가능 여부."""
+
+    normalized_login_id: LoginId = Field(
+        description=(
+            "중복 확인 대상 아이디에서 앞뒤 공백을 제거하고 "
+            "ASCII 영문 대문자를 소문자로 변환한 값."
+        )
+    )
+    available: bool = Field(
+        description=(
+            "조회 시점의 아이디 사용 가능 여부. 가입 예약을 의미하지 않으며 "
+            "가입 시 중복 여부를 다시 확인합니다."
+        )
+    )
