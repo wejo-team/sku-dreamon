@@ -141,7 +141,7 @@ CSRF 토큰은 임의 nonce에 HMAC-SHA-256을 적용하며 로그인 후에는 
 
 세션의 `last_seen_at`은 유효 조건을 만족하는 행에 대해서만 짧은 인증 트랜잭션에서 갱신·커밋합니다. 이후 업무 트랜잭션이 실패해도 유효한 활동 기록은 유지하며, 회수·유휴 만료·절대 만료된 세션을 갱신으로 되살리지 않습니다. 업무 권한은 해당 요청에서 현재 관계를 다시 검사합니다.
 
-시도 제한 수치·차단 목록 공급·종료된 세션의 정리와 보존 기간은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 유지합니다. 이 전송 계약으로 자동 삭제나 계정 잠금 정책을 추가하지 않습니다. 설계 근거는 [OWASP의 서명된 double-submit 및 origin 검사](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html), [세션 관리](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)입니다.
+시도 제한 수치와 로컬 차단 목록 공급 방식은 [인증 운영 기준](../specs/authentication.md#auth-operation-settings)을 따릅니다. 실제 파일·설정 배포와 종료 세션의 정리·보존 기간은 후속 운영 범위입니다. 이 전송 계약으로 자동 삭제나 계정 잠금 정책을 추가하지 않습니다. 설계 근거는 [OWASP의 서명된 double-submit 및 origin 검사](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html), [세션 관리](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)입니다.
 
 개인 프로필·지원·AI·알림 응답은 공유 캐시에 저장하지 않는 방향을 제안합니다. 비공개 전환 후 일반 조회가 이전 응답을 다시 사용하지 않도록 서버 재검증과 클라이언트 무효화 범위를 함께 구현합니다. 구체 캐시 기술은 이 문서로 선택하지 않습니다.
 
@@ -229,7 +229,7 @@ CSRF 토큰은 임의 nonce에 HMAC-SHA-256을 적용하며 로그인 후에는 
 | 404 | 없음 또는 존재 자체를 노출하면 안 되는 개인 리소스 | `RESOURCE_NOT_FOUND` |
 | 409 | 유일성·현재 상태·버전 충돌 | `LOGIN_ID_TAKEN`, `VERSION_CONFLICT`, `TEAM_FULL` 등 |
 | 422 | 요청 필드·형식·검증 실패 | FastAPI 호환 `detail[]`의 `loc`, `msg`, `type` |
-| 429 | 요청 제한 | `RATE_LIMITED`; 구체 제한 수치는 미정 |
+| 429 | 요청 제한 | `RATE_LIMITED`; 인증 수치는 [운영 기준](../specs/authentication.md#auth-operation-settings) 적용 |
 | 503 | 일시적 서비스 장애 | `TEMPORARY_UNAVAILABLE` |
 | 500 | 예상하지 못한 내부 오류 | `INTERNAL_ERROR`; 미정 기능을 임시 500으로 제공하지 않음 |
 
@@ -281,10 +281,10 @@ CSRF 토큰은 임의 nonce에 HMAC-SHA-256을 적용하며 로그인 후에는 
 | 인증 운영 설정 | 쿠키·CSRF 전송 계약은 정의. 운영 origin·키와 제한 수치·차단 목록·보존은 실제 운영 전에 준비하며 인증 구현 완료와 구분 | [CSRF 전송](#csrf-transport), [AUTH 미정 사항](../specs/authentication.md#open-questions) |
 | 탈퇴·이전 데이터 표시 | DELETE 계정 endpoint를 만들지 않음 | [PROFILE-04](../specs/profile.md#open-questions) |
 | 계정 복구 — MVP 범위 밖 | 복구 endpoint를 만들지 않으며 현재 인증 구현의 선행 조건으로 두지 않음. 복구 도입 시 정책·계약 후속 검토 | [계정 복구 범위](../specs/authentication.md#account-recovery) |
-| 일반 텍스트 계수·URL 길이 | 정책 수치는 필드 표에 기록, 계수 방식·미확정 상한은 임의 추가하지 않음 | [PROFILE-07](../specs/profile.md#open-questions) |
+| 일반 텍스트·URL의 추가 제한 | 프로필·팀·지원 메시지의 NFC·코드 포인트 기준은 확정. URL의 운영 길이 상한 등 명시하지 않은 추가 제한은 보류 | [프로필 입력](../specs/profile.md#input-validation) |
 | 팀장 선발 취소·강퇴·팀장 탈퇴·팀 삭제 — MVP 범위 밖 | 관리 endpoint나 범용 상태 PATCH로 제공하지 않음. 본인의 선발 후 지원 취소는 확정 계약 유지 | [소속 관리 제외 범위](../specs/team-recruitment.md#membership-exclusions) |
 | 모집 정보 편집·제출 후 메시지 수정 | 범용 수정 endpoint 없음 | [TEAM-07~09](../specs/team-recruitment.md#open-questions) |
-| 마감 공고 목록 기본 배치·기본 필터 | 상세 열람은 정의. 목록의 미지정 상태 조건은 CONTEST-05 검토 필요 | [공고 미정 사항](../specs/contests.md#open-questions) |
+| 마감 공고 목록 기본 배치·기본 필터 | 상세 열람은 정의. 상태 생략 시 전체·최신 등록순으로 확정. 삭제·보존은 후속 범위 | [공고 미정 사항](../specs/contests.md#open-questions) |
 | 관리자 공고 관리·공식 조건 변경 영향 | 관리 책임만 유지. 관리자 CRUD·일괄 소급 변경 API 없음 | [공고 운영](../specs/contests.md#operation-flow), [TEAM-06](../specs/team-recruitment.md#open-questions) |
 | AI 서버 보존·제공자·실행·스트리밍 | 외부 요청·결과 모양만 제안. 현재 대화 조회를 과거 대화 복원 API로 확대하지 않음 | [MATCH-10·12·13·14](../specs/matching.md#open-questions) |
 
