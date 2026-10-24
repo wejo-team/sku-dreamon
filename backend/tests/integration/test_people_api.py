@@ -11,25 +11,26 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import Select, insert, select, update
 from sqlalchemy.schema import CreateSchema, DropSchema
 
+from app.core import demo_data as manifest
 from app.core.db.base import Base
 from app.core.db.session import Database, create_database
 from app.core.http.dependencies import get_session
 from app.core.http.handlers import register_error_handlers
-from app.domains.auth.dependencies import SESSION_COOKIE_NAME, CurrentAccount
-from app.domains.auth.models import Account, AuthSession
-from app.domains.auth.session_service import issue_session
-from app.domains.catalogs.models import AcademicUnit
-from app.domains.demo import manifest
-from app.domains.profiles import queries
-from app.domains.profiles.models import (
+from app.dependencies.auth import SESSION_COOKIE_NAME, CurrentAccount
+from app.models.academic_units import AcademicUnit
+from app.models.auth import Account, AuthSession
+from app.models.profiles import (
     PortfolioLink,
     Profile,
     ProfileDesiredRole,
     ProfileInterest,
     ProfileSkill,
 )
-from app.domains.profiles.router import router
-from app.domains.profiles.schemas import PeopleQuery
+from app.queries import profiles as queries
+from app.routers.profiles import router
+from app.schemas.profiles import PeopleQuery
+from app.services import profiles as service
+from app.services.sessions import issue_session
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 ACCOUNT_ID = UUID(int=1)
@@ -340,11 +341,11 @@ async def test_count_and_page_keep_the_same_snapshot_during_visibility_change(
             return total
 
         monkeypatch.setattr(reader, "scalar", count_then_revoke_visibility)
-        result = await queries.list_people(reader, PeopleQuery())
+        result = await service.list_people(reader, PeopleQuery())
         assert result.pagination.total == len(result.data) == 1
         assert result.data[0].account_id == PUBLIC_ID
     async with people_database.session() as fresh_reader:
-        result = await queries.list_people(fresh_reader, PeopleQuery())
+        result = await service.list_people(fresh_reader, PeopleQuery())
         assert result.pagination.total == 0
         assert result.data == []
 

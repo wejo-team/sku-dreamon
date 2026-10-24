@@ -12,7 +12,7 @@ from app.core.http.schemas import (
     Timestamp,
     Version,
 )
-from app.domains.catalogs.codes import (
+from app.rules.catalogs import (
     AcademicStatusCode,
     FieldCode,
     GradeCode,

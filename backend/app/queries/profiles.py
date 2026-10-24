@@ -1,4 +1,4 @@
-"""현재 공개 범위를 적용하고 같은 읽기 시점의 프로필·목록을 구성한다."""
+"""호출자의 읽기 시점에서 프로필 SQL과 허가된 응답 구성을 제공한다."""
 
 from collections.abc import Sequence
 from typing import Literal, cast
@@ -8,9 +8,15 @@ from pydantic import AnyHttpUrl
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AppError
-from app.core.http.schemas import Page, PageMeta
-from app.domains.catalogs.codes import (
+from app.core.demo_data import is_demo_account
+from app.models.profiles import (
+    PortfolioLink,
+    Profile,
+    ProfileDesiredRole,
+    ProfileInterest,
+    ProfileSkill,
+)
+from app.rules.catalogs import (
     AcademicStatusCode,
     FieldCode,
     GradeCode,
@@ -19,29 +25,12 @@ from app.domains.catalogs.codes import (
     SkillCode,
     WeeklyAvailabilityCode,
 )
-from app.domains.demo.manifest import is_demo_account
-from app.domains.profiles.models import (
-    PortfolioLink,
-    Profile,
-    ProfileDesiredRole,
-    ProfileInterest,
-    ProfileSkill,
-)
-from app.domains.profiles.schemas import (
+from app.schemas.profiles import (
     PeopleQuery,
     PersonSummary,
     PortfolioResponse,
     ProfileResponse,
 )
-
-
-async def _start_snapshot(session: AsyncSession) -> None:
-    # 인증은 별도 세션에서 끝나며, 이 읽기 서비스가 요청 DB의 첫 접근을 소유한다.
-    if session.in_transaction():
-        raise RuntimeError(
-            "Profile reads require a session without an active transaction"
-        )
-    await session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
 
 
 async def _selections(
@@ -183,30 +172,6 @@ def _detail(
     )
 
 
-async def get_own_profile(session: AsyncSession, account_id: UUID) -> ProfileResponse:
-    """인증된 본인에게 비공개를 포함한 현재 프로필을 반환한다."""
-    await _start_snapshot(session)
-    profile = await session.get(Profile, account_id)
-    if profile is None:
-        raise AppError(404, "RESOURCE_NOT_FOUND", "요청한 정보를 찾을 수 없습니다.")
-    return await build_profile_response(session, profile)
-
-
-async def get_public_profile(
-    session: AsyncSession, account_id: UUID
-) -> ProfileResponse:
-    """일반 상세에서는 본인·팀장 여부와 관계없이 공개된 프로필만 반환한다."""
-    await _start_snapshot(session)
-    profile = await session.scalar(
-        select(Profile).where(
-            Profile.profile_id == account_id, Profile.is_public.is_(True)
-        )
-    )
-    if profile is None:
-        raise AppError(404, "RESOURCE_NOT_FOUND", "요청한 정보를 찾을 수 없습니다.")
-    return await build_profile_response(session, profile)
-
-
 def _filters(query: PeopleQuery) -> list[ColumnElement[bool]]:
     conditions: list[ColumnElement[bool]] = [Profile.is_public.is_(True)]
     if query.field_code is not None:
@@ -266,16 +231,32 @@ def _filters(query: PeopleQuery) -> list[ColumnElement[bool]]:
     return conditions
 
 
-async def list_people(session: AsyncSession, query: PeopleQuery) -> Page[PersonSummary]:
-    """공개 검색 결과와 집계를 같은 스냅샷에서 읽고 마지막 페이지로 보정한다."""
-    await _start_snapshot(session)
+async def get_profile(
+    session: AsyncSession, account_id: UUID, *, public_only: bool = False
+) -> Profile | None:
+    if not public_only:
+        return await session.get(Profile, account_id)
+    profile: Profile | None = await session.scalar(
+        select(Profile).where(
+            Profile.profile_id == account_id, Profile.is_public.is_(True)
+        )
+    )
+    return profile
+
+
+async def count_people(session: AsyncSession, query: PeopleQuery) -> int:
     conditions = _filters(query)
     total = await session.scalar(
         select(func.count()).select_from(Profile).where(*conditions)
     )
     assert total is not None
-    total_pages = (total + query.page_size - 1) // query.page_size
-    page = min(query.page, max(total_pages, 1))
+    return total
+
+
+async def list_people_summaries(
+    session: AsyncSession, query: PeopleQuery, *, page: int
+) -> list[PersonSummary]:
+    conditions = _filters(query)
     profiles = (
         await session.scalars(
             select(Profile)
@@ -288,17 +269,12 @@ async def list_people(session: AsyncSession, query: PeopleQuery) -> Page[PersonS
     fields, roles, skills = await _selections(
         session, [profile.profile_id for profile in profiles]
     )
-    return Page(
-        data=[
-            _summary(
-                profile,
-                fields.get(profile.profile_id, []),
-                roles.get(profile.profile_id, []),
-                skills.get(profile.profile_id, []),
-            )
-            for profile in profiles
-        ],
-        pagination=PageMeta(
-            page=page, page_size=query.page_size, total=total, total_pages=total_pages
-        ),
-    )
+    return [
+        _summary(
+            profile,
+            fields.get(profile.profile_id, []),
+            roles.get(profile.profile_id, []),
+            skills.get(profile.profile_id, []),
+        )
+        for profile in profiles
+    ]

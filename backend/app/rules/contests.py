@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime, time, timedelta, timezone, tzinfo
 from enum import StrEnum
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.domains.catalogs.codes import FieldCode, validate_catalog_selection
+from app.rules.catalogs import FieldCode, validate_catalog_selection
 
 _MAX_BIGINT = 9223372036854775807
 

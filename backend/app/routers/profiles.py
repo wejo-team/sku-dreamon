@@ -8,9 +8,9 @@ from fastapi import APIRouter, Path, Query
 from app.core.http.dependencies import DatabaseSession
 from app.core.http.handlers import error_responses
 from app.core.http.schemas import Page, Success
-from app.domains.auth.dependencies import CurrentAccount
-from app.domains.profiles import queries
-from app.domains.profiles.schemas import PeopleQuery, PersonSummary, ProfileResponse
+from app.dependencies.auth import CurrentAccount
+from app.schemas.profiles import PeopleQuery, PersonSummary, ProfileResponse
+from app.services import profiles as service
 
 router = APIRouter(tags=["profiles"], responses=error_responses(401, 422, 500, 503))
 
@@ -19,7 +19,7 @@ router = APIRouter(tags=["profiles"], responses=error_responses(401, 422, 500, 5
 async def get_own_profile(
     account_id: CurrentAccount, session: DatabaseSession
 ) -> Success[ProfileResponse]:
-    return Success(data=await queries.get_own_profile(session, account_id))
+    return Success(data=await service.get_own_profile(session, account_id))
 
 
 @router.get("/people")
@@ -28,7 +28,7 @@ async def list_people(
     session: DatabaseSession,
     query: Annotated[PeopleQuery, Query()],
 ) -> Page[PersonSummary]:
-    return await queries.list_people(session, query)
+    return await service.list_people(session, query)
 
 
 @router.get("/people/{accountId}", responses=error_responses(404))
@@ -37,4 +37,4 @@ async def get_public_profile(
     session: DatabaseSession,
     account_id: Annotated[UUID, Path(alias="accountId")],
 ) -> Success[ProfileResponse]:
-    return Success(data=await queries.get_public_profile(session, account_id))
+    return Success(data=await service.get_public_profile(session, account_id))
