@@ -3,7 +3,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AnyHttpUrl, Field
+from pydantic import AnyHttpUrl, Field, field_validator
 
 from app.core.http.schemas import (
     PositiveBigInt,
@@ -134,3 +134,16 @@ class PeopleQuery(RequestDTO):
             description="페이지당 항목 수. 1~100개이며 기본값은 20개입니다.",
         ),
     ] = 20
+
+    @field_validator("q")
+    @classmethod
+    def validate_search_text(cls, value: str | None) -> str | None:
+        if value is not None:
+            # PostgreSQL text는 NUL과 UTF-8로 표현할 수 없는 문자를 받지 않는다.
+            if "\x00" in value:
+                raise ValueError("검색어에 사용할 수 없는 문자가 있습니다.")
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError as error:
+                raise ValueError("검색어에 사용할 수 없는 문자가 있습니다.") from error
+        return value
