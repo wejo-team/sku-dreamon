@@ -3,16 +3,53 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Response
 
 from app.core.http.dependencies import DatabaseSession
 from app.core.http.handlers import error_responses
 from app.core.http.schemas import Page, Success
 from app.dependencies.auth import CurrentAccount
+from app.dependencies.csrf import require_csrf
+from app.schemas.profile_write import ProfileWrite, VisibilityWrite
 from app.schemas.profiles import PeopleQuery, PersonSummary, ProfileResponse
+from app.services import profile_write as commands
 from app.services import profiles as service
 
 router = APIRouter(tags=["profiles"], responses=error_responses(401, 422, 500, 503))
+
+
+@router.put(
+    "/me/profile",
+    response_model=Success[ProfileResponse],
+    responses=error_responses(403, 409),
+)
+async def save_profile(
+    account_id: CurrentAccount,
+    session: DatabaseSession,
+    body: ProfileWrite,
+    response: Response,
+    csrf: Annotated[None, Depends(require_csrf)],
+) -> Success[ProfileResponse]:
+    result = await commands.save_profile(session, account_id, body)
+    response.headers["Cache-Control"] = "no-store"
+    return Success(data=result)
+
+
+@router.put(
+    "/me/profile/visibility",
+    response_model=Success[ProfileResponse],
+    responses=error_responses(403, 404, 409),
+)
+async def set_visibility(
+    account_id: CurrentAccount,
+    session: DatabaseSession,
+    body: VisibilityWrite,
+    response: Response,
+    csrf: Annotated[None, Depends(require_csrf)],
+) -> Success[ProfileResponse]:
+    result = await commands.set_visibility(session, account_id, body)
+    response.headers["Cache-Control"] = "no-store"
+    return Success(data=result)
 
 
 @router.get("/me/profile", responses=error_responses(404))
