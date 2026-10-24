@@ -387,6 +387,32 @@ async def test_public_detail_preserves_nullable_fields_and_bigint_identifiers(
     assert data["updatedAt"].endswith("Z")
 
 
+@pytest.mark.parametrize("scheme", ["http", "https"])
+async def test_profile_details_preserve_long_portfolio_urls(
+    people_database: Database, people_client: AsyncClient, scheme: str
+) -> None:
+    await add_profile(people_database, ACCOUNT_ID)
+    prefix = f"{scheme}://example.org/portfolio/"
+    long_url = prefix + "x" * (2129 - len(prefix))
+    async with people_database.session() as session:
+        session.add(
+            PortfolioLink(
+                portfolio_link_id=ACCOUNT_ID,
+                url=long_url,
+                title=None,
+            )
+        )
+        await session.commit()
+
+    for path in ("/api/v1/me/profile", f"/api/v1/people/{ACCOUNT_ID}"):
+        response = await people_client.get(path)
+        assert response.status_code == 200
+        assert response.json()["data"]["portfolio"] == {
+            "url": long_url,
+            "title": None,
+        }
+
+
 async def test_authorized_batch_keeps_each_profiles_selections_and_portfolio(
     people_database: Database,
 ) -> None:

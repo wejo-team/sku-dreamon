@@ -1,12 +1,12 @@
 # 공모전 API
 
-**상태: 설계 제안 · 미구현.** 공모전 목록·상세 탐색의 전송 계약을 정의합니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 공개 상세 구현 · 목록 설계.** 공모전 상세의 [라우터](../../backend/app/routers/contests.py), [조회 서비스](../../backend/app/services/contests.py)와 [저장 조회](../../backend/app/repositories/contests.py), [응답 DTO](../../backend/app/schemas/contests.py)를 구현했습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
-[공고 저장 모델·접수 규칙](../database/contests.md)은 별도로 구현했습니다. 팀 공개 상세에서 사용하는 [ContestSummary·DeadlineInterpretation](../../backend/app/schemas/contests.py)와 실제 전체 팀 수 집계는 구현했습니다. 아래 공고 목록·상세 HTTP 경로는 아직 제공하지 않으며, 목록의 미정 정책을 별도로 검토합니다.
+[공고 저장 모델·접수 규칙](../database/contests.md)은 별도로 구현했습니다. 팀 공개 상세에서 사용하는 [ContestSummary·DeadlineInterpretation](../../backend/app/schemas/contests.py)와 실제 전체 팀 수 집계는 구현했습니다. 상세는 원문·대상·분야·전체 팀 수를 단일 SQL 스냅샷으로 반환합니다. 공고 목록 HTTP 경로는 아직 제공하지 않으며, 목록 기본 상태·정렬 및 공고 등록·수정 운영 정책은 별도로 검토합니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
-- 입력은 [검색 조건](#queries), 출력은 [공모전 데이터](#contest-summary) 표에서 확인합니다.
+- 입력은 [검색 조건](#queries), 출력은 [공모전 데이터](#contest-summary)의 코드·생성 문서에서 확인합니다.
 
 - ID·코드·시각·정원·버전은 [공통 타입](conventions.md#types), 실패는 [공통 오류](conventions.md#errors)를 사용합니다. 단건·복합 성공은 [Success&lt;T&gt;](conventions.md#success-responses), 목록은 [Page&lt;T&gt;](conventions.md#pagination)를 사용하며 `Page<T>`는 `data: T[]`와 `pagination`을 가진 응답입니다.
 
@@ -21,7 +21,7 @@
 | 메서드·경로 | 권한·입력 | 성공 응답 | 추가 실패 |
 | --- | --- | --- | --- |
 | `GET /contests` | 공개, 공모전 검색 조건 | 200 `Page<ContestSummary>` | — |
-| `GET /contests/{contestId}` | 공개, 공고 UUID | 200 `Success<Contest>` | 404 공고 없음 |
+| `GET /contests/{contestId}` | 공개, 공고 UUID | 200 `Success<ContestDetail>` | 404 `CONTEST_NOT_FOUND` 공고 없음 |
 
 공고는 접수 예정·중·마감 상태 모두 상세 열람할 수 있습니다. 화면별 정보 구분은 [공고 탐색](../specs/contests.md#exploration-ui)을 따릅니다. 공고에 연결된 팀 목록 `GET /contests/{contestId}/teams`는 [팀 API](teams.md#endpoints)에 정의합니다.
 
@@ -62,40 +62,23 @@
 
 ### ContestSummary — 목록 카드
 
-정확한 필드는 [ContestSummary](../../backend/app/schemas/contests.py)와 팀 상세의 생성 OpenAPI를 따릅니다. 이 DTO는 현재 공개 팀 상세의 중첩 공고 요약에 사용합니다. 분야는 실제 공고 분야이고, `teamCount`는 상태에 관계없는 연결 팀 전체 수이며, `registrationStatus`는 같은 조회 시각의 시작·마감 경계로 계산합니다. `isDemo`는 [승인된 시연 목록](../../backend/app/core/demo_data.py)을 조회합니다.
+정확한 필드는 [ContestSummary](../../backend/app/schemas/contests.py)와 생성 OpenAPI를 따릅니다. 이 DTO는 공개 팀 상세의 중첩 공고 요약과 공고 상세의 공통 필드에 사용합니다. 분야는 실제 공고 분야이고, `teamCount`는 상태에 관계없는 연결 팀 전체 수이며, `registrationStatus`는 같은 조회 시각의 시작·마감 경계로 계산합니다. `isDemo`는 [승인된 시연 목록](../../backend/app/core/demo_data.py)을 조회합니다.
 
 D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된 접수 상태 문자열이나 별도 팀 수를 클라이언트가 추정하지 않습니다.
 
 <a id="contest"></a>
 
-### Contest — 상세
+### ContestDetail — 상세
 
-`ContestSummary`의 **모든 필드**에 아래 필드를 추가합니다. 목록과 상세에 같은 이름으로 제공하는 값은 같은 의미·타입입니다.
+정확한 필드는 [ContestDetail](../../backend/app/schemas/contests.py)과 서버의 `/docs`, `/openapi.json`을 따릅니다. `ContestSummary`의 모든 필드에 확인된 설명·참가 대상·원문 참가 조건·참가 인원·일정 근거·제출물·시상·문의처·자료 확인 시각·공식 원문 URL을 추가합니다. 선택 정보는 값이 없더라도 필드를 생략하지 않고 null로 제공합니다.
 
-| 추가 필드 | 타입 | 의미·제약 |
-| --- | --- | --- |
-| `description` | string 또는 null | 상세 설명 |
-| `audienceCodes` | `AudienceCode[]` | 중복 없이 1~2개. `student`+`general`은 함께 가능, `unrestricted`·`unknown`은 단독 |
-| `eligibilityText` | string | 원문의 참가 조건 |
-| `capacity` | `ParticipationCapacity` | 원문 참가 인원 조건 |
-| `timing` | `ContestTiming` | 원문 일정과 서비스 보완 사실 |
-| `deliverables` | string 또는 null | 제출물 안내 |
-| `awards` | string 또는 null | 시상 안내 |
-| `contact` | string 또는 null | 문의처 |
-| `verifiedAt` | `Timestamp` | 등록 전 자료 확인 시각 |
-| `sourceUrl` | `HttpUrl` | 공식 원문 링크 |
+참가 대상은 중복 없이 1~2개이며 `student`와 `general`은 함께 제공할 수 있습니다. `unrestricted`·`unknown`은 단독이며 이를 사용자 자격의 자동 판정으로 확대하지 않습니다. 응답에 팀장·지원자·계정·세션 정보나 내부 생성 요청 식별값은 포함하지 않습니다.
 
 <a id="participation-capacity"></a>
 
 ### ParticipationCapacity — 참가 인원 조건
 
-각 형태에서 `kind`, `minimumMembers`, `maximumMembers`는 모두 필수입니다. 수치는 `PositiveBigInt` 십진 문자열이고, 정보가 없으면 null입니다.
-
-| `kind` | `minimumMembers` | `maximumMembers` | 조합 규칙 |
-| --- | --- | --- | --- |
-| `range` | 양의 십진 문자열 | 양의 십진 문자열 | 최소 ≤ 최대. 두 값이 같으면 고정 정원 |
-| `unlimited` | 양의 십진 문자열 또는 null | null | 최대 제한 없음. 확인된 최소가 없으면 최소도 null |
-| `unknown` | null | null | 미확인 정보 표현용 |
+정확한 필드·타입은 [ParticipationCapacity](../../backend/app/schemas/contests.py)와 생성 OpenAPI를 따릅니다. `kind`, `minimumMembers`, `maximumMembers`는 모두 필수이며 수치는 `PositiveBigInt` 십진 문자열입니다. `range`는 양의 최소·최대와 최소 ≤ 최대를 요구하고, `unlimited`는 최대가 null이며 확인된 최소만 제공합니다. `unknown`은 양쪽 모두 null입니다.
 
 `unknown`은 미확인 필수 인원 자료의 신규 등록·팀 생성을 허용하는 계약이 아닙니다. `unlimited` 공고라도 팀장은 양의 목표 정원을 직접 입력합니다.
 
@@ -103,15 +86,9 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 
 ### ContestTiming — 접수 일정
 
-| 필드 | 타입 | 의미 |
-| --- | --- | --- |
-| `startsAt`, `endsAt` | `Timestamp` | 상위 `Contest`의 동일 이름 필드와 같은 시작·마감 경계 |
-| `openSourceDate` | string (`YYYY-MM-DD`) | 원문 접수 시작 날짜 |
-| `openSourceTime` | string 또는 null | 원문 시작 시각 |
-| `openSourceTimeZone` | string 또는 null | 원문 시작 시간대 |
-| `openEffectiveTimeZone` | string | 계산에 적용한 시간대 |
-| `openTimeZoneDefaulted` | boolean | 시작 시간대를 서비스 기준으로 보완했는지 여부 |
-| `closing` | `DeadlineInterpretation` | 마감 원문과 보완 여부 |
+정확한 필드는 [ContestTiming](../../backend/app/schemas/contests.py)과 생성 OpenAPI를 따릅니다. 시작·마감 경계는 상위 `ContestDetail`과 같은 값을 반환하며, 원문 시작 날짜·선택 시각·선택 시간대와 실제 적용 시간대·시간대 보완 여부를 구분합니다. 마감은 아래 `DeadlineInterpretation`으로 제공합니다.
+
+상세 조회는 확인되어 저장된 경계와 원문을 그대로 읽으며 누락된 시작 시각을 임의 보완하거나 날짜·시간대를 다시 해석하지 않습니다. 접수 상태는 조회 시각이 시작 경계 이상·마감 경계 미만일 때만 `open`이고, 마감 상태에서도 상세와 원문 링크는 공개합니다.
 
 원문에 시작 시각이 없거나 모호한 경우의 처리까지 이 계약으로 확정하지 않습니다. 등록 전 확인과 미정 범위는 [공고 테이블](../database/contests.md)을 따릅니다.
 
@@ -119,9 +96,13 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 
 ### DeadlineInterpretation — 마감 안내 정보
 
-정확한 필드는 [DeadlineInterpretation](../../backend/app/schemas/contests.py)와 팀 상세의 생성 OpenAPI를 따릅니다. 원문 날짜·선택 시각·선택 시간대와 계산에 적용한 시간대·시각 보완 여부·시간대 보완 여부를 반환합니다. 원문 시각·시간대가 없으면 null을 유지합니다.
+정확한 필드는 [DeadlineInterpretation](../../backend/app/schemas/contests.py)와 생성 OpenAPI를 따릅니다. 원문 날짜·선택 시각·선택 시간대와 계산에 적용한 시간대·시각 보완 여부·시간대 보완 여부를 반환합니다. 원문 시각·시간대가 없으면 null을 유지합니다.
 
 실제 마감 경계는 상위의 `endsAt` 또는 `recruitmentEndsAt`으로 제공합니다. 원문 입력과 서비스가 보완한 값을 구분해 안내합니다.
+
+## 검증
+
+[PostgreSQL·HTTP 상세 테스트](../../backend/tests/integration/test_contest_detail.py)는 미인증 열람·UUID 오류·시각 경계·원문/null 보존·정원 전송·전체 팀 수·동시 변경의 동일 스냅샷을 확인합니다. [DTO 테스트](../../backend/tests/unit/test_contest_detail_schemas.py)는 큰 정원의 십진 문자열과 필수 null 계약을 검증합니다. 목록 정책·운영 저장 경로·화면 완료 조건은 이 상세 API의 검증 범위에 포함하지 않습니다.
 
 ## DB 연결
 
