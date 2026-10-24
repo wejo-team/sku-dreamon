@@ -122,7 +122,7 @@ erDiagram
 | `ck_teams_deadline_assumptions` | CHECK | 시각·시간대 보완 플래그와 해당 원문 필드의 NULL 여부 일치 |
 | `ck_teams_version` | CHECK | `version > 0` |
 
-팀명 2~40자·소개 10~1,000자 및 정규화는 저장 유스케이스에서 검사합니다. Unicode 계수 계약이 미정이므로 DB의 `varchar(n)` 길이로 제품의 글자 수를 대신 결정하지 않습니다. 공식 인원 범위와 목표 정원의 일치, 기한 해석, 현재 팀장 권한도 저장 유스케이스에서 검사합니다. 인원 타입은 [공모전의 숫자 표현](contests.md)을 따르며 서비스 별도 상한·초기 기본 정원은 만들지 않습니다. 공고 조건 변경의 기존 팀 영향은 [미정 정책](../specs/contests.md#eligibility-changes)을 따릅니다.
+팀명 2~40자·소개 10~1,000자 및 정규화는 저장 유스케이스에서 검사합니다. NFC·trim 후 Unicode 코드 포인트로 검사하며 DB의 `varchar(n)`만으로 입력 정규화·검증을 대체하지 않습니다. 공식 인원 범위와 목표 정원의 일치, 기한 해석, 현재 팀장 권한도 저장 유스케이스에서 검사합니다. 인원 타입은 [공모전의 숫자 표현](contests.md)을 따르며 서비스 별도 상한·초기 기본 정원은 만들지 않습니다. 공고 조건 변경의 기존 팀 영향은 [미정 정책](../specs/contests.md#eligibility-changes)을 따릅니다.
 
 정원 충족 시 `closed + capacity_reached`를 함께 저장합니다. 이후 소속 종료는 이 두 값을 바꾸지 않으며, 재개 성공 때만 `open + NULL`로 변경합니다. 정원 1명 팀의 생성도 팀장 소속과 `closed + capacity_reached`를 함께 기록합니다. 이 상태 표현은 [명시적 모집 재개 정책](../specs/team-recruitment.md#recruitment-reopening)의 자동 재개 방지를 위한 설계입니다.
 
