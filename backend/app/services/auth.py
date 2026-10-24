@@ -4,7 +4,6 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.demo_data import is_demo_account
 from app.core.exceptions import AppError
 from app.repositories import auth as auth_repository
 from app.schemas.auth import AccountResponse
@@ -20,7 +19,6 @@ async def get_account(session: AsyncSession, account_id: UUID) -> AccountRespons
     return AccountResponse(
         id=account.account_id,
         login_id=account.login_id_normalized,
-        is_demo=is_demo_account(account.account_id),
         has_profile=has_profile,
         school_verification="unverified",
         created_at=account.created_at,

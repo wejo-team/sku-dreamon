@@ -62,12 +62,13 @@ CSRF 조회는 같은 인증 상태의 유효한 쿠키를 재사용하고 `Cach
 | --- | --- | --- | --- |
 | `id` | Id | 불가 | 계정 UUID |
 | `loginId` | string | 불가 | 정규화된 로그인 아이디. `^[a-z0-9]{4,24}$` |
-| `isDemo` | boolean | 불가 | 계정용 고정 UUID 시드 목록에 `id`가 포함되는지 서버에서 판정 |
 | `hasProfile` | boolean | 불가 | 저장된 프로필 존재 여부 |
 | `schoolVerification` | string | 불가 | 현재 허용값은 `unverified` 하나 |
 | `createdAt` | Timestamp | 불가 | 계정 생성 시각 |
 
 `Account`는 본인에게만 반환하며 `Cache-Control: no-store`를 적용합니다. 계정과 저장된 프로필의 존재 여부를 같은 SELECT에서 읽습니다. 다른 사람의 프로필·팀원·AI 응답에 로그인 아이디나 인증 정보를 섞지 않습니다. 학교 이메일·연락처·권한 부여 이력·비밀번호 해시·세션 값은 이 객체에 포함하지 않습니다. 실제 필드 정의는 [AccountResponse](../../backend/app/schemas/auth.py)와 라우터에서 생성한 OpenAPI를 따릅니다.
+
+본인 계정 응답에서는 시연 여부를 사용하지 않으므로 `isDemo`를 제공하지 않습니다. 사람·공고·팀·추천 카드의 시연 표시는 각 리소스의 응답 계약을 따릅니다.
 
 [계정 DB 설계](../database/identity.md#accounts)의 학교 이메일·인증 완료 시각은 후속 인증 기능을 위한 저장 필드입니다. 현재 입력·응답 필드나 인증 API를 추가하지 않으며, `schoolVerification`은 계속 `unverified`만 반환합니다.
 
@@ -87,6 +88,6 @@ CSRF 조회는 같은 인증 상태의 유효한 쿠키를 재사용하고 `Cach
 
 | API 정보 | 저장·정의 원본 |
 | --- | --- |
-| `Account`·로그인·`isDemo` | [계정과 프로필 테이블](../database/identity.md), [시연 데이터 식별](../specs/sprint-1.md#demo-data-scope) |
+| `Account`·로그인 | [계정과 프로필 테이블](../database/identity.md) |
 
 계정 탈퇴·학교 인증 API는 이번 설계에 추가하지 않습니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위에서 제외하므로 복구 API를 만들지 않으며 현재 인증 구현의 선행 조건으로 두지 않습니다. 가입 후 프로필 설정·사람 탐색은 [프로필 API](profiles.md)를 따릅니다.
