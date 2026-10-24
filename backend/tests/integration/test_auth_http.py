@@ -18,12 +18,13 @@ from app.core.config import Settings
 from app.core.db.base import Base
 from app.core.db.session import Database
 from app.core.http.handlers import register_error_handlers
-from app.domains.auth import session_service
-from app.domains.auth.csrf import CSRF_COOKIE_NAME, validate_csrf_token
-from app.domains.auth.dependencies import SESSION_COOKIE_NAME
-from app.domains.auth.models import Account, AuthSession
-from app.domains.auth.router import router
-from app.domains.auth.session_service import IssuedSession, issue_session
+from app.dependencies.auth import SESSION_COOKIE_NAME
+from app.dependencies.csrf import CSRF_COOKIE_NAME
+from app.models.auth import Account, AuthSession
+from app.routers.auth import router
+from app.security.csrf import validate_csrf_token
+from app.services import sessions as session_service
+from app.services.sessions import IssuedSession, issue_session
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 SIGNING_KEY = "auth-http-test-key-32-bytes-long!!"

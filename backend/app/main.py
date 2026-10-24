@@ -8,14 +8,14 @@ from fastapi import FastAPI
 from app.core.config import Settings
 from app.core.db.session import create_database
 from app.core.http.handlers import register_error_handlers
-from app.domains.applications.router import router as applications_router
-from app.domains.auth.router import router as auth_router
-from app.domains.catalogs.router import router as catalogs_router
-from app.domains.health.router import router as health_router
-from app.domains.notifications.router import router as notifications_router
-from app.domains.profiles.router import router as profiles_router
-from app.domains.teams.management_router import router as team_management_router
-from app.domains.teams.router import router as teams_router
+from app.routers.applications import router as applications_router
+from app.routers.auth import router as auth_router
+from app.routers.catalogs import router as catalogs_router
+from app.routers.health import router as health_router
+from app.routers.notifications import router as notifications_router
+from app.routers.profiles import router as profiles_router
+from app.routers.team_management import router as team_management_router
+from app.routers.teams import router as teams_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

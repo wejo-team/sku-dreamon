@@ -7,7 +7,7 @@ import pytest
 from argon2 import PasswordHasher, Type, extract_parameters
 from argon2.exceptions import InvalidHashError
 
-from app.domains.auth.passwords import (
+from app.security.passwords import (
     PasswordBlocklist,
     hash_password,
     needs_password_rehash,
