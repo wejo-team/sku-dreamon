@@ -21,18 +21,16 @@ from app.core.config import Settings
 from app.core.db.base import Base
 from app.core.db.session import Database
 from app.core.http.handlers import register_error_handlers
-from app.domains.applications.models import ApplicationEvent
-from app.domains.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME, issue_csrf_token
-from app.domains.auth.dependencies import SESSION_COOKIE_NAME
-from app.domains.auth.models import Account
-from app.domains.auth.session_service import issue_session
-from app.domains.notifications.models import Notification
-from app.domains.notifications.router import router
-from app.domains.notifications.service import (
-    list_notifications,
-    read_notification,
-    read_notifications,
-)
+from app.dependencies.auth import SESSION_COOKIE_NAME
+from app.dependencies.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from app.models.applications import ApplicationEvent
+from app.models.auth import Account
+from app.models.notifications import Notification
+from app.queries.notifications import list_notifications
+from app.routers.notifications import router
+from app.security.csrf import issue_csrf_token
+from app.services.notifications import read_notification, read_notifications
+from app.services.sessions import issue_session
 from tests.integration.test_team_integrity import application, contest, team
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]

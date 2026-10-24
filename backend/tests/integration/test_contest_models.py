@@ -19,7 +19,7 @@ from sqlalchemy.schema import CreateSchema
 
 from app.core.db.base import Base
 from app.core.db.session import create_database
-from app.domains.contests.models import Contest, ContestAudience, ContestField
+from app.models.contests import Contest, ContestAudience, ContestField
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 

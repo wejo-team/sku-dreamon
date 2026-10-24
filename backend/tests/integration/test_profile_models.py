@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.schema import CreateSchema
 
 from app.core.db.session import create_database
-from app.domains.profiles.models import (
+from app.models.profiles import (
     PortfolioLink,
     Profile,
     ProfileDesiredRole,
