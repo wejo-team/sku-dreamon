@@ -3,7 +3,7 @@
 import pytest
 
 from app.core.exceptions import AppError
-from app.domains.catalogs.codes import (
+from app.rules.catalogs import (
     CatalogCode,
     FieldCode,
     ProfileImageCode,
@@ -12,7 +12,7 @@ from app.domains.catalogs.codes import (
     WeeklyAvailabilityCode,
     validate_catalog_selection,
 )
-from app.domains.catalogs.schemas import build_catalogs
+from app.services.catalogs import build_catalogs
 
 
 def test_catalogs_provide_seven_ordered_lists_with_stable_codes() -> None:
