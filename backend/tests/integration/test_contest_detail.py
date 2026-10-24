@@ -24,8 +24,8 @@ from app.core.http.handlers import register_error_handlers
 from app.models.auth import Account
 from app.models.contests import Contest, ContestAudience, ContestField
 from app.models.teams import Team
-from app.queries import contests as queries
 from app.routers.contests import router
+from app.services import contests as queries
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 START = datetime(2026, 10, 24, 1, tzinfo=UTC)

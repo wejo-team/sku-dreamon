@@ -26,7 +26,6 @@ from app.models.profiles import (
     ProfileInterest,
     ProfileSkill,
 )
-from app.queries import profiles as queries
 from app.routers.profiles import router
 from app.schemas.profiles import PeopleQuery
 from app.services import profiles as service
@@ -431,7 +430,7 @@ async def test_authorized_batch_keeps_each_profiles_selections_and_portfolio(
         )
         await session.commit()
         profiles = (await session.scalars(select(Profile))).all()
-        result = await queries.build_profile_responses(session, profiles)
+        result = await service.build_profile_responses(session, profiles)
         owner = result[ACCOUNT_ID]
         person = result[PUBLIC_ID]
         assert owner.is_public is False

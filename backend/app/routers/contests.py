@@ -8,8 +8,8 @@ from fastapi import Path
 from app.core.http.dependencies import DatabaseSession
 from app.core.http.routers import BaseCrudRouter
 from app.core.http.schemas import Success
-from app.queries.contests import get_contest_detail
 from app.schemas.contests import ContestDetail
+from app.services.contests import get_contest_detail
 
 
 async def get_contest(

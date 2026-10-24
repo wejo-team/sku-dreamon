@@ -8,8 +8,8 @@ from fastapi import APIRouter, Path, Query
 from app.core.http.dependencies import DatabaseSession
 from app.core.http.handlers import error_responses
 from app.core.http.schemas import Page, Success
-from app.queries.teams import get_team_detail, list_teams
 from app.schemas.teams import AllTeamSearch, TeamDetail, TeamSearch, TeamSummary
+from app.services.teams import get_team_detail, list_teams
 
 router = APIRouter(tags=["teams"], responses=error_responses(422, 500, 503))
 

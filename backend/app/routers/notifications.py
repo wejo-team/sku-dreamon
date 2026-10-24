@@ -10,7 +10,6 @@ from app.core.http.handlers import error_responses
 from app.core.http.schemas import Success
 from app.dependencies.auth import CurrentAccount, get_current_account
 from app.dependencies.csrf import require_csrf
-from app.queries import notifications as notification_queries
 from app.schemas.notifications import (
     NotificationPage,
     NotificationResponse,
@@ -35,7 +34,7 @@ async def get_notifications(
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
     unread_only: Annotated[bool, Query(alias="unreadOnly")] = False,
 ) -> NotificationPage:
-    return await notification_queries.list_notifications(
+    return await service.list_notifications(
         session, account_id, page=page, page_size=page_size, unread_only=unread_only
     )
 
@@ -44,9 +43,7 @@ async def get_notifications(
 async def get_unread_count(
     account_id: CurrentAccount, session: DatabaseSession
 ) -> Success[UnreadCount]:
-    return Success(
-        data=await notification_queries.get_unread_count(session, account_id)
-    )
+    return Success(data=await service.get_unread_count(session, account_id))
 
 
 @router.put(

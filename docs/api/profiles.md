@@ -151,7 +151,7 @@
 
 정렬은 `updatedAt DESC, accountId ASC`입니다. `Page<PersonSummary>`는 필수 `data: PersonSummary[]`, `pagination: PageMeta`로 구성됩니다. 두 값은 `null`을 허용하지 않으며 [공통 페이지 계약](conventions.md#pagination)의 조회·집계 일치와 빈 결과 처리를 적용합니다.
 
-[조회 서비스](../../backend/app/services/profiles.py)는 별도 인증 처리가 끝난 새 요청 DB 세션에서 REPEATABLE READ로 읽습니다. 목록·총원·프로필 선택 항목을 같은 스냅샷에서 조회하고, 범위를 넘는 페이지는 마지막 페이지로 보정합니다. 공개 변경 이후 시작한 다음 요청은 새 공개 상태를 반영합니다. 이 서비스는 commit하지 않으며 요청 세션 종료 시 읽기 트랜잭션을 정리합니다.
+[조회 서비스](../../backend/app/services/profiles.py)와 [저장 접근](../../backend/app/repositories/profiles.py)는 별도 인증 처리가 끝난 새 요청 DB 세션에서 REPEATABLE READ로 읽습니다. 목록·총원·프로필 선택 항목을 같은 스냅샷에서 조회하고, 범위를 넘는 페이지는 마지막 페이지로 보정합니다. 공개 변경 이후 시작한 다음 요청은 새 공개 상태를 반영합니다. 이 서비스는 commit하지 않으며 요청 세션 종료 시 읽기 트랜잭션을 정리합니다.
 
 현재 공개 프로필만 목록·집계에 포함합니다. 비공개·미존재 상세는 같은 404로 처리합니다. 지원받은 팀장도 `/people`에서는 이 경계를 지키며 비공개 열람 예외는 [지원자 상세 API](applications.md#applicant)의 `/applications/{applicationId}/applicant`에서 관계를 확인합니다. 제품 정책 원본은 [사람 탐색](../specs/profile.md#people-directory)입니다.
 
