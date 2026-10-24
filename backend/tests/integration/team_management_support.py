@@ -10,18 +10,18 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.db.base import Base
 from app.core.db.session import Database
-from app.domains.applications.models import Application
-from app.domains.auth.models import Account
-from app.domains.catalogs import models as catalog_models  # noqa: F401 -- 프로필 FK 등록
-from app.domains.contests.models import Contest, ContestAudience, ContestField
-from app.domains.notifications import models as notification_models  # noqa: F401 -- 실제 스키마 등록
-from app.domains.profiles.models import (
+from app.models import academic_units as catalog_models  # noqa: F401 -- 프로필 FK 등록
+from app.models import notifications as notification_models  # noqa: F401 -- 실제 스키마 등록
+from app.models.applications import Application
+from app.models.auth import Account
+from app.models.contests import Contest, ContestAudience, ContestField
+from app.models.profiles import (
     PortfolioLink,
     Profile,
     ProfileDesiredRole,
     ProfileInterest,
 )
-from app.domains.teams.models import Team, TeamMembership, TeamRecruitmentRole
+from app.models.teams import Team, TeamMembership, TeamRecruitmentRole
 
 NOW = datetime(2026, 10, 24, 12, tzinfo=UTC)
 

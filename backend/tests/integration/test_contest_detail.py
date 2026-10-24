@@ -16,16 +16,16 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.schema import CreateSchema, DropSchema
 from sqlalchemy.sql.base import Executable
 
+from app.core import demo_data as manifest
 from app.core.db.base import Base
 from app.core.db.session import Database
 from app.core.http.dependencies import get_session
 from app.core.http.handlers import register_error_handlers
-from app.domains.auth.models import Account
-from app.domains.contests import queries
-from app.domains.contests.models import Contest, ContestAudience, ContestField
-from app.domains.contests.router import router
-from app.domains.demo import manifest
-from app.domains.teams.models import Team
+from app.models.auth import Account
+from app.models.contests import Contest, ContestAudience, ContestField
+from app.models.teams import Team
+from app.queries import contests as queries
+from app.routers.contests import router
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 START = datetime(2026, 10, 24, 1, tzinfo=UTC)

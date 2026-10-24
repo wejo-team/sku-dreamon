@@ -3,7 +3,7 @@
 import pytest
 
 from app.core.exceptions import AppError
-from app.domains.auth.csrf import (
+from app.security.csrf import (
     get_or_create_csrf_token,
     issue_csrf_token,
     validate_csrf_token,

@@ -20,11 +20,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.db.base import Base
 from app.core.db.session import Database
-from app.domains.applications.models import Application, ApplicationEvent
-from app.domains.auth.models import Account
-from app.domains.contests.models import Contest
-from app.domains.notifications.models import Notification
-from app.domains.teams.models import Team, TeamMembership, TeamRecruitmentRole
+from app.models.applications import Application, ApplicationEvent
+from app.models.auth import Account
+from app.models.contests import Contest
+from app.models.notifications import Notification
+from app.models.teams import Team, TeamMembership, TeamRecruitmentRole
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 NOW = datetime(2026, 10, 24, 12, tzinfo=UTC)

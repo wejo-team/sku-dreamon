@@ -3,8 +3,8 @@
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from app.domains.contests.rules import CapacityKind
-from app.domains.contests.schemas import ContestDetail, ParticipationCapacity
+from app.rules.contests import CapacityKind
+from app.schemas.contests import ContestDetail, ParticipationCapacity
 
 
 def test_large_capacity_is_preserved_as_decimal_strings_in_json() -> None:
