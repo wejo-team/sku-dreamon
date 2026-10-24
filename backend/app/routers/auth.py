@@ -1,8 +1,8 @@
 """서버 세션·CSRF와 쿠키를 인증 HTTP 계약에 연결한다."""
 
-from typing import cast
+from typing import Annotated, cast
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 
 from app.core.config import Settings
 from app.core.http.dependencies import DatabaseSession
@@ -15,17 +15,96 @@ from app.dependencies.auth import (
     OptionalSession,
     get_current_session,
 )
+from app.dependencies.auth_attempts import limit_auth
 from app.dependencies.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME, require_csrf
 from app.routers.auth_cookies import (
     delete_auth_cookies,
     delete_session_cookie,
     set_csrf_cookie,
+    set_session_cookie,
 )
-from app.schemas.auth import AccountResponse, CsrfToken
+from app.schemas.auth import (
+    AccountResponse,
+    AuthResult,
+    Credentials,
+    CsrfToken,
+    LoginId,
+    LoginIdAvailability,
+)
 from app.security.csrf import get_or_create_csrf_token
+from app.security.passwords import PasswordBlocklist
 from app.services import auth as http_service
 
 router = APIRouter(tags=["auth"])
+
+
+@router.get(
+    "/auth/login-id-availability",
+    response_model=Success[LoginIdAvailability],
+    responses=error_responses(422, 429, 500, 503),
+    summary="로그인 아이디 중복 확인",
+)
+async def login_id_availability(
+    request: Request,
+    response: Response,
+    session: DatabaseSession,
+    login_id: Annotated[LoginId, Query(alias="loginId")],
+) -> Success[LoginIdAvailability]:
+    await limit_auth(request, "availability")
+    response.headers["Cache-Control"] = "no-store"
+    return Success(data=await http_service.login_id_availability(session, login_id))
+
+
+def _finish_login(
+    response: Response, result: http_service.AuthenticatedAccount
+) -> Success[AuthResult]:
+    response.headers["Cache-Control"] = "no-store"
+    set_session_cookie(response, result.issued)
+    # 이전 인증 상태의 CSRF는 폐기하고 /auth/csrf로 새 상태에 결합한다.
+    response.delete_cookie(
+        CSRF_COOKIE_NAME, path="/", secure=True, httponly=True, samesite="lax"
+    )
+    return Success(data=AuthResult(account=result.account))
+
+
+@router.post(
+    "/accounts",
+    status_code=201,
+    response_model=Success[AuthResult],
+    dependencies=[Depends(require_csrf)],
+    responses=error_responses(400, 403, 409, 422, 429, 500, 503),
+    summary="회원가입과 자동 로그인",
+)
+async def signup(
+    request: Request,
+    response: Response,
+    session: DatabaseSession,
+    credentials: Credentials,
+) -> Success[AuthResult]:
+    await limit_auth(request, "signup")
+    blocklist = cast(
+        PasswordBlocklist | None, getattr(request.app.state, "password_blocklist", None)
+    )
+    return _finish_login(
+        response, await http_service.signup(session, credentials, blocklist)
+    )
+
+
+@router.post(
+    "/auth/login",
+    response_model=Success[AuthResult],
+    dependencies=[Depends(require_csrf)],
+    responses=error_responses(401, 403, 422, 429, 500, 503),
+    summary="아이디·비밀번호 로그인",
+)
+async def login(
+    request: Request,
+    response: Response,
+    session: DatabaseSession,
+    credentials: Credentials,
+) -> Success[AuthResult]:
+    await limit_auth(request, "login", credentials.login_id)
+    return _finish_login(response, await http_service.login(session, credentials))
 
 
 @router.get(

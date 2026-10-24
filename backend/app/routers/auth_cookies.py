@@ -1,9 +1,27 @@
 """인증 쿠키의 HTTPS·호스트 전용 속성을 발급과 삭제에 동일하게 적용한다."""
 
+from datetime import UTC, datetime
+
 from fastapi import Response
 
 from app.dependencies.auth import SESSION_COOKIE_NAME
 from app.dependencies.csrf import CSRF_COOKIE_NAME
+from app.services.sessions import IssuedSession
+
+
+def set_session_cookie(response: Response, issued: IssuedSession) -> None:
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        issued.token,
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="lax",
+        max_age=max(
+            0, int((issued.session.expires_at - datetime.now(UTC)).total_seconds())
+        ),
+        expires=issued.session.expires_at,
+    )
 
 
 def set_csrf_cookie(response: Response, token: str) -> None:
