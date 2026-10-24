@@ -4,7 +4,7 @@
 
 FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, PostgreSQL, Alembic을 사용합니다. 데이터베이스 URL 형식은 `postgresql+asyncpg://...`입니다.
 
-백엔드는 `routers`·`dependencies`·`services`·`queries`·`models`·`schemas`·`rules`·`security`의 전역 계층으로 나눕니다. 각 계층에는 필요한 기능 모듈만 추가합니다. `core`는 공통 설정·예외·DB·HTTP 기반을 제공하며 기능별 상위 계층을 import하지 않습니다. 기존 `core/http`는 공통 HTTP 어댑터로 유지하고, `core/db`는 HTTP 프레임워크와 `core/http`에 의존하지 않습니다. 전체 배치와 의존 방향은 [구조와 책임 경계](architecture.md#responsibility-boundaries)를 따릅니다.
+백엔드는 `routers`·`dependencies`·`services`·`repositories`·`models`·`schemas`·`rules`·`security`의 전역 계층으로 나눕니다. 각 계층에는 필요한 기능 모듈만 추가합니다. `core`는 공통 설정·예외·DB·HTTP 기반을 제공하며 기능별 상위 계층을 import하지 않습니다. 기존 `core/http`는 공통 HTTP 어댑터로 유지하고, `core/db`는 HTTP 프레임워크와 `core/http`에 의존하지 않습니다. 전체 배치와 의존 방향은 [구조와 책임 경계](architecture.md#responsibility-boundaries)를 따릅니다.
 
 - API는 `/api/v1` 아래에 리소스 중심 경로로 제공합니다. HTTP 상태 코드를 사용하고 실패를 200 응답으로 감추지 않습니다.
 - 요청·응답은 Pydantic schema로 명시합니다. FastAPI의 기본 validation error 형식과 호환되는 처리를 우선하고, 도메인 오류 계약이 필요하면 프론트와 함께 문서화합니다.
@@ -19,7 +19,7 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 
 ## 공통 API 기반의 책임
 
-[구현 이슈 #99](https://github.com/wejo-team/sku-dreamon/issues/99)의 `core/http`는 전송 계약과 FastAPI 연결을 담당합니다. ORM 공통 기반은 아래 별도 절처럼 `core/db`에 둡니다. 업무 권한·상태 전이·정원과 요청 트랜잭션은 `services`, 읽기 SQL과 ORM 결과의 DTO 구성은 `queries`가 맡습니다. `schemas`는 ORM을 import하지 않으며 DTO의 값과 전송 계약을 정의합니다.
+[구현 이슈 #99](https://github.com/wejo-team/sku-dreamon/issues/99)의 `core/http`는 전송 계약과 FastAPI 연결을 담당합니다. ORM 공통 기반은 아래 별도 절처럼 `core/db`에 둡니다. 업무 권한·상태 전이·정원·DTO 구성과 요청 트랜잭션은 `services`, SQL 읽기·쓰기·행 잠금·flush는 `repositories`가 맡습니다. `schemas`는 ORM을 import하지 않으며 API DTO의 값과 전송 계약을 정의합니다.
 
 - 요청 DTO는 camelCase만 받고, 응답 DTO는 Python의 snake_case로 구성하여 camelCase로 보냅니다. 두 책임을 분리하여 응답 생성 편의를 위해 외부 snake_case 입력까지 허용하지 않습니다. 임의 map 키는 변환하지 않습니다.
 - 성공 응답과 페이지 응답은 라우터에서 명시적인 모델로 반환합니다. `Success[T]`의 `T`에는 NULL을 허용하지 않는 영역별 DTO나 배열 타입을 지정하여 실제 검증과 OpenAPI를 일치시킵니다. [공통 조회 라우터](#read-router)는 등록한 상세 조회의 DTO를 `Success[T]`로 한 번 감쌉니다. 응답 본문을 자동으로 감싸는 middleware는 사용하지 않으므로 health·204·쿠키·`Location`의 기존 동작을 유지합니다.
@@ -56,7 +56,7 @@ from app.core.http.schemas import RequestDTO, ResponseDTO, Success, Timestamp, V
 
 `Summary`·`Detail`은 `ResponseDTO`를 상속하며 목록과 상세에서 서로 다른 DTO를 사용할 수 있습니다. 목록의 전체 개수·페이지 보정·집계 등 메타데이터 계산은 서비스가 책임집니다. 확장 페이지를 사용하면 `response_model`에도 그 타입을 지정합니다. 상세 handler는 이미 감싼 `Success`를 반환하지 않습니다. 대상이 없으면 서비스가 `AppError(404, ...)`를 발생시키며, 라우터가 `None`을 자동으로 404로 바꾸지 않습니다.
 
-handler는 `Depends(handler)`로 실행됩니다. handler에 선언한 path·query 타입과 검증 조건은 요청 처리와 OpenAPI에 반영되며, 중첩 `Depends`도 실행됩니다. 주입된 `Response`에 설정한 헤더·쿠키는 응답에 보존됩니다. handler는 `routers`에 두는 얇은 HTTP 함수이며, 파싱된 값과 세션을 서비스나 조회 함수에 전달합니다. 비동기 DB·서비스 호출은 `async def` handler에서 `await`하고, 동기 handler는 DTO·페이지 객체를 직접 반환합니다. 서비스에 `Request`·`Depends` 같은 FastAPI 의존성을 추가하지 않습니다.
+handler는 `Depends(handler)`로 실행됩니다. handler에 선언한 path·query 타입과 검증 조건은 요청 처리와 OpenAPI에 반영되며, 중첩 `Depends`도 실행됩니다. 주입된 `Response`에 설정한 헤더·쿠키는 응답에 보존됩니다. handler는 `routers`에 두는 얇은 HTTP 함수이며, 파싱된 값과 세션을 서비스에 전달합니다. DB를 사용하는 기능은 서비스가 레포지토리를 호출하며 라우터에서 직접 SQL을 실행하지 않습니다. 비동기 DB·서비스 호출은 `async def` handler에서 `await`하고, 동기 handler는 DTO·페이지 객체를 직접 반환합니다. 서비스에 `Request`·`Depends` 같은 FastAPI 의존성을 추가하지 않습니다.
 
 생성자의 `dependencies`와 각 등록 메서드의 `dependencies`는 함께 적용됩니다. 인증·권한 검사는 도메인이 필요한 의존성을 명시하며, 공통 라우터가 인증 정책을 자동으로 선택하지 않습니다. 기본 오류 응답 선언은 목록에 422·500·503, 상세에 404·422·500·503입니다. `error_statuses`로 401·403 등 해당 작업의 추가 오류를 선언하고, `name`·`summary`로 경로 이름과 OpenAPI 설명을 지정할 수 있습니다. 오류 상태를 선언하는 것만으로 인증 검사나 예외 처리 동작이 추가되지는 않습니다.
 
@@ -105,7 +105,7 @@ contests.add_detail(
 router = contests.router
 ```
 
-이 `router`를 기존 앱의 `/api/v1` prefix 아래에 연결합니다. 생성·수정·삭제, 업무 명령, 204, redirect, streaming 응답은 `.router`에 일반 `APIRouter` 경로로 개별 등록합니다. 공통 라우터는 SQL 필터·PK·레포지토리 구현을 추정하거나 트랜잭션을 시작·commit하지 않습니다. DB 접근 구성은 [RepositoryFactory](#repository-factory), 쓰기의 성공·실패는 [최상위 서비스](#transaction-ownership)의 책임입니다.
+이 `router`를 기존 앱의 `/api/v1` prefix 아래에 연결합니다. 생성·수정·삭제, 업무 명령, 204, redirect, streaming 응답은 `.router`에 일반 `APIRouter` 경로로 개별 등록합니다. 공통 라우터는 SQL 필터·PK·레포지토리 구현을 추정하거나 트랜잭션을 시작·commit하지 않습니다. DB 접근은 [레포지토리 경계](#repository-boundary), 쓰기의 성공·실패는 [최상위 서비스](#transaction-ownership)의 책임입니다.
 
 <a id="orm-foundation"></a>
 
@@ -152,7 +152,19 @@ class Profile(CreatedAtMixin, UpdatedAtMixin, Base):
 
 수정 시각은 쓰기 서비스가 `version`과 함께 명시적으로 갱신합니다. 프로필 선택 항목·포트폴리오만 바뀌어도 부모 프로필의 시각·버전을 같은 트랜잭션에서 바꿔야 합니다. 조회와 실제 변경이 없는 재시도에는 갱신하지 않습니다. mixin은 `onupdate`나 DB trigger를 추가하지 않으므로 직접 SQL도 같은 책임을 따릅니다.
 
-ORM 모델은 `models`, 읽기 SQL과 ORM 결과의 DTO 구성은 `queries`에 둡니다. `services`는 필요한 모델·조회 함수를 사용해 업무 권한·잠금·상태 전이와 트랜잭션을 조합합니다. `core/db`에는 함께 사용하는 DB 기반과 [레포지토리 생성](#repository-factory)을 둡니다. `AsyncSession`의 기본 메서드를 그대로 감싼 범용 CRUD나 구조만을 위한 repository·Unit of Work는 추가하지 않습니다.
+ORM 모델은 `models`, SQL 읽기·쓰기와 DB 반영은 `repositories`에 둡니다. `services`는 레포지토리가 반환한 ORM 객체나 내부 typed row를 사용해 업무 권한·상태 전이를 판단하고 API DTO와 트랜잭션을 구성합니다. `core/db`에는 함께 사용하는 DB 기반과 선택적인 [레포지토리 생성 도구](#repository-factory)를 둡니다.
+
+<a id="repository-boundary"></a>
+
+## 레포지토리 경계
+
+기능별 `repositories/<기능>.py`에 `AsyncSession`을 받는 함수를 정의합니다. SELECT·INSERT·UPDATE·DELETE, ORM 추가·삭제·flush, 행 잠금은 이 계층에서 실행합니다. 조회 이름을 바꾸는 데 그치지 않고 읽기와 쓰기의 DB 접근을 함께 옮깁니다.
+
+레포지토리는 ORM 객체·값·내부 typed row를 반환하며 `schemas`의 API DTO를 만들거나 반환하지 않습니다. 서비스가 현재 권한과 업무 규칙을 적용해 DTO를 구성합니다. 서비스에서 이미 읽은 ORM 객체의 필드를 변경하는 것은 허용하지만, 변경을 DB에 반영할 때는 레포지토리를 호출합니다.
+
+레포지토리는 호출자가 전달한 세션을 사용하고 commit·rollback·세션 종료를 하지 않습니다. 여러 레포지토리에 같은 세션을 전달해 한 업무의 원자성을 유지합니다. 권한 판단, 잠금 순서의 조합, 상태 전이와 저장 확정은 최상위 서비스가 책임집니다.
+
+함수형 모듈을 기본으로 하며 별도 generic base class·interface·Unit of Work는 도입하지 않습니다. `AsyncSession`의 모든 메서드를 그대로 복제하는 범용 CRUD도 만들지 않습니다.
 
 ## 엔진과 세션
 
@@ -166,6 +178,8 @@ ORM 모델은 `models`, 읽기 SQL과 ORM 결과의 DTO 구성은 `queries`에 �
 <a id="repository-factory"></a>
 
 ## 레포지토리 생성
+
+업무 레포지토리는 위의 함수형 모듈을 사용합니다. 기존 `RepositoryFactory`는 생성자 주입이나 독립 작업의 세션 관리가 필요한 경우에만 쓰는 공통 helper이며 모든 레포지토리에 적용하지 않습니다.
 
 [RepositoryFactory](../../backend/app/core/db/factories.py)는 `AsyncSession`을 받는 생성자를 주입하고 반환 타입을 유지합니다. HTTP 요청·도메인 모델·CRUD 메서드를 알지 않으며, 레포지토리에 특정 부모 클래스나 공통 PK를 요구하지 않습니다. `repository_class`의 타입은 `Callable[[AsyncSession], RepositoryType]`이므로 클래스 또는 추가 설정을 묶은 생성 함수를 전달할 수 있습니다.
 
@@ -209,8 +223,8 @@ async with account_factory.open_repository() as repository:
 
 - 하나의 쓰기 유스케이스를 맡는 최상위 서비스가 트랜잭션의 성공·실패를 책임집니다.
 - 최상위 서비스는 필요한 변경을 수행한 뒤 `await session.commit()`을 한 번 호출합니다. 실패하면 `await session.rollback()` 후 오류를 전파합니다. commit은 성공 응답을 반환하기 전에 완료합니다.
-- 하위 query 함수·repository·보조 서비스는 독자적으로 commit하지 않습니다. 생성된 ID나 제약조건 확인이 필요하면 `flush()`를 사용합니다.
-- 서비스 간 호출을 허용하며, 한 유스케이스의 팀·지원·알림 변경에는 같은 `AsyncSession`을 전달합니다. 가장 바깥 쓰기 서비스가 commit·rollback을 소유하고 하위 변경 함수는 필요한 경우 flush만 수행합니다. 이미 commit하는 최상위 서비스를 그대로 중첩 호출하지 않습니다.
+- 레포지토리와 하위 보조 서비스는 commit·rollback하지 않습니다. 생성된 ID나 제약조건 확인이 필요하면 레포지토리에서 `flush()`를 수행합니다.
+- 서비스 간 호출을 허용하며, 한 유스케이스의 팀·지원·알림 변경에는 같은 `AsyncSession`을 전달합니다. 가장 바깥 쓰기 서비스가 commit·rollback을 소유하고 하위 변경 함수는 레포지토리를 통해 필요한 DB 반영만 수행합니다. 이미 commit하는 최상위 서비스를 그대로 중첩 호출하지 않습니다.
 - 인증·권한 조회 등 앞선 SELECT가 autobegin을 만들 수 있습니다. 세션 상태를 고려하지 않고 모든 서비스에 `session.begin()`을 추가하지 않습니다. begin context를 사용하려면 그 코드가 트랜잭션 전체 경계를 소유함을 보장합니다.
 - 읽기 전용 작업에 불필요한 commit을 추가하지 않습니다. 실패한 세션을 재사용하려면 rollback을 먼저 수행합니다.
 - 느린 AI·외부 API 응답을 기다리는 동안 DB 트랜잭션과 잠금을 오래 유지하지 않습니다. 외부 호출과 DB 변경의 순서·실패 처리는 기능 단위로 설계합니다.
