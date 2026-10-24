@@ -21,3 +21,10 @@ def delete_session_cookie(response: Response) -> None:
     response.delete_cookie(
         SESSION_COOKIE_NAME, path="/", secure=True, httponly=True, samesite="lax"
     )
+
+
+def delete_auth_cookies(response: Response) -> None:
+    delete_session_cookie(response)
+    response.delete_cookie(
+        CSRF_COOKIE_NAME, path="/", secure=True, httponly=True, samesite="lax"
+    )

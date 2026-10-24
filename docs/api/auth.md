@@ -1,6 +1,6 @@
 # 계정·인증 API
 
-**상태: 구현 중.** CSRF·본인 계정 조회의 [라우터](../../backend/app/routers/auth.py)·[응답 DTO](../../backend/app/schemas/auth.py)·[HTTPS 통합 테스트](../../backend/tests/integration/test_auth_http.py)를 구현했습니다. 가입·로그인·로그아웃·아이디 중복 확인은 후속 범위입니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
+**상태: 구현 중.** CSRF·본인 계정 조회와 현재 세션 로그아웃의 [라우터](../../backend/app/routers/auth.py)·[응답 DTO](../../backend/app/schemas/auth.py)·[HTTPS 통합 테스트](../../backend/tests/integration/test_auth_http.py)를 구현했습니다. 가입·로그인·아이디 중복 확인은 후속 범위입니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
 
 | 확인할 내용 | 위치 |
 | --- | --- |
@@ -22,7 +22,7 @@
 | `POST /accounts` | 공개 | 본문 [Credentials](#credentials) | 201 [Success&lt;SignupResult&gt;](#auth-results) | 409 `LOGIN_ID_TAKEN`; 422; 429 `RATE_LIMITED` |
 | `GET /auth/login-id-availability` | 공개 | 필수 query `loginId: string` | 200 [Success&lt;LoginIdAvailability&gt;](#auth-results) | 422; 429 `RATE_LIMITED` |
 | `POST /auth/login` | 공개 | 본문 [Credentials](#credentials) | 200 [Success&lt;LoginResult&gt;](#auth-results) | 401 `INVALID_CREDENTIALS`; 422; 429 `RATE_LIMITED` |
-| `POST /auth/logout` | 로그인 | 본문 없음 | 204, 본문 없음 | 401 `UNAUTHENTICATED` |
+| `POST /auth/logout` | 로그인 | 본문 없음, CSRF 헤더 | 204, 본문 없음 | 401 `UNAUTHENTICATED`; 403 `FORBIDDEN` |
 | `GET /me` | 로그인한 본인 | 본문 없음 | 200 [Success&lt;Account&gt;](#account) | 401 `UNAUTHENTICATED` |
 
 가입은 자체 로그인 정보를 포함한 `accounts`와 새 `auth_sessions`를 같은 트랜잭션에서 생성하며, 저장 시 아이디 유일성을 확인합니다. 모두 커밋된 뒤 201 `Success<SignupResult>`와 `Set-Cookie`를 반환하여 바로 로그인시킵니다. 세션 저장이 실패하면 가입 전체를 롤백하며 성공 응답·인증 쿠키를 발급하지 않습니다. 클라이언트는 가입 성공 후 `GET /me` 응답의 `data.id`가 가입 응답의 `data.account.id`와 일치하는지 확인하고 프로필 설정으로 이동합니다. 다른 계정의 기존 쿠키가 남아 있다면 자동 로그인 성공으로 취급하지 않고 가입한 계정의 로그인을 안내합니다. 중복 확인 응답은 가입 예약이 아닙니다. 탈퇴 아이디 재사용은 [탈퇴 정책](../specs/profile.md#account-withdrawal)이 확정되기 전에 가입 가능으로 안내하지 않습니다.
@@ -34,6 +34,8 @@
 [인증 서비스](../../backend/app/services/auth.py)는 [인증 Repository](../../backend/app/repositories/auth.py)의 계정·프로필 존재 조회 결과를 응답 DTO로 구성합니다. 세션 유효성 판단·활동 시각 변경·회수는 [세션 서비스](../../backend/app/services/sessions.py)가 맡으며 Repository는 조회·행 잠금·flush만 수행합니다. 인증 활동의 독립 트랜잭션과 업무 트랜잭션을 합치지 않습니다.
 
 `GET /me`와 다른 인증 필요 요청은 [공통 서버 세션 검사](conventions.md#session-auth)로 계정을 식별합니다. 만료된 세션은 401을 반환하고 화면에서 재로그인을 안내합니다. 로그아웃은 현재 서버 세션을 즉시 회수하고, 회수를 커밋한 뒤 쿠키를 만료시켜 204를 반환합니다. 동시 로그인을 허용하며 다른 로그인 세션의 상태·수명은 변경하지 않습니다. 성공 후 클라이언트는 계정별 AI 화면·초안을 지우고 진행 중 응답을 취소합니다.
+
+로그아웃은 인증을 먼저 확인한 뒤 CSRF·출처를 검사합니다. 인증 또는 CSRF 검증 실패에는 세션 회수·쿠키 변경이 없습니다. 회수 시에도 잠금 후 현재 세션의 유효성을 다시 검사하며, 커밋이 실패하면 롤백하고 쿠키를 유지합니다. 성공 응답은 `Cache-Control: no-store`와 세션·CSRF 쿠키 두 개의 삭제만 반환합니다. 이후 `GET /auth/csrf`에서 익명 토큰을 받을 수 있습니다.
 
 **인증 방식·세션 수명·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다.** 별도 로그인 유지 선택 없이 같은 지속 쿠키를 사용하며, 브라우저 재시작으로 세션 만료 시각을 연장하지 않습니다. 로그인·로그아웃·가입에도 [쿠키·CSRF 전송 계약](conventions.md#csrf-transport)을 적용합니다. `CsrfToken`은 필수·NULL 불가 문자열 `csrfToken` 하나를 갖습니다. 로그인 세션 토큰과 다른 값이며 인증 수단으로 사용할 수 없습니다. 차단 목록·시도 제한·보존 등 운영 결정은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 따릅니다.
 
