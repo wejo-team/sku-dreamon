@@ -7,11 +7,11 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import event, func, select
 
-from app.domains.applications.models import Application, ApplicationEvent
-from app.domains.auth.csrf import CSRF_HEADER_NAME
-from app.domains.auth.models import AuthSession
-from app.domains.notifications.models import Notification
-from app.domains.teams.models import Team, TeamMembership
+from app.dependencies.csrf import CSRF_HEADER_NAME
+from app.models.applications import Application, ApplicationEvent
+from app.models.auth import AuthSession
+from app.models.notifications import Notification
+from app.models.teams import Team, TeamMembership
 from tests.integration.application_support import ApplicationData, application_client
 from tests.integration.application_support import application_data as application_data
 

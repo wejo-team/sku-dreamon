@@ -6,9 +6,9 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import func, select
 
-from app.domains.applications.models import Application, ApplicationEvent
-from app.domains.notifications.models import Notification
-from app.domains.teams.models import Team, TeamMembership
+from app.models.applications import Application, ApplicationEvent
+from app.models.notifications import Notification
+from app.models.teams import Team, TeamMembership
 from tests.integration.application_support import (
     ApplicationData,
     application_client,

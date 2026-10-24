@@ -8,10 +8,10 @@ from sqlalchemy import func, select, text
 
 from app.core.db.session import Database
 from app.core.exceptions import AppError
-from app.domains.applications.models import Application, ApplicationEvent
-from app.domains.teams import management
-from app.domains.teams.management import close_recruitment, reopen_recruitment
-from app.domains.teams.models import Team, TeamMembership
+from app.models.applications import Application, ApplicationEvent
+from app.models.teams import Team, TeamMembership
+from app.services import teams as management
+from app.services.teams import close_recruitment, reopen_recruitment
 from tests.integration.team_management_support import (
     NOW,
     prepare_team,
