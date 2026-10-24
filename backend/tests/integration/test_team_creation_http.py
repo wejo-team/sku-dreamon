@@ -1,6 +1,7 @@
 """팀 생성의 HTTP 인증·재시도, 실패 롤백과 선발 경합을 검증한다."""
 
 import asyncio
+import json
 from typing import Literal
 from uuid import UUID
 
@@ -22,6 +23,29 @@ from tests.integration.creation_support import creation_client
 from tests.integration.test_team_creation import payload
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
+
+
+@pytest.mark.parametrize("role_code", ["\ud800", "\udfff"])
+async def test_http_rejects_invalid_unicode_role_code(
+    review_data: ApplicationData, role_code: str
+) -> None:
+    values = payload(review_data) | {"roleCodes": [role_code]}
+    async with creation_client(review_data, review_data.applicant_id) as client:
+        response = await client.post(
+            "/api/v1/teams",
+            content=json.dumps(values).encode("ascii"),
+            headers={"Content-Type": "application/json"},
+        )
+        assert response.status_code == 422, response.text
+    async with review_data.database.session() as session:
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(Team)
+                .where(Team.leader_account_id == review_data.applicant_id)
+            )
+            == 0
+        )
 
 
 async def test_http_auth_csrf_alias_and_retry_contract(

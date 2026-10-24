@@ -74,6 +74,13 @@ class TeamCreate(RequestDTO):
     )
     recruitment_deadline: DeadlineInput = Field(description="모집 마감 원문.")
 
+    @field_validator("role_codes")
+    @classmethod
+    def unicode_roles(cls, values: list[str]) -> list[str]:
+        for value in values:
+            value.encode("utf-8")
+        return values
+
     @model_validator(mode="after")
     def roles_match_capacity(self) -> Self:
         if len(set(self.role_codes)) != len(self.role_codes):
