@@ -3,7 +3,7 @@
 from datetime import date
 from uuid import UUID
 
-from pydantic import Field, HttpUrl
+from pydantic import AnyHttpUrl, Field
 
 from app.core.http.schemas import NonnegativeInt, ResponseDTO, Timestamp, Version
 from app.rules.catalogs import FieldCode
@@ -36,7 +36,7 @@ class ContestSummary(ResponseDTO):
     title: str = Field(description="공고 제목.")
     organizer: str = Field(description="공모전 주최자.")
     field_codes: list[FieldCode] = Field(description="공고의 분야 코드 목록.")
-    poster_url: HttpUrl | None = Field(
+    poster_url: AnyHttpUrl | None = Field(
         description=("포스터의 HTTP(S) 주소. 포스터가 없으면 null입니다.")
     )
     registration_status: RegistrationStatus = Field(
