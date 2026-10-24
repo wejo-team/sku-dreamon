@@ -51,9 +51,9 @@ npm ci
 npm run dev
 ```
 
-`http://localhost:5173`에서 연결 확인 화면을 엽니다. Vite 개발 서버가 `/api` 요청을 백엔드 8000 포트로 전달합니다. API 실패 시 오류를 표시하고 다시 확인할 수 있습니다.
+`http://localhost:5173`에서 화면 시연 앱을 엽니다. 현재 로그인·프로필·팀·지원 등은 `DemoProvider`의 메모리 예시 데이터를 사용합니다. 실제 백엔드 연결 확인 화면은 `http://localhost:5173/health`이며, Vite 개발 서버가 `/api` 요청을 백엔드 8000 포트로 전달합니다. 연결 실패 시 오류를 표시하고 다시 확인할 수 있습니다. 화면별 API 연결은 후속 작업이며 [구현 현황](implementation-status.md)에서 구분합니다.
 
-`VITE_API_BASE_URL`은 브라우저에 노출되는 API 경로입니다. `API_PROXY_TARGET`은 Vite 개발 서버만 사용합니다. 위 HTTP 주소는 연결 확인용이며 현재 프론트에 가입·로그인 흐름이 연결된 것은 아닙니다. 서버의 인증 쿠키는 `Secure`를 유지하므로 브라우저 인증 검증에는 HTTPS 구성이 필요합니다. 운영 API 연결 방식·도메인·CORS와 로컬 HTTPS 구성은 후속 범위이며, 인증 전송 설계는 별도 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)에서 확인합니다.
+`VITE_API_BASE_URL`은 브라우저에 노출되는 API 경로입니다. `API_PROXY_TARGET`은 Vite 개발 서버만 사용합니다. 위 HTTP 주소는 화면 시연·연결 확인용이며 현재 프론트에 가입·로그인 흐름이 연결된 것은 아닙니다. 서버의 인증 쿠키는 `Secure`를 유지하므로 브라우저 인증 검증에는 HTTPS 구성이 필요합니다. 운영 API 연결 방식·도메인·CORS와 로컬 HTTPS 구성은 후속 범위이며, 인증 전송 설계는 별도 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)에서 확인합니다.
 
 ## 검사
 
