@@ -80,7 +80,7 @@
 
 | 결정 | 이 설계에서 가능한 것 | 결정 전 확정하지 않을 것 | 정책 원본 |
 | --- | --- | --- | --- |
-| 남은 인증·세션 운영 정책 | 서버 세션·지속 쿠키 전달, 가입 후 자동 로그인, 토큰 해시 저장, 유휴 24시간·절대 7일 만료, 독립된 동시 세션·현재 세션 즉시 회수 | 운영 origin·키, 시도 제한 수치·차단 목록 공급·정리 및 보존 기간; 쿠키·CSRF는 [API 전송 계약](../api/conventions.md#csrf-transport) 적용 | [세션 정책](../specs/authentication.md#session-policy), [AUTH 미정](../specs/authentication.md#open-questions) |
+| 남은 인증·세션 운영 정책 | 서버 세션·지속 쿠키 전달, 가입 후 자동 로그인, 토큰 해시 저장, 유휴 24시간·절대 7일 만료, 독립된 동시 세션·현재 세션 즉시 회수 | 운영 origin·키와 확정된 시도 제한·로컬 차단 목록의 실제 설정/공급, 정리 및 보존 기간; 쿠키·CSRF는 [API 전송 계약](../api/conventions.md#csrf-transport) 적용 | [세션 정책](../specs/authentication.md#session-policy), [AUTH 미정](../specs/authentication.md#open-questions) |
 | 학교 이메일 인증 · 후속 | 로그인 아이디와 별개인 학교 이메일·인증 완료 시각 저장 필드. 현재는 모두 NULL | 대상 도메인·구성원·인증 수단·주소 정규화·중복 사용·유효 기간·재인증과 API | [저장 필드](identity.md#accounts), [AUTH-02](../specs/authentication.md#open-questions) |
 | 계정 탈퇴·데이터 보존 | 안정된 계정 FK, 종료된 소속·지원 이력 | 연쇄 삭제·익명화·아이디 재사용 정책 | [프로필 미정](../specs/profile.md#open-questions) |
 | 공고·모집 조건 변경 | 현재 조건과 생성·수정 시각 저장 | 기존 지원 자동 취소·소속 변경 | [주최 측 변경](../specs/contests.md#eligibility-changes) |
