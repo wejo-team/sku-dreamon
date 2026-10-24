@@ -1,6 +1,6 @@
 # 구조와 초기 실행 기반
 
-현재 React 개발 연결 화면, FastAPI health API, 비동기 PostgreSQL 연결·Alembic과 CI가 있습니다. 아래는 폴더의 책임 지도이며, 도메인의 `models.py`·`service.py`와 프론트의 `e2e/` 등은 해당 코드가 필요할 때 추가합니다. 빈 기능 폴더를 미리 늘리지 않습니다.
+현재 React 개발 연결 화면, FastAPI health API, 비동기 PostgreSQL 연결·Alembic과 CI가 있습니다. 아래는 책임별 폴더 배치 기준입니다. 각 계층의 기능 파일과 프론트의 `e2e/`는 해당 코드가 필요할 때 추가하며, 빈 기능 폴더를 미리 늘리지 않습니다.
 
 ```text
 frontend/
@@ -20,16 +20,20 @@ frontend/
   package-lock.json
 backend/
   app/
-    core/                # 도메인이 함께 사용하는 기반
+    core/                # 여러 기능이 함께 사용하는 기반
       config.py          # 환경설정
       exceptions.py      # 애플리케이션 오류 정의
       db/                # ORM metadata·선택 컬럼, 비동기 엔진·세션, repository factory
       http/              # 공통 DTO·응답, 조회 라우터, 예외 핸들러, 요청 의존성
-    domains/
-      health/            # 현재 구현된 health API
-        router.py
-        schemas.py
-      <기능>/            # 구현 시 router.py·schemas.py와 필요한 models.py·service.py 추가
+    routers/             # HTTP 경로·요청 파싱·응답과 쿠키
+      health.py          # health API
+    dependencies/        # HTTP 인증·CSRF 등 요청 의존성
+    services/            # 업무 규칙·권한·DTO 구성·요청 트랜잭션
+    repositories/        # SQL 읽기·쓰기·행 잠금·flush
+    models/              # SQLAlchemy ORM 저장 모델
+    schemas/             # Pydantic 요청·응답 DTO
+    rules/               # 선택지 enum·순수 업무 검증
+    security/            # 해시·토큰 서명 등 순수 보안 계산
     main.py              # 앱 생성·lifespan·라우터 연결
   alembic/versions/      # DB 변경 이력
   tests/                 # unit / integration (HTTP·PostgreSQL)
@@ -53,11 +57,13 @@ compose.yaml             # 개발용 PostgreSQL
 - 프론트 `app`은 router와 provider를 연결하고, `pages`는 기능을 조합합니다. 기능 내부 API·query·form schema는 `features/<기능>/`에 모읍니다.
 - 공통 UI는 특정 기능의 API나 query에 의존하지 않습니다. 여러 기능이 사용하는 코드만 공통 위치로 옮깁니다.
 - `lib`에는 앱 전반의 작은 기반 코드만 둡니다. 기능 규칙을 넣는 만능 폴더로 사용하지 않습니다.
-- 백엔드 `domains/<기능>/`에 해당 기능의 라우터·요청과 응답 스키마·ORM 모델·서비스를 모읍니다. 라우터는 HTTP 처리, 서비스는 업무 규칙과 쓰기 트랜잭션을 담당합니다. ORM 모델과 요청·응답 스키마를 분리하며, 실제로 필요한 파일만 만듭니다.
-- `core`는 여러 도메인이 사용하는 기반입니다. ORM의 공통 metadata·선택 컬럼과 엔진·세션·repository factory는 `core/db`, 공통 DTO·응답·조회 라우터·예외 핸들러·요청 의존성은 `core/http`에 둡니다. [공통 기반의 책임](backend.md#orm-foundation)에 따라 모델의 PK·컬럼을 선택하며 모든 모델에 같은 `id`·시각 컬럼을 강제하지 않습니다.
+- 백엔드는 전역 계층으로 나누고 각 계층 안에 기능 이름의 모듈을 둡니다. `routers`는 HTTP 경로·파싱·응답, `dependencies`는 인증·CSRF 등 요청 의존성을 담당합니다. `services`는 업무 권한·상태 전이·DTO 구성과 요청 단위 트랜잭션을 담당합니다. `repositories`는 SQL 읽기·쓰기·행 잠금·flush를 수행하고 ORM 객체나 내부 typed row를 반환합니다.
+- `models`는 SQLAlchemy 저장 모델, `schemas`는 요청·응답 DTO입니다. `schemas`에서 ORM을 import하거나 ORM 행을 DTO로 변환하지 않습니다. `rules`에는 선택지 enum과 DB·HTTP에 의존하지 않는 검증을, `security`에는 비밀번호 해시·토큰 서명 같은 순수 보안 계산을 둡니다.
+- `core`는 여러 기능이 사용하는 기반입니다. ORM의 공통 metadata·선택 컬럼과 엔진·세션·repository factory는 `core/db`, 공통 DTO·응답·조회 라우터·예외 핸들러·요청 의존성은 `core/http`에 둡니다. [공통 기반의 책임](backend.md#orm-foundation)에 따라 모델의 PK·컬럼을 선택하며 모든 모델에 같은 `id`·시각 컬럼을 강제하지 않습니다.
 - [BaseCrudRouter](backend.md#read-router)는 도메인이 명시한 목록·상세 GET의 응답 계약과 오류 선언을 연결합니다. HTTP handler가 서비스에 파싱된 값을 전달하며, 공통 라우터는 DB 쿼리·권한 정책·트랜잭션을 결정하지 않습니다. 쓰기·업무 명령과 특수 응답은 일반 `APIRouter` 경로로 등록합니다. 제품의 공모전·선택지 API는 아직 미구현이며 문서 예시나 테스트가 실제 기능 구현을 뜻하지 않습니다.
-- 의존 방향은 도메인에서 `core`로 향합니다. `core`는 개별 도메인을 import하지 않고, `core/db`는 FastAPI·Starlette나 `core/http`를 import하지 않습니다. 엔진 생성과 세션의 생성·정리는 `core/db/session.py`의 `create_database`·`Database.session()`이 맡고, `core/http/dependencies.py`는 이를 요청에 연결합니다. 앱 수명과 라우터 연결은 `main.py`가 맡습니다.
-- 반복되거나 복잡한 DB 쿼리가 생기면 해당 도메인에 `repository.py`를 추가합니다. [RepositoryFactory](backend.md#repository-factory)는 레포지토리 생성과 독립 작업의 세션 관리를 공통으로 제공합니다. 도메인은 필요한 생성자를 전달하며, 공통 CRUD 상속이나 도메인별 factory·interface를 의무적으로 만들지 않습니다. 현재 업무 도메인의 repository·service는 아직 구현하지 않았습니다.
+- DB를 사용하는 업무는 `routers → services → repositories → models` 방향을 따릅니다. 요청 의존성은 인증 서비스를 호출하고, 서비스는 필요한 ORM 객체·스키마·순수 규칙을 사용할 수 있습니다. 레포지토리는 서비스·API DTO·HTTP 계층을 import하지 않으며, 서비스·모델·스키마·규칙·보안 계산도 기능별 `routers`·`dependencies`에 의존하지 않습니다. `core`는 기능별 상위 계층을 import하지 않으며, `core/db`는 FastAPI·Starlette나 `core/http`에도 의존하지 않습니다. 기존 `core/http`의 공통 DTO와 HTTP 어댑터는 유지합니다. 엔진·세션의 생성과 정리는 `core/db/session.py`, 요청 DB 연결은 `core/http/dependencies.py`, 앱 수명과 라우터 조립은 `main.py`가 맡습니다.
+- 읽기·쓰기 DB 접근은 [함수형 레포지토리 모듈](backend.md#repository-boundary)에 둡니다. 서비스에서 ORM 필드의 업무 상태를 바꿀 수 있지만 SQL 실행·행 잠금·flush는 레포지토리를 호출합니다. API DTO는 레포지토리 결과를 받아 서비스에서 구성합니다. 별도 generic base class·interface·Unit of Work를 추가하지 않습니다. 기존 [RepositoryFactory](backend.md#repository-factory)는 생성자 주입과 독립 작업 세션에 필요할 때 사용하는 도구이며 모든 기능에 강제하지 않습니다.
+- 서비스끼리 호출할 수 있습니다. 한 업무에 속한 팀·지원·알림 변경은 같은 세션을 전달하고, 가장 바깥 쓰기 서비스가 commit·rollback을 소유합니다. 하위 서비스와 레포지토리는 commit·rollback하지 않으며, 필요한 DB 반영은 레포지토리의 flush로 처리합니다. [트랜잭션 책임](backend.md#transaction-ownership)을 유지하면서 DB 접근과 업무 판단을 분리합니다. 현재 업무 도메인의 repository·service는 아직 구현하지 않았습니다.
 - 프론트와 백엔드는 HTTP API를 통해 연결합니다. 백엔드 DB 구조를 그대로 프론트의 내부 상태 구조로 강제하지 않습니다.
 
 ## 개발 환경
