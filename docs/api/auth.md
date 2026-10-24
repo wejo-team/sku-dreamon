@@ -85,6 +85,8 @@ CSRF 조회는 같은 인증 상태의 유효한 쿠키를 재사용하고 `Cach
 
 계정 탈퇴·학교 인증 API는 이번 설계에 추가하지 않습니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위에서 제외하므로 복구 API를 만들지 않으며 현재 인증 구현의 선행 조건으로 두지 않습니다. 가입 후 프로필 설정·사람 탐색은 [프로필 API](profiles.md)를 따릅니다.
 
+<a id="auth-entry-settings"></a>
+
 ## 구현된 진입 경로와 운영 설정
 
 [인증 서비스](../../backend/app/services/auth.py)는 계정·세션을 한 트랜잭션으로 커밋하고 [쿠키 처리](../../backend/app/routers/auth_cookies.py)는 성공 뒤에만 인증 쿠키를 발급합니다. 실패한 로그인은 존재하지 않는 아이디와 비밀번호 불일치를 같은 401로 반환하고, 없는 계정도 Argon2 검증 비용을 수행합니다. 가입 유일성 경쟁은 409이며 세션 저장 실패는 계정까지 롤백합니다.
