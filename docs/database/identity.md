@@ -264,7 +264,7 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | 저장 단위 | 프로필 본문·선택 연결 행·포트폴리오를 하나의 트랜잭션에서 갱신하고 버전을 1 증가시킵니다. `updated_at`도 같은 저장에서 갱신합니다. |
 | 복수 선택 개수 | 최종 연결 집합을 [프로필 입력 규칙](../specs/profile.md#input-validation)에 맞춰 검증합니다. 다른 행 개수를 일반 `CHECK`로 계산하지 않습니다. |
 | 선택 코드 | 단일·복수 선택을 해당 공통 enum과 대조하고 새 선택 가능 여부를 검증합니다. 코드 테이블 FK에 의존하지 않습니다. |
-| 텍스트 상한 | 기존 명세의 상한을 서비스에서 검사합니다. [PROFILE-07](../specs/profile.md#open-questions)의 Unicode 계수 계약이 미정이므로 사용자 본문은 `text`로 저장하고 `varchar(n)`으로 임의의 계수 방식을 확정하지 않습니다. |
+| 텍스트 상한 | 기존 명세의 상한을 서비스에서 검사합니다. 일반 텍스트는 NFC·trim 후 Unicode 코드 포인트로 검사하며 사용자 본문은 `text`로 저장합니다. DB의 폭으로 정규화·입력 검증을 대체하지 않습니다. |
 | 학사 선택 | 새 항목과 조상의 계층·현행 여부를 [학사 저장 계약](catalogs.md#academic-write-contract)에서 검증합니다. 가장 깊게 선택한 항목 ID만 저장하고 소속 경로를 표시합니다. |
 | 일반 조회·AI 사람 추천 | [프로필 공개 권한](../specs/profile.md#visibility)에 맞는 후보 조회에서 현재 `is_public`을 확인합니다. 검색 결과 수에도 같은 조건을 적용합니다. |
 | 지원자 검토 | 지원 관계와 팀장을 확인한 후 현재 `profiles`를 조회합니다. 프로필 버전으로 오래된 AI 검토를 식별하며, 지원별 프로필 사본이나 필드별 공개 플래그를 만들지 않습니다. |
@@ -275,9 +275,13 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 
 | 후속 결정 | 영향을 받는 저장·API |
 | --- | --- |
-| [남은 인증·세션 운영 정책](../specs/authentication.md#open-questions) | CSRF 검증 정보·전달 세부, 시도 제한 수치·세션 정리 및 보존 |
+| [남은 인증·세션 운영 정책](../specs/authentication.md#open-questions) | 확정된 CSRF·시도 제한의 운영 설정 배포, 세션 정리 및 보존 |
 | [탈퇴·보존·복구·아이디 재사용](../specs/profile.md#open-questions) | 탈퇴 상태의 저장 표현, 관련 행 삭제·열람·소속 처리. 자동 연쇄 삭제 없음 |
-| [프로필 Unicode 계수·URL 길이](../specs/profile.md#open-questions) | 본문 서비스 검증·추가 DB CHECK·API validation schema |
+| [프로필 URL 길이 등 추가 제한](../specs/profile.md#open-questions) | 본문 서비스 검증·추가 DB CHECK·API validation schema |
 | [실제 공통 코드·학사 목록](../specs/profile-options.md#open-questions) | 공통 enum의 실제 코드 사전과 학사 DB 초기 적재. 저장 방식을 정한 것이 운영 목록 검증 완료를 뜻하지 않음 |
 
 [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖의 후속 검토 항목입니다. 복구 테이블·API를 이번에 추가하지 않으며, 복구 방식 결정이 현재 가입·로그인 개발의 선행 조건은 아닙니다.
+
+## `auth_attempts` — 인증 시도 제한
+
+[모델](../../backend/app/models/auth_attempts.py)과 [migration](../../backend/alembic/versions/20261024_06_auth_attempts.py)이 15분 창의 공유 집계를 저장합니다. `key`는 구분자와 정규화 아이디/IP의 SHA-256 64자리 문자열 PK, `window_started_at`은 시간대 있는 시작 시각, `attempts`는 0 이상 bigint입니다. 비밀번호·IP·아이디 원문을 저장하지 않습니다. 정책은 [인증 운영 설정](../api/auth.md#auth-entry-settings), 트랜잭션은 독립 시도 집계와 업무 계정·세션 저장으로 구분합니다.

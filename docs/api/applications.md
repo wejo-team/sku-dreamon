@@ -1,6 +1,6 @@
 # 지원 API
 
-**상태: 일부 구현.** 본인·받은 팀장의 지원 상세, 본인 지원 목록·취소, 팀장 지원자 목록·상세와 명시적 검토 시작·미선발·선발을 구현했습니다. 신규 지원은 아직 설계 단계입니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 신규 지원·조회·검토·선발·취소 구현.** 본인·받은 팀장의 지원 상세, 본인 지원 목록·취소, 팀장 지원자 목록·상세와 명시적 검토 시작·미선발·선발을 구현했습니다. 신규 지원도 아래 구현 원본과 검증을 따릅니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 구현 원본은 [지원 라우터](../../backend/app/routers/applications.py), [응답 DTO](../../backend/app/schemas/applications.py), [조회 서비스](../../backend/app/services/applications.py)입니다. [PostgreSQL HTTP 검사](../../backend/tests/integration/test_application_reads.py)는 실제 세션 쿠키의 권한·404 은닉·폐기 원인 공개 범위·조회 시 상태 보존을 검증합니다. 실행 앱의 `/docs`·`/openapi.json`에서 등록한 API 계약을 확인할 수 있습니다.
 
@@ -20,7 +20,7 @@
 
 - ID·코드·시각·정원·버전은 [공통 타입](conventions.md#types), 실패는 [공통 오류](conventions.md#errors)를 사용합니다. 단건·복합 성공은 [Success&lt;T&gt;](conventions.md#success-responses), 목록은 [Page&lt;T&gt;](conventions.md#pagination)를 사용하며 `Page<T>`는 `data: T[]`와 `pagination`을 가진 응답입니다.
 
-**표 읽기:** 응답 DTO 표는 `data` 내부에서 사용하는 데이터 구조를 정의하며, 각 DTO의 모든 필드는 필수입니다. `null` 허용 여부는 타입에 따로 표시하며, `null`인 필드를 생략하지 않습니다. 요청은 각 표에 필수 여부를 표시합니다. 선언하지 않은 요청 필드는 422입니다. 일반 텍스트의 정책상 글자 수와 Unicode 계수 단위의 미정 사항은 [공통 계약](conventions.md)을 따릅니다.
+**표 읽기:** 응답 DTO 표는 `data` 내부에서 사용하는 데이터 구조를 정의하며, 각 DTO의 모든 필드는 필수입니다. `null` 허용 여부는 타입에 따로 표시하며, `null`인 필드를 생략하지 않습니다. 요청은 각 표에 필수 여부를 표시합니다. 선언하지 않은 요청 필드는 422입니다. 일반 텍스트의 NFC·코드 포인트와 글자 수 기준은 [공통 계약](conventions.md)을 따릅니다.
 
 <a id="endpoints"></a>
 
@@ -77,11 +77,7 @@
 
 ### ApplicationCreate — 신규 지원
 
-| 필드 | 타입 | 필수 | 제약·처리 |
-| --- | --- | --- | --- |
-| `requestId` | `Id` | 예 | 새 접수 시도 식별 UUID. 취소·폐기 후 허용된 재지원은 새 값 |
-| `roleCode` | `CatalogCode` | 예 | 공통 역할 하나. 팀 모집 역할과 다르다는 이유로 거절하지 않음 |
-| `message` | string 또는 null | 아니오 | 최대 1,000자. 생략·null·trim 후 빈 본문은 메시지 없음인 null로 정규화 |
+정확한 요청 필드는 [ApplicationCreate](../../backend/app/schemas/application_create.py)와 생성 OpenAPI를 따릅니다. 요청 ID는 인증 주체·대상 팀·정규화 입력에 결합합니다.
 
 공개 전환·프로필 보완은 접수와 별도 저장입니다. 서버가 [지원 직전 확인](../specs/profile.md#before-application)과 [현재 모집 조건](../specs/team-recruitment.md#recruitment-conditions)을 다시 검사하며, 비공개 프로필을 자동으로 공개하지 않습니다. 같은 공모전에 현재 확정 소속이 있으면 신규 지원을 거부하며, 대상 팀의 미선발 이력이 있으면 같은 팀 재지원을 거부합니다. 미선발 검사는 최신 지원 한 건만이 아니라 해당 팀에 대한 본인의 종결 이력 전체를 확인합니다. 취소·폐기 후 새 지원에도 현재 프로필 공개·필수 입력·무소속·모집 조건을 다시 적용하며 아래 [재지원 계약](#transitions)을 따릅니다.
 
@@ -188,3 +184,11 @@
 
 - 팀·지원·현재 소속·상태 사건: [팀과 지원 테이블](../database/teams.md)
 - 선발·취소·멱등성과 잠금: [트랜잭션 설계](../database/transactions.md)
+
+## 신규 지원 구현
+
+`POST /teams/{teamId}/applications`는 [입력 DTO](../../backend/app/schemas/application_create.py), [접수 서비스](../../backend/app/services/application_create.py), [재시도·이력 저장소](../../backend/app/repositories/application_create.py)를 따릅니다. 역할·메시지 필드의 정확한 계약은 코드와 생성 OpenAPI가 원본입니다. 메시지는 NFC·trim 후 최대 1,000 코드 포인트이며 생략·null·빈 값은 null로 통일합니다.
+
+계정→현재 프로필→공고→팀을 잠근 뒤 공개·필수 정보, 소속·미선발 전체 이력·현재 유효 지원, 기한·정원·모집 상태를 확인합니다. 모집 역할과 지원 역할의 불일치만으로 차단하지 않습니다. 지원·최초 사건과 본인/팀장 알림을 함께 커밋하고 일부 실패는 모두 롤백합니다. 재전송은 현재 조건과 무관하게 과거 시도의 최신 상태를 반환하므로 취소한 지원을 부활시키지 않습니다.
+
+[접수 테스트](../../backend/tests/integration/test_application_submission.py)와 [무결성 테스트](../../backend/tests/integration/test_submission_integrity.py)에서 HTTP 인증·CSRF·alias, 동시 재전송, 역할 불일치 허용, 취소 후 재지원·미선발 이력 거부, 알림 실패 롤백, 마감 경계·정원·비공개 조건을 검증합니다.

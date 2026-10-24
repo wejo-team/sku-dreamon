@@ -1,6 +1,6 @@
 # 계정·인증 API
 
-**상태: 구현 중.** CSRF·본인 계정 조회와 현재 세션 로그아웃의 [라우터](../../backend/app/routers/auth.py)·[응답 DTO](../../backend/app/schemas/auth.py)·[HTTPS 통합 테스트](../../backend/tests/integration/test_auth_http.py)를 구현했습니다. 가입·로그인·아이디 중복 확인은 후속 범위입니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
+**상태: 구현 중.** CSRF·본인 계정 조회와 현재 세션 로그아웃의 [라우터](../../backend/app/routers/auth.py)·[응답 DTO](../../backend/app/schemas/auth.py)·[HTTPS 통합 테스트](../../backend/tests/integration/test_auth_http.py)를 구현했습니다. 가입·로그인·아이디 중복 확인도 구현했습니다. [진입 경로 테스트](../../backend/tests/integration/test_auth_entrypoints.py)에서 실제 DB·HTTPS 쿠키 전환을 확인합니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
 
 | 확인할 내용 | 위치 |
 | --- | --- |
@@ -37,7 +37,7 @@
 
 로그아웃은 인증을 먼저 확인한 뒤 CSRF·출처를 검사합니다. 인증 또는 CSRF 검증 실패에는 세션 회수·쿠키 변경이 없습니다. 회수 시에도 잠금 후 현재 세션의 유효성을 다시 검사하며, 커밋이 실패하면 롤백하고 쿠키를 유지합니다. 성공 응답은 `Cache-Control: no-store`와 세션·CSRF 쿠키 두 개의 삭제만 반환합니다. 이후 `GET /auth/csrf`에서 익명 토큰을 받을 수 있습니다.
 
-**인증 방식·세션 수명·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다.** 별도 로그인 유지 선택 없이 같은 지속 쿠키를 사용하며, 브라우저 재시작으로 세션 만료 시각을 연장하지 않습니다. 로그인·로그아웃·가입에도 [쿠키·CSRF 전송 계약](conventions.md#csrf-transport)을 적용합니다. `CsrfToken`은 필수·NULL 불가 문자열 `csrfToken` 하나를 갖습니다. 로그인 세션 토큰과 다른 값이며 인증 수단으로 사용할 수 없습니다. 차단 목록·시도 제한·보존 등 운영 결정은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 따릅니다.
+**인증 방식·세션 수명·동시 로그인·브라우저 재시작 후 유지·가입 직후 자동 로그인은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다.** 별도 로그인 유지 선택 없이 같은 지속 쿠키를 사용하며, 브라우저 재시작으로 세션 만료 시각을 연장하지 않습니다. 로그인·로그아웃·가입에도 [쿠키·CSRF 전송 계약](conventions.md#csrf-transport)을 적용합니다. `CsrfToken`은 필수·NULL 불가 문자열 `csrfToken` 하나를 갖습니다. 로그인 세션 토큰과 다른 값이며 인증 수단으로 사용할 수 없습니다. 차단 목록·시도 제한은 [확정 운영 기준](../specs/authentication.md#auth-operation-settings)을 따릅니다. 실제 운영 설정·목록 공급과 보존 기간은 후속 범위입니다.
 
 CSRF 조회는 같은 인증 상태의 유효한 쿠키를 재사용하고 `Cache-Control: no-store`를 반환합니다. 만료·회수·미존재·잘못된 형식의 세션 쿠키가 있으면 해당 쿠키를 만료시키고 익명 CSRF를 제공합니다. 새 로그인 세션을 생성하거나 절대 만료 시각을 연장하지 않습니다. 유효 세션의 활동 시각 갱신은 공통 인증 정책을 따릅니다. CSRF 쿠키는 `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`이며 `Domain`을 지정하지 않습니다. 응답 필드와 쿠키의 토큰 값은 같고, 다른 세션에 결합된 토큰은 재사용하지 않습니다.
 
@@ -45,14 +45,7 @@ CSRF 조회는 같은 인증 상태의 유효한 쿠키를 재사용하고 `Cach
 
 ### Credentials — 가입·로그인 요청
 
-| 필드 | 타입 | null | 입력 처리 |
-| --- | --- | --- | --- |
-| `loginId` | string | 불가 | 앞뒤 공백 제거 → ASCII 소문자화 → `^[a-z0-9]{4,24}$` 검증. 밑줄·하이픈 미허용 |
-| `password` | string | 불가 | NFC 정규화 후 Unicode 코드 포인트 15~128개. 공백·대소문자는 보존. 요청 전용으로 응답·오류·로그에 원문을 포함하지 않음 |
-
-아이디 중복 확인의 query `loginId`에도 같은 정규화를 적용합니다. 가입·로그인 요청에 `rememberMe` 등 로그인 유지 선택 필드는 추가하지 않습니다. 정책 원본은 [로그인 아이디](../specs/authentication.md#login-identifier)와 [비밀번호](../specs/authentication.md#password-policy)입니다.
-
-`login_id_normalized`의 [DB 저장 폭](../database/identity.md#accounts)은 향후 확장을 위해 `varchar(320)`으로 두지만, 현재 API는 위 4~24자 규칙을 그대로 적용하며 이메일 로그인을 허용하지 않습니다.
+정확한 입력은 [Credentials·LoginId](../../backend/app/schemas/auth.py)와 생성 OpenAPI를 따릅니다. 아이디는 trim·ASCII 소문자화 후 4~24자, 비밀번호는 NFC 후 코드 포인트 15~128자이며 공백·대소문자를 보존합니다. 가입에는 운영 차단 목록이 적용되며 일치하면 `400 PASSWORD_BLOCKED`, 미설정이면 `503 TEMPORARY_UNAVAILABLE`입니다.
 
 <a id="account"></a>
 
@@ -82,7 +75,7 @@ CSRF 조회는 같은 인증 상태의 유효한 쿠키를 재사용하고 `Cach
 | `LoginResult` | `account: Account` | 본인 계정 데이터. 세션 토큰은 본문에 포함하지 않고 별도 `Set-Cookie`로 전달 |
 | `LoginIdAvailability` | `normalizedLoginId: string`, `available: boolean` | 정규화한 아이디와 현재 중복 여부. 아이디 형식은 `^[a-z0-9]{4,24}$` |
 
-모든 필드는 필수이며 `null`을 허용하지 않습니다. 가입·로그인 제한 수치와 기간은 미정이며 429 계약만 제안합니다.
+모든 필드는 필수이며 `null`을 허용하지 않습니다. 2026-10-24 결정에 따른 PostgreSQL 시도 제한과 429를 적용합니다. 수치·공급 방식은 [인증 운영 기준](../specs/authentication.md#auth-operation-settings)을 따릅니다.
 
 ## DB 연결과 남은 범위
 
@@ -91,3 +84,15 @@ CSRF 조회는 같은 인증 상태의 유효한 쿠키를 재사용하고 `Cach
 | `Account`·로그인 | [계정과 프로필 테이블](../database/identity.md) |
 
 계정 탈퇴·학교 인증 API는 이번 설계에 추가하지 않습니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위에서 제외하므로 복구 API를 만들지 않으며 현재 인증 구현의 선행 조건으로 두지 않습니다. 가입 후 프로필 설정·사람 탐색은 [프로필 API](profiles.md)를 따릅니다.
+
+<a id="auth-entry-settings"></a>
+
+## 구현된 진입 경로와 운영 설정
+
+[인증 서비스](../../backend/app/services/auth.py)는 계정·세션을 한 트랜잭션으로 커밋하고 [쿠키 처리](../../backend/app/routers/auth_cookies.py)는 성공 뒤에만 인증 쿠키를 발급합니다. 실패한 로그인은 존재하지 않는 아이디와 비밀번호 불일치를 같은 401로 반환하고, 없는 계정도 Argon2 검증 비용을 수행합니다. 가입 유일성 경쟁은 409이며 세션 저장 실패는 계정까지 롤백합니다.
+
+[시도 제한 서비스](../../backend/app/services/auth_attempts.py)는 독립 DB 세션에서 시도를 커밋합니다. 로그인은 정규화 아이디당 10회/15분·접속 IP당 100회/15분, 가입은 IP당 10회/15분, 중복 확인은 IP당 100회/15분이 기본입니다. `AUTH_LOGIN_ACCOUNT_LIMIT`, `AUTH_LOGIN_IP_LIMIT`, `AUTH_SIGNUP_IP_LIMIT`, `AUTH_AVAILABILITY_IP_LIMIT`로 양의 횟수를 설정합니다. 첫 시도부터 15분 창을 사용하고 동시 요청은 행 잠금으로 직렬화하며 초과 시 429와 `Retry-After`를 반환합니다. DB에는 구분자·정규화 아이디/IP의 SHA-256 키와 시각·횟수만 저장합니다. 프록시 배포 시 ASGI 서버의 신뢰 프록시 설정도 운영자가 제한해야 합니다.
+
+`PASSWORD_BLOCKLIST_PATH`와 `PASSWORD_BLOCKLIST_VERSION`은 운영자가 준비한 UTF-8 한 줄 한 비밀번호 파일과 버전을 지정합니다. 미설정이면 가입을 503으로 거부하며 로그인은 계속 가능합니다. 지정한 파일이 없거나 비어 있으면 앱 시작에 실패합니다. 파일 교체 후 앱을 재시작합니다. 저장소에 실제 차단 목록·비밀값을 포함하지 않습니다.
+
+새 Alembic `20261024_06`은 `auth_attempts`를 추가합니다. 운영 배포·목록 공급·origin/키 준비·종료 세션 및 시도 키 정리는 별도 작업입니다.

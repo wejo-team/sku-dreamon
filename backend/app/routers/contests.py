@@ -3,13 +3,19 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Path
+from fastapi import Path, Query
 
 from app.core.http.dependencies import DatabaseSession
 from app.core.http.routers import BaseCrudRouter
-from app.core.http.schemas import Success
-from app.schemas.contests import ContestDetail
-from app.services.contests import get_contest_detail
+from app.core.http.schemas import Page, Success
+from app.schemas.contests import ContestDetail, ContestSearch, ContestSummary
+from app.services.contests import get_contest_detail, list_contests
+
+
+async def get_contests(
+    session: DatabaseSession, query: Annotated[ContestSearch, Query()]
+) -> Page[ContestSummary]:
+    return await list_contests(session, query)
 
 
 async def get_contest(
@@ -20,6 +26,12 @@ async def get_contest(
 
 
 contests = BaseCrudRouter(prefix="/contests", tags=["contests"])
+contests.add_list(
+    handler=get_contests,
+    response_model=Page[ContestSummary],
+    name="list_contests",
+    summary="공모전 목록",
+)
 contests.add_detail(
     "/{contestId}",
     handler=get_contest,

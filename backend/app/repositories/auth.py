@@ -14,6 +14,18 @@ async def add_session(session: AsyncSession, login_session: AuthSession) -> None
     await session.flush()
 
 
+async def add_account(session: AsyncSession, account: Account) -> None:
+    session.add(account)
+    await session.flush()
+
+
+async def get_by_login_id(session: AsyncSession, login_id: str) -> Account | None:
+    account: Account | None = await session.scalar(
+        select(Account).where(Account.login_id_normalized == login_id)
+    )
+    return account
+
+
 async def lock_session_by_token_hash(
     session: AsyncSession, token_hash: bytes
 ) -> AuthSession | None:
