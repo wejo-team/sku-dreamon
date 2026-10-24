@@ -299,7 +299,7 @@ async def test_missing_and_invalid_ids_and_openapi_contract(api: ContestApi) -> 
     assert set(operation["responses"]) == {"200", "404", "422", "500", "503"}
     assert operation["parameters"][0]["name"] == "contestId"
     assert operation["parameters"][0]["schema"]["format"] == "uuid"
-    assert "/api/v1/contests" not in document["paths"]
+    assert "/api/v1/contests" in document["paths"]
 
 
 async def test_source_and_team_count_share_one_snapshot(
