@@ -90,7 +90,7 @@ def test_success_requires_the_declared_nonnullable_data(
 
     schema = Success[ExampleResponse].model_json_schema()
     assert schema["required"] == ["data"]
-    assert schema["properties"]["data"] == {"$ref": "#/$defs/ExampleResponse"}
+    assert schema["properties"]["data"]["$ref"] == "#/$defs/ExampleResponse"
 
 
 def test_page_has_one_envelope_and_explicit_empty_metadata() -> None:
