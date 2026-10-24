@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 from pydantic import ValidationError
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import Settings
 from app.core.db.session import create_database
@@ -15,8 +14,20 @@ from app.schemas.contest_import import ContestImport
 from app.services.contest_import import import_contest
 
 
+class InputUnavailable(Exception):
+    """입력 파일을 읽지 못했음을 원문 없이 표시한다."""
+
+
+class DatabaseImportError(Exception):
+    """드라이버별 예외를 CLI의 안전한 DB 실패 계약으로 바꾼다."""
+
+
 async def run(path: Path, *, apply: bool) -> dict[str, str]:
-    data = ContestImport.model_validate_json(await asyncio.to_thread(path.read_bytes))
+    try:
+        source = await asyncio.to_thread(path.read_bytes)
+    except OSError as error:
+        raise InputUnavailable from error
+    data = ContestImport.model_validate_json(source)
     if not apply:
         return {"status": "validated"}
     database = create_database(str(Settings().database_url))
@@ -24,6 +35,10 @@ async def run(path: Path, *, apply: bool) -> dict[str, str]:
         async with database.session() as session:
             contest_id = await import_contest(session, data)
         return {"status": "created", "contestId": str(contest_id)}
+    except Exception as error:
+        # 연결 전 실패는 SQLAlchemyError가 아닌 OSError·asyncpg 오류일 수 있다.
+        # CLI에서는 DB 단계의 내부 예외·접속 정보를 그대로 출력하지 않는다.
+        raise DatabaseImportError from error
     finally:
         await database.engine.dispose()
 
@@ -44,10 +59,10 @@ def main() -> int:
             json.dumps({"error": "INVALID_INPUT", "fields": locations}), file=sys.stderr
         )
         return 2
-    except (OSError, ValueError):
+    except (InputUnavailable, ValueError):
         print('{"error": "INPUT_UNAVAILABLE"}', file=sys.stderr)
         return 2
-    except SQLAlchemyError:
+    except DatabaseImportError:
         print('{"error": "DATABASE_ERROR"}', file=sys.stderr)
         return 1
     print(json.dumps(result))
