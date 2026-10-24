@@ -1,6 +1,6 @@
 # 알림 API
 
-**상태: 구현 진행 중 — [#113](https://github.com/wejo-team/sku-dreamon/issues/113).** 본인 목록·미읽음 수는 [라우터](../../backend/app/routers/notifications.py), [DTO](../../backend/app/schemas/notifications.py), [조회](../../backend/app/queries/notifications.py)와 [읽음 서비스](../../backend/app/services/notifications.py)에 구현합니다. 개별·선택 집합 읽음도 구현하며 최초 읽음 시각과 전체 실패 원자성을 보장합니다. 앱 연결·프론트 통합과 업무 변경에 따른 알림 생성은 별도 검증 범위입니다. 아래 표는 최종 요청·응답 계약을 설명합니다. 모든 경로는 `/api/v1` 기준이며 로그인이 필요합니다. 제품 정책은 [알림 명세](../specs/notifications.md)를 참조합니다.
+**상태: 구현 진행 중 — [#113](https://github.com/wejo-team/sku-dreamon/issues/113).** 본인 목록·미읽음 수는 [라우터](../../backend/app/routers/notifications.py), [DTO](../../backend/app/schemas/notifications.py), [저장 접근](../../backend/app/repositories/notifications.py)와 [읽음 서비스](../../backend/app/services/notifications.py)에 구현합니다. 개별·선택 집합 읽음도 구현하며 최초 읽음 시각과 전체 실패 원자성을 보장합니다. 앱 연결·프론트 통합과 업무 변경에 따른 알림 생성은 별도 검증 범위입니다. 아래 표는 최종 요청·응답 계약을 설명합니다. 모든 경로는 `/api/v1` 기준이며 로그인이 필요합니다. 제품 정책은 [알림 명세](../specs/notifications.md)를 참조합니다.
 
 | 찾는 내용 | 위치 |
 | --- | --- |

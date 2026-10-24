@@ -1,4 +1,4 @@
-"""현재 저장값으로 공개 응답을 구성한다."""
+"""공개 공고의 상태·원문 응답을 같은 조회 시점의 저장 자료로 구성한다."""
 
 from collections.abc import Sequence
 from datetime import datetime
