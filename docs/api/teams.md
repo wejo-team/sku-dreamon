@@ -1,6 +1,6 @@
 # 팀 API
 
-**상태: 공개 팀 조회 구현 · 생성·워크스페이스 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/routers/teams.py), [요청·응답 DTO](../../backend/app/schemas/teams.py), [조회](../../backend/app/queries/teams.py)를 구현했습니다. 생성·모집 변경·워크스페이스 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 공개 팀 조회 구현 · 생성·워크스페이스 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/routers/teams.py), [요청·응답 DTO](../../backend/app/schemas/teams.py), [조회 서비스](../../backend/app/services/teams.py)와 [저장 조회](../../backend/app/repositories/teams.py)를 구현했습니다. 생성·모집 변경·워크스페이스 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
