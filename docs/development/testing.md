@@ -1,6 +1,6 @@
 # 테스트·CI 기준
 
-문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `main`에 병합된 뒤에는 전체를 검사합니다. 현재 실행 기반에 대한 검사가 있으며 도메인 기능과 E2E 검사는 기능이 생길 때 추가합니다. 앱 실행 명령은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 공식 디자인 앱은 필요할 때 아래 [수동 확인](#design-reference)을 수행합니다.
+문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `main`에 병합된 뒤에는 전체를 검사합니다. 현재 실행 기반과 구현한 업무 기능의 unit·HTTP·PostgreSQL 검사가 있으며, 새 기능과 E2E 검사는 해당 동작을 구현할 때 추가합니다. 앱 실행 명령은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 공식 디자인 앱은 필요할 때 아래 [수동 확인](#design-reference)을 수행합니다.
 
 ## 의미 있는 테스트
 

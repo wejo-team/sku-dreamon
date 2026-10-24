@@ -133,11 +133,8 @@
 
 ### 처리 결과
 
-| 응답 타입 | 필수 필드 | 의미 |
-| --- | --- | --- |
-| `CancellationResult` | `application: Application`, `membershipEnded: boolean` | 선발 후 취소로 소속을 종료했다면 true. 이미 취소된 요청은 기존 취소 결과를 유지하며 자리를 다시 반환하지 않음 |
 
-구현된 취소 응답의 필드·타입은 [CancellationResult DTO](../../backend/app/schemas/applications.py)와 생성 OpenAPI를 기준으로 합니다.
+취소 응답의 필드·타입은 [CancellationResult DTO](../../backend/app/schemas/applications.py)와 생성 OpenAPI를 기준으로 합니다. 선발 후 취소로 소속을 종료했다면 `membershipEnded`가 true이며, 반복 취소는 기존 결과를 유지하고 자리를 다시 반환하지 않습니다.
 
 선발 응답의 정확한 필드는 [SelectionResult DTO](../../backend/app/schemas/application_review.py)와 생성 OpenAPI가 원본입니다. 선발한 지원·팀 요약·현재 소속 ID만 제공하고 다른 팀의 지원 목록·메시지·건수는 포함하지 않습니다.
 

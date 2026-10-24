@@ -1,6 +1,6 @@
 # 알림 테이블
 
-**상태: 저장 모델·제약 및 본인 조회·읽음 API 구현 진행 중. 알림 생성은 업무 변경 유스케이스에서 별도 구현합니다.** 수신자별 알림과 읽음 시각은 [알림 모델](../../backend/app/models/notifications.py)과 [마이그레이션](../../backend/alembic/versions/20261024_05_team_integrity.py)에서 정의합니다. 기능의 대상·문구·이동·예외는 [서비스 알림 명세](../specs/notifications.md)를 참조합니다.
+**상태: 저장 모델·제약, 본인 조회·읽음 및 지원 상태 변경 알림 생성 구현.** 검토·미선발·선발·취소와 선발에 따른 다른 대기 지원 폐기는 같은 트랜잭션에서 알림을 생성합니다. 신규 지원 및 팀 생성에 따른 대기 지원 폐기 알림은 해당 업무와 함께 후속 구현합니다. 수신자별 알림과 읽음 시각은 [알림 모델](../../backend/app/models/notifications.py)과 [마이그레이션](../../backend/alembic/versions/20261024_05_team_integrity.py)에서 정의합니다. 기능의 대상·문구·이동·예외는 [서비스 알림 명세](../specs/notifications.md)를 참조합니다.
 
 ## ERD
 

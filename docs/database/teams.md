@@ -1,8 +1,8 @@
 # 팀·지원·소속 테이블
 
-이 문서는 [팀 모집·지원 명세](../specs/team-recruitment.md)의 PostgreSQL 저장 구조와 제약을 설명합니다. **저장 모델·행 제약은 구현했으며 업무 서비스·API는 미구현입니다.** 사용자 흐름·권한·정책은 원문 링크로 참조하고, 공통 타입·기본값·삭제 규칙은 [공통 규칙](conventions.md), 여러 테이블을 함께 바꾸는 처리 순서는 [트랜잭션 설계](transactions.md)를 따릅니다.
+이 문서는 [팀 모집·지원 명세](../specs/team-recruitment.md)의 PostgreSQL 저장 구조와 제약을 설명합니다. **저장 모델·행 제약, 팀 조회·공간·모집 변경, 지원 조회·취소·팀장 검토·선발을 구현했습니다. 팀 생성과 신규 지원은 후속 범위입니다.** 실제 경로와 계약은 [팀 API](../api/teams.md)와 [지원 API](../api/applications.md)에서 코드로 연결합니다. 사용자 흐름·권한·정책은 원문 링크로 참조하고, 공통 타입·기본값·삭제 규칙은 [공통 규칙](conventions.md), 여러 테이블을 함께 바꾸는 처리 순서는 [트랜잭션 설계](transactions.md)를 따릅니다.
 
-구현 원본은 [팀·소속 모델](../../backend/app/models/teams.py), [지원·사건 모델](../../backend/app/models/applications.py), [마이그레이션](../../backend/alembic/versions/20261024_05_team_integrity.py)입니다. [PostgreSQL 통합 검사](../../backend/tests/integration/test_team_integrity.py)는 복합 참조·현재 소속과 지원의 중복·상태 사건 제약·트랜잭션 롤백·마이그레이션 정합성을 검증합니다. 실제 행동의 권한·잠금 순서·정원 보호는 후속 유스케이스 구현에서 검증합니다.
+구현 원본은 [팀·소속 모델](../../backend/app/models/teams.py), [지원·사건 모델](../../backend/app/models/applications.py), [마이그레이션](../../backend/alembic/versions/20261024_05_team_integrity.py)입니다. [PostgreSQL 통합 검사](../../backend/tests/integration/test_team_integrity.py)는 복합 참조·현재 소속과 지원의 중복·상태 사건 제약·트랜잭션 롤백·마이그레이션 정합성을 검증합니다. 구현한 검토·선발·취소·모집 변경의 권한·잠금 순서·정원 보호는 각 [지원 API](../api/applications.md)·[팀 API](../api/teams.md)에 연결한 실제 DB·HTTP 테스트에서 검증합니다. 팀 생성과 신규 지원의 유스케이스 검증은 후속 범위입니다.
 
 ## 구조와 책임
 

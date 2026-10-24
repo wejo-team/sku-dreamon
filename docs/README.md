@@ -20,6 +20,7 @@
 
 ## 자주 찾는 문서
 
+- 현재 구현 상태와 다음 작업을 확인할 때: [구현 현황과 다음 작업](development/implementation-status.md)
 - 서비스명을 쓰거나 소개 문구를 작성할 때: [이름과 표기](branding.md)
 - 기획 팀원 등 GitHub가 처음인 팀원이 참여할 때: [문서 협업 시작하기](collaboration/README.md)
 - 처음 실행할 때: [로컬 실행](development/local-development.md)
