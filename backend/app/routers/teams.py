@@ -3,15 +3,42 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Response
 
 from app.core.http.dependencies import DatabaseSession
 from app.core.http.handlers import error_responses
 from app.core.http.schemas import Page, Success
+from app.dependencies.auth import CurrentAccount
+from app.dependencies.csrf import require_csrf
+from app.schemas.team_create import TeamCreate
 from app.schemas.teams import AllTeamSearch, TeamDetail, TeamSearch, TeamSummary
+from app.services.team_create import create_team
 from app.services.teams import get_team_detail, list_teams
 
 router = APIRouter(tags=["teams"], responses=error_responses(422, 500, 503))
+
+
+@router.post(
+    "/teams",
+    status_code=201,
+    response_model=Success[TeamDetail],
+    responses={
+        200: {"model": Success[TeamDetail]},
+        **error_responses(401, 403, 404, 409),
+    },
+    summary="팀 생성",
+)
+async def post_team(
+    account_id: CurrentAccount,
+    session: DatabaseSession,
+    body: TeamCreate,
+    response: Response,
+    csrf: Annotated[None, Depends(require_csrf)],
+) -> Success[TeamDetail]:
+    result, created = await create_team(session, account_id, body)
+    response.status_code = 201 if created else 200
+    response.headers["Cache-Control"] = "no-store"
+    return Success(data=result)
 
 
 @router.get("/teams", summary="공개 팀 목록")
