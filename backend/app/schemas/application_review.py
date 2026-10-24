@@ -1,12 +1,14 @@
 """받은 지원의 팀장 검토용 조회·처리 결과를 정의한다."""
 
 from typing import Annotated
+from uuid import UUID
 
 from pydantic import Field
 
 from app.core.http.schemas import RequestDTO, ResponseDTO
 from app.schemas.applications import ApplicationResponse, ApplicationStatus
 from app.schemas.profiles import ProfileResponse
+from app.schemas.teams import TeamSummary
 
 
 class ApplicantSearch(RequestDTO):
@@ -49,3 +51,13 @@ class ApplicantResponse(ResponseDTO):
             "여부. 마감·정원까지 확인한 선발 실행 허가는 아닙니다."
         )
     )
+
+
+class SelectionResult(ResponseDTO):
+    """지원 선발과 현재 소속 확정의 처리 결과."""
+
+    application: ApplicationResponse = Field(
+        description="선발 결과가 반영된 지원 정보."
+    )
+    team: TeamSummary = Field(description="선발 후 인원과 모집 상태가 반영된 팀 요약.")
+    membership_id: UUID = Field(description="선발된 지원자의 확정 소속 UUID.")

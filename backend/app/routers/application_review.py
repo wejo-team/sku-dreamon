@@ -10,7 +10,11 @@ from app.core.http.handlers import error_responses
 from app.core.http.schemas import Page, Success
 from app.dependencies.auth import CurrentAccount, get_current_account
 from app.dependencies.csrf import require_csrf
-from app.schemas.application_review import ApplicantResponse, ApplicantSearch
+from app.schemas.application_review import (
+    ApplicantResponse,
+    ApplicantSearch,
+    SelectionResult,
+)
 from app.schemas.applications import ApplicationResponse, VersionedAction
 from app.services import application_review as review_service
 
@@ -72,5 +76,23 @@ async def reject_application(
     return Success(
         data=await review_service.change_review_status(
             session, application_id, account_id, int(body.expected_version), "rejected"
+        )
+    )
+
+
+@router.put(
+    "/applications/{applicationId}/selection",
+    dependencies=[Depends(get_current_account), Depends(require_csrf)],
+    responses=error_responses(409),
+)
+async def select_application(
+    application_id: Annotated[UUID, Path(alias="applicationId")],
+    account_id: CurrentAccount,
+    session: DatabaseSession,
+    body: VersionedAction,
+) -> Success[SelectionResult]:
+    return Success(
+        data=await review_service.select_application(
+            session, application_id, account_id, int(body.expected_version)
         )
     )

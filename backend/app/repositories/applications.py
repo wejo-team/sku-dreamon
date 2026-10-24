@@ -3,7 +3,7 @@
 from typing import NamedTuple
 from uuid import UUID
 
-from sqlalchemy import BigInteger, Select, and_, func, select, true
+from sqlalchemy import BigInteger, Select, and_, func, or_, select, true
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -321,3 +321,31 @@ def _applicant_statement() -> Select[tuple[Application, Profile, bool, str]]:
             ),
         )
     )
+
+
+async def list_selection_related_ids(
+    session: AsyncSession,
+    applicant_id: UUID,
+    contest_id: UUID,
+    application_id: UUID,
+    *,
+    pending_statuses: tuple[str, ...],
+) -> list[tuple[UUID, UUID]]:
+    rows = (
+        await session.execute(
+            select(Application.application_id, Application.team_id).where(
+                Application.applicant_account_id == applicant_id,
+                Application.contest_id == contest_id,
+                or_(
+                    Application.application_id == application_id,
+                    Application.status.in_(pending_statuses),
+                ),
+            )
+        )
+    ).all()
+    return [(row[0], row[1]) for row in rows]
+
+
+async def flush_application_changes(session: AsyncSession) -> None:
+    """선발 유스케이스의 최종 응답 조회 전에 남은 변경을 flush한다."""
+    await session.flush()

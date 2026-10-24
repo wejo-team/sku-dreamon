@@ -243,3 +243,21 @@ async def count_current_members(session: AsyncSession, team_id: UUID) -> int:
     )
     assert count is not None
     return count
+
+
+async def get_current_membership(
+    session: AsyncSession, account_id: UUID, contest_id: UUID
+) -> TeamMembership | None:
+    """호출자가 계정 잠금을 유지한 상태에서 공모전의 현재 소속을 확인한다."""
+    membership: TeamMembership | None = await session.scalar(
+        select(TeamMembership).where(
+            TeamMembership.account_id == account_id,
+            TeamMembership.contest_id == contest_id,
+            TeamMembership.ended_at.is_(None),
+        )
+    )
+    return membership
+
+
+def add_membership(session: AsyncSession, membership: TeamMembership) -> None:
+    session.add(membership)

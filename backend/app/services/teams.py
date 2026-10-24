@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -280,3 +280,36 @@ def end_application_membership(
     membership.end_reason = "application_canceled"
     team.version += 1
     team.updated_at = now
+
+
+def add_selected_member(
+    session: AsyncSession,
+    team: Team,
+    *,
+    applicant_id: UUID,
+    application_id: UUID,
+    member_count: int,
+    now: datetime,
+) -> TeamMembership:
+    """이미 잠근 팀에 소속을 추가하고 정원 도달 시 모집을 마감한다.
+
+    계정·공고·전체 팀·지원 잠금과 업무 권한은 상위 유스케이스가 확인한다.
+    이 함수는 새 잠금이나 commit 없이 같은 세션의 팀·소속만 변경한다.
+    """
+    if member_count >= team.target_capacity:
+        raise AppError(409, "TEAM_FULL", "팀 정원이 모두 찼습니다.")
+    team.version += 1
+    team.updated_at = now
+    if member_count + 1 == team.target_capacity:
+        team.recruitment_state = "closed"
+        team.closed_reason = "capacity_reached"
+    membership = TeamMembership(
+        team_membership_id=uuid4(),
+        team_id=team.team_id,
+        contest_id=team.contest_id,
+        account_id=applicant_id,
+        source_application_id=application_id,
+        joined_at=now,
+    )
+    repository.add_membership(session, membership)
+    return membership
