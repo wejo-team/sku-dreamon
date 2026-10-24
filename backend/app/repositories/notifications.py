@@ -1,52 +1,59 @@
-"""수신자 범위의 알림·사건을 읽고 같은 스냅샷의 응답을 구성한다."""
+"""알림 조회·행 잠금·저장을 수행하고 저장 행이나 내부 조회 결과를 반환한다."""
 
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, RowMapping, and_, cast, func, select
+from sqlalchemy import (
+    BigInteger,
+    RowMapping,
+    Uuid,
+    and_,
+    any_,
+    bindparam,
+    cast,
+    func,
+    select,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.http.schemas import PageMeta
 from app.models.applications import ApplicationEvent
 from app.models.notifications import Notification
-from app.schemas.notifications import (
-    NotificationPage,
-    NotificationResponse,
-    UnreadCount,
-)
 
 
-def _notification_response(row: RowMapping) -> NotificationResponse:
-    # 프로필·이름을 조회하지 않고 본인에게 전달된 사건의 의미만 표시한다.
-    # 과거 알림은 현재 지원 상태 대신 사건 발생 당시 상태를 유지한다.
-    if row["kind"] == "new_application":
-        title = "새 지원이 도착했습니다."
-        body = "팀에 접수된 지원을 확인해 주세요."
-    else:
-        title = "지원 상태가 변경되었습니다."
-        body = {
-            "submitted": "지원이 접수되었습니다.",
-            "reviewing": "지원 검토가 시작되었습니다.",
-            "selected": "팀원으로 선발되었습니다.",
-            "rejected": "이번 지원은 미선발 처리되었습니다.",
-            "canceled": "지원이 취소되었습니다.",
-            "discarded": (
-                "팀 생성으로 이 지원이 종료되었습니다."
-                if row["reason_code"] == "team_created_elsewhere"
-                else "다른 팀 선발로 이 지원이 종료되었습니다."
-            ),
-        }[row["event_status"]]
-    return NotificationResponse.model_validate(
-        {
-            "id": row["id"],
-            "kind": row["kind"],
-            "application_id": row["application_id"],
-            "team_id": row["team_id"],
-            "event_status": row["event_status"],
-            "occurred_at": row["occurred_at"],
-            "read_at": row["read_at"],
-            "title": title,
-            "body": body,
-        }
+@dataclass(frozen=True)
+class NotificationRecord:
+    id: UUID
+    kind: str
+    application_id: UUID
+    team_id: UUID
+    event_status: str
+    reason_code: str | None
+    occurred_at: datetime
+    read_at: datetime | None
+
+
+@dataclass(frozen=True)
+class NotificationRows:
+    items: list[NotificationRecord]
+    page: int
+    total: int
+    total_pages: int
+    unread_count: int
+
+
+def _record(row: RowMapping) -> NotificationRecord:
+    return NotificationRecord(
+        id=row["id"],
+        kind=row["kind"],
+        application_id=row["application_id"],
+        team_id=row["team_id"],
+        event_status=row["event_status"],
+        reason_code=row["reason_code"],
+        occurred_at=row["occurred_at"],
+        read_at=row["read_at"],
     )
 
 
@@ -57,7 +64,7 @@ async def list_notifications(
     page: int = 1,
     page_size: int = 20,
     unread_only: bool = False,
-) -> NotificationPage:
+) -> NotificationRows:
     """목록·보정 페이지·전체 미읽음 수를 단일 SQL 스냅샷에서 읽는다."""
     unread = Notification.read_at.is_(None)
     filtered_count = func.count().filter(unread) if unread_only else func.count()
@@ -121,19 +128,16 @@ async def list_notifications(
     )
     rows = (await session.execute(statement)).mappings().all()
     summary = rows[0]
-    return NotificationPage(
-        data=[_notification_response(row) for row in rows if row["id"] is not None],
-        pagination=PageMeta(
-            page=int(summary["page"]),
-            page_size=page_size,
-            total=int(summary["total"]),
-            total_pages=int(summary["total_pages"]),
-        ),
+    return NotificationRows(
+        items=[_record(row) for row in rows if row["id"] is not None],
+        page=int(summary["page"]),
+        total=int(summary["total"]),
+        total_pages=int(summary["total_pages"]),
         unread_count=int(summary["unread_count"]),
     )
 
 
-async def get_unread_count(session: AsyncSession, account_id: UUID) -> UnreadCount:
+async def get_unread_count(session: AsyncSession, account_id: UUID) -> int:
     count = await session.scalar(
         select(func.count())
         .select_from(Notification)
@@ -142,12 +146,12 @@ async def get_unread_count(session: AsyncSession, account_id: UUID) -> UnreadCou
             Notification.read_at.is_(None),
         )
     )
-    return UnreadCount(unread_count=int(count or 0))
+    return int(count or 0)
 
 
 async def get_notification(
     session: AsyncSession, account_id: UUID, notification_id: UUID
-) -> NotificationResponse:
+) -> NotificationRecord:
     """호출자가 존재·수신 권한을 확인한 알림의 사건 당시 응답을 읽는다."""
     row = (
         (
@@ -175,5 +179,30 @@ async def get_notification(
         .mappings()
         .one()
     )
-    response = _notification_response(row)
-    return response
+    return _record(row)
+
+
+async def lock_notifications(
+    session: AsyncSession, account_id: UUID, notification_ids: Sequence[UUID]
+) -> Sequence[Notification]:
+    # UUID 배열을 한 매개변수로 전달해 선택 개수에 따른 SQL 인자 상한을 피한다.
+    identifiers = bindparam(
+        "notification_ids", list(notification_ids), type_=ARRAY(Uuid())
+    )
+    rows = (
+        await session.scalars(
+            select(Notification)
+            .where(
+                Notification.recipient_account_id == account_id,
+                Notification.notification_id == any_(identifiers),
+            )
+            .order_by(Notification.notification_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    return rows
+
+
+async def flush_notifications(session: AsyncSession) -> None:
+    await session.flush()

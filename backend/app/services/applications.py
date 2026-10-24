@@ -1,15 +1,13 @@
-"""지원 관계·상태·프로필을 조회하고 읽기 응답을 구성한다."""
+"""지원의 권한·상태·응답 조립과 요청 트랜잭션을 처리한다."""
 
 from typing import Literal, cast
 from uuid import UUID
 
-from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
 from app.core.exceptions import AppError
-from app.models.applications import Application, ApplicationEvent
-from app.models.teams import Team, TeamMembership
+from app.models.applications import Application
+from app.repositories import applications as repository
 from app.rules.catalogs import RoleCode
 from app.schemas.applications import ApplicationResponse, ApplicationStatus
 
@@ -50,47 +48,16 @@ def application_response(
 async def get_application(
     session: AsyncSession, application_id: UUID, viewer_id: UUID
 ) -> ApplicationResponse:
-    source_event = aliased(ApplicationEvent)
-    source_membership = aliased(TeamMembership)
-    row = (
-        await session.execute(
-            select(
-                Application,
-                Team.leader_account_id,
-                ApplicationEvent.reason_code,
-                source_event.application_id,
-                source_membership.team_id,
-            )
-            .join(Team, Team.team_id == Application.team_id)
-            .outerjoin(
-                ApplicationEvent,
-                and_(
-                    ApplicationEvent.application_id == Application.application_id,
-                    ApplicationEvent.application_version == Application.version,
-                ),
-            )
-            .outerjoin(
-                source_event,
-                source_event.application_event_id == ApplicationEvent.cause_event_id,
-            )
-            .outerjoin(
-                source_membership,
-                source_membership.team_membership_id
-                == ApplicationEvent.cause_membership_id,
-            )
-            .where(Application.application_id == application_id)
-            .execution_options(populate_existing=True)
-        )
-    ).one_or_none()
+    row = await repository.get_application_record(session, application_id)
     if row is None or viewer_id not in (
-        row[0].applicant_account_id,
-        row[1],
+        row.application.applicant_account_id,
+        row.leader_id,
     ):
         raise AppError(404, "APPLICATION_NOT_FOUND", "지원을 찾을 수 없습니다.")
     return application_response(
-        row[0],
+        row.application,
         viewer_id=viewer_id,
-        reason=row[2],
-        source_application_id=row[3],
-        source_team_id=row[4],
+        reason=row.reason,
+        source_application_id=row.source_application_id,
+        source_team_id=row.source_team_id,
     )

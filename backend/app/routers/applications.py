@@ -9,8 +9,8 @@ from app.core.http.dependencies import DatabaseSession
 from app.core.http.routers import BaseCrudRouter
 from app.core.http.schemas import Success
 from app.dependencies.auth import CurrentAccount
-from app.queries import applications as application_queries
 from app.schemas.applications import ApplicationResponse
+from app.services import applications as service
 
 
 async def get_application(
@@ -18,9 +18,7 @@ async def get_application(
     account_id: CurrentAccount,
     session: DatabaseSession,
 ) -> ApplicationResponse:
-    return await application_queries.get_application(
-        session, application_id, account_id
-    )
+    return await service.get_application(session, application_id, account_id)
 
 
 applications = BaseCrudRouter(prefix="", tags=["applications"])
