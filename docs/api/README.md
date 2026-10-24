@@ -64,7 +64,7 @@ FastAPI의 기본 제공 경로는 `/docs`(Swagger UI), `/redoc`(ReDoc), `/opena
 
 ## 후속 구현에 남은 결정
 
-인증은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다. 구현된 CSRF 필드·쿠키 속성·실패 처리는 [인증 DTO](../../backend/app/schemas/auth.py), [쿠키 처리](../../backend/app/routers/auth_cookies.py), [CSRF 검사](../../backend/app/dependencies/csrf.py)가 원본이며 전송 계약은 [병합된 PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)와 [공통 계약](conventions.md)을 따릅니다. 가입·로그인과 운영 도메인·CORS·로컬 HTTPS 구성까지 완료된 것은 아닙니다.
+인증은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다. 구현된 CSRF 필드·쿠키 속성·실패 처리는 [인증 DTO](../../backend/app/schemas/auth.py), [쿠키 처리](../../backend/app/routers/auth_cookies.py), [CSRF 검사](../../backend/app/dependencies/csrf.py)가 원본이며 전송 계약은 [병합된 PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)와 [공통 계약](conventions.md#csrf-transport)을 따릅니다. 가입·로그인 구현과 운영 origin·키 설정, CORS·로컬 HTTPS 구성은 후속 범위입니다.
 
 일반 텍스트의 NFC·글자 수 기준, 팀 생성에 필요한 프로필 조건, 인증 시도 제한·비밀번호 차단 목록 공급·종료 세션 정리와 보존, 학사 시드 원장의 범위, 공고 목록 정책·운영 입력 CLI, AI 제공자·내부 구조·데이터 보존은 후속 결정으로 남습니다. 모집 정보·지원 메시지 편집과 공고 변경 영향도 [공통 계약의 보류 목록](conventions.md#deferred) 및 각 기능 명세를 따릅니다. 확정된 모집·지원 전이는 [모집 상태 변경](teams.md#transitions)과 [지원 상태 변경](applications.md#transitions)을 참조합니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖이며 현재 인증 구현의 선행 조건이 아닙니다.
 
