@@ -3,13 +3,14 @@
 from typing import NamedTuple
 from uuid import UUID
 
-from sqlalchemy import BigInteger, and_, func, select, true
+from sqlalchemy import BigInteger, Select, and_, func, select, true
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.models.applications import Application, ApplicationEvent
 from app.models.contests import Contest, ContestField
+from app.models.profiles import Profile
 from app.models.teams import Team, TeamMembership, TeamRecruitmentRole
 
 
@@ -242,3 +243,81 @@ async def add_event(session: AsyncSession, event: ApplicationEvent) -> None:
     """서비스가 확정한 사건과 같은 세션의 변경을 기존 시점에 flush한다."""
     session.add(event)
     await session.flush()
+
+
+class ApplicantRecord(NamedTuple):
+    application: Application
+    profile: Profile
+    has_membership: bool
+    reason: str | None
+
+
+async def get_applicant_team(session: AsyncSession, team_id: UUID) -> Team | None:
+    return await session.get(Team, team_id)
+
+
+async def count_applicants(
+    session: AsyncSession, team_id: UUID, *, status: str | None
+) -> int:
+    conditions = [Application.team_id == team_id]
+    if status is not None:
+        conditions.append(Application.status == status)
+    count = await session.scalar(
+        select(func.count()).select_from(Application).where(*conditions)
+    )
+    assert count is not None
+    return count
+
+
+async def list_applicant_records(
+    session: AsyncSession, team_id: UUID, *, status: str | None, offset: int, limit: int
+) -> list[ApplicantRecord]:
+    conditions = [Application.team_id == team_id]
+    if status is not None:
+        conditions.append(Application.status == status)
+    rows = (
+        await session.execute(
+            _applicant_statement()
+            .where(*conditions)
+            .order_by(
+                Application.submitted_at.desc(), Application.application_id.desc()
+            )
+            .offset(offset)
+            .limit(limit)
+        )
+    ).all()
+    return [ApplicantRecord(*row) for row in rows]
+
+
+async def get_applicant_record(
+    session: AsyncSession, application_id: UUID
+) -> ApplicantRecord:
+    row = (
+        await session.execute(
+            _applicant_statement().where(Application.application_id == application_id)
+        )
+    ).one()
+    return ApplicantRecord(*row)
+
+
+def _applicant_statement() -> Select[tuple[Application, Profile, bool, str]]:
+    has_membership = (
+        select(TeamMembership.team_membership_id)
+        .where(
+            TeamMembership.account_id == Application.applicant_account_id,
+            TeamMembership.contest_id == Application.contest_id,
+            TeamMembership.ended_at.is_(None),
+        )
+        .exists()
+    )
+    return (
+        select(Application, Profile, has_membership, ApplicationEvent.reason_code)
+        .join(Profile, Profile.profile_id == Application.applicant_account_id)
+        .outerjoin(
+            ApplicationEvent,
+            and_(
+                ApplicationEvent.application_id == Application.application_id,
+                ApplicationEvent.application_version == Application.version,
+            ),
+        )
+    )
