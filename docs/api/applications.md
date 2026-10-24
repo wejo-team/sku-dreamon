@@ -1,6 +1,6 @@
 # 지원 API
 
-**상태: 일부 구현.** 본인·받은 팀장의 지원 상세, 본인 지원 목록·취소와 팀장 지원자 목록·상세를 구현했습니다. 신규 지원과 팀장 상태 변경은 아직 설계 단계입니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 일부 구현.** 본인·받은 팀장의 지원 상세, 본인 지원 목록·취소, 팀장 지원자 목록·상세와 명시적 검토 시작·미선발을 구현했습니다. 신규 지원과 선발은 아직 설계 단계입니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 구현 원본은 [지원 라우터](../../backend/app/routers/applications.py), [응답 DTO](../../backend/app/schemas/applications.py), [조회 서비스](../../backend/app/services/applications.py)입니다. [PostgreSQL HTTP 검사](../../backend/tests/integration/test_application_reads.py)는 실제 세션 쿠키의 권한·404 은닉·폐기 원인 공개 범위·조회 시 상태 보존을 검증합니다. 실행 앱의 `/docs`·`/openapi.json`에서 등록한 API 계약을 확인할 수 있습니다.
 
@@ -9,6 +9,8 @@
 본인 목록의 [지원 Repository](../../backend/app/repositories/applications.py)는 단일 SQL에서 총수·마지막 페이지 보정·지원 이력·팀 요약·현재 소속을 함께 읽습니다. [목록 통합 검사](../../backend/tests/integration/test_my_applications.py)는 본인 범위·상태 필터·안정 정렬·빈 목록·마지막 페이지·취소 전후 현재 소속을 확인합니다.
 
 팀장 조회는 [검토 라우터](../../backend/app/routers/application_review.py)와 [서비스](../../backend/app/services/application_review.py)에서 제공합니다. [검증](../../backend/tests/integration/test_applicant_reads.py)은 지원 후 비공개 전환·종결 이후 최신 프로필 열람, 관계별 403·404, 목록·총원·프로필의 같은 읽기 시점을 확인합니다. 인증이 끝난 새 요청 세션에서 REPEATABLE READ를 사용하며 조회는 지원 상태를 바꾸지 않습니다.
+
+검토 시작·미선발은 같은 검토 라우터에서 제공하며, [명령 검증](../../backend/tests/integration/test_application_review_actions.py)은 인증 우선·CSRF, 버전 우선·변경 없는 재요청, 허용 전이와 알림 실패 시 상태·사건의 전체 롤백을 확인합니다. 지원자 계정·공고·팀·지원 순서로 잠그며 팀 정원·모집 상태는 변경하지 않습니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
