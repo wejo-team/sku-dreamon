@@ -108,6 +108,8 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 
 - 공고의 물리 항목·일정·분류: [공모전 테이블](../database/contests.md)
 
+<a id="contest-import-cli"></a>
+
 ## 운영 입력 CLI
 
 확인된 공고 한 건을 JSON으로 입력하는 [CLI](../../backend/app/cli/contests.py)를 제공합니다. 입력 필드와 검증 원본은 [ContestImport](../../backend/app/schemas/contest_import.py), [예시 자료](../../backend/tests/unit/test_contest_import.py)의 `payload`입니다. 예시는 테스트 자료이며 실제 운영 공고가 아닙니다.
