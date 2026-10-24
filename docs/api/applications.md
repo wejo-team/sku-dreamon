@@ -2,9 +2,9 @@
 
 **상태: 일부 구현.** 본인·받은 팀장의 지원 상세 조회와 본인 취소를 구현했습니다. 신규 지원·목록과 팀장 상태 변경은 아직 설계 단계입니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
-구현 원본은 [지원 라우터](../../backend/app/routers/applications.py), [응답 DTO](../../backend/app/schemas/applications.py), [조회 쿼리](../../backend/app/queries/applications.py)입니다. [PostgreSQL HTTP 검사](../../backend/tests/integration/test_application_reads.py)는 실제 세션 쿠키의 권한·404 은닉·폐기 원인 공개 범위·조회 시 상태 보존을 검증합니다. 실행 앱의 `/docs`·`/openapi.json`에서 등록한 API 계약을 확인할 수 있습니다.
+구현 원본은 [지원 라우터](../../backend/app/routers/applications.py), [응답 DTO](../../backend/app/schemas/applications.py), [조회 서비스](../../backend/app/services/applications.py)입니다. [PostgreSQL HTTP 검사](../../backend/tests/integration/test_application_reads.py)는 실제 세션 쿠키의 권한·404 은닉·폐기 원인 공개 범위·조회 시 상태 보존을 검증합니다. 실행 앱의 `/docs`·`/openapi.json`에서 등록한 API 계약을 확인할 수 있습니다.
 
-취소는 [계정·공고·팀·지원 잠금](../../backend/app/services/recruitment_locks.py)을 공유합니다. [취소 통합 검사](../../backend/tests/integration/test_application_cancellation.py)는 버전 우선 비교·변경 없는 재요청·선발 소속 종료·모집 상태 유지·알림 실패 시 전체 롤백·독립 연결의 동시 취소를 검증합니다.
+취소는 [계정·공고·팀·지원 잠금](../../backend/app/repositories/recruitment_locks.py)을 공유합니다. [취소 통합 검사](../../backend/tests/integration/test_application_cancellation.py)는 버전 우선 비교·변경 없는 재요청·선발 소속 종료·모집 상태 유지·알림 실패 시 전체 롤백·독립 연결의 동시 취소를 검증합니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 

@@ -11,7 +11,6 @@ from app.core.http.routers import BaseCrudRouter
 from app.core.http.schemas import Success
 from app.dependencies.auth import CurrentAccount, get_current_account
 from app.dependencies.csrf import require_csrf
-from app.queries import applications as application_queries
 from app.schemas.applications import (
     ApplicationResponse,
     CancellationResult,
@@ -25,9 +24,7 @@ async def get_application(
     account_id: CurrentAccount,
     session: DatabaseSession,
 ) -> ApplicationResponse:
-    return await application_queries.get_application(
-        session, application_id, account_id
-    )
+    return await service.get_application(session, application_id, account_id)
 
 
 applications = BaseCrudRouter(prefix="", tags=["applications"])
