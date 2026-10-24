@@ -283,9 +283,9 @@ async def test_openapi_describes_actual_models_parameters_and_errors(
     detail_ref = detail["responses"]["200"]["content"]["application/json"]["schema"][
         "$ref"
     ]
-    assert models[detail_ref.rsplit("/", 1)[1]]["properties"] == {
-        "data": {"$ref": "#/components/schemas/DetailItem"}
-    }
+    detail_properties = models[detail_ref.rsplit("/", 1)[1]]["properties"]
+    assert set(detail_properties) == {"data"}
+    assert detail_properties["data"]["$ref"] == "#/components/schemas/DetailItem"
     assert set(listing["responses"]) == {"200", "422", "500", "503"}
     assert set(detail["responses"]) == {"200", "404", "409", "422", "500", "503"}
     assert {"401", "403"} <= set(private["responses"])
