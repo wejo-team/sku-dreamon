@@ -1,5 +1,6 @@
 """앱 수명에 맞춰 DB 연결을 관리하고 라우터와 오류 핸들러를 연결한다."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -18,6 +19,7 @@ from app.routers.notifications import router as notifications_router
 from app.routers.profiles import router as profiles_router
 from app.routers.team_management import router as team_management_router
 from app.routers.teams import router as teams_router
+from app.security.passwords import PasswordBlocklist
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -28,6 +30,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         database = create_database(str(config.database_url))
         app.state.database = database
         try:
+            app.state.password_blocklist = (
+                None
+                if config.password_blocklist_path is None
+                else await asyncio.to_thread(
+                    PasswordBlocklist.from_file,
+                    config.password_blocklist_path,
+                    version=config.password_blocklist_version,
+                )
+            )
             yield
         finally:
             await database.engine.dispose()

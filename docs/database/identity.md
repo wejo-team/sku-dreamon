@@ -281,3 +281,7 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 | [실제 공통 코드·학사 목록](../specs/profile-options.md#open-questions) | 공통 enum의 실제 코드 사전과 학사 DB 초기 적재. 저장 방식을 정한 것이 운영 목록 검증 완료를 뜻하지 않음 |
 
 [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖의 후속 검토 항목입니다. 복구 테이블·API를 이번에 추가하지 않으며, 복구 방식 결정이 현재 가입·로그인 개발의 선행 조건은 아닙니다.
+
+## `auth_attempts` — 인증 시도 제한
+
+[모델](../../backend/app/models/auth_attempts.py)과 [migration](../../backend/alembic/versions/20261024_06_auth_attempts.py)이 15분 창의 공유 집계를 저장합니다. `key`는 구분자와 정규화 아이디/IP의 SHA-256 64자리 문자열 PK, `window_started_at`은 시간대 있는 시작 시각, `attempts`는 0 이상 bigint입니다. 비밀번호·IP·아이디 원문을 저장하지 않습니다. 정책은 [인증 운영 설정](../api/auth.md#구현된-진입-경로와-운영-설정), 트랜잭션은 독립 시도 집계와 업무 계정·세션 저장으로 구분합니다.
