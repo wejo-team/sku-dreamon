@@ -8,12 +8,12 @@ from sqlalchemy import Connection, event, select, text, update
 from sqlalchemy.engine import ExecutionContext
 from sqlalchemy.util import await_only
 
+from app.core import demo_data as manifest
 from app.core.db.session import Database
 from app.core.exceptions import AppError
-from app.domains.demo import manifest
-from app.domains.profiles.models import Profile
-from app.domains.teams.membership_queries import get_team_space, list_workspace_teams
-from app.domains.teams.models import TeamMembership
+from app.models.profiles import Profile
+from app.models.teams import TeamMembership
+from app.services.team_memberships import get_team_space, list_workspace_teams
 from tests.integration.team_management_support import (
     NOW,
     seed_account,

@@ -6,8 +6,8 @@ import pytest
 from fastapi import FastAPI, Response
 from httpx import AsyncClient
 
-from app.domains.auth.passwords import hash_password
-from app.domains.auth.schemas import Credentials
+from app.schemas.auth import Credentials
+from app.security.passwords import hash_password
 
 
 @pytest.mark.integration

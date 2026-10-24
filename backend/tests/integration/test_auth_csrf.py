@@ -10,14 +10,10 @@ from pydantic import SecretStr
 
 from app.core.config import Settings
 from app.core.http.handlers import register_error_handlers
-from app.domains.auth.csrf import (
-    CSRF_COOKIE_NAME,
-    CSRF_HEADER_NAME,
-    issue_csrf_token,
-    require_csrf,
-)
-from app.domains.auth.dependencies import get_optional_session
-from app.domains.auth.session_service import SessionPrincipal
+from app.dependencies.auth import get_optional_session
+from app.dependencies.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME, require_csrf
+from app.security.csrf import issue_csrf_token
+from app.services.sessions import SessionPrincipal
 
 pytestmark = pytest.mark.integration
 ORIGIN = "https://app.example.com"

@@ -14,24 +14,21 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.schema import CreateSchema, DropSchema
 
+from app.core import demo_data as manifest
 from app.core.config import Settings
 from app.core.db.base import Base
 from app.core.db.session import Database
 from app.core.http.dependencies import get_session
 from app.core.http.handlers import register_error_handlers
-from app.domains.auth import session_service
-from app.domains.auth.csrf import (
-    CSRF_COOKIE_NAME,
-    CSRF_HEADER_NAME,
-    validate_csrf_token,
-)
-from app.domains.auth.dependencies import SESSION_COOKIE_NAME
-from app.domains.auth.models import Account, AuthSession
-from app.domains.auth.router import router
-from app.domains.auth.session_service import IssuedSession, issue_session
-from app.domains.catalogs.models import AcademicUnit  # noqa: F401
-from app.domains.demo import manifest
-from app.domains.profiles.models import Profile
+from app.dependencies.auth import SESSION_COOKIE_NAME
+from app.dependencies.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from app.models.academic_units import AcademicUnit  # noqa: F401
+from app.models.auth import Account, AuthSession
+from app.models.profiles import Profile
+from app.routers.auth import router
+from app.security.csrf import validate_csrf_token
+from app.services import sessions as session_service
+from app.services.sessions import IssuedSession, issue_session
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 SIGNING_KEY = "auth-http-test-key-32-bytes-long!!"
