@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from app.core.config import Settings
 from app.core.db.session import create_database
 from app.core.http.handlers import register_error_handlers
+from app.routers.catalogs import router as catalogs_router
 from app.routers.health import router as health_router
 
 
@@ -26,6 +27,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="서경드림온 API", lifespan=lifespan)
     register_error_handlers(app)
     app.include_router(health_router, prefix="/api/v1")
+    app.include_router(catalogs_router, prefix="/api/v1")
     return app
 
 
