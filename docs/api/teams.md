@@ -8,7 +8,7 @@
 
 - ID·코드·시각·정원·버전은 [공통 타입](conventions.md#types), 실패는 [공통 오류](conventions.md#errors)를 사용합니다. 단건·복합 성공은 [Success&lt;T&gt;](conventions.md#success-responses), 목록은 [Page&lt;T&gt;](conventions.md#pagination)를 사용하며 `Page<T>`는 `data: T[]`와 `pagination`을 가진 응답입니다.
 
-**표 읽기:** 응답 DTO 표는 `data` 내부에서 사용하는 데이터 구조를 정의하며, 각 DTO의 모든 필드는 필수입니다. `null` 허용 여부는 타입에 따로 표시하며, `null`인 필드를 생략하지 않습니다. 요청은 각 표에 필수 여부를 표시합니다. 선언하지 않은 요청 필드는 422입니다. 일반 텍스트의 정책상 글자 수와 Unicode 계수 단위의 미정 사항은 [공통 계약](conventions.md)을 따릅니다.
+**표 읽기:** 응답 DTO 표는 `data` 내부에서 사용하는 데이터 구조를 정의하며, 각 DTO의 모든 필드는 필수입니다. `null` 허용 여부는 타입에 따로 표시하며, `null`인 필드를 생략하지 않습니다. 요청은 각 표에 필수 여부를 표시합니다. 선언하지 않은 요청 필드는 422입니다. 일반 텍스트의 NFC·코드 포인트 기준과 글자 수는 [공통 계약](conventions.md)을 따릅니다.
 
 <a id="endpoints"></a>
 
@@ -30,7 +30,7 @@
 
 | 메서드·경로 | 권한·입력 | 성공 응답 | 추가 실패 |
 | --- | --- | --- | --- |
-| `POST /teams` | 로그인, `TeamCreate` | 첫 생성 201 `Success<Team>`, 동일 요청 재전송 200 `Success<Team>` | 404 공고 없음, 409 공고·정원·소속·코드·요청 ID 충돌 |
+| `POST /teams` | 로그인, `TeamCreate` | 첫 생성 201 `Success<Team>`, 동일 요청 재전송 200 `Success<Team>` | 404 공고 없음, 409 필수 프로필·공고·정원·소속·코드·요청 ID 충돌 |
 | `GET /me/teams` | 본인, 페이지 조건 | 200 `Page<WorkspaceTeam>` | — |
 | `GET /teams/{teamId}/space` | 현재 팀장·확정 팀원, 팀 UUID | 200 `Success<TeamSpace>` | 403 현재 소속 아님, 404 팀 없음 |
 | `PUT /teams/{teamId}/recruitment/closure` | 해당 팀장, 팀 UUID·`VersionedAction` | 200 `Success<RecruitmentResult>` | 403 권한, 404 팀 없음, 409 상태·버전 충돌 |
@@ -146,7 +146,7 @@
 
 근거는 [팀 화면의 실명 표시](../specs/team-recruitment.md)와 [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access), [프로필 공개 범위](../specs/profile.md#visibility)입니다. 팀장이라는 이유만으로 지원 관계가 없는 비공개 프로필까지 열람할 수는 없습니다. 해당 팀에 제출된 지원 관계는 현재 지원 상태와 무관하게 판정합니다.
 
-가입은 프로필 생성을 보장하지 않으며 팀 생성의 프로필 완성 요구는 [PROFILE-03](../specs/profile.md#open-questions)에서 미정입니다. 현재 소속 계정에 프로필 행이 없으면 필수 실명을 구성할 수 없으므로 해당 팀원을 누락하거나 임의 실명을 반환하지 않고 500으로 실패합니다.
+가입은 프로필 생성을 보장하지 않으며 팀 생성에는 [필수 프로필](../specs/profile.md#before-application)이 필요합니다. 공개는 필수가 아닙니다. 현재 소속 계정에 프로필 행이 없으면 필수 실명을 구성할 수 없으므로 해당 팀원을 누락하거나 임의 실명을 반환하지 않고 500으로 실패합니다.
 
 <a id="team-space"></a>
 
@@ -176,7 +176,7 @@
 
 팀 생성에서 서버는 인증 주체·경로·정규화한 최초 입력으로 같은 시도를 판별합니다. 첫 생성은 201, 같은 `requestId`와 같은 입력의 재전송은 기존 리소스를 200으로 반환합니다. 같은 ID의 다른 입력은 409 `REQUEST_ID_REUSED`입니다. 이후 팀의 상태가 바뀌어도 과거 생성 재시도를 새 행동으로 실행하지 않습니다.
 
-팀 생성의 프로필 완성 요구는 [PROFILE-03](../specs/profile.md#open-questions)에 남깁니다. 지원의 생성·재지원은 [지원 API의 재시도 계약](applications.md#transitions)을 따릅니다.
+팀 생성에는 필수 프로필을 요구하되 공개 상태를 요구하지 않습니다. 지원의 생성·재지원은 [지원 API의 재시도 계약](applications.md#transitions)을 따릅니다.
 
 ### 버전이 있는 행동
 
@@ -195,7 +195,7 @@ no-op은 버전·수정 시각·사건·알림을 추가하지 않습니다. 팀
 
 | 요청 | 정의한 오류 코드 |
 | --- | --- |
-| 팀 생성 | `CONTEST_NOT_OPEN`, `CAPACITY_OUT_OF_RANGE`, `MEMBERSHIP_CONFLICT`, `INVALID_CATALOG_SELECTION`, `REQUEST_ID_REUSED` |
+| 팀 생성 | `PROFILE_REQUIRED`, `CONTEST_NOT_OPEN`, `CAPACITY_OUT_OF_RANGE`, `MEMBERSHIP_CONFLICT`, `INVALID_CATALOG_SELECTION`, `REQUEST_ID_REUSED` |
 | 모집 종료 | `VERSION_CONFLICT`, `INVALID_RECRUITMENT_STATE` |
 | 모집 재개 | `VERSION_CONFLICT`, `CONTEST_NOT_OPEN`, `TEAM_FULL`, `RECRUITMENT_DEADLINE_PASSED`, `INVALID_RECRUITMENT_STATE` |
 
