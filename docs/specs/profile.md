@@ -1,8 +1,8 @@
 # 프로필과 공개 범위
 
-- 구현 상태: 예정
+- 구현 상태: 진행 중
 - 명세 검토: [PR #14](https://github.com/wejo-team/sku-dreamon/pull/14), PDF 대조·명세 연결 보완 [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17)
-- 구현 작업: 미등록
+- 구현 작업: [본인 프로필 저장·공개 전환 #102](https://github.com/wejo-team/sku-dreamon/issues/102), [사람 탐색 #103](https://github.com/wejo-team/sku-dreamon/issues/103)
 - 변경 근거: 2026-10-19 [#77 최신 사용자 결정](https://github.com/wejo-team/sku-dreamon/issues/77#issuecomment-6260435650)의 입력 계약·신규 지원 공개 필수·기존 지원 최신 프로필 AI 검토 반영. 명세 반영과 디자인·서버 구현 완료는 구분
 
 기획 문서의 프로필 정책을 옮긴 초안입니다. 본문의 닉네임·파일 업로드 가능성은 정책 부록에서 구체화한 실명 입력·외부 URL 정책으로 정리했습니다.
