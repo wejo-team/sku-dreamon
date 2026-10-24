@@ -9,12 +9,13 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import Settings
 from app.core.db.base import Base
+from app.models import auth as auth_models  # noqa: F401 -- metadata 모델 등록
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# 도메인 모델을 추가할 때 이곳에서 import하여 metadata에 포함한다.
+# 도메인 모델을 import하여 실제 migration 대상 metadata에 포함한다.
 target_metadata = Base.metadata
 
 

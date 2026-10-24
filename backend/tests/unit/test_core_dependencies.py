@@ -1,11 +1,11 @@
-"""DB 기반과 예외 정의가 HTTP 계층·개별 도메인에 의존하지 않는지 검증한다."""
+"""DB 기반과 예외 정의가 HTTP 계층·업무 레이어에 의존하지 않는지 검증한다."""
 
 import subprocess
 import sys
 from pathlib import Path
 
 
-def test_db_and_exceptions_import_without_http_or_domains() -> None:
+def test_db_and_exceptions_import_without_http_or_business_layers() -> None:
     result = subprocess.run(
         [
             sys.executable,
@@ -30,10 +30,16 @@ unexpected = [
     if name.split(".")[0] in {"fastapi", "starlette"}
     or name == "app.core.http"
     or name.startswith("app.core.http.")
-    or name == "app.domains"
-    or name.startswith("app.domains.")
+    or any(
+        name == layer or name.startswith(layer + ".")
+        for layer in (
+            "app.models", "app.schemas", "app.queries", "app.services",
+            "app.routers", "app.dependencies", "app.rules", "app.security",
+            "app.repositories",
+        )
+    )
 ]
-assert not unexpected, f"Unexpected HTTP or domain dependencies: {unexpected}"
+assert not unexpected, f"Unexpected HTTP or business layer dependencies: {unexpected}"
 """,
         ],
         cwd=Path(__file__).resolve().parents[2],
