@@ -115,7 +115,33 @@ API 설계에서 **누가 무엇을 할 수 있는지**와 **인증을 어떻게
 
 로그인·로그아웃을 포함한 모든 상태 변경 요청에 CSRF 보호를 적용합니다. `HttpOnly`·`SameSite`만으로 보호가 완성되었다고 판단하지 않습니다. CSRF 검사 실패는 공통 `403 FORBIDDEN`이며 업무 상태를 변경하지 않습니다. 이 규칙은 각 endpoint 표에 반복하지 않고 공통으로 적용합니다.
 
-**구체 전송 계약은 후속 설계가 필요합니다.** 쿠키 이름·경로, 가입·로그인 전 CSRF 보호값 발급·전달 헤더·검증 방식, 운영 도메인·CORS와 로컬 개발 설정은 아직 확정하지 않습니다. 시도 제한 수치·종료된 세션의 정리·보존은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 따릅니다. 구현 PR에서 FastAPI의 인증 의존성·응답과 자동 생성 OpenAPI의 쿠키 보안 설정·CSRF 계약을 함께 확인합니다. 방식 선택은 인증 구현 완료를 뜻하지 않습니다.
+<a id="csrf-transport"></a>
+
+### 쿠키와 CSRF 전송
+
+[인증 전송 설계 #98](https://github.com/wejo-team/sku-dreamon/issues/98)의 구현 계약입니다. 아래 전송 규칙은 인증 구현과 함께 HTTP·OpenAPI로 검증하며, 문서 반영만으로 구현 완료를 뜻하지 않습니다.
+
+| 항목 | 계약 |
+| --- | --- |
+| 세션 쿠키 | `__Host-sku-dreamon-session`, `Path=/`, `Secure`, `HttpOnly`, `SameSite=Lax`; `Domain` 미지정. 32바이트 이상의 암호학적 난수로 토큰 생성 |
+| CSRF 발급 | `GET /api/v1/auth/csrf`. 로그인 전에도 호출 가능. 같은 인증 상태의 유효한 기존 쿠키는 재사용하고 없거나 무효일 때만 발급. `Success<CsrfToken>`의 `data.csrfToken`과 쿠키 값은 같으며 `Cache-Control: no-store` 적용 |
+| CSRF 쿠키 | `__Host-sku-dreamon-csrf`, `Path=/`, `Secure`, `HttpOnly`, `SameSite=Lax`; `Domain` 미지정. 브라우저 메모리에 보관할 토큰은 발급 응답에서 읽음 |
+| 상태 변경 | `X-CSRF-Token` 헤더를 전달. 쿠키·헤더의 일치, 서버 HMAC 서명, 현재 세션에 대한 결합을 함께 확인. 가입·로그인·로그아웃에도 적용 |
+| 출처 검사 | 설정된 HTTPS origin과 요청의 `Origin`을 정확히 비교. `Origin`이 없으면 `Referer`의 origin을 검사하고 둘 다 없거나 불일치하면 403 |
+| 인증 전환 | 가입·로그인 성공 시 세션과 CSRF 값을 새로 발급. 기존 로그인 전 토큰이나 다른 세션의 토큰을 재사용하지 않음. 로그아웃 성공 시 두 쿠키 삭제 |
+| 실패 | 토큰 누락·위조·불일치·출처 오류는 `403 FORBIDDEN`; 계정·세션 발급/회수와 업무 쓰기를 시작하지 않음. 오류·로그에 토큰 원문을 넣지 않음 |
+
+CSRF 토큰은 임의 nonce에 HMAC-SHA-256을 적용하며 로그인 후에는 현재 세션 토큰의 해시와 결합합니다. 로그인 전에는 별도 무작위 nonce와 서버 서명으로 보호합니다. HMAC 키는 운영 설정으로 주입하고 저장소·프론트 번들에 포함하지 않습니다. 로그인 후 발급 토큰은 세션 자체가 유효할 때만 상태 변경에 사용할 수 있습니다. 응답에 세션 원문이나 그 해시를 포함하지 않습니다.
+
+`/auth/csrf`는 만료·회수·미존재 세션의 쿠키가 남아 있어도 재로그인을 막지 않습니다. 해당 요청은 익명 상태로 처리하고 무효 세션 쿠키를 만료시킨 뒤 로그인 전 CSRF 토큰을 제공합니다. 이 과정에서 기존 세션을 되살리거나 새 로그인 세션을 만들지 않습니다.
+
+프론트는 가입·로그인 전과 인증 전환 후 `/auth/csrf`에서 토큰을 읽고, 상태 변경 요청에 `credentials: "include"`와 `X-CSRF-Token`을 보냅니다. CSRF 토큰은 현재 화면의 메모리에만 보관하며 로그인 세션이 바뀌면 폐기합니다. 같은 세션의 다른 탭이 토큰을 조회해도 기존 쿠키를 교체하지 않습니다. 쿠키가 없는 최초 동시 발급이나 다른 탭의 로그인 전환으로 403이 발생하면 토큰을 다시 조회하고 사용자가 요청을 재시도할 수 있게 합니다. 업무 403과 구별하지 않고 상태 변경을 자동 재전송하지 않습니다. JSON 본문이 있는 요청의 `Content-Type`은 `application/json`입니다.
+
+운영 도메인은 배포 설정으로 전달하고 허용 origin에 wildcard를 쓰지 않습니다. `SameSite=Lax`를 유지하므로 프론트와 API는 같은 HTTPS site에 배치합니다. 같은 site 안의 서로 다른 origin이면 명시한 origin·credentials·CSRF 헤더에 대해서만 CORS를 허용하고, 같은 origin의 reverse proxy도 사용할 수 있습니다. 서로 다른 site의 cross-site 배치는 이 계약의 지원 범위가 아닙니다. 로컬 브라우저 검증 역시 HTTPS를 사용하며 개발 편의를 위한 비보안 쿠키 전환은 제공하지 않습니다.
+
+세션의 `last_seen_at`은 유효 조건을 만족하는 행에 대해서만 짧은 인증 트랜잭션에서 갱신·커밋합니다. 이후 업무 트랜잭션이 실패해도 유효한 활동 기록은 유지하며, 회수·유휴 만료·절대 만료된 세션을 갱신으로 되살리지 않습니다. 업무 권한은 해당 요청에서 현재 관계를 다시 검사합니다.
+
+시도 제한 수치·차단 목록 공급·종료된 세션의 정리와 보존 기간은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 유지합니다. 이 전송 계약으로 자동 삭제나 계정 잠금 정책을 추가하지 않습니다. 설계 근거는 [OWASP의 서명된 double-submit 및 origin 검사](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html), [세션 관리](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)입니다.
 
 개인 프로필·지원·AI·알림 응답은 공유 캐시에 저장하지 않는 방향을 제안합니다. 비공개 전환 후 일반 조회가 이전 응답을 다시 사용하지 않도록 서버 재검증과 클라이언트 무효화 범위를 함께 구현합니다. 구체 캐시 기술은 이 문서로 선택하지 않습니다.
 
@@ -252,7 +278,7 @@ API 설계에서 **누가 무엇을 할 수 있는지**와 **인증을 어떻게
 
 | 결정이 필요한 부분 | 현재 API 설계의 경계 | 정책 원본 |
 | --- | --- | --- |
-| 쿠키 세부 설정·CSRF 전송 계약·운영 도메인 | 지속 쿠키·가입 직후 자동 로그인은 확정. 쿠키 이름·경로와 가입·로그인 전 보호값 발급·헤더·검증 방식, CORS는 구현 전에 설계하며 현재 인증 계약을 완성된 SDK 입력으로 취급하지 않음 | [공통 세션 계약](#session-auth), [서버 세션 정책](../specs/authentication.md#session-policy) |
+| 인증 운영 설정 | 쿠키·CSRF 전송 계약은 정의. 운영 origin·키와 제한 수치·차단 목록·보존은 실제 운영 전에 준비하며 인증 구현 완료와 구분 | [CSRF 전송](#csrf-transport), [AUTH 미정 사항](../specs/authentication.md#open-questions) |
 | 탈퇴·이전 데이터 표시 | DELETE 계정 endpoint를 만들지 않음 | [PROFILE-04](../specs/profile.md#open-questions) |
 | 계정 복구 — MVP 범위 밖 | 복구 endpoint를 만들지 않으며 현재 인증 구현의 선행 조건으로 두지 않음. 복구 도입 시 정책·계약 후속 검토 | [계정 복구 범위](../specs/authentication.md#account-recovery) |
 | 일반 텍스트 계수·URL 길이 | 정책 수치는 필드 표에 기록, 계수 방식·미확정 상한은 임의 추가하지 않음 | [PROFILE-07](../specs/profile.md#open-questions) |
