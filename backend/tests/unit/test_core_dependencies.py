@@ -35,6 +35,7 @@ unexpected = [
         for layer in (
             "app.models", "app.schemas", "app.queries", "app.services",
             "app.routers", "app.dependencies", "app.rules", "app.security",
+            "app.repositories",
         )
     )
 ]

@@ -1,6 +1,6 @@
 # 공모전 API
 
-**상태: 공개 상세 구현 · 목록 설계.** 공모전 상세의 [라우터](../../backend/app/routers/contests.py), [조회](../../backend/app/queries/contests.py), [응답 DTO](../../backend/app/schemas/contests.py)를 구현했습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 공개 상세 구현 · 목록 설계.** 공모전 상세의 [라우터](../../backend/app/routers/contests.py), [조회 서비스](../../backend/app/services/contests.py)와 [저장 조회](../../backend/app/repositories/contests.py), [응답 DTO](../../backend/app/schemas/contests.py)를 구현했습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 [공고 저장 모델·접수 규칙](../database/contests.md)은 별도로 구현했습니다. 팀 공개 상세에서 사용하는 [ContestSummary·DeadlineInterpretation](../../backend/app/schemas/contests.py)와 실제 전체 팀 수 집계는 구현했습니다. 상세는 원문·대상·분야·전체 팀 수를 단일 SQL 스냅샷으로 반환합니다. 공고 목록 HTTP 경로는 아직 제공하지 않으며, 목록 기본 상태·정렬 및 공고 등록·수정 운영 정책은 별도로 검토합니다.
 

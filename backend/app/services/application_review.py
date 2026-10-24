@@ -1,20 +1,25 @@
-"""받은 팀장의 현재 지원자 조회와 명시적 검토 행동을 처리한다."""
+"""받은 팀장의 조회·검토·선발과 응답·트랜잭션을 처리한다."""
 
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db.session import begin_read_snapshot
 from app.core.exceptions import AppError
-from app.core.http.schemas import Page
+from app.core.http.schemas import Page, PageMeta
 from app.models.applications import Application, ApplicationEvent
 from app.models.teams import Team
-from app.queries import applications as application_queries
-from app.queries.applications import application_response
-from app.queries.teams import get_team_summary
+from app.repositories import applications as repository
+from app.repositories import teams as team_repository
+from app.repositories.recruitment_locks import (
+    lock_accounts,
+    lock_applications,
+    lock_contest,
+    lock_teams,
+)
 from app.schemas.application_review import (
     ApplicantResponse,
     ApplicantSearch,
@@ -23,12 +28,9 @@ from app.schemas.application_review import (
 from app.schemas.applications import ApplicationResponse
 from app.services import notifications as notification_service
 from app.services import teams as team_service
-from app.services.recruitment_locks import (
-    lock_accounts,
-    lock_applications,
-    lock_contest,
-    lock_teams,
-)
+from app.services.applications import application_response
+from app.services.profiles import build_profile_responses
+from app.services.teams import get_team_summary
 
 
 def _utcnow() -> datetime:
@@ -38,29 +40,21 @@ def _utcnow() -> datetime:
 async def _read_snapshot(session: AsyncSession) -> None:
     if session.in_transaction():
         raise RuntimeError("Applicant reads require a fresh request session")
-    await session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+    await begin_read_snapshot(session)
 
 
 async def _leader_identity(
     session: AsyncSession, application_id: UUID, account_id: UUID
 ) -> tuple[UUID, UUID, UUID]:
-    identity = (
-        await session.execute(
-            select(
-                Application.applicant_account_id,
-                Application.contest_id,
-                Application.team_id,
-                Team.leader_account_id,
-            )
-            .join(Team, Team.team_id == Application.team_id)
-            .where(Application.application_id == application_id)
-        )
-    ).one_or_none()
-    if identity is None or account_id not in (identity[0], identity[3]):
+    identity = await repository.get_application_identity(session, application_id)
+    if identity is None or account_id not in (
+        identity.applicant_id,
+        identity.leader_id,
+    ):
         raise AppError(404, "APPLICATION_NOT_FOUND", "지원을 찾을 수 없습니다.")
-    if account_id != identity[3]:
+    if account_id != identity.leader_id:
         raise AppError(403, "FORBIDDEN", "지원받은 팀장만 처리할 수 있습니다.")
-    return identity[0], identity[1], identity[2]
+    return identity.applicant_id, identity.contest_id, identity.team_id
 
 
 def _check_action(
@@ -101,8 +95,7 @@ async def _record_change(
         occurred_at=now,
         cause_event_id=cause_event_id,
     )
-    session.add(event)
-    await session.flush()
+    await repository.add_event(session, event)
     await notification_service.create_notification(
         session,
         event_id=event.application_event_id,
@@ -171,18 +164,13 @@ async def select_application(
         assert contest is not None
         # 같은 지원자 계정 잠금이 신규 접수와 상태 변경을 직렬화한다.
         # 대상 팀만 먼저 잠그지 않고 폐기 대상 팀까지 모아 전체를 정렬한다.
-        related = (
-            await session.execute(
-                select(Application.application_id, Application.team_id).where(
-                    Application.applicant_account_id == applicant_id,
-                    Application.contest_id == contest_id,
-                    or_(
-                        Application.application_id == application_id,
-                        Application.status.in_(("submitted", "reviewing")),
-                    ),
-                )
-            )
-        ).all()
+        related = await repository.list_selection_related_ids(
+            session,
+            applicant_id,
+            contest_id,
+            application_id,
+            pending_statuses=("submitted", "reviewing"),
+        )
         teams = await lock_teams(session, sorted({row[1] for row in related}))
         applications = await lock_applications(session, [row[0] for row in related])
         team = next(item for item in teams if item.team_id == team_id)
@@ -190,7 +178,7 @@ async def select_application(
             item for item in applications if item.application_id == application_id
         )
         _check_action(application, team, account_id, expected_version)
-        membership = await team_service.get_current_membership(
+        membership = await team_repository.get_current_membership(
             session, applicant_id, contest_id
         )
         if (
@@ -218,7 +206,7 @@ async def select_application(
         now = _utcnow()
         if not contest.registration_opens_at <= now < contest.registration_closes_at:
             raise AppError(409, "CONTEST_NOT_OPEN", "현재 공고의 접수 기간이 아닙니다.")
-        member_count = await team_service.count_current_members(session, team_id)
+        member_count = await team_repository.count_current_members(session, team_id)
         assert member_count is not None
 
         membership = team_service.add_selected_member(
@@ -253,7 +241,7 @@ async def select_application(
                     now=now,
                     cause_event_id=selected_event.application_event_id,
                 )
-        await session.flush()
+        await repository.flush_application_changes(session)
         result = SelectionResult(
             application=application_response(application, viewer_id=account_id),
             team=await get_team_summary(session, team_id, now=now),
@@ -280,8 +268,43 @@ async def list_applicants(
     session: AsyncSession, team_id: UUID, account_id: UUID, query: ApplicantSearch
 ) -> Page[ApplicantResponse]:
     await _read_snapshot(session)
-    return await application_queries.list_applicants(
-        session, team_id, account_id, query
+    team = await repository.get_applicant_team(session, team_id)
+    if team is None:
+        raise AppError(404, "TEAM_NOT_FOUND", "팀을 찾을 수 없습니다.")
+    if team.leader_account_id != account_id:
+        raise AppError(403, "FORBIDDEN", "팀장만 지원자를 확인할 수 있습니다.")
+    total = await repository.count_applicants(
+        session,
+        team_id,
+        status=query.status.value if query.status is not None else None,
+    )
+    total_pages = (total + query.page_size - 1) // query.page_size
+    page = min(query.page, max(total_pages, 1))
+    rows = await repository.list_applicant_records(
+        session,
+        team_id,
+        status=query.status.value if query.status is not None else None,
+        offset=(page - 1) * query.page_size,
+        limit=query.page_size,
+    )
+    profiles = await build_profile_responses(session, [row[1] for row in rows])
+    return Page(
+        data=[
+            ApplicantResponse(
+                application=application_response(
+                    application, viewer_id=account_id, reason=reason
+                ),
+                profile=profiles[profile.profile_id],
+                is_selection_candidate=(
+                    application.status in ("submitted", "reviewing")
+                    and not has_membership
+                ),
+            )
+            for application, profile, has_membership, reason in rows
+        ],
+        pagination=PageMeta(
+            page=page, page_size=query.page_size, total=total, total_pages=total_pages
+        ),
     )
 
 
@@ -289,4 +312,27 @@ async def get_applicant(
     session: AsyncSession, application_id: UUID, account_id: UUID
 ) -> ApplicantResponse:
     await _read_snapshot(session)
-    return await application_queries.get_applicant(session, application_id, account_id)
+    identity = await repository.get_application_identity(session, application_id)
+    if identity is None or account_id not in (
+        identity.applicant_id,
+        identity.leader_id,
+    ):
+        raise AppError(404, "APPLICATION_NOT_FOUND", "지원을 찾을 수 없습니다.")
+    if account_id != identity.leader_id:
+        raise AppError(403, "FORBIDDEN", "팀장만 지원자를 확인할 수 있습니다.")
+    (
+        application,
+        profile,
+        has_membership,
+        reason,
+    ) = await repository.get_applicant_record(session, application_id)
+    profiles = await build_profile_responses(session, [profile])
+    return ApplicantResponse(
+        application=application_response(
+            application, viewer_id=account_id, reason=reason
+        ),
+        profile=profiles[profile.profile_id],
+        is_selection_candidate=(
+            application.status in ("submitted", "reviewing") and not has_membership
+        ),
+    )

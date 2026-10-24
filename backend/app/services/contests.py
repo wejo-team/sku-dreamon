@@ -1,17 +1,16 @@
-"""공개 공고 원문과 분류·연결 팀 수를 한 SQL 읽기 시점에서 조회한다."""
+"""공개 공고의 상태·원문 응답을 같은 조회 시점의 저장 자료로 구성한다."""
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID
 
 from pydantic import AnyHttpUrl
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.demo_data import is_demo_contest
 from app.core.exceptions import AppError
-from app.models.contests import Contest, ContestAudience, ContestField
-from app.models.teams import Team
+from app.models.contests import Contest
+from app.repositories import contests as repository
 from app.rules.catalogs import FieldCode
 from app.rules.contests import AudienceCode, CapacityKind, get_registration_status
 from app.schemas.contests import (
@@ -32,32 +31,7 @@ async def get_contest_detail(
 ) -> ContestDetail:
     """접수 상태와 무관하게 공개 원문을 읽고 호출자의 트랜잭션은 유지한다."""
     current = _utcnow() if now is None else now
-    fields = (
-        select(func.array_agg(ContestField.field_code))
-        .where(ContestField.contest_id == Contest.contest_id)
-        .correlate(Contest)
-        .scalar_subquery()
-    )
-    audiences = (
-        select(func.array_agg(ContestAudience.audience_code))
-        .where(ContestAudience.contest_id == Contest.contest_id)
-        .correlate(Contest)
-        .scalar_subquery()
-    )
-    team_count = (
-        select(func.count())
-        .select_from(Team)
-        .where(Team.contest_id == Contest.contest_id)
-        .correlate(Contest)
-        .scalar_subquery()
-    )
-    row = (
-        await session.execute(
-            select(Contest, fields, audiences, team_count)
-            .where(Contest.contest_id == contest_id)
-            .execution_options(populate_existing=True)
-        )
-    ).one_or_none()
+    row = await repository.get_contest_detail(session, contest_id)
     if row is None:
         raise AppError(404, "CONTEST_NOT_FOUND", "공고를 찾을 수 없습니다.")
     contest, field_codes, audience_codes, count = row

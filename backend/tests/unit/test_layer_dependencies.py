@@ -1,4 +1,4 @@
-"""전역 레이어의 import 방향과 조회 함수의 저장 금지 경계를 검사한다."""
+"""전역 레이어의 import 방향과 서비스·저장소의 DB 책임 경계를 검사한다."""
 
 import ast
 from collections.abc import Iterator
@@ -13,14 +13,14 @@ ALLOWED = {
     "schemas": {"core", "schemas", "rules"},
     "rules": {"core", "rules"},
     "security": {"core", "security", "rules"},
-    "queries": {"core", "models", "schemas", "rules", "queries"},
+    "repositories": {"core", "models", "rules", "repositories"},
     "services": {
         "core",
         "models",
         "schemas",
         "rules",
         "security",
-        "queries",
+        "repositories",
         "services",
     },
     "dependencies": {"core", "schemas", "security", "services", "dependencies"},
@@ -30,7 +30,6 @@ ALLOWED = {
         "rules",
         "security",
         "dependencies",
-        "queries",
         "services",
         "routers",
     },
@@ -57,54 +56,172 @@ def imported_modules(tree: ast.AST, relative_path: Path) -> Iterator[str]:
             yield from (".".join([*base, name.name]) for name in node.names)
 
 
-def test_imports_follow_global_layer_boundaries() -> None:
+def import_violations(tree: ast.AST, relative: Path) -> list[str]:
+    layer = relative.parts[0]
+    violations = []
+    for target in imported_modules(tree, relative):
+        if target.startswith("app."):
+            target_layer = target.split(".")[1]
+            if target_layer not in ALLOWED.get(layer, set()):
+                violations.append(f"{relative}: {target}")
+            if layer == "repositories" and (
+                target.startswith("app.core.http")
+                or target.startswith("app.core.exceptions")
+            ):
+                violations.append(f"{relative}: HTTP/business dependency {target}")
+        if target.split(".")[0] in {"fastapi", "starlette"} and not (
+            layer in {"routers", "dependencies"} or relative.as_posix() in HTTP_ADAPTERS
+        ):
+            violations.append(f"{relative}: HTTP framework {target}")
+        if layer in {"services", "routers"} and target.startswith("sqlalchemy"):
+            if target != "sqlalchemy.ext.asyncio.AsyncSession" and not (
+                target.startswith("sqlalchemy.exc.")
+            ):
+                violations.append(f"{relative}: SQL construction {target}")
+    return violations
+
+
+def session_receivers(tree: ast.AST) -> set[str]:
+    """세션 매개변수와 Database.session context가 바인딩한 이름을 찾는다."""
+    types = {"AsyncSession", "DatabaseSession"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            types.update(
+                name.asname or name.name
+                for name in node.names
+                if name.name in {"AsyncSession", "DatabaseSession"}
+            )
+    names = {
+        node.arg
+        for node in ast.walk(tree)
+        if isinstance(node, ast.arg)
+        and node.annotation is not None
+        and ast.unparse(node.annotation).split(".")[-1] in types
+    }
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.withitem)
+            and isinstance(node.context_expr, ast.Call)
+            and isinstance(node.context_expr.func, ast.Attribute)
+            and node.context_expr.func.attr == "session"
+            and isinstance(node.optional_vars, ast.Name)
+        ):
+            names.add(node.optional_vars.id)
+    return names
+
+
+def session_violations(tree: ast.AST, relative: Path) -> list[str]:
+    layer = relative.parts[0]
+    sessions = session_receivers(tree)
+    violations = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id in sessions
+        ):
+            method = node.func.attr
+            if layer == "services" and method not in {
+                "commit",
+                "rollback",
+                "in_transaction",
+                "connection",
+            }:
+                violations.append(f"{relative}:{node.lineno} session.{method}")
+            if layer == "routers" or (
+                layer == "repositories"
+                and method
+                in {
+                    "commit",
+                    "rollback",
+                    "begin",
+                    "begin_nested",
+                    "connection",
+                    "close",
+                    "invalidate",
+                    "reset",
+                }
+            ):
+                violations.append(f"{relative}:{node.lineno} session.{method}")
+        if layer == "repositories" and isinstance(node, ast.Constant):
+            if isinstance(node.value, str) and (
+                node.value == "isolation_level"
+                or "SET TRANSACTION" in node.value.upper()
+            ):
+                violations.append(f"{relative}:{node.lineno} transaction setting")
+    return violations
+
+
+def test_imports_and_db_calls_follow_global_layer_boundaries() -> None:
     violations = []
     for path in sorted(APP.rglob("*.py")):
         relative = path.relative_to(APP)
-        layer = relative.parts[0]
         if relative.as_posix() == "main.py":
             continue  # FastAPI 앱을 조립하는 명시적인 진입점이다.
-        for target in imported_modules(ast.parse(path.read_text()), relative):
-            if target.startswith("app."):
-                target_layer = target.split(".")[1]
-                if target_layer not in ALLOWED.get(layer, set()):
-                    violations.append(f"{relative}: {target}")
-            if target.split(".")[0] in {"fastapi", "starlette"} and not (
-                layer in {"routers", "dependencies"}
-                or relative.as_posix() in HTTP_ADAPTERS
-            ):
-                violations.append(f"{relative}: HTTP framework {target}")
+        tree = ast.parse(path.read_text())
+        violations.extend(import_violations(tree, relative))
+        violations.extend(session_violations(tree, relative))
     assert not violations, "\n".join(violations)
 
 
-def test_queries_do_not_save_or_lock_rows() -> None:
-    forbidden = {
-        "flush",
-        "commit",
-        "rollback",
-        "begin",
-        "begin_nested",
-        "with_for_update",
-    }
-    violations = []
-    for path in sorted((APP / "queries").rglob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text())):
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and (
-                    node.func.attr in forbidden
-                    or (
-                        isinstance(node.func.value, ast.Name)
-                        and node.func.value.id == "session"
-                        and node.func.attr in {"add", "add_all", "delete"}
-                    )
-                )
-            ):
-                violations.append(
-                    f"{path.relative_to(APP)}:{node.lineno} {node.func.attr}"
-                )
-    assert not violations, "\n".join(violations)
+@pytest.mark.parametrize(
+    "layer, source",
+    [
+        ("routers", "from app.repositories import teams"),
+        ("routers", "from app.queries.teams import get_team_detail"),
+        ("services", "from sqlalchemy import select as query"),
+        ("services", "async def read(db: AsyncSession):\n    await db.scalar(query)"),
+        (
+            "services",
+            "from sqlalchemy.ext.asyncio import AsyncSession as Session\n"
+            "async def save(db: Session):\n    db.add(row)",
+        ),
+        (
+            "services",
+            "async def auth(database):\n    async with database.session() as db:\n"
+            "        await db.execute(query)",
+        ),
+        ("repositories", "from app.schemas.teams import TeamDetail"),
+        ("repositories", "from app.core.http.schemas import PageMeta"),
+        ("repositories", "from app.core import exceptions"),
+        ("repositories", "async def save(db: AsyncSession):\n    await db.commit()"),
+        ("repositories", "options = {'isolation_level': 'REPEATABLE READ'}"),
+    ],
+)
+def test_boundary_check_rejects_cross_layer_responsibilities(
+    layer: str, source: str
+) -> None:
+    tree = ast.parse(source)
+    relative = Path(layer) / "example.py"
+    assert import_violations(tree, relative) or session_violations(tree, relative)
+
+
+@pytest.mark.parametrize(
+    "layer, source",
+    [
+        (
+            "services",
+            "from sqlalchemy.ext.asyncio import AsyncSession\n"
+            "from sqlalchemy.exc import IntegrityError\n"
+            "from app.repositories import teams\n"
+            "async def save(db: AsyncSession):\n    row.name = 'new'\n"
+            "    await teams.flush(db)\n    await db.commit()",
+        ),
+        (
+            "repositories",
+            "from sqlalchemy import select\n"
+            "async def read(db: AsyncSession):\n"
+            "    return await db.scalar(select(Model).with_for_update()"
+            ".execution_options(populate_existing=True))",
+        ),
+    ],
+)
+def test_boundary_check_allows_owned_responsibilities(layer: str, source: str) -> None:
+    tree = ast.parse(source)
+    relative = Path(layer) / "example.py"
+    assert not import_violations(tree, relative)
+    assert not session_violations(tree, relative)
 
 
 @pytest.mark.parametrize(
@@ -120,5 +237,5 @@ def test_import_check_includes_aliases_relative_and_type_checking(
     source: str, expected: str
 ) -> None:
     assert expected in set(
-        imported_modules(ast.parse(source), Path("queries/example.py"))
+        imported_modules(ast.parse(source), Path("repositories/example.py"))
     )
