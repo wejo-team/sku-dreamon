@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from app.domains.auth.schemas import AccountResponse, Credentials, LoginId
+from app.schemas.auth import AccountResponse, Credentials, LoginId
 
 
 def test_credentials_normalize_only_ascii_login_case_and_password_nfc() -> None:

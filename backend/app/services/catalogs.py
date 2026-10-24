@@ -1,11 +1,27 @@
 """학사 조회와 같은 트랜잭션 안의 소속 검증·기준 데이터 쓰기를 처리한다."""
 
+from pydantic import HttpUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
-from app.domains.catalogs.models import AcademicUnit
-from app.domains.catalogs.schemas import AcademicUnitResponse
+from app.models.academic_units import AcademicUnit
+from app.rules.catalogs import (
+    AcademicStatusCode,
+    CatalogCode,
+    FieldCode,
+    GradeCode,
+    ProfileImageCode,
+    RoleCode,
+    SkillCode,
+    WeeklyAvailabilityCode,
+)
+from app.schemas.catalogs import (
+    AcademicUnitResponse,
+    AvatarPreset,
+    CatalogItem,
+    Catalogs,
+)
 
 
 def _invalid_path() -> AppError:
@@ -126,3 +142,38 @@ async def set_academic_selectable(
         raise _invalid_path()
     unit.is_selectable = is_selectable
     await session.flush()
+
+
+def _items(enum_type: type[CatalogCode]) -> list[CatalogItem]:
+    return [
+        CatalogItem(
+            code=item.value,
+            display_name=item.display_name,
+            is_selectable=item.is_selectable,
+            sort_order=item.sort_order,
+        )
+        for item in sorted(enum_type, key=lambda item: (item.sort_order, item.value))
+    ]
+
+
+def build_catalogs() -> Catalogs:
+    return Catalogs(
+        fields=_items(FieldCode),
+        roles=_items(RoleCode),
+        skills=_items(SkillCode),
+        academic_statuses=_items(AcademicStatusCode),
+        grades=_items(GradeCode),
+        weekly_availability_ranges=_items(WeeklyAvailabilityCode),
+        avatar_presets=[
+            AvatarPreset(
+                code=item.value,
+                display_name=item.display_name,
+                is_selectable=item.is_selectable,
+                sort_order=item.sort_order,
+                asset_url=HttpUrl(item.asset_url),
+            )
+            for item in sorted(
+                ProfileImageCode, key=lambda item: (item.sort_order, item.value)
+            )
+        ],
+    )

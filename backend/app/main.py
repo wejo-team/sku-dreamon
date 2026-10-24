@@ -8,8 +8,8 @@ from fastapi import FastAPI
 from app.core.config import Settings
 from app.core.db.session import create_database
 from app.core.http.handlers import register_error_handlers
-from app.domains.catalogs.router import router as catalogs_router
-from app.domains.health.router import router as health_router
+from app.routers.catalogs import router as catalogs_router
+from app.routers.health import router as health_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
