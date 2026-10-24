@@ -193,6 +193,35 @@ async def list_teams(
     return TeamListResult(items, total, page, found)
 
 
+async def get_team_codes(
+    session: AsyncSession, team_id: UUID, contest_id: UUID
+) -> tuple[Sequence[str], Sequence[str]]:
+    fields = (
+        await session.scalars(
+            select(ContestField.field_code).where(ContestField.contest_id == contest_id)
+        )
+    ).all()
+    roles = (
+        await session.scalars(
+            select(TeamRecruitmentRole.role_code).where(
+                TeamRecruitmentRole.team_id == team_id
+            )
+        )
+    ).all()
+    return fields, roles
+
+
+async def get_team_contest_id(session: AsyncSession, team_id: UUID) -> UUID | None:
+    contest_id: UUID | None = await session.scalar(
+        select(Team.contest_id).where(Team.team_id == team_id)
+    )
+    return contest_id
+
+
+async def flush(session: AsyncSession) -> None:
+    await session.flush()
+
+
 async def get_application_membership(
     session: AsyncSession, application_id: UUID
 ) -> TeamMembership | None:
@@ -203,3 +232,14 @@ async def get_application_membership(
         )
     )
     return membership
+
+
+async def count_current_members(session: AsyncSession, team_id: UUID) -> int:
+    """호출자가 팀 잠금을 유지한 상태에서 현재 소속 인원을 센다."""
+    count = await session.scalar(
+        select(func.count())
+        .select_from(TeamMembership)
+        .where(TeamMembership.team_id == team_id, TeamMembership.ended_at.is_(None))
+    )
+    assert count is not None
+    return count

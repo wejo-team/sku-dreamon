@@ -10,6 +10,7 @@ from app.core.http.schemas import (
     RequestDTO,
     ResponseDTO,
     Timestamp,
+    Version,
 )
 from app.rules.catalogs import RoleCode
 from app.schemas.profiles import ProfileResponse
@@ -38,6 +39,17 @@ class WorkspaceSearch(RequestDTO):
             description="페이지당 항목 수. 1~100개이며 기본값은 20개입니다.",
         ),
     ] = 20
+
+
+class RecruitmentAction(RequestDTO):
+    """조회한 팀 버전을 지정하는 모집 종료·재개 요청."""
+
+    expected_version: Version = Field(
+        description=(
+            "클라이언트가 조회한 팀 버전의 십진 문자열. 현재 버전과 "
+            "다르면 변경을 거부합니다."
+        )
+    )
 
 
 class TeamMember(ResponseDTO):
@@ -101,3 +113,9 @@ class WorkspaceTeam(ResponseDTO):
             "접수·검토 중인 지원 수. 팀장에게만 제공하며 일반 팀원에게는 null입니다."
         )
     )
+
+
+class RecruitmentResult(ResponseDTO):
+    """모집 종료·재개 처리 후의 팀 정보."""
+
+    team: TeamSummary = Field(description="모집 변경 결과가 반영된 팀 요약.")

@@ -12,14 +12,11 @@ from app.core.http.schemas import Page, PageMeta
 from app.models.contests import Contest
 from app.models.teams import Team, TeamMembership
 from app.repositories import teams as repository
+from app.repositories.recruitment_locks import lock_contest, lock_teams
 from app.rules.catalogs import FieldCode, RoleCode
 from app.schemas.contests import DeadlineInterpretation
 from app.schemas.teams import TeamDetail, TeamSearch, TeamSummary
 from app.services.contests import build_contest_summary
-
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 async def get_team_detail(
@@ -162,6 +159,114 @@ def build_team_summary(
             time_defaulted=team.deadline_time_assumed,
             time_zone_defaulted=team.deadline_timezone_assumed,
         ),
+    )
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
+async def _summary(
+    session: AsyncSession,
+    team: Team,
+    contest: Contest,
+    *,
+    member_count: int,
+    now: datetime,
+) -> TeamSummary:
+    fields, roles = await repository.get_team_codes(
+        session, team.team_id, team.contest_id
+    )
+    return build_team_summary(
+        team,
+        contest,
+        field_codes=fields,
+        role_codes=roles,
+        member_count=member_count,
+        now=now,
+    )
+
+
+async def _change_recruitment(
+    session: AsyncSession,
+    team_id: UUID,
+    account_id: UUID,
+    *,
+    expected_version: int,
+    reopening: bool,
+) -> TeamSummary:
+    try:
+        # 공고 ID는 불변이며 순서 확인용 조회 뒤 공고·팀 순서로 잠근다.
+        contest_id = await repository.get_team_contest_id(session, team_id)
+        if contest_id is None:
+            raise AppError(404, "NOT_FOUND", "팀을 찾을 수 없습니다.")
+        contest = await lock_contest(session, contest_id)
+        teams = await lock_teams(session, [team_id])
+        if contest is None or not teams:
+            raise AppError(404, "NOT_FOUND", "팀을 찾을 수 없습니다.")
+        team = teams[0]
+        if team.leader_account_id != account_id:
+            raise AppError(403, "FORBIDDEN", "팀장만 모집 상태를 변경할 수 있습니다.")
+        if team.version != expected_version:
+            raise AppError(409, "VERSION_CONFLICT", "팀 정보가 변경되었습니다.")
+        if team.recruitment_state not in ("open", "closed"):
+            raise AppError(
+                409, "INVALID_RECRUITMENT_STATE", "모집 상태를 변경할 수 없습니다."
+            )
+
+        now = _utcnow()
+        member_count = await repository.count_current_members(session, team_id)
+        assert member_count is not None
+        if reopening:
+            if (
+                not contest.registration_opens_at
+                <= now
+                < contest.registration_closes_at
+            ):
+                raise AppError(409, "CONTEST_NOT_OPEN", "공모전 접수 기간이 아닙니다.")
+            if now >= team.recruitment_closes_at:
+                raise AppError(
+                    409, "RECRUITMENT_DEADLINE_PASSED", "팀 모집 기한이 지났습니다."
+                )
+            if member_count >= team.target_capacity:
+                raise AppError(409, "TEAM_FULL", "팀 정원이 찼습니다.")
+            if team.recruitment_state == "closed":
+                team.recruitment_state = "open"
+                team.closed_reason = None
+                team.version += 1
+                team.updated_at = now
+        elif team.recruitment_state == "open":
+            team.recruitment_state = "closed"
+            team.closed_reason = "leader_closed"
+            team.version += 1
+            team.updated_at = now
+
+        await repository.flush(session)
+        result = await _summary(
+            session, team, contest, member_count=member_count, now=now
+        )
+        await session.commit()
+        return result
+    except Exception:
+        await session.rollback()
+        raise
+
+
+async def close_recruitment(
+    session: AsyncSession, team_id: UUID, account_id: UUID, *, expected_version: int
+) -> TeamSummary:
+    """기존 지원·소속을 유지하며 이미 닫힌 모집의 사유·시각·버전은 보존한다."""
+    return await _change_recruitment(
+        session, team_id, account_id, expected_version=expected_version, reopening=False
+    )
+
+
+async def reopen_recruitment(
+    session: AsyncSession, team_id: UUID, account_id: UUID, *, expected_version: int
+) -> TeamSummary:
+    """잠금 뒤 기한·정원을 검사하며 과거 지원이나 소속을 복원하지 않는다."""
+    return await _change_recruitment(
+        session, team_id, account_id, expected_version=expected_version, reopening=True
     )
 
 

@@ -1,6 +1,6 @@
 # 팀 API
 
-**상태: 공개 팀 조회·워크스페이스 구현 · 생성·모집 변경 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/routers/teams.py), [요청·응답 DTO](../../backend/app/schemas/teams.py), [조회 서비스](../../backend/app/services/teams.py)와 [저장 조회](../../backend/app/repositories/teams.py)를 구현했습니다. 현재 소속 목록·팀 공간은 [워크스페이스 라우터](../../backend/app/routers/team_management.py), [DTO](../../backend/app/schemas/team_management.py), [저장 조회](../../backend/app/repositories/team_memberships.py)와 [스냅샷·권한 서비스](../../backend/app/services/team_memberships.py)에 구현했습니다. 생성·모집 변경 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
+**상태: 공개 팀 조회·모집 변경·워크스페이스 구현 · 생성 설계.** 공개 팀 목록·상세·공고 하위 팀 목록의 [라우터](../../backend/app/routers/teams.py), [요청·응답 DTO](../../backend/app/schemas/teams.py), [조회 서비스](../../backend/app/services/teams.py)와 [저장 조회](../../backend/app/repositories/teams.py)를 구현했습니다. 현재 소속 목록·팀 공간은 [워크스페이스 라우터](../../backend/app/routers/team_management.py), [DTO](../../backend/app/schemas/team_management.py), [저장 조회](../../backend/app/repositories/team_memberships.py)와 [스냅샷·권한 서비스](../../backend/app/services/team_memberships.py)에 구현했습니다. 팀장 모집 종료·재개는 같은 [관리 라우터](../../backend/app/routers/team_management.py)와 [모집 서비스](../../backend/app/services/teams.py)에 구현했습니다. 생성 API는 아래 설계 대상으로 남습니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
 - 먼저 [API 목록](#endpoints)에서 경로·권한·성공 응답을 찾습니다.
 
@@ -166,9 +166,7 @@
 
 ### 모집 처리 결과
 
-| 응답 타입 | 필수 필드 | 의미 |
-| --- | --- | --- |
-| `RecruitmentResult` | `team: TeamSummary` | 모집 종료·재개 후 팀의 현재 상태와 버전 |
+[RecruitmentResult](../../backend/app/schemas/team_management.py)는 변경 후 현재 상태와 버전을 포함한 `TeamSummary`를 반환합니다. 정확한 필드는 코드와 생성 OpenAPI를 따릅니다.
 
 <a id="transitions"></a>
 
@@ -189,7 +187,9 @@
 | 모집 종료 | `open` → `closed`, 사유 `leader_closed`. 이미 `closed`이면 사유를 보존하고 no-op 200 | 기존 지원·소속 유지. 대기 지원을 자동 미선발 처리하지 않음 |
 | 모집 재개 | `closed` → `open`, 마감 사유 null. 이미 `open`이며 현재 모집 가능하면 no-op 200 | 현재 공고 접수·팀 모집 기한·잔여 정원 확인. 폐기 지원 복원 없음 |
 
-no-op은 버전·사건·알림을 추가하지 않습니다. 팀 생성에 따른 다른 대기 지원 폐기의 원자성은 [팀 생성 본문](#team-create)과 [지원 상태 변경](applications.md#transitions)에 정의합니다. 응답 유실 후에는 현재 리소스를 다시 조회해 결과와 버전을 확인합니다.
+구현은 공고 공유 잠금 뒤 팀 행을 잠그고 권한·버전을 확인합니다. 재개 시각은 잠금 대기 이후에 확인하므로 대기 중 기한이 지나면 거부합니다. 종료·재개는 팀 상태와 버전만 변경하며, 소속 종료로 자리가 생겨도 자동 재개하지 않습니다.
+
+no-op은 버전·수정 시각·사건·알림을 추가하지 않습니다. 팀 생성에 따른 다른 대기 지원 폐기의 원자성은 [팀 생성 본문](#team-create)과 [지원 상태 변경](applications.md#transitions)에 정의합니다. 응답 유실 후에는 현재 리소스를 다시 조회해 결과와 버전을 확인합니다.
 
 ### 409 업무 오류
 
