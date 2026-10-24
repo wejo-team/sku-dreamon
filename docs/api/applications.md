@@ -2,11 +2,11 @@
 
 **상태: 일부 구현.** 본인·받은 팀장의 지원 상세, 본인 지원 목록·취소와 팀장 지원자 목록·상세를 구현했습니다. 신규 지원과 팀장 상태 변경은 아직 설계 단계입니다. 경로는 `/api/v1` 기준이며, 제품 정책은 연결한 기능 명세를 따릅니다.
 
-구현 원본은 [지원 라우터](../../backend/app/routers/applications.py), [응답 DTO](../../backend/app/schemas/applications.py), [조회 쿼리](../../backend/app/queries/applications.py)입니다. [PostgreSQL HTTP 검사](../../backend/tests/integration/test_application_reads.py)는 실제 세션 쿠키의 권한·404 은닉·폐기 원인 공개 범위·조회 시 상태 보존을 검증합니다. 실행 앱의 `/docs`·`/openapi.json`에서 등록한 API 계약을 확인할 수 있습니다.
+구현 원본은 [지원 라우터](../../backend/app/routers/applications.py), [응답 DTO](../../backend/app/schemas/applications.py), [조회 서비스](../../backend/app/services/applications.py)입니다. [PostgreSQL HTTP 검사](../../backend/tests/integration/test_application_reads.py)는 실제 세션 쿠키의 권한·404 은닉·폐기 원인 공개 범위·조회 시 상태 보존을 검증합니다. 실행 앱의 `/docs`·`/openapi.json`에서 등록한 API 계약을 확인할 수 있습니다.
 
-취소는 [계정·공고·팀·지원 잠금](../../backend/app/services/recruitment_locks.py)을 공유합니다. [취소 통합 검사](../../backend/tests/integration/test_application_cancellation.py)는 버전 우선 비교·변경 없는 재요청·선발 소속 종료·모집 상태 유지·알림 실패 시 전체 롤백·독립 연결의 동시 취소를 검증합니다.
+취소는 [계정·공고·팀·지원 잠금](../../backend/app/repositories/recruitment_locks.py)을 공유합니다. [취소 통합 검사](../../backend/tests/integration/test_application_cancellation.py)는 버전 우선 비교·변경 없는 재요청·선발 소속 종료·모집 상태 유지·알림 실패 시 전체 롤백·독립 연결의 동시 취소를 검증합니다.
 
-본인 목록은 [지원 목록 쿼리](../../backend/app/queries/applications.py)의 단일 SQL에서 총수·마지막 페이지 보정·지원 이력·팀 요약·현재 소속을 함께 읽습니다. [목록 통합 검사](../../backend/tests/integration/test_my_applications.py)는 본인 범위·상태 필터·안정 정렬·빈 목록·마지막 페이지·취소 전후 현재 소속을 확인합니다.
+본인 목록의 [지원 Repository](../../backend/app/repositories/applications.py)는 단일 SQL에서 총수·마지막 페이지 보정·지원 이력·팀 요약·현재 소속을 함께 읽습니다. [목록 통합 검사](../../backend/tests/integration/test_my_applications.py)는 본인 범위·상태 필터·안정 정렬·빈 목록·마지막 페이지·취소 전후 현재 소속을 확인합니다.
 
 팀장 조회는 [검토 라우터](../../backend/app/routers/application_review.py)와 [서비스](../../backend/app/services/application_review.py)에서 제공합니다. [검증](../../backend/tests/integration/test_applicant_reads.py)은 지원 후 비공개 전환·종결 이후 최신 프로필 열람, 관계별 403·404, 목록·총원·프로필의 같은 읽기 시점을 확인합니다. 인증이 끝난 새 요청 세션에서 REPEATABLE READ를 사용하며 조회는 지원 상태를 바꾸지 않습니다.
 

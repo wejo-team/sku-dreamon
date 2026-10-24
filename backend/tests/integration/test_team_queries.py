@@ -25,8 +25,8 @@ from app.models.applications import Application
 from app.models.auth import Account
 from app.models.contests import Contest, ContestField
 from app.models.teams import Team, TeamMembership, TeamRecruitmentRole
-from app.queries import teams as queries
 from app.routers.teams import router
+from app.services import teams as queries
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 NOW = datetime(2026, 10, 24, 12, tzinfo=UTC)
