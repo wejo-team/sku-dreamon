@@ -45,7 +45,7 @@
 
 ### Profile — 전체 현재 프로필
 
-`ProfileResponse`의 전체 필드는 [응답 모델](../../backend/app/schemas/profiles.py)과 생성 OpenAPI에서 확인합니다. `accountId`는 공유 PK인 `profiles.profile_id`를 명시적으로 매핑하고, `version`·`academicUnitId`는 십진 문자열로 전달합니다. 모든 키를 항상 반환하며 미입력은 해당 필드의 `null` 또는 빈 목록으로 표현합니다. 아래 [공통 편집 필드](#profile-fields)는 아직 구현하지 않은 저장 요청의 설계로 유지합니다.
+`ProfileResponse`의 전체 필드는 [응답 모델](../../backend/app/schemas/profiles.py)과 생성 OpenAPI에서 확인합니다. `accountId`는 공유 PK인 `profiles.profile_id`를 명시적으로 매핑하고, `version`·`academicUnitId`는 십진 문자열로 전달합니다. 모든 키를 항상 반환하며 미입력은 해당 필드의 `null` 또는 빈 목록으로 표현합니다. 저장 요청의 정확한 검증 계약은 [ProfileWrite](../../backend/app/schemas/profile_write.py)를 따르며, 아래 [공통 편집 필드](#profile-fields)는 필드의 의미를 설명합니다.
 
 [시연 데이터 정책](../specs/sprint-1.md#demo-data-scope)에 따라 서버가 리소스 종류와 고정 UUID 시드 목록으로 `isDemo`를 계산합니다. 이름·모델 출력·클라이언트의 추측으로 판정하지 않으며, 프로필 저장·공개 전환 요청에서 이 값을 받지 않습니다.
 

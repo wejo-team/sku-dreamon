@@ -170,9 +170,9 @@ ORM 모델은 `models`, SQL 읽기·쓰기와 DB 반영은 `repositories`에 둡
 
 ## 엔진과 세션
 
-[인증 세션 서비스](../../backend/app/services/sessions.py)는 불투명 토큰을 발급하고 잠금 후 현재 시각으로 만료·회수를 검사합니다. 요청의 [인증 의존성](../../backend/app/dependencies/auth.py)은 세션 서비스를 호출하며, 세션 서비스가 별도의 짧은 DB 세션에서 유효 활동을 커밋합니다. 업무 서비스에는 인증 주체 UUID와 별도의 `DatabaseSession`을 전달합니다. 세션 발급·회수 함수는 호출자의 세션을 사용하고 커밋은 최상위 유스케이스가 맡습니다. 현재 [로그아웃 서비스](../../backend/app/services/auth.py)가 회수를 커밋하며 가입·로그인 HTTP 연결은 아직 구현하지 않았습니다.
+[인증 세션 서비스](../../backend/app/services/sessions.py)는 불투명 토큰을 발급하고 잠금 후 현재 시각으로 만료·회수를 검사합니다. 요청의 [인증 의존성](../../backend/app/dependencies/auth.py)은 세션 서비스를 호출하며, 세션 서비스가 별도의 짧은 DB 세션에서 유효 활동을 커밋합니다. 업무 서비스에는 인증 주체 UUID와 별도의 `DatabaseSession`을 전달합니다. 세션 발급·회수 함수는 호출자의 세션을 사용하고 커밋은 최상위 유스케이스가 맡습니다. [인증 서비스](../../backend/app/services/auth.py)가 가입·로그인의 세션 발급과 로그아웃의 회수를 커밋하며 HTTP 라우터와 연결되어 있습니다.
 
-[CSRF 요청 검사](../../backend/app/dependencies/csrf.py)와 [서명 계산](../../backend/app/security/csrf.py)은 `CSRF_SIGNING_KEY`와 정확한 HTTPS origin 목록 `AUTH_ALLOWED_ORIGINS`를 사용합니다. 키 원문은 저장소와 오류 로그에 포함하지 않습니다. [인증 라우터](../../backend/app/routers/auth.py)는 현재 인증 상태의 CSRF 조회·본인 계정 조회·로그아웃을 제공하고, [쿠키 처리](../../backend/app/routers/auth_cookies.py)는 유효 토큰 재사용·무효 세션 쿠키 삭제·커밋 후 로그아웃 쿠키 삭제에 연결됩니다. 응답 필드는 [인증 DTO](../../backend/app/schemas/auth.py), 전송 설계는 별도 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)를 참조합니다. 가입·로그인·아이디 중복 확인과 시도 제한·차단 목록의 운영 정책은 후속 범위입니다.
+[CSRF 요청 검사](../../backend/app/dependencies/csrf.py)와 [서명 계산](../../backend/app/security/csrf.py)은 `CSRF_SIGNING_KEY`와 정확한 HTTPS origin 목록 `AUTH_ALLOWED_ORIGINS`를 사용합니다. 키 원문은 저장소와 오류 로그에 포함하지 않습니다. [인증 라우터](../../backend/app/routers/auth.py)는 현재 인증 상태의 CSRF 조회·본인 계정 조회·로그아웃을 제공하고, [쿠키 처리](../../backend/app/routers/auth_cookies.py)는 유효 토큰 재사용·무효 세션 쿠키 삭제·커밋 후 로그아웃 쿠키 삭제에 연결됩니다. 응답 필드는 [인증 DTO](../../backend/app/schemas/auth.py), 전송 설계는 별도 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)를 참조합니다. 가입·로그인·아이디 중복 확인, PostgreSQL 공유 시도 제한과 로컬 차단 목록 검증도 구현했습니다. 실제 운영 파일·키·origin 배포와 세션·시도 키 보존은 후속 범위입니다.
 
 - `create_async_engine`과 `async_sessionmaker`를 사용합니다. engine·session factory는 앱 수명에 맞춰 구성하고 종료 시 engine을 dispose합니다.
 - `AsyncSession`은 요청 또는 독립 작업 단위로 생성·종료합니다. 전역 Session, 요청 사이의 Session 공유, 하나의 Session을 여러 동시 task에서 공유하는 코드를 만들지 않습니다.
