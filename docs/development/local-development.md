@@ -38,9 +38,9 @@ uv run uvicorn app.main:app --reload
 
 API는 `http://127.0.0.1:8000`, 대화형 API 문서는 `/docs`입니다. `GET /api/v1/health`는 `{"status":"ok"}`를 반환합니다. health는 프로세스 연결 확인이며 DB 준비 상태 검사가 아닙니다.
 
-`upgrade head`는 계정·서버 세션, 학사, 공고, 프로필, 팀·지원·소속·발생 건·알림의 migration 5개를 적용합니다. 현재 적용 대상은 [DB 인덱스](../database/README.md)와 [Alembic 모델 등록](../../backend/alembic/env.py)에서 확인합니다. 스키마 적용은 운영 학사 원장·공고·시연 데이터를 적재하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
+`upgrade head`는 계정·서버 세션, 학사, 공고, 프로필, 팀·지원·소속·발생 건·알림의 AI 실행 메타데이터까지 migration 7개를 적용합니다. 현재 적용 대상은 [DB 인덱스](../database/README.md)와 [Alembic 모델 등록](../../backend/alembic/env.py)에서 확인합니다. 스키마 적용은 운영 학사 원장·공고·시연 데이터를 적재하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
 
-현재 인증 HTTP는 CSRF 조회·본인 계정 조회·로그아웃을 제공하며 가입·로그인은 아직 연결하지 않았습니다. 전체 API 구현 범위는 [API 인덱스](../api/README.md)를 따릅니다. 인증 관련 요청을 검증할 환경에서는 `.env`의 `CSRF_SIGNING_KEY`에 32바이트 이상의 난수 키를 주입하고 `AUTH_ALLOWED_ORIGINS`에 정확한 HTTPS origin 목록을 설정합니다. 설정 형식은 [환경변수 예시](../../backend/.env.example), 검증은 [Settings](../../backend/app/core/config.py), 쿠키 속성은 [인증 쿠키 코드](../../backend/app/routers/auth_cookies.py)를 확인합니다.
+인증 HTTP는 가입·로그인·CSRF 조회·본인 계정 조회·로그아웃을 제공하며, 화면 연결은 별도 작업입니다. 전체 API 구현 범위는 [API 인덱스](../api/README.md)를 따릅니다. 인증 관련 요청을 검증할 환경에서는 `.env`의 `CSRF_SIGNING_KEY`에 32바이트 이상의 난수 키를 주입하고 `AUTH_ALLOWED_ORIGINS`에 정확한 HTTPS origin 목록을 설정합니다. 설정 형식은 [환경변수 예시](../../backend/.env.example), 검증은 [Settings](../../backend/app/core/config.py), 쿠키 속성은 [인증 쿠키 코드](../../backend/app/routers/auth_cookies.py)를 확인합니다.
 
 ## 프론트엔드 — 별도 터미널
 
@@ -100,3 +100,43 @@ uv run pytest
 ## 종료
 
 프론트·백엔드는 각 터미널에서 Ctrl+C로 종료합니다. DB는 저장소 루트에서 `docker compose stop`으로 멈추며 데이터 볼륨은 유지됩니다.
+
+<a id="ai-backend"></a>
+
+## AI 백엔드 실행과 검사
+
+AI 백엔드는 `backend/.env`의 `OPENAI_API_KEY`를 읽습니다. 키는 Python 파일·프론트 환경변수에 넣지 않으며 `.env`는 Git에서 제외합니다. `uv sync --locked` 후 `uv run alembic upgrade head`로 AI 실행 메타데이터 migration까지 적용하고 서버를 실행합니다. 실제 서버에는 이전과 같은 HTTPS Origin·CSRF·세션 쿠키가 필요합니다.
+
+모델은 `gpt-6-luna`, Responses API, `store=False`로 연결합니다. 키가 없으면 일반 서버는 시작하지만 AI 생성 요청은 503을 반환합니다. 프론트 로그인·AI 화면은 이번 백엔드 작업에 연결하지 않았습니다. 정확한 경로·본문·SSE 이벤트는 [AI API](../api/ai.md)와 실행 앱의 `/docs`·`/openapi.json`에서 확인합니다.
+
+| 설정 | 기본값 | 의미 |
+| --- | --- | --- |
+| `AI_REASONING_EFFORT` | `low` | 모델 추론 강도 |
+| `AI_TIMEOUT_SECONDS` | 90 | 한 실행 시도의 전체 기한 |
+| `AI_RETENTION_SECONDS` | 86400 | 실행 메타데이터 접근 만료까지의 초 |
+| `AI_MAX_INPUT_TOKENS` | 18000 | 모델 호출별 입력 예산 |
+| `AI_MAX_OUTPUT_TOKENS` | 4096 | 모델 호출별 출력 한도 |
+| `AI_MAX_TOOL_CALLS` / `AI_MAX_SOURCES` | 8 / 30 | 한 실행의 도구 호출·자료 수 |
+| `AI_CONCURRENT_REQUESTS` / `AI_REQUESTS_PER_HOUR` | 2 / 30 | 계정별 동시 실행·최근 시도 제한 |
+
+계획 단계는 최대 6회 모델 호출, 한 요청은 최초 실행을 포함해 최대 3회 시도합니다. 시간 제한·일시 장애는 실패 재시도, 입력/도구 예산 초과는 조건 수정 후 새 요청으로 처리합니다. 설정의 허용 범위는 [Settings](../../backend/app/core/config.py)가 원본입니다.
+
+일반 테스트는 가짜 모델과 격리 PostgreSQL로 검사합니다. 실제 모델 수동 검사는 아래 명령을 **명시적으로 실행할 때만** OpenAI API를 호출하며 과금될 수 있습니다. 가상 자료만 보내고 키·생성 원문은 출력하지 않습니다.
+
+```bash
+cd backend
+uv run pytest tests/unit/test_ai_contract.py
+# TEST_DATABASE_URL을 격리된 테스트 DB로 지정한 상태에서 실행합니다.
+uv run pytest tests/integration/test_ai.py
+# 실제 Luna 도구 호출·구조화 출력·스트리밍 검사
+PYTHONPATH=. uv run python tests/manual/check_ai_model.py
+```
+
+만료된 실행 메타데이터는 새 요청 접수 또는 다음 운영 명령에서 정리합니다. 유휴 시간에도 물리 삭제가 필요하면 운영 스케줄러에서 정기 실행합니다. 이 명령은 LLM을 호출하지 않습니다.
+
+```bash
+cd backend
+uv run python -m app.cli.ai_runs
+```
+
+운영 프록시는 SSE를 버퍼링하지 않아야 하며 연결 기한·10초 heartbeat·클라이언트 연결 종료를 실제 환경에서 확인합니다. `done` 전 연결 단절은 성공이 아니며 이미 완료된 본문은 서버에서 복원하지 않습니다. 상태 확인·새 실행·복사 재검증은 [클라이언트 계약](../api/ai.md)을 따릅니다.
