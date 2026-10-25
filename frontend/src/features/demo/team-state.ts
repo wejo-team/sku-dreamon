@@ -15,7 +15,7 @@
 import type { Application } from '@/features/applications/api';
 import type { Contest } from '@/features/contests/api';
 import type { Profile } from '@/features/profiles/api';
-import type { Team, TeamMember } from '@/features/teams/api';
+import type { DeadlineInput, Team, TeamMember } from '@/features/teams/api';
 import {
   contestStatus,
   hasConfirmedMemberLimit,
@@ -38,7 +38,8 @@ import {
   profileTextLength,
 } from '@/features/demo/profile-fields';
 
-export type TransitionError = { code: string; message: string };
+// field: 422 VALIDATION_ERROR일 때 loc에 넣을 요청 필드 이름(docs/api/conventions.md#errors)
+export type TransitionError = { code: string; message: string; field?: string };
 export type Transition = { db: DemoDatabase } | { error: TransitionError };
 const failure = (code: string, message: string): Transition => ({
   error: { code, message },
@@ -263,11 +264,14 @@ export function applyToTeam(
       'INVALID_CATALOG_SELECTION',
       '지원 역할을 다시 선택해 주세요.',
     );
-  if (message && profileTextLength(message) > 1000)
-    return failure(
-      'VALIDATION_ERROR',
-      '팀에 전할 말은 1,000자까지 입력할 수 있어요.',
-    );
+  if (message && profileTextLength(message.trim()) > 1000)
+    return {
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: '팀에 전할 말은 1,000자까지 입력할 수 있어요.',
+        field: 'message',
+      },
+    };
   const issue = recruitmentIssue(team, now);
   if (issue) return failure(recruitmentIssueCode(team, now), issue);
   if (hasMembershipInContest(db, team.contestId, accountId))
@@ -557,8 +561,8 @@ export type NewTeamInput = {
   introduction: string;
   capacity: number;
   roleCodes: string[];
-  /** 팀 모집 마감 날짜(YYYY-MM-DD) */
-  recruitmentDeadline: string;
+  /** [출처 5] 원문 마감 입력. 화면은 날짜만, API 요청은 시각·시간대도 보낼 수 있음 */
+  recruitmentDeadline: DeadlineInput;
 };
 
 // [출처 5] 팀 생성 조건(없으면 null)
@@ -568,7 +572,8 @@ export function createTeamIssue(
   accountId: string,
   now = referenceNow,
 ): TransitionError | null {
-  const issue = (code: string, message: string) => ({ code, message });
+  const issue = (code: string, message: string, field?: string) =>
+    field ? { code, message, field } : { code, message };
   const contest = contestOf(db, input.contestId);
   if (!contest || contestStatus(contest, now) !== 'open')
     return issue('CONTEST_NOT_OPEN', '접수 중인 공모전을 선택해 주세요.');
@@ -579,17 +584,23 @@ export function createTeamIssue(
     );
   const nameLength = profileTextLength(input.name);
   if (nameLength < 2 || nameLength > 40)
-    return issue('VALIDATION_ERROR', '팀 이름을 2~40자로 입력해 주세요.');
+    return issue(
+      'VALIDATION_ERROR',
+      '팀 이름을 2~40자로 입력해 주세요.',
+      'name',
+    );
   const summaryLength = profileTextLength(input.introduction);
   if (summaryLength < 10 || summaryLength > 1000)
     return issue(
       'VALIDATION_ERROR',
       '팀 소개와 목표를 10~1,000자로 입력해 주세요.',
+      'introduction',
     );
   if (!Number.isInteger(input.capacity) || input.capacity < 1)
     return issue(
       'VALIDATION_ERROR',
       '팀장 포함 총 정원을 1명 이상 입력해 주세요.',
+      'capacity',
     );
   if (!hasConfirmedMemberLimit(contest.capacity))
     return issue(
@@ -609,25 +620,39 @@ export function createTeamIssue(
     input.capacity >= 2 &&
     (input.roleCodes.length < 1 ||
       input.roleCodes.length > 6 ||
-      input.roleCodes.some(
-        (code) => !roleOptions.some((item) => item.code === code),
-      ) ||
       new Set(input.roleCodes).size !== input.roleCodes.length)
   )
-    return issue('VALIDATION_ERROR', '모집할 역할을 1~6개 선택해 주세요.');
+    return issue(
+      'VALIDATION_ERROR',
+      '모집할 역할을 1~6개 선택해 주세요.',
+      'roleCodes',
+    );
   if (input.capacity === 1 && input.roleCodes.length)
     return issue(
       'VALIDATION_ERROR',
       '1명인 팀은 모집할 역할을 선택하지 않아요.',
+      'roleCodes',
     );
+  // [출처 5] 형식은 맞지만 선택할 수 없는 역할 코드는 409 INVALID_CATALOG_SELECTION
   if (
-    !input.recruitmentDeadline ||
-    input.recruitmentDeadline < referenceDate ||
-    input.recruitmentDeadline > contest.timing.closing.sourceDate
+    input.roleCodes.some(
+      (code) => !roleOptions.some((item) => item.code === code),
+    )
+  )
+    return issue(
+      'INVALID_CATALOG_SELECTION',
+      '모집할 역할을 목록에서 다시 선택해 주세요.',
+    );
+  const deadlineDate = input.recruitmentDeadline.date;
+  if (
+    !deadlineDate ||
+    deadlineDate < referenceDate ||
+    deadlineDate > contest.timing.closing.sourceDate
   )
     return issue(
       'VALIDATION_ERROR',
       '팀 모집 마감은 오늘부터 공모전 마감일까지 설정해 주세요.',
+      'recruitmentDeadline',
     );
   return null;
 }
@@ -643,7 +668,8 @@ export function createDemoTeam(
   const problem = createTeamIssue(input, db, accountId, now);
   if (problem) return { error: problem };
   const contest = contestOf(db, input.contestId)!;
-  const deadline = interpretDeadline({ date: input.recruitmentDeadline });
+  // [출처 5] 원문 날짜·시각·시간대를 모두 반영해 UTC 경계와 보완 정보를 계산
+  const deadline = interpretDeadline(input.recruitmentDeadline);
   const createdAt = stamp(now);
   const solo = input.capacity === 1;
   const team: TeamRecord = {

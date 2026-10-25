@@ -153,6 +153,8 @@ export function CreateTeamPage() {
           const team = {
             ...values,
             roleCodes: values.capacity === 1 ? [] : values.roleCodes,
+            // 화면은 날짜만 입력. 시각·시간대가 없으면 한국시간 날짜 끝으로 해석(docs/api/teams.md#deadline-input)
+            recruitmentDeadline: { date: values.recruitmentDeadline },
           };
           const issue = createTeamIssue(team, db, account.id);
           if (issue) {

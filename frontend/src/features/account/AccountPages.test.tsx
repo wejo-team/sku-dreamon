@@ -600,7 +600,7 @@ describe('design preview account flows', () => {
       introduction: '환경 문제를 함께 해결해요.',
       roleCodes: ['development'],
       capacity: 3,
-      recruitmentDeadline: '2026-10-24',
+      recruitmentDeadline: { date: '2026-10-24' },
     });
   });
 
@@ -656,7 +656,7 @@ describe('design preview account flows', () => {
         introduction: '함께 자료를 조사하고 정리해요.',
         roleCodes: ['development'],
         capacity: 3,
-        recruitmentDeadline: '2026-11-01',
+        recruitmentDeadline: { date: '2026-11-01' },
       }),
     );
   });

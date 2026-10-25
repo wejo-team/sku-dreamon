@@ -37,7 +37,7 @@ import {
   teamMembers,
   type Transition,
 } from '@/features/demo/team-state';
-import { VersionedAction } from '@/lib/api-contract';
+import { CatalogCode, Id, VersionedAction } from '@/lib/api-contract';
 import {
   MockRouter,
   booleanQuery,
@@ -82,7 +82,12 @@ const STATUS: Record<string, number> = {
 function commit(transition: Transition) {
   if ('error' in transition) {
     const { code, message } = transition.error;
-    if (code === 'VALIDATION_ERROR') invalid(['body'], message);
+    // [출처 8] 422 loc에는 요청 필드 이름을 넣습니다(docs/api/conventions.md#errors)
+    if (code === 'VALIDATION_ERROR')
+      invalid(
+        ['body', ...(transition.error.field ? [transition.error.field] : [])],
+        message,
+      );
     fail(STATUS[code] ?? 409, code, message);
   }
   const next = (transition as { db: typeof state.db }).db;
@@ -98,9 +103,18 @@ function commit(transition: Transition) {
   };
 }
 
-function teamList(query: URLSearchParams, contestId: string | null) {
+// scope: 특정 공모전의 팀(contest) 또는 전체 팀(all). 전체 팀 검색만 공모전명 포함(출처 1)
+function teamList(
+  query: URLSearchParams,
+  contestId: string | null,
+  scope: 'contest' | 'all',
+) {
   const q = searchText(query);
-  const roleCode = query.get('roleCode');
+  const roleCode = parseOptionalQuery(
+    CatalogCode,
+    query.get('roleCode'),
+    'roleCode',
+  );
   const recruitingOnly = booleanQuery(query, 'recruitingOnly');
   const roleName = (code: string) =>
     db().catalogs.roles.find((item) => item.code === code)?.displayName ?? '';
@@ -116,8 +130,8 @@ function teamList(query: URLSearchParams, contestId: string | null) {
           team.name,
           team.introduction,
           ...team.roleCodes.map(roleName),
-          // [출처 1] 전체 팀 검색만 공모전명 포함
-          ...(contestId ? [] : [team.contestTitle]),
+          // [출처 1] 전체 팀 검색(GET /teams, contestId 제한 포함)은 공모전명 포함
+          ...(scope === 'all' ? [team.contestTitle] : []),
         ]
           .join(' ')
           .toLowerCase()
@@ -195,9 +209,15 @@ export function registerTeamRoutes(router: MockRouter) {
   router
     .on('GET', '/contests/{contestId}/teams', ({ params, query }) => {
       if (!contestById(params.contestId!)) notFound();
-      return teamList(query, params.contestId!);
+      return teamList(query, params.contestId!, 'contest');
     })
-    .on('GET', '/teams', ({ query }) => teamList(query, query.get('contestId')))
+    .on('GET', '/teams', ({ query }) =>
+      teamList(
+        query,
+        parseOptionalQuery(Id, query.get('contestId'), 'contestId'),
+        'all',
+      ),
+    )
     .on('GET', '/teams/{teamId}', ({ params }) =>
       ok(teamById(params.teamId!) ?? notFound()),
     )
@@ -223,7 +243,7 @@ export function registerTeamRoutes(router: MockRouter) {
             introduction: input.introduction,
             capacity: Number(input.capacity),
             roleCodes: input.roleCodes,
-            recruitmentDeadline: input.recruitmentDeadline.date,
+            recruitmentDeadline: input.recruitmentDeadline,
           },
           accountId,
           { teamId, membershipId: newId() },
@@ -366,8 +386,17 @@ export function registerApplicationRoutes(router: MockRouter) {
         if (application.applicantAccountId !== accountId) forbidden();
         const action = validate(VersionedAction, body);
         assertVersion(application.version, action.expectedVersion);
+        // [출처 6] 이미 취소된 요청은 기존 취소 결과 유지: 그 취소로 끝난 소속이 있으면 true
         if (application.status === 'canceled')
-          return ok({ application, membershipEnded: false });
+          return ok({
+            application,
+            membershipEnded: db().memberships.some(
+              (item) =>
+                item.teamId === application.teamId &&
+                item.accountId === accountId &&
+                item.endedAt === application.updatedAt,
+            ),
+          });
         const wasSelected = application.status === 'selected';
         commit(
           cancelTeamApplication(db(), application.id, accountId, state.now),

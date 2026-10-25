@@ -7,6 +7,10 @@
  * 4. docs/api/ai.md#request-lifecycle - clientMessageId 재전송 동일 결과·다른 본문 409, 진행 중 요청 409, 재시도·중단 규칙
  * 5. docs/api/ai.md#applicant-endpoints - 지원자 검토·후보 추천은 받은 팀장만, 지원 상태를 바꾸지 않음
  * 6. docs/api/ai.md#result-fields - ChatResult 카드 최대 3개, ApplicantReviewResult·ApplicantRecommendationResult
+ * 7. docs/api/ai.md#current-permissions - 팀장·지원 관계가 사라진 요청·결과는 404, 후보 재검증
+ *
+ * 목업 처리 시간: 접수(202)한 요청은 pending으로 두고, 그 요청을 조회할 때 처리를 끝냅니다.
+ * 그래서 처리 중 중단·진행 중 요청 409를 실제 서버와 같은 순서로 확인할 수 있습니다.
  *
  * AI 응답은 실제 모델을 호출하지 않는 목업입니다(docs/design/handoff.md 「데이터·인증·AI의 실제 범위」).
  */
@@ -20,7 +24,9 @@ import {
   type AiRequest,
   type ResourceCard,
 } from '@/features/ai/api';
+import type { Application } from '@/features/applications/api';
 import { ReadNotifications } from '@/features/notifications/api';
+import { hasMembershipInContest } from '@/features/demo/team-state';
 import {
   toNotificationDto,
   type NotificationRecord,
@@ -72,7 +78,13 @@ type ConversationRecord = {
   messages: AiMessage[];
 };
 const conversations = new Map<string, ConversationRecord>();
-const requests = new Map<string, AiRequest & { ownerAccountId: string }>();
+// 서버 내부 정보: 소유자, 처리 함수, 직전 재시도가 출발한 시도 번호
+type AiRequestRecord = AiRequest & {
+  ownerAccountId: string;
+  process: () => void;
+  retriedFrom: number | null;
+};
+const requests = new Map<string, AiRequestRecord>();
 
 export function resetAiMock() {
   conversations.clear();
@@ -80,14 +92,45 @@ export function resetAiMock() {
 }
 
 const location = (id: string) => ({ Location: `/api/v1/ai/requests/${id}` });
-// 소유자 ID는 서버 내부 정보이므로 AiRequest 응답에서 뺍니다.
-const publicRequest = (
-  record: AiRequest & { ownerAccountId: string },
-): AiRequest => {
-  const request: Partial<typeof record> = { ...record };
+// 서버 내부 정보는 AiRequest 응답에서 뺍니다.
+const publicRequest = (record: AiRequestRecord): AiRequest => {
+  const request: Partial<AiRequestRecord> = { ...record };
   delete request.ownerAccountId;
+  delete request.process;
+  delete request.retriedFrom;
   return request as AiRequest;
 };
+
+// 목업 처리: 아직 pending인 요청만 결과를 만듭니다(중단된 요청은 그대로).
+const settle = (record: AiRequestRecord) => {
+  if (record.status === 'pending') record.process();
+  return record;
+};
+
+/** 목업 확인용: 현재 시도를 재시도 가능한 실패로 바꿉니다(실제 모델 실패를 대신함). */
+export function failAiRequestForMock(id: string) {
+  const record = requests.get(id);
+  if (!record) return;
+  Object.assign(record, {
+    status: 'failed',
+    result: null,
+    failure: {
+      code: 'AI_UNAVAILABLE',
+      message: 'AI 응답을 받지 못했어요. 다시 시도해 주세요.',
+      retryable: true,
+    },
+    updatedAt: nowIso(),
+  });
+}
+
+// [출처 5] 같은 공모전에 확정 소속이 있는 지원자는 새 선발 후보가 아님
+const isSelectionCandidate = (application: Application) =>
+  ['submitted', 'reviewing'].includes(application.status) &&
+  !hasMembershipInContest(
+    db(),
+    application.contestId,
+    application.applicantAccountId,
+  );
 
 // [출처 6] 메시지의 단어와 일치하는 공모전·팀·공개 사람을 최대 3개 카드로
 function chatCards(content: string, accountId: string): ResourceCard[] {
@@ -168,14 +211,17 @@ function ownedRequest(id: string, accountId: string) {
     !conversations.get(request!.conversationId)?.active
   )
     notFound();
+  // [출처 7] 검토·후보 요청은 지금도 그 팀의 팀장일 때만 볼 수 있음
+  if (
+    request!.teamId &&
+    teamById(request!.teamId)?.ownerAccountId !== accountId
+  )
+    notFound();
   return request!;
 }
 
 // 목업은 요청을 접수한 뒤 즉시 처리 결과를 준비합니다(pending → succeeded/empty).
-function completeChat(
-  request: AiRequest & { ownerAccountId: string },
-  content: string,
-) {
+function completeChat(request: AiRequestRecord, content: string) {
   const cards = chatCards(content, request.ownerAccountId);
   const generatedAt = nowIso();
   const result = {
@@ -295,7 +341,7 @@ export function registerNotificationAndAiRoutes(router: MockRouter) {
         messages: conversation.messages,
         requests: [...requests.values()]
           .filter((item) => item.conversationId === conversation.id)
-          .map(publicRequest),
+          .map((item) => publicRequest(settle(item))),
       });
     })
     // [출처 3, 4] 메시지 전송 → 202 + Location
@@ -344,7 +390,7 @@ export function registerNotificationAndAiRoutes(router: MockRouter) {
           createdAt,
         };
         conversation.messages.push(message);
-        const request = {
+        const request: AiRequestRecord = {
           id: newId(),
           ownerAccountId: accountId,
           purpose: 'chat' as const,
@@ -353,31 +399,38 @@ export function registerNotificationAndAiRoutes(router: MockRouter) {
           teamId: null,
           applicationId: null,
           attempt: 1,
-          status: 'pending' as AiRequest['status'],
+          status: 'pending',
           createdAt,
           updatedAt: createdAt,
           result: null,
           failure: null,
+          retriedFrom: null,
+          process: () => completeChat(request, input.content),
         };
         requests.set(request.id, request);
-        const accepted = publicRequest(request);
-        completeChat(request, input.content);
-        return ok(accepted, 202, location(request.id));
+        return ok(publicRequest(request), 202, location(request.id));
       },
     )
     .on('GET', '/ai/requests/{requestId}', ({ params }) =>
-      ok(publicRequest(ownedRequest(params.requestId!, requireSession()))),
+      ok(
+        publicRequest(
+          settle(ownedRequest(params.requestId!, requireSession())),
+        ),
+      ),
     )
-    // [출처 4] 실패한 현재 시도만 재시도
+    // [출처 4] 실패한 현재 시도만 재시도. 같은 실패 시도의 겹친 재시도는 하나의 다음 시도로 수렴
     .on('POST', '/ai/requests/{requestId}/retries', ({ params, body }) => {
       const request = ownedRequest(params.requestId!, requireSession());
       const input = validate(AiRetry, body);
-      if (request.status !== 'failed' || !request.failure?.retryable)
-        conflict('REQUEST_NOT_RETRYABLE', '재시도할 수 없는 요청이에요.');
+      if (request.retriedFrom === input.expectedAttempt)
+        return ok(publicRequest(request), 202, location(request.id));
       if (input.expectedAttempt !== request.attempt)
         conflict('ATTEMPT_CONFLICT', '현재 시도와 맞지 않아요.');
+      if (request.status !== 'failed' || !request.failure?.retryable)
+        conflict('REQUEST_NOT_RETRYABLE', '재시도할 수 없는 요청이에요.');
       Object.assign(request, {
         attempt: request.attempt + 1,
+        retriedFrom: request.attempt,
         status: 'pending',
         failure: null,
         updatedAt: nowIso(),
@@ -394,7 +447,7 @@ export function registerNotificationAndAiRoutes(router: MockRouter) {
         Object.assign(request, { status: 'canceled', updatedAt: nowIso() });
       return ok(publicRequest(request));
     })
-    // [출처 5] 기존 지원서 AI 검토
+    // [출처 5] 기존 지원서 AI 검토. 202 pending으로 접수하고 조회 시 처리
     .on('POST', '/applications/{applicationId}/ai-reviews', ({ params }) => {
       const accountId = requireSession();
       const application = receivedApplication(params.applicationId!, accountId);
@@ -405,42 +458,23 @@ export function registerNotificationAndAiRoutes(router: MockRouter) {
         )
       )
         conflict('REQUEST_ALREADY_RUNNING', '이전 검토가 아직 처리 중이에요.');
-      const profile = profileOf(application.applicantAccountId)!;
       const now = nowIso();
-      const request = {
+      const request: AiRequestRecord = {
         id: newId(),
         ownerAccountId: accountId,
-        purpose: 'applicant_review' as const,
+        purpose: 'applicant_review',
         conversationId: null,
         messageId: null,
         teamId: application.teamId,
         applicationId: application.id,
         attempt: 1,
-        status: 'succeeded' as AiRequest['status'],
+        status: 'pending',
         createdAt: now,
         updatedAt: now,
-        result: {
-          kind: 'applicant_review' as const,
-          applicationId: application.id,
-          summary: `${profile.realName} 님의 최신 프로필과 지원 메시지를 바탕으로 정리했어요.`,
-          evidence: [
-            application.message ?? '지원 메시지가 없어요.',
-            profile.introduction ?? '자기소개가 없어요.',
-          ],
-          profileVersions: [
-            {
-              accountId: profile.accountId,
-              usedVersion: profile.version,
-              currentVersion: profile.version,
-            },
-          ],
-          isStale: false,
-          isSelectionCandidate: ['submitted', 'reviewing'].includes(
-            application.status,
-          ),
-          generatedAt: now,
-        },
+        result: null,
         failure: null,
+        retriedFrom: null,
+        process: () => completeReview(request, application.id),
       };
       requests.set(request.id, request);
       return ok(publicRequest(request), 202, location(request.id));
@@ -455,58 +489,112 @@ export function registerNotificationAndAiRoutes(router: MockRouter) {
       const latest = [...requests.values()]
         .filter((item) => item.applicationId === application!.id)
         .at(-1);
-      return ok(publicRequest(latest ?? notFound()));
+      return ok(publicRequest(settle(latest ?? notFound())));
     })
-    // [출처 5] 자기 팀의 유효 지원자 중 새 선발 후보
+    // [출처 5] 자기 팀의 유효 지원자 중 새 선발 후보. 같은 팀의 진행 요청이 있으면 409
     .on('POST', '/teams/{teamId}/applicant-recommendations', ({ params }) => {
       const accountId = requireSession();
       const team = teamById(params.teamId!) ?? notFound();
       if (team.ownerAccountId !== accountId) forbidden();
-      const now = nowIso();
-      const candidates = db()
-        .applications.filter(
+      if (
+        [...requests.values()].some(
           (item) =>
+            item.purpose === 'applicant_recommendation' &&
             item.teamId === team.id &&
-            ['submitted', 'reviewing'].includes(item.status),
+            item.status === 'pending',
         )
-        .map((item) => {
-          const profile = profileOf(item.applicantAccountId)!;
-          return {
-            applicationId: item.id,
-            reason: `${profile.realName} 님의 희망 역할이 지원 역할과 맞아요.`,
-            profileVersion: {
-              accountId: profile.accountId,
-              usedVersion: profile.version,
-              currentVersion: profile.version,
-            },
-          };
-        });
-      const request = {
+      )
+        conflict(
+          'REQUEST_ALREADY_RUNNING',
+          '이전 후보 요청이 아직 처리 중이에요.',
+        );
+      const now = nowIso();
+      const request: AiRequestRecord = {
         id: newId(),
         ownerAccountId: accountId,
-        purpose: 'applicant_recommendation' as const,
+        purpose: 'applicant_recommendation',
         conversationId: null,
         messageId: null,
         teamId: team.id,
         applicationId: null,
         attempt: 1,
-        status: (candidates.length
-          ? 'succeeded'
-          : 'empty') as AiRequest['status'],
+        status: 'pending',
         createdAt: now,
         updatedAt: now,
-        result: {
-          kind: 'applicant_recommendation' as const,
-          summary: candidates.length
-            ? '현재 유효한 지원자 중 후보를 정리했어요.'
-            : '지금 선발을 검토할 유효한 지원자가 없어요.',
-          candidates,
-          isStale: false,
-          generatedAt: now,
-        },
+        result: null,
         failure: null,
+        retriedFrom: null,
+        process: () => completeRecommendation(request, team.id),
       };
       requests.set(request.id, request);
       return ok(publicRequest(request), 202, location(request.id));
     });
+}
+
+// [출처 5, 6] 지원자 검토 결과: 최신 프로필과 지원 메시지 근거
+function completeReview(request: AiRequestRecord, applicationId: string) {
+  const application = db().applications.find(
+    (item) => item.id === applicationId,
+  )!;
+  const profile = profileOf(application.applicantAccountId)!;
+  const now = nowIso();
+  Object.assign(request, {
+    status: 'succeeded',
+    updatedAt: now,
+    failure: null,
+    result: {
+      kind: 'applicant_review',
+      applicationId: application.id,
+      summary: `${profile.realName} 님의 최신 프로필과 지원 메시지를 바탕으로 정리했어요.`,
+      evidence: [
+        application.message ?? '지원 메시지가 없어요.',
+        profile.introduction ?? '자기소개가 없어요.',
+      ],
+      profileVersions: [
+        {
+          accountId: profile.accountId,
+          usedVersion: profile.version,
+          currentVersion: profile.version,
+        },
+      ],
+      isStale: false,
+      isSelectionCandidate: isSelectionCandidate(application),
+      generatedAt: now,
+    },
+  });
+}
+
+// [출처 5, 7] 새 후보: 자기 팀의 submitted·reviewing 중 같은 공모전 확정 소속이 없는 지원자
+function completeRecommendation(request: AiRequestRecord, teamId: string) {
+  const now = nowIso();
+  const candidates = db()
+    .applications.filter(
+      (item) => item.teamId === teamId && isSelectionCandidate(item),
+    )
+    .map((item) => {
+      const profile = profileOf(item.applicantAccountId)!;
+      return {
+        applicationId: item.id,
+        reason: `${profile.realName} 님의 희망 역할이 지원 역할과 맞아요.`,
+        profileVersion: {
+          accountId: profile.accountId,
+          usedVersion: profile.version,
+          currentVersion: profile.version,
+        },
+      };
+    });
+  Object.assign(request, {
+    status: candidates.length ? 'succeeded' : 'empty',
+    updatedAt: now,
+    failure: null,
+    result: {
+      kind: 'applicant_recommendation',
+      summary: candidates.length
+        ? '현재 유효한 지원자 중 후보를 정리했어요.'
+        : '지금 선발을 검토할 유효한 지원자가 없어요.',
+      candidates,
+      isStale: false,
+      generatedAt: now,
+    },
+  });
 }

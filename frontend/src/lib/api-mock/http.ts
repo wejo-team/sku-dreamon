@@ -3,12 +3,14 @@
  * 1. docs/api/conventions.md#success-responses - Success·Page 구조와 HTTP 상태, 204 본문 없음, 202 Location
  * 2. docs/api/conventions.md#errors - Error{error{code,message},requestId}, 422 detail[]{loc,msg,type}
  * 3. docs/api/conventions.md#pagination - page·pageSize 기본 1·20, 범위 밖 422, 마지막 페이지 보정, totalPages
+ * 4. docs/api/conventions.md#types - 경로의 리소스 ID는 Id(UUID), 형식 오류는 422
+ * 5. docs/api/conventions.md#errors - 공통 오류 코드 표(정의되지 않은 경로·메서드는 404 RESOURCE_NOT_FOUND로 처리)
  *
  * 목업 서버의 요청 라우팅과 응답 작성 도우미입니다. 실제 서버를 대신하는 개발용 코드이며 운영 빌드에 포함되지 않습니다.
  */
 
 import type { z } from 'zod';
-import type { PageMeta } from '@/lib/api-contract';
+import { Id, type PageMeta } from '@/lib/api-contract';
 
 export type MockContext = {
   method: string;
@@ -79,17 +81,19 @@ export const forbidden = (): never =>
 export const conflict = (code: string, message: string): never =>
   fail(409, code, message);
 
-// [출처 2] Zod 검증 실패 → 422 detail[]. loc는 body·query로 시작
+// [출처 2] Zod 검증 실패 → 422 detail[]. loc는 body·query·path로 시작하고 필드 이름을 포함합니다.
+// 단일 query·path 값을 검증할 때는 field에 그 이름을 넘깁니다.
 export function validate<T extends z.ZodTypeAny>(
   schema: T,
   value: unknown,
   location: 'body' | 'query' | 'path' = 'body',
+  field?: string,
 ): z.infer<T> {
   const result = schema.safeParse(value);
   if (result.success) return result.data;
   throw new MockValidationError(
     result.error.issues.map((issue) => ({
-      loc: [location, ...issue.path],
+      loc: [location, ...(field ? [field] : []), ...issue.path],
       msg: issue.message,
       type: issue.code,
     })),
@@ -161,12 +165,9 @@ export class MockRouter {
     query: URLSearchParams,
     body: unknown,
   ) {
-    let pathMatched = false;
     for (const route of this.routes) {
       const match = route.pattern.exec(path);
-      if (!match) continue;
-      pathMatched = true;
-      if (route.method !== method) continue;
+      if (!match || route.method !== method) continue;
       const params = Object.fromEntries(
         route.keys.map((key, index) => [
           key,
@@ -174,6 +175,9 @@ export class MockRouter {
         ]),
       );
       try {
+        // [출처 4] 경로의 리소스 ID 형식 검사
+        for (const [key, value] of Object.entries(params))
+          validate(Id, value, 'path', key);
         return await route.handler({ method, path, params, query, body });
       } catch (error) {
         if (error instanceof MockHttpError)
@@ -183,8 +187,7 @@ export class MockRouter {
         throw error;
       }
     }
-    return pathMatched
-      ? errorResponse(405, 'METHOD_NOT_ALLOWED', '지원하지 않는 메서드예요.')
-      : errorResponse(404, 'RESOURCE_NOT_FOUND', '정의되지 않은 경로예요.');
+    // [출처 5] 문서 오류 코드 표에 없는 405 대신, 계약에 없는 경로·메서드 조합은 404로 응답
+    return errorResponse(404, 'RESOURCE_NOT_FOUND', '정의되지 않은 경로예요.');
   }
 }

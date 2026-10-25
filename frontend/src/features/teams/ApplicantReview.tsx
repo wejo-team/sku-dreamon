@@ -21,10 +21,10 @@ import {
 import { isPending } from '@/features/demo/team-state';
 import {
   ApplicantReviewContext,
-  type ApplicantReviewResult,
+  type ApplicantReviewFacts,
 } from '@/features/demo/applicant-review-state';
 
-type Review = ApplicantReviewResult;
+type Review = ApplicantReviewFacts;
 
 // Local reference output deliberately quotes current registered information;
 // it is not a scoring model or a decision about a production LLM architecture.

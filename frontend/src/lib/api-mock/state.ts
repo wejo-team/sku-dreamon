@@ -84,6 +84,21 @@ export function assertVersion(current: string, expected: string) {
 export const bumpVersion = (version: string) =>
   (BigInt(version) + 1n).toString();
 
+// [출처 3] 정규화한 초기 입력의 비교 키: 문자열 앞뒤 공백 제거, 객체 키 정렬, undefined 제외
+function canonical(value: unknown): unknown {
+  if (typeof value === 'string') return value.trim();
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, item]) => item !== undefined)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, item]) => [key, canonical(item)]),
+    );
+  return value;
+}
+const canonicalKey = (value: unknown) => JSON.stringify(canonical(value));
+
 // [출처 3] 같은 생성 시도 판별: 인증 주체·경로·정규화한 본문
 export function idempotent(
   requestId: string,
@@ -91,7 +106,7 @@ export function idempotent(
   route: string,
   body: unknown,
 ): { replayOf: string | null; remember: (resourceId: string) => void } {
-  const bodyKey = JSON.stringify(body);
+  const bodyKey = canonicalKey(body);
   const existing = state.idempotency.get(requestId);
   if (existing) {
     if (

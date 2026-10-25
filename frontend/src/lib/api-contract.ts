@@ -6,6 +6,9 @@
  * 4. docs/api/conventions.md#errors - Error·ErrorDetail·ValidationError·ValidationIssue
  * 5. docs/api/conventions.md#versioned-action - VersionedAction
  * 6. docs/development/frontend.md - 「API와 query」 응답을 Zod로 검증한 뒤 같은 camelCase 이름으로 사용
+ * 7. docs/api/teams.md#deadline-input - 실제 달력 날짜, IANA 시간대 또는 명시적 UTC offset
+ * 8. docs/api/contests.md#contest-summary, docs/api/teams.md#team-summary - 코드 목록은 중복 없음
+ * 9. docs/api/profiles.md#profile-fields - 텍스트 길이는 앞뒤 공백 제거 후 계산
  *
  * 타입 이름은 문서 표기를 그대로 따릅니다. 응답 객체는 strict로 선언하지 않은 키를 거부합니다
  * (출처 1 「선언하지 않은 객체 필드는 요청·응답 계약에 없습니다」).
@@ -117,11 +120,45 @@ export function parseWith<T extends z.ZodTypeAny>(
   return schema.parse(body);
 }
 
-// 날짜(YYYY-MM-DD) 문자열
+// [출처 7] 날짜(YYYY-MM-DD) 문자열. 2026-02-30처럼 달력에 없는 날짜는 거부합니다.
 export const DateString = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .refine(
-    (value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)),
-    '실제 달력 날짜여야 합니다.',
+  .refine((value) => {
+    const [year, month, day] = value.split('-').map(Number) as [
+      number,
+      number,
+      number,
+    ];
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    );
+  }, '실제 달력 날짜여야 합니다.');
+
+// [출처 7] IANA 시간대(예: Asia/Seoul) 또는 명시적 UTC offset(예: +09:00, Z)
+export const TimeZoneName = z.string().refine((value) => {
+  if (/^(Z|UTC|[+-](0\d|1[0-4]):[0-5]\d)$/.test(value)) return true;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return value.includes('/');
+  } catch {
+    return false;
+  }
+}, 'IANA 시간대 또는 UTC offset이어야 합니다.');
+
+// [출처 8] 중복 없는 코드 배열
+export const uniqueCodes = (schema: z.ZodArray<z.ZodString>) =>
+  schema.refine(
+    (items) => new Set(items).size === items.length,
+    '중복 없이 선택해야 합니다.',
   );
+
+// [출처 9] 앞뒤 공백 제거 후 길이를 검사하는 텍스트(코드포인트 기준). 원문은 그대로 둡니다.
+export const trimmedText = (min: number, max: number) =>
+  z.string().refine((value) => {
+    const length = [...value.trim()].length;
+    return length >= min && length <= max;
+  }, `앞뒤 공백 제거 후 ${min}~${max}자여야 합니다.`);

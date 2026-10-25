@@ -21,6 +21,7 @@ import {
   Version,
   page,
   success,
+  trimmedText,
 } from '@/lib/api-contract';
 
 const unique = (codes: string[]) => new Set(codes).size === codes.length;
@@ -36,21 +37,21 @@ export type ExperienceState = z.infer<typeof ExperienceState>;
 
 // [출처 5] 객체가 있으면 두 키 모두 포함. 제거는 portfolio: null
 export const Portfolio = z
-  .object({ url: HttpUrl, title: z.string().max(50).nullable() })
+  .object({ url: HttpUrl, title: trimmedText(0, 50).nullable() })
   .strict();
 export type Portfolio = z.infer<typeof Portfolio>;
 
 // [출처 3] 13개 키. 선택 입력도 키를 생략하지 않고 null 또는 []
 export const profileFields = {
-  realName: z.string().min(1).max(50),
+  realName: trimmedText(1, 50),
   profileImageCode: CatalogCode.nullable(),
   academicStatusCode: CatalogCode.nullable(),
   gradeCode: CatalogCode.nullable(),
   weeklyAvailabilityCode: CatalogCode.nullable(),
   academicUnitId: PositiveBigInt.nullable(),
   experienceState: ExperienceState,
-  experienceBody: z.string().max(500).nullable(),
-  introduction: z.string().max(300).nullable(),
+  experienceBody: trimmedText(0, 500).nullable(),
+  introduction: trimmedText(0, 300).nullable(),
   fieldCodes: codeList(1, 3),
   roleCodes: codeList(1, 2),
   skillCodes: codeList(0),
@@ -102,10 +103,10 @@ export type VisibilityWrite = z.infer<typeof VisibilityWrite>;
 export const PersonSummary = z
   .object({
     accountId: Id,
-    realName: z.string().min(1).max(50),
+    realName: trimmedText(1, 50),
     isDemo: z.boolean(),
     profileImageCode: CatalogCode.nullable(),
-    introduction: z.string().max(300).nullable(),
+    introduction: trimmedText(0, 300).nullable(),
     fieldCodes: codeList(1, 3),
     roleCodes: codeList(1, 2),
     skillCodes: codeList(0),

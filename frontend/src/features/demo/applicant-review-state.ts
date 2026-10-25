@@ -8,8 +8,9 @@
 
 import { createContext } from 'react';
 
-export type ApplicantReviewResult = { label: string; value: string }[];
+// 화면 데모용 검토 항목 목록. API DTO ApplicantReviewResult(docs/api/ai.md#result-fields)와 다른 모양이라 이름을 구분합니다.
+export type ApplicantReviewFacts = { label: string; value: string }[];
 export const ApplicantReviewContext = createContext<{
-  results: Record<string, ApplicantReviewResult>;
-  save: (id: string, result: ApplicantReviewResult) => void;
+  results: Record<string, ApplicantReviewFacts>;
+  save: (id: string, result: ApplicantReviewFacts) => void;
 } | null>(null);

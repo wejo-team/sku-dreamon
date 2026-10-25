@@ -112,14 +112,15 @@ export async function apiRequest(
   return (await apiRequestWithResponse(path, options)).body;
 }
 
-// query 객체를 문자열로 만듭니다. undefined·null은 생략(기본값 적용)합니다.
+// query 객체를 문자열로 만듭니다. undefined·null·빈 문자열은 생략(기본값 적용)합니다.
+// docs/api/conventions.md#types: CatalogCode 등은 길이 1 이상이라 `fieldCode=`는 유효한 값이 아닙니다.
 export function withQuery(
   path: string,
   query: Record<string, string | number | boolean | null | undefined> = {},
 ) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value === undefined || value === null) continue;
+    if (value === undefined || value === null || value === '') continue;
     params.set(key, String(value));
   }
   const search = params.toString();

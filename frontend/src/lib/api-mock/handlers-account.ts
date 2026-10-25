@@ -8,11 +8,14 @@
  * 6. docs/api/profiles.md#experience - 경험 상태·본문 정규화
  * 7. docs/api/profiles.md#directory-endpoints - 공개 프로필만, 정렬 updatedAt DESC, accountId ASC
  * 8. docs/design/handoff.md - 공개 UI 확인용 계정(dreamondemo)은 실제 계정이 아님
+ * 9. docs/api/catalogs.md#academic-unit - 저장 시 학사 항목의 존재·부모 경로·선택 가능 여부 검증, 기존 비활성 소속 유지 허용
+ * 10. docs/api/profiles.md#portfolio - 제목은 앞뒤 공백 제거 후 최대 50자
  */
 
 import { z } from 'zod';
 import { Credentials, type Account } from '@/features/auth/api';
 import { RegistrationStatus } from '@/features/contests/api';
+import { CatalogCode } from '@/lib/api-contract';
 import {
   ProfileWrite,
   VisibilityWrite,
@@ -142,7 +145,11 @@ export function registerAccountRoutes(router: MockRouter) {
     // [출처 4] 공모전 목록: 제목·주최자·분야 표시명 검색
     .on('GET', '/contests', ({ query }) => {
       const q = searchText(query);
-      const fieldCode = query.get('fieldCode');
+      const fieldCode = parseOptionalQuery(
+        CatalogCode,
+        query.get('fieldCode'),
+        'fieldCode',
+      );
       const sort = query.get('sort') ?? 'created_desc';
       if (!['created_desc', 'deadline_asc'].includes(sort))
         invalid(['query', 'sort'], 'sort 값이 올바르지 않아요.');
@@ -150,7 +157,12 @@ export function registerAccountRoutes(router: MockRouter) {
       const status =
         statusRaw === null
           ? null
-          : validate(RegistrationStatus, statusRaw, 'query');
+          : validate(
+              RegistrationStatus,
+              statusRaw,
+              'query',
+              'registrationStatus',
+            );
       const fieldName = (code: string) =>
         db().catalogs.fields.find((item) => item.code === code)?.displayName ??
         '';
@@ -203,9 +215,13 @@ export function registerAccountRoutes(router: MockRouter) {
               'INVALID_CATALOG_SELECTION',
               '선택지를 다시 확인해 주세요.',
             );
+      // [출처 9] 학사 항목의 존재·부모 경로·선택 가능 여부. 기존 비활성 소속을 그대로 두는 저장은 허용
       if (
         write.academicUnitId !== null &&
-        !db().academicUnits.some((unit) => unit.id === write.academicUnitId)
+        !academicPathValid(
+          write.academicUnitId,
+          write.academicUnitId === existing?.academicUnitId,
+        )
       )
         conflict('INVALID_ACADEMIC_PATH', '학사 정보를 다시 확인해 주세요.');
       // [출처 6] 공백 제거 후 빈 본문은 unspecified·null
@@ -224,7 +240,11 @@ export function registerAccountRoutes(router: MockRouter) {
         fieldCodes: write.fieldCodes,
         roleCodes: write.roleCodes,
         skillCodes: write.skillCodes,
-        portfolio: write.portfolio,
+        // [출처 10] 포트폴리오 제목도 앞뒤 공백 제거, 빈 값은 null
+        portfolio: write.portfolio && {
+          url: write.portfolio.url,
+          title: write.portfolio.title?.trim() || null,
+        },
         introduction: write.introduction?.trim() || null,
         experienceState,
         experienceBody: experienceState === 'provided' ? body500 : null,
@@ -262,8 +282,16 @@ export function registerAccountRoutes(router: MockRouter) {
     .on('GET', '/people', ({ query }) => {
       requireSession();
       const q = searchText(query);
-      const fieldCode = query.get('fieldCode');
-      const roleCode = query.get('roleCode');
+      const fieldCode = parseOptionalQuery(
+        CatalogCode,
+        query.get('fieldCode'),
+        'fieldCode',
+      );
+      const roleCode = parseOptionalQuery(
+        CatalogCode,
+        query.get('roleCode'),
+        'roleCode',
+      );
       const label = (list: 'fields' | 'roles' | 'skills', code: string) =>
         db().catalogs[list].find((item) => item.code === code)?.displayName ??
         '';
@@ -315,6 +343,20 @@ export const pageResponse = (body: unknown) =>
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
+
+// [출처 9] 루트(단과대학)까지 부모 연결이 이어지고 최대 3단계인지, 새 선택이면 경로 전체가 선택 가능한지
+function academicPathValid(unitId: string, keepsExisting: boolean) {
+  const units = db().academicUnits;
+  let current = units.find((unit) => unit.id === unitId);
+  for (let depth = 0; current; depth++) {
+    if (depth >= 3) return false;
+    if (!keepsExisting && !current.isSelectable) return false;
+    if (current.parentId === null) return true;
+    const parentId: string = current.parentId;
+    current = units.find((unit) => unit.id === parentId);
+  }
+  return false;
+}
 
 export const parseOptionalQuery = <T extends z.ZodTypeAny>(
   schema: T,

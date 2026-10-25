@@ -18,11 +18,13 @@ import {
   PositiveBigInt,
   PositiveSafeInteger,
   SafeInteger,
+  TimeZoneName,
   Timestamp,
   Version,
   VersionedAction,
   page,
   success,
+  uniqueCodes,
 } from '@/lib/api-contract';
 import {
   ContestSummary,
@@ -47,7 +49,7 @@ export const DeadlineInput = z
       .regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/)
       .nullable()
       .optional(),
-    timeZone: z.string().nullable().optional(),
+    timeZone: TimeZoneName.nullable().optional(),
   })
   .strict();
 export type DeadlineInput = z.infer<typeof DeadlineInput>;
@@ -82,8 +84,8 @@ export const TeamSummary = z
     contestTitle: z.string(),
     name: z.string(),
     introduction: z.string(),
-    fieldCodes: z.array(CatalogCode).max(3),
-    roleCodes: z.array(CatalogCode).max(6),
+    fieldCodes: uniqueCodes(z.array(CatalogCode).max(3)),
+    roleCodes: uniqueCodes(z.array(CatalogCode).max(6)),
     capacity: PositiveBigInt,
     memberCount: PositiveSafeInteger,
     recruitmentState: RecruitmentState,

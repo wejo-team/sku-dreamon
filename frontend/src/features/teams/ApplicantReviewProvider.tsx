@@ -10,7 +10,7 @@ import { useState, type ReactNode } from 'react';
 import { useDemo } from '@/features/demo/demo-context';
 import {
   ApplicantReviewContext,
-  type ApplicantReviewResult,
+  type ApplicantReviewFacts,
 } from '@/features/demo/applicant-review-state';
 
 // [출처 2] 현재 세션의 검토 결과 보관
@@ -24,7 +24,7 @@ export function ApplicantReviewProvider({ children }: { children: ReactNode }) {
 }
 
 function ReviewSession({ children }: { children: ReactNode }) {
-  const [results, setResults] = useState<Record<string, ApplicantReviewResult>>(
+  const [results, setResults] = useState<Record<string, ApplicantReviewFacts>>(
     {},
   );
   return (

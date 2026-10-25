@@ -22,6 +22,7 @@ import {
   Version,
   page,
   success,
+  uniqueCodes,
 } from '@/lib/api-contract';
 
 // [출처 3]
@@ -41,7 +42,7 @@ export const ContestSummary = z
     id: Id,
     title: z.string(),
     organizer: z.string(),
-    fieldCodes: z.array(CatalogCode).max(3),
+    fieldCodes: uniqueCodes(z.array(CatalogCode).max(3)),
     posterUrl: HttpUrl.nullable(),
     registrationStatus: RegistrationStatus,
     startsAt: Timestamp,
@@ -128,7 +129,15 @@ export const Contest = ContestSummary.extend({
   contact: z.string().nullable(),
   verifiedAt: Timestamp,
   sourceUrl: HttpUrl,
-}).strict();
+})
+  .strict()
+  // [출처 7] timing.startsAt·endsAt은 상위 Contest의 같은 이름 필드와 같은 경계
+  .refine(
+    (value) =>
+      value.timing.startsAt === value.startsAt &&
+      value.timing.endsAt === value.endsAt,
+    { path: ['timing'], message: '접수 일정 경계가 상위 값과 다릅니다.' },
+  );
 export type Contest = z.infer<typeof Contest>;
 
 // [출처 2] 목록 조건. 모두 선택 입력

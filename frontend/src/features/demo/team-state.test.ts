@@ -388,14 +388,16 @@ describe('team reference transitions', () => {
       contestId: c.campus,
       roleCodes: ['planning'],
       capacity: 4,
-      recruitmentDeadline: '2026-11-01',
+      recruitmentDeadline: { date: '2026-11-01' },
     };
     const message = (patch: Partial<NewTeamInput>) =>
       createTeamIssue({ ...input, ...patch }, db, ME)?.message;
     expect(createTeamIssue(input, db, ME)).toBeNull();
     expect(message({ capacity: 1 })).toMatch(/공식 참가 인원/);
     expect(message({ capacity: 100 })).toMatch(/공식 참가 인원/);
-    expect(message({ recruitmentDeadline: '2026-12-01' })).toMatch(/마감/);
+    expect(message({ recruitmentDeadline: { date: '2026-12-01' } })).toMatch(
+      /마감/,
+    );
     expect(message({ contestId: c.green })).toMatch(/이미/);
   });
 });
@@ -464,7 +466,7 @@ describe('normalized team policies', () => {
     contestId: c.campus,
     roleCodes: ['planning'],
     capacity: 3,
-    recruitmentDeadline: '2026-11-01',
+    recruitmentDeadline: { date: '2026-11-01' },
   };
   const message = (patch: Partial<NewTeamInput>) =>
     createTeamIssue({ ...input, ...patch }, state(), ME)?.message ?? null;
