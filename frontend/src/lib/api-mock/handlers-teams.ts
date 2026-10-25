@@ -1,13 +1,15 @@
 /**
  * [참조 출처]
  * 1. docs/api/teams.md#endpoints, #queries - 팀 탐색·생성·워크스페이스, 검색 대상과 정렬 createdAt DESC, id DESC
- * 2. docs/api/teams.md#team-create - 생성 트랜잭션: 팀·팀장 소속, 같은 공모전 본인 대기 지원 폐기(team_created_elsewhere)
+ * 2. docs/api/teams.md#team-create - 생성 트랜잭션: 팀·팀장 소속, 같은 공모전 본인 대기 지원 폐기
  * 3. docs/api/teams.md#team-member - 프로필은 본인·공개·지원받은 팀장에게만
- * 4. docs/api/teams.md#transitions - 모집 종료·재개 전이, no-op 200, 409 코드
+ * 4. docs/api/teams.md#transitions - 모집 종료·재개 전이, 버전 먼저 비교, no-op 200
  * 5. docs/api/applications.md#endpoints - 지원 9개 API, 관계 밖 404·행동 권한 403
- * 6. docs/api/applications.md#transitions - 검토 시작·미선발·선발·취소 전이, 선발 시 다른 대기 지원 폐기, 정원 충족 시 마감
- * 7. docs/api/applications.md#application-create - 신규 지원 조건과 409 코드
- * 8. docs/api/applications.md#application - 원인 ID는 본인에게만, 받은 팀장에게는 null
+ * 6. docs/api/applications.md#transitions - 검토 시작·미선발·선발·취소 전이와 no-op 200
+ * 7. docs/api/applications.md#application - 원인 ID는 본인에게만, 받은 팀장에게는 null
+ * 8. docs/api/conventions.md#errors - 업무 코드별 HTTP 상태(401·403·404·409·422)
+ *
+ * 상태 전이 규칙은 화면과 같은 features/demo/team-state를 사용하고, 여기서는 HTTP 계약(버전·재전송·no-op·상태 코드)만 담당합니다.
  */
 
 import {
@@ -16,19 +18,32 @@ import {
   type Application,
 } from '@/features/applications/api';
 import { TeamCreate } from '@/features/teams/api';
+import { toTeamSummary } from '@/features/demo/fixtures';
 import {
-  currentMemberships,
-  toTeamMember,
-  toTeamSummary,
-  type MembershipRecord,
-  type TeamRecord,
-} from '@/features/demo/fixtures';
+  appendNotifications,
+  transitionNotifications,
+} from '@/features/demo/notification-state';
+import {
+  applyToTeam,
+  cancelTeamApplication,
+  closeTeamRecruitment,
+  createDemoTeam,
+  hasMembershipInContest,
+  isPending,
+  rejectTeamApplicant,
+  reopenTeamRecruitment,
+  selectTeamApplicant,
+  startApplicantReview,
+  teamMembers,
+  type Transition,
+} from '@/features/demo/team-state';
 import { VersionedAction } from '@/lib/api-contract';
 import {
   MockRouter,
   booleanQuery,
-  conflict,
+  fail,
   forbidden,
+  invalid,
   notFound,
   ok,
   paginate,
@@ -41,15 +56,11 @@ import {
 } from '@/lib/api-mock/handlers-account';
 import {
   assertVersion,
-  bumpVersion,
-  catalogHas,
   contestById,
   db,
-  hasMembershipInContest,
   idempotent,
   isCurrentMember,
   newId,
-  notifyApplication,
   nowIso,
   profileOf,
   requireSession,
@@ -59,7 +70,33 @@ import {
   teamSummary,
 } from '@/lib/api-mock/state';
 
-const PENDING: Application['status'][] = ['submitted', 'reviewing'];
+// [출처 8] 업무 코드 → HTTP 상태
+const STATUS: Record<string, number> = {
+  RESOURCE_NOT_FOUND: 404,
+  FORBIDDEN: 403,
+  UNAUTHENTICATED: 401,
+  VALIDATION_ERROR: 422,
+};
+
+// 전이를 적용하고 그 변경의 알림을 함께 기록합니다. 실패는 같은 코드로 응답합니다.
+function commit(transition: Transition) {
+  if ('error' in transition) {
+    const { code, message } = transition.error;
+    if (code === 'VALIDATION_ERROR') invalid(['body'], message);
+    fail(STATUS[code] ?? 409, code, message);
+  }
+  const next = (transition as { db: typeof state.db }).db;
+  const additions = transitionNotifications(
+    state.db,
+    next,
+    `mock-${++state.sequence}`,
+    nowIso(),
+  );
+  state.db = {
+    ...next,
+    notifications: appendNotifications(next.notifications, additions),
+  };
+}
 
 function teamList(query: URLSearchParams, contestId: string | null) {
   const q = searchText(query);
@@ -95,21 +132,11 @@ function teamList(query: URLSearchParams, contestId: string | null) {
   return pageResponse(paginate(items, query));
 }
 
-function pendingCount(teamId: string) {
-  return db().applications.filter(
-    (item) => item.teamId === teamId && PENDING.includes(item.status),
-  ).length;
-}
+const pendingCount = (teamId: string) =>
+  db().applications.filter((item) => item.teamId === teamId && isPending(item))
+    .length;
 
-// [출처 3] 지원받은 팀장은 해당 지원자 프로필 열람 가능
-const receivedApplicationFrom = (teamOwner: string, applicantId: string) =>
-  db().applications.some(
-    (item) =>
-      item.applicantAccountId === applicantId &&
-      teamById(item.teamId)?.ownerAccountId === teamOwner,
-  );
-
-// [출처 8] 원인 ID는 지원자 본인에게만 제공
+// [출처 7] 원인 ID는 지원자 본인에게만 제공
 function viewApplication(
   application: Application,
   viewer: string,
@@ -131,54 +158,37 @@ function relatedApplication(applicationId: string, viewer: string) {
   return { application, isOwner: owner === viewer };
 }
 
-function replaceApplication(next: Application) {
-  db().applications = db().applications.map((item) =>
-    item.id === next.id ? next : item,
-  );
-  return next;
+const findApplication = (applicationId: string) =>
+  db().applications.find((item) => item.id === applicationId)!;
+
+function applicant(application: Application, viewer: string) {
+  return {
+    application: viewApplication(application, viewer),
+    profile: profileOf(application.applicantAccountId)!,
+    isSelectionCandidate:
+      isPending(application) &&
+      !hasMembershipInContest(
+        db(),
+        application.contestId,
+        application.applicantAccountId,
+      ),
+  };
 }
 
-function updateTeam(next: TeamRecord) {
-  db().teams = db().teams.map((item) => (item.id === next.id ? next : item));
-}
-
-// [출처 2, 6] 같은 공모전에서 해당 계정의 다른 대기 지원을 폐기
-function discardPending(
-  accountId: string,
-  contestId: string,
-  except: string | null,
-  reason: Application['discardReason'],
-  cause: { applicationId?: string; teamId?: string },
+// [출처 6] 받은 팀장의 버전 있는 행동. 버전을 먼저 비교하고, 이미 목표 상태면 no-op 200
+function ownerAction(
+  applicationId: string,
+  body: unknown,
+  target: Application['status'],
+  run: (accountId: string) => Transition,
 ) {
-  for (const item of db().applications) {
-    if (
-      item.applicantAccountId !== accountId ||
-      item.contestId !== contestId ||
-      item.id === except ||
-      !PENDING.includes(item.status)
-    )
-      continue;
-    const discarded = replaceApplication({
-      ...item,
-      status: 'discarded',
-      discardReason: reason,
-      discardedByApplicationId: cause.applicationId ?? null,
-      discardedByTeamId: cause.teamId ?? null,
-      version: bumpVersion(item.version),
-      updatedAt: nowIso(),
-    });
-    notifyApplication(discarded);
-  }
-}
-
-function capacityAllowed(contestId: string, capacity: bigint) {
-  const contest = contestById(contestId)!;
-  const min = contest.capacity.minimumMembers;
-  const max = contest.capacity.maximumMembers;
-  if (contest.capacity.kind === 'unknown') return false;
-  if (min && capacity < BigInt(min)) return false;
-  if (max && capacity > BigInt(max)) return false;
-  return true;
+  const accountId = requireSession();
+  const { application, isOwner } = relatedApplication(applicationId, accountId);
+  if (!isOwner) forbidden();
+  const action = validate(VersionedAction, body);
+  assertVersion(application.version, action.expectedVersion);
+  if (application.status !== target) commit(run(accountId));
+  return ok(viewApplication(findApplication(applicationId), accountId));
 }
 
 export function registerTeamRoutes(router: MockRouter) {
@@ -202,71 +212,24 @@ export function registerTeamRoutes(router: MockRouter) {
         input,
       );
       if (attempt.replayOf) return ok(teamById(attempt.replayOf), 200);
-      const contest = contestById(input.contestId) ?? notFound();
-      if (contest.registrationStatus !== 'open')
-        conflict('CONTEST_NOT_OPEN', '공모전 접수 기간이 아니에요.');
-      if (!capacityAllowed(contest.id, BigInt(input.capacity)))
-        conflict(
-          'CAPACITY_OUT_OF_RANGE',
-          '공식 참가 인원 범위를 확인해 주세요.',
-        );
-      if (input.roleCodes.some((code) => !catalogHas('roles', code)))
-        conflict(
-          'INVALID_CATALOG_SELECTION',
-          '모집 역할을 다시 확인해 주세요.',
-        );
-      if (hasMembershipInContest(contest.id, accountId))
-        conflict(
-          'MEMBERSHIP_CONFLICT',
-          '이미 이 공모전의 팀에 소속되어 있어요.',
-        );
+      if (!contestById(input.contestId)) notFound();
       const teamId = newId();
-      const createdAt = nowIso();
-      // 마감 입력: 날짜만 있으면 한국시간 날짜 끝(다음 날 00:00)을 제외 경계로 사용
-      const deadline = input.recruitmentDeadline;
-      const endsAt =
-        deadline.time || deadline.timeZone
-          ? new Date(
-              `${deadline.date}T${deadline.time ?? '23:59:59'}${deadline.timeZone === 'UTC' ? 'Z' : '+09:00'}`,
-            ).toISOString()
-          : new Date(
-              Date.parse(`${deadline.date}T00:00:00+09:00`) + 86_400_000,
-            ).toISOString();
-      const team: TeamRecord = {
-        id: teamId,
-        version: '1',
-        contestId: contest.id,
-        name: input.name,
-        introduction: input.introduction,
-        roleCodes: input.roleCodes,
-        capacity: input.capacity,
-        recruitmentState: input.capacity === '1' ? 'closed' : 'open',
-        closedReason: input.capacity === '1' ? 'capacity_reached' : null,
-        recruitmentEndsAt: endsAt.replace('.000Z', 'Z'),
-        createdAt,
-        recruitmentDeadline: {
-          sourceDate: deadline.date,
-          sourceTime: deadline.time ?? null,
-          sourceTimeZone: deadline.timeZone ?? null,
-          effectiveTimeZone: deadline.timeZone ?? 'Asia/Seoul',
-          timeDefaulted: !deadline.time,
-          timeZoneDefaulted: !deadline.timeZone,
-        },
-        ownerAccountId: accountId,
-      };
-      db().teams.push(team);
-      db().memberships.push({
-        membershipId: newId(),
-        teamId,
-        accountId,
-        membershipRole: 'leader',
-        roleCode: null,
-        joinedAt: createdAt,
-        endedAt: null,
-      });
-      discardPending(accountId, contest.id, null, 'team_created_elsewhere', {
-        teamId,
-      });
+      commit(
+        createDemoTeam(
+          db(),
+          {
+            contestId: input.contestId,
+            name: input.name,
+            introduction: input.introduction,
+            capacity: Number(input.capacity),
+            roleCodes: input.roleCodes,
+            recruitmentDeadline: input.recruitmentDeadline.date,
+          },
+          accountId,
+          { teamId, membershipId: newId() },
+          state.now,
+        ),
+      );
       attempt.remember(teamId);
       return ok(teamById(teamId), 201);
     })
@@ -282,7 +245,7 @@ export function registerTeamRoutes(router: MockRouter) {
             right.joinedAt.localeCompare(left.joinedAt) ||
             right.membershipId.localeCompare(left.membershipId),
         )
-        .map((membership: MembershipRecord) => ({
+        .map((membership) => ({
           team: teamSummary(membership.teamId),
           membershipId: membership.membershipId,
           membershipRole: membership.membershipRole,
@@ -301,141 +264,64 @@ export function registerTeamRoutes(router: MockRouter) {
       if (!isCurrentMember(team.id, accountId)) forbidden();
       const viewerRole =
         team.ownerAccountId === accountId ? 'leader' : 'member';
-      const members = currentMemberships(db().memberships, team.id).map(
-        (membership) =>
-          toTeamMember(
-            membership,
-            db().profiles,
-            (profile) =>
-              profile.accountId === accountId ||
-              profile.isPublic ||
-              receivedApplicationFrom(accountId, profile.accountId),
-          ),
-      );
       return ok({
         team,
-        members,
+        members: teamMembers(db(), team.id, accountId),
         viewerRole,
         pendingApplicationCount:
           viewerRole === 'leader' ? pendingCount(team.id) : null,
       });
     })
-    // [출처 4] 모집 종료
+    // [출처 4] 모집 종료. 이미 closed면 사유를 보존하고 no-op
     .on('PUT', '/teams/{teamId}/recruitment/closure', ({ params, body }) => {
       const accountId = requireSession();
       const record = teamRecord(params.teamId!);
       if (record.ownerAccountId !== accountId) forbidden();
       const action = validate(VersionedAction, body);
       assertVersion(record.version, action.expectedVersion);
-      if (record.recruitmentState === 'closed')
-        return ok({ team: teamSummary(record.id) });
-      updateTeam({
-        ...record,
-        recruitmentState: 'closed',
-        closedReason: 'leader_closed',
-        version: bumpVersion(record.version),
-      });
+      if (record.recruitmentState === 'open')
+        commit(closeTeamRecruitment(db(), record.id, accountId));
       return ok({ team: teamSummary(record.id) });
     })
-    // [출처 4] 모집 재개: 공고 접수·팀 기한·잔여 정원 확인
+    // [출처 4] 모집 재개. 이미 open이며 모집 가능하면 no-op
     .on('PUT', '/teams/{teamId}/recruitment/reopening', ({ params, body }) => {
       const accountId = requireSession();
       const record = teamRecord(params.teamId!);
       if (record.ownerAccountId !== accountId) forbidden();
       const action = validate(VersionedAction, body);
       assertVersion(record.version, action.expectedVersion);
-      const team = teamById(record.id)!;
-      if (record.recruitmentState === 'open') {
-        if (team.isRecruiting) return ok({ team: toTeamSummary(team) });
-        conflict(
-          'INVALID_RECRUITMENT_STATE',
-          '모집을 다시 시작할 수 없는 상태예요.',
-        );
-      }
-      if (contestById(team.contestId)!.registrationStatus !== 'open')
-        conflict('CONTEST_NOT_OPEN', '공모전 접수 기간이 아니에요.');
-      if (state.now >= Date.parse(team.recruitmentEndsAt))
-        conflict('RECRUITMENT_DEADLINE_PASSED', '팀 모집 기한이 지났어요.');
-      if (team.memberCount >= Number(team.capacity))
-        conflict('TEAM_FULL', '팀 정원이 모두 찼어요.');
-      updateTeam({
-        ...record,
-        recruitmentState: 'open',
-        closedReason: null,
-        version: bumpVersion(record.version),
-      });
+      if (!(
+        record.recruitmentState === 'open' && teamById(record.id)!.isRecruiting
+      ))
+        commit(reopenTeamRecruitment(db(), record.id, accountId, state.now));
       return ok({ team: teamSummary(record.id) });
     });
 }
 
 export function registerApplicationRoutes(router: MockRouter) {
   router
-    // [출처 7] 신규 지원
+    // 신규 지원. 첫 접수 201, 같은 시도 재전송 200
     .on('POST', '/teams/{teamId}/applications', ({ params, body }) => {
       const accountId = requireSession();
       const input = validate(ApplicationCreate, body);
       const route = `POST /teams/${params.teamId}/applications`;
       const attempt = idempotent(input.requestId, accountId, route, input);
-      if (attempt.replayOf)
-        return ok(
-          db().applications.find((item) => item.id === attempt.replayOf),
-          200,
-        );
-      const team = teamById(params.teamId!) ?? notFound();
-      const profile = profileOf(accountId);
-      if (!profile)
-        conflict('PROFILE_REQUIRED', '필수 프로필을 먼저 저장해 주세요.');
-      if (!profile!.isPublic)
-        conflict('PROFILE_PRIVATE', '프로필을 공개해야 지원할 수 있어요.');
-      if (!catalogHas('roles', input.roleCode))
-        conflict(
-          'INVALID_CATALOG_SELECTION',
-          '지원 역할을 다시 확인해 주세요.',
-        );
-      if (contestById(team.contestId)!.registrationStatus !== 'open')
-        conflict('CONTEST_NOT_OPEN', '공모전 접수 기간이 아니에요.');
-      if (team.recruitmentState === 'closed')
-        conflict('RECRUITMENT_CLOSED', '모집이 마감되었어요.');
-      if (state.now >= Date.parse(team.recruitmentEndsAt))
-        conflict('RECRUITMENT_DEADLINE_PASSED', '팀 모집 기한이 지났어요.');
-      if (team.memberCount >= Number(team.capacity))
-        conflict('TEAM_FULL', '팀 정원이 모두 찼어요.');
-      if (hasMembershipInContest(team.contestId, accountId))
-        conflict(
-          'MEMBERSHIP_CONFLICT',
-          '이미 이 공모전의 팀에 소속되어 있어요.',
-        );
-      const mine = db().applications.filter(
-        (item) =>
-          item.teamId === team.id && item.applicantAccountId === accountId,
+      if (attempt.replayOf) return ok(findApplication(attempt.replayOf), 200);
+      if (!teamById(params.teamId!)) notFound();
+      const id = newId();
+      commit(
+        applyToTeam(
+          db(),
+          accountId,
+          params.teamId!,
+          input.roleCode,
+          input.message ?? null,
+          id,
+          state.now,
+        ),
       );
-      if (mine.some((item) => PENDING.includes(item.status)))
-        conflict('DUPLICATE_APPLICATION', '이미 이 팀에 지원했어요.');
-      if (mine.some((item) => item.status === 'rejected'))
-        conflict(
-          'REAPPLICATION_NOT_ALLOWED',
-          '이 팀에는 다시 지원할 수 없어요.',
-        );
-      const now = nowIso();
-      const application: Application = {
-        id: newId(),
-        version: '1',
-        teamId: team.id,
-        contestId: team.contestId,
-        applicantAccountId: accountId,
-        roleCode: input.roleCode,
-        message: input.message?.trim() || null,
-        status: 'submitted',
-        discardReason: null,
-        discardedByApplicationId: null,
-        discardedByTeamId: null,
-        submittedAt: now,
-        updatedAt: now,
-      };
-      db().applications.push(application);
-      notifyApplication(application, true);
-      attempt.remember(application.id);
-      return ok(application, 201);
+      attempt.remember(id);
+      return ok(findApplication(id), 201);
     })
     .on('GET', '/me/applications', ({ query }) => {
       const accountId = requireSession();
@@ -467,7 +353,7 @@ export function registerApplicationRoutes(router: MockRouter) {
       );
       return ok(viewApplication(application, accountId));
     })
-    // [출처 6] 본인 취소. 선발 후 취소는 소속 종료·자리 반환, 자동 재개 없음
+    // [출처 6] 본인 취소. 이미 취소면 기존 결과 유지(no-op)
     .on(
       'PUT',
       '/applications/{applicationId}/cancellation',
@@ -482,35 +368,14 @@ export function registerApplicationRoutes(router: MockRouter) {
         assertVersion(application.version, action.expectedVersion);
         if (application.status === 'canceled')
           return ok({ application, membershipEnded: false });
-        if (
-          !['submitted', 'reviewing', 'selected'].includes(application.status)
-        )
-          conflict(
-            'INVALID_APPLICATION_STATE',
-            '취소할 수 없는 지원 상태예요.',
-          );
-        let membershipEnded = false;
-        if (application.status === 'selected') {
-          db().memberships = db().memberships.map((item) => {
-            if (
-              item.teamId === application.teamId &&
-              item.accountId === accountId &&
-              !item.endedAt
-            ) {
-              membershipEnded = true;
-              return { ...item, endedAt: nowIso() };
-            }
-            return item;
-          });
-        }
-        const canceled = replaceApplication({
-          ...application,
-          status: 'canceled',
-          version: bumpVersion(application.version),
-          updatedAt: nowIso(),
+        const wasSelected = application.status === 'selected';
+        commit(
+          cancelTeamApplication(db(), application.id, accountId, state.now),
+        );
+        return ok({
+          application: findApplication(application.id),
+          membershipEnded: wasSelected,
         });
-        notifyApplication(canceled);
-        return ok({ application: canceled, membershipEnded });
       },
     )
     // 팀장 지원자 목록
@@ -547,28 +412,21 @@ export function registerApplicationRoutes(router: MockRouter) {
       'PUT',
       '/applications/{applicationId}/review-start',
       ({ params, body }) =>
-        ownerAction(params.applicationId!, body, (application) => {
-          if (application.status === 'reviewing') return application;
-          if (application.status !== 'submitted')
-            conflict(
-              'INVALID_APPLICATION_STATE',
-              '검토를 시작할 수 없는 상태예요.',
-            );
-          return 'reviewing';
-        }),
+        ownerAction(params.applicationId!, body, 'reviewing', (accountId) =>
+          startApplicantReview(
+            db(),
+            params.applicationId!,
+            accountId,
+            state.now,
+          ),
+        ),
     )
     .on('PUT', '/applications/{applicationId}/rejection', ({ params, body }) =>
-      ownerAction(params.applicationId!, body, (application) => {
-        if (application.status === 'rejected') return application;
-        if (!PENDING.includes(application.status))
-          conflict(
-            'INVALID_APPLICATION_STATE',
-            '미선발 처리할 수 없는 상태예요.',
-          );
-        return 'rejected';
-      }),
+      ownerAction(params.applicationId!, body, 'rejected', (accountId) =>
+        rejectTeamApplicant(db(), params.applicationId!, accountId, state.now),
+      ),
     )
-    // [출처 6] 선발: 공고 접수 기간·여석·무소속. 팀 저장 상태가 closed여도 기존 유효 지원은 선발 가능
+    // [출처 6] 선발. 이미 선발된 동일 소속이면 no-op
     .on(
       'PUT',
       '/applications/{applicationId}/selection',
@@ -581,114 +439,31 @@ export function registerApplicationRoutes(router: MockRouter) {
         if (!isOwner) forbidden();
         const action = validate(VersionedAction, body);
         assertVersion(application.version, action.expectedVersion);
-        const team = teamById(application.teamId)!;
-        const existing = db().memberships.find(
-          (item) =>
-            item.teamId === team.id &&
-            item.accountId === application.applicantAccountId &&
-            !item.endedAt,
-        );
-        if (application.status === 'selected' && existing)
-          return ok({
-            application: viewApplication(application, accountId),
-            team: toTeamSummary(team),
-            membershipId: existing.membershipId,
-          });
-        if (!PENDING.includes(application.status))
-          conflict(
-            'INVALID_APPLICATION_STATE',
-            '선발할 수 없는 지원 상태예요.',
+        const existing = () =>
+          db().memberships.find(
+            (item) =>
+              item.teamId === application.teamId &&
+              item.accountId === application.applicantAccountId &&
+              !item.endedAt,
           );
-        if (state.now >= Date.parse(team.contest.endsAt))
-          conflict(
-            'CONTEST_NOT_OPEN',
-            '공모전 접수가 마감되어 선발할 수 없어요.',
+        if (!(application.status === 'selected' && existing()))
+          commit(
+            selectTeamApplicant(
+              db(),
+              application.id,
+              accountId,
+              newId(),
+              state.now,
+            ),
           );
-        if (team.memberCount >= Number(team.capacity))
-          conflict('TEAM_FULL', '팀 정원이 모두 찼어요.');
-        if (
-          hasMembershipInContest(team.contestId, application.applicantAccountId)
-        )
-          conflict(
-            'MEMBERSHIP_CONFLICT',
-            '지원자가 이미 이 공모전의 팀에 소속되어 있어요.',
-          );
-        const membershipId = newId();
-        db().memberships.push({
-          membershipId,
-          teamId: team.id,
-          accountId: application.applicantAccountId,
-          membershipRole: 'member',
-          roleCode: application.roleCode,
-          joinedAt: nowIso(),
-          endedAt: null,
-        });
-        const selected = replaceApplication({
-          ...application,
-          status: 'selected',
-          version: bumpVersion(application.version),
-          updatedAt: nowIso(),
-        });
-        notifyApplication(selected);
-        discardPending(
-          application.applicantAccountId,
-          team.contestId,
-          application.id,
-          'selected_elsewhere',
-          { applicationId: application.id },
-        );
-        // 정원이 차면 모집 마감(capacity_reached)
-        const after = teamById(team.id)!;
-        if (after.memberCount >= Number(after.capacity)) {
-          const record = teamRecord(team.id);
-          updateTeam({
-            ...record,
-            recruitmentState: 'closed',
-            closedReason: 'capacity_reached',
-            version: bumpVersion(record.version),
-          });
-        }
         return ok({
-          application: viewApplication(selected, accountId),
-          team: teamSummary(team.id),
-          membershipId,
+          application: viewApplication(
+            findApplication(application.id),
+            accountId,
+          ),
+          team: teamSummary(application.teamId),
+          membershipId: existing()!.membershipId,
         });
       },
     );
-}
-
-function applicant(application: Application, viewer: string) {
-  return {
-    application: viewApplication(application, viewer),
-    profile: profileOf(application.applicantAccountId)!,
-    isSelectionCandidate:
-      PENDING.includes(application.status) &&
-      !hasMembershipInContest(
-        application.contestId,
-        application.applicantAccountId,
-      ),
-  };
-}
-
-// [출처 6] 받은 팀장의 버전 있는 행동. 버전을 먼저 비교하고, 같은 상태면 no-op 200
-function ownerAction(
-  applicationId: string,
-  body: unknown,
-  next: (application: Application) => Application | Application['status'],
-) {
-  const accountId = requireSession();
-  const { application, isOwner } = relatedApplication(applicationId, accountId);
-  if (!isOwner) forbidden();
-  const action = validate(VersionedAction, body);
-  assertVersion(application.version, action.expectedVersion);
-  const result = next(application);
-  if (typeof result !== 'string') return ok(viewApplication(result, accountId));
-  const updated = replaceApplication({
-    ...application,
-    status: result,
-    version: bumpVersion(application.version),
-    updatedAt: nowIso(),
-  });
-  notifyApplication(updated);
-  return ok(viewApplication(updated, accountId));
 }

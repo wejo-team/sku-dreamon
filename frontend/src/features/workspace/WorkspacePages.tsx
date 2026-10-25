@@ -39,13 +39,12 @@ import {
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  contests,
-  roleOptions,
-  type Applicant,
-  type ApplicationStatus,
-  type Team,
-} from '@/features/demo/data';
+import type {
+  Application,
+  ApplicationStatus,
+} from '@/features/applications/api';
+import type { Team, TeamMember } from '@/features/teams/api';
+import { fieldLabel, roleLabel, roleOptions } from '@/features/demo/labels';
 import {
   ActionLink,
   Avatar,
@@ -67,7 +66,9 @@ import {
 } from '@/features/demo/profile-fields';
 import {
   applicantVisibleProfile,
+  isPending,
   isTeamMember,
+  isTeamOwner,
   recruitmentIssue,
   recruitmentReopeningIssue,
   selectionScenario,
@@ -114,15 +115,29 @@ function returnLabel(path: string) {
   if (path.split('?')[0] === workspacePath) return '워크스페이스로';
   return '목록으로';
 }
+// [출처 4] ApplicationStatus 표시 문구
 function applicationLabel(status: ApplicationStatus) {
   return {
-    지원완료: '지원 완료',
-    검토중: '검토 중',
-    선발: '선발 · 팀원 확정',
-    미선발: '미선발',
-    지원취소: '지원 취소',
-    폐기: '폐기',
+    submitted: '지원 완료',
+    reviewing: '검토 중',
+    selected: '선발 · 팀원 확정',
+    rejected: '미선발',
+    canceled: '지원 취소',
+    discarded: '폐기',
   }[status];
+}
+// [출처 4] 폐기 사유(discardReason)별 안내. 자동 복원 없음
+function discardMessage(application: Application) {
+  return application.discardReason === 'team_created_elsewhere'
+    ? '같은 공모전에서 직접 팀을 만들어 이 지원은 폐기됐어요.'
+    : '같은 공모전의 다른 팀에서 선발되어 이 지원은 폐기됐어요.';
+}
+// 소속 표시: 팀장은 공개된 희망 역할을, 팀원은 선발된 지원 역할을 함께 보여줌
+function memberRole(member: TeamMember) {
+  if (member.membershipRole === 'member')
+    return member.roleCode ? roleLabel(member.roleCode) : '팀원';
+  const preferred = member.profile?.roleCodes[0];
+  return preferred ? `팀장 · ${roleLabel(preferred)}` : '팀장';
 }
 function LoginPrompt({ from }: { from: string }) {
   return (
@@ -203,12 +218,26 @@ function ConfirmAction({
 
 // [출처 2, 3, 6] 내 팀·내 지원, 빈 상태
 export function WorkspacePage() {
-  const { signedIn, teams, applications, applicants, cancelApplication } =
-    useDemo();
+  const {
+    signedIn,
+    teams,
+    applications: allApplications,
+    account,
+    db,
+    cancelApplication,
+  } = useDemo();
   const location = useLocation();
   const showApplications =
     new URLSearchParams(location.search).get('view') === 'applications';
-  const myTeams = teams.filter((team) => isTeamMember(team));
+  // [출처 4] 내 지원은 본인 지원만, 최신 접수순(submittedAt DESC, id DESC)
+  const applications = allApplications
+    .filter((item) => item.applicantAccountId === account.id)
+    .sort(
+      (left, right) =>
+        right.submittedAt.localeCompare(left.submittedAt) ||
+        right.id.localeCompare(left.id),
+    );
+  const myTeams = teams.filter((team) => isTeamMember(db, team.id, account.id));
   if (!signedIn)
     return (
       <div className="workspace-page preview-stack">
@@ -273,14 +302,17 @@ export function WorkspacePage() {
             </EmptyState>
           ) : (
             <ul className="workspace-application-list">
-              {[...applications].reverse().map((application) => {
+              {applications.map((application) => {
                 const team = teams.find(
                   (item) => item.id === application.teamId,
                 );
-                const selected = application.status === '선발';
-                const cancellable = ['지원완료', '검토중', '선발'].includes(
-                  application.status,
-                );
+                const selected = application.status === 'selected';
+                const member = !!team && isTeamMember(db, team.id, account.id);
+                const cancellable = [
+                  'submitted',
+                  'reviewing',
+                  'selected',
+                ].includes(application.status);
                 return (
                   <li
                     key={application.id}
@@ -289,18 +321,15 @@ export function WorkspacePage() {
                     <div className="preview-split">
                       <div>
                         <h3>{team?.name ?? '팀 정보 없음'}</h3>
-                        <p className="preview-muted">{application.role} 지원</p>
+                        <p className="preview-muted">
+                          {roleLabel(application.roleCode)} 지원
+                        </p>
                       </div>
                       <Badge tone={selected ? 'lime' : 'neutral'}>
                         {applicationLabel(application.status)}
                       </Badge>
                     </div>
-                    <p className="preview-muted">
-                      {
-                        contests.find((item) => item.id === team?.contestId)
-                          ?.title
-                      }
-                    </p>
+                    <p className="preview-muted">{team?.contestTitle}</p>
                     <details className="workspace-application-message group">
                       <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                         <span>내가 전한 말</span>
@@ -320,29 +349,29 @@ export function WorkspacePage() {
                         확인하세요.
                       </p>
                     )}
-                    {application.status === '지원취소' && (
+                    {application.status === 'canceled' && (
                       <p className="preview-muted">
                         지원이 취소됐어요. 현재 모집 조건이 맞으면 다시 지원할
                         수 있어요.
                       </p>
                     )}
-                    {application.status === '폐기' && (
+                    {application.status === 'discarded' && (
                       <p className="preview-muted">
-                        같은 공모전의 다른 팀에서 선발되어 이 지원은 폐기됐어요.
-                        선발된 팀의 참여를 취소해도 자동으로 복원되지 않아요.
+                        {discardMessage(application)} 이후 참여를 취소해도
+                        자동으로 복원되지 않아요.
                       </p>
                     )}
                     {team && (
                       <>
                         <ActionLink
                           to={
-                            selected && isTeamMember(team)
+                            selected && member
                               ? teamViewPath(team.id, 'space', applicationsPath)
                               : teamPath(team.id, applicationsPath)
                           }
                           secondary
                         >
-                          {selected && isTeamMember(team)
+                          {selected && member
                             ? '팀 공간으로'
                             : '지원한 팀 보기'}
                         </ActionLink>
@@ -359,7 +388,9 @@ export function WorkspacePage() {
                                 : '팀장에게 취소 결과가 표시돼요. 현재 모집 조건을 충족하면 다시 지원할 수 있어요.'
                             }
                             confirmLabel="지원 취소하기"
-                            onConfirm={() => cancelApplication(application.id)}
+                            onConfirm={() =>
+                              cancelApplication(application.id).ok
+                            }
                             destructive
                           >
                             지원 취소
@@ -388,10 +419,9 @@ export function WorkspacePage() {
           ) : (
             <div className="workspace-team-grid">
               {myTeams.map((team) => {
-                const pending = applicants.filter(
-                  (item) =>
-                    item.teamId === team.id &&
-                    ['지원완료', '검토중'].includes(item.status),
+                const owner = isTeamOwner(team, account.id);
+                const pending = allApplications.filter(
+                  (item) => item.teamId === team.id && isPending(item),
                 ).length;
                 return (
                   <Link
@@ -402,7 +432,7 @@ export function WorkspacePage() {
                   >
                     <div className="preview-split">
                       <TeamStatusBadge team={team} />
-                      {team.owner && pending > 0 && (
+                      {owner && pending > 0 && (
                         <span className="workspace-pending">
                           검토 대기 {pending}명
                         </span>
@@ -410,21 +440,18 @@ export function WorkspacePage() {
                     </div>
                     <h3>{team.name}</h3>
                     <p className="workspace-team-contest">
-                      {
-                        contests.find((item) => item.id === team.contestId)
-                          ?.title
-                      }
+                      {team.contestTitle}
                     </p>
                     <div className="workspace-team-summary">
                       <dl className="workspace-team-facts">
                         <div>
                           <dt>내 역할</dt>
-                          <dd>{team.owner ? '팀장' : '팀원'}</dd>
+                          <dd>{owner ? '팀장' : '팀원'}</dd>
                         </div>
                         <div>
                           <dt>확정 인원</dt>
                           <dd>
-                            {team.members} / {team.capacity}명
+                            {team.memberCount} / {team.capacity}명
                           </dd>
                         </div>
                       </dl>
@@ -452,6 +479,7 @@ function TeamTabs({
   active: 'space' | 'applicants';
   from: string;
 }) {
+  const { account } = useDemo();
   return (
     <nav className="workspace-team-tabs" aria-label="팀 메뉴">
       <Link
@@ -460,7 +488,7 @@ function TeamTabs({
       >
         팀 공간
       </Link>
-      {team.owner && (
+      {isTeamOwner(team, account.id) && (
         <Link
           to={teamViewPath(team.id, 'applicants', from)}
           aria-current={active === 'applicants' ? 'page' : undefined}
@@ -479,6 +507,7 @@ function TeamOverview({
   team: Team;
   currentPath: string;
 }) {
+  const { contests } = useDemo();
   const contest = contests.find((item) => item.id === team.contestId);
   return (
     <div className="preview-stack">
@@ -487,7 +516,7 @@ function TeamOverview({
         aria-labelledby="team-goal-title"
       >
         <h2 id="team-goal-title">팀 목표</h2>
-        <p>{team.summary}</p>
+        <p>{team.introduction}</p>
       </section>
       <section
         className="preview-panel preview-stack"
@@ -495,11 +524,11 @@ function TeamOverview({
       >
         <h2 id="team-roles-title">모집 정보</h2>
         <div className="preview-row">
-          {team.roles.map((role) => (
-            <Badge key={role}>{role}</Badge>
+          {team.roleCodes.map((code) => (
+            <Badge key={code}>{roleLabel(code)}</Badge>
           ))}
         </div>
-        {team.capacity > 1 ? (
+        {Number(team.capacity) > 1 ? (
           <p className="preview-muted">
             안내한 역할과 달라도 지원할 수 있어요.
           </p>
@@ -516,19 +545,19 @@ function TeamOverview({
           <div>
             <dt>현재 확정</dt>
             <dd>
-              {team.members}명 · 남은 자리{' '}
-              {Math.max(0, team.capacity - team.members)}명
+              {team.memberCount}명 · 남은 자리{' '}
+              {Math.max(0, Number(team.capacity) - team.memberCount)}명
             </dd>
           </div>
           <div>
             <dt>팀 모집 마감</dt>
-            <dd>{team.recruitmentDeadline?.replaceAll('-', '.')}</dd>
+            <dd>{team.recruitmentDeadline.sourceDate.replaceAll('-', '.')}</dd>
           </div>
         </dl>
-        {Boolean(team.interests?.length) && (
+        {team.fieldCodes.length > 0 && (
           <div className="preview-row">
-            {team.interests.map((interest) => (
-              <Badge key={interest}>{interest}</Badge>
+            {team.fieldCodes.map((code) => (
+              <Badge key={code}>{fieldLabel(code)}</Badge>
             ))}
           </div>
         )}
@@ -546,7 +575,7 @@ function TeamOverview({
             ) : (
               <>
                 <span>접수 마감</span>
-                <strong>{deadlineLabel(contest)}</strong>
+                <strong>{deadlineLabel(contest.timing.closing)}</strong>
               </>
             )}
           </p>
@@ -558,7 +587,7 @@ function TeamOverview({
           </ActionLink>
           <a
             className="workspace-text-link"
-            href={contest.officialUrl}
+            href={contest.sourceUrl}
             target="_blank"
             rel="noreferrer"
           >
@@ -571,11 +600,11 @@ function TeamOverview({
 }
 
 function RecruitmentControl({ team }: { team: Team }) {
-  const { closeRecruitment, reopenRecruitment } = useDemo();
+  const { closeRecruitment, reopenRecruitment, account } = useDemo();
   const [feedback, setFeedback] = useState('');
-  if (!team.owner) return null;
-  const closed = team.status === '모집마감';
-  const issue = recruitmentReopeningIssue(team);
+  if (!isTeamOwner(team, account.id)) return null;
+  const closed = team.recruitmentState === 'closed';
+  const issue = recruitmentReopeningIssue(team, account.id);
   return (
     <section className="preview-stack" aria-label="모집 관리">
       {closed ? (
@@ -599,7 +628,7 @@ function RecruitmentControl({ team }: { team: Team }) {
             description="새로운 지원을 다시 받을 수 있어요. 기존 지원과 확정된 팀원은 유지되고, 폐기된 지원은 복원되지 않아요."
             confirmLabel="모집 중으로 변경"
             onConfirm={() => {
-              if (!reopenRecruitment(team.id)) return false;
+              if (!reopenRecruitment(team.id).ok) return false;
               setFeedback(
                 '모집을 다시 시작했어요. 새로운 지원을 받을 수 있어요.',
               );
@@ -615,7 +644,7 @@ function RecruitmentControl({ team }: { team: Team }) {
           description="새로운 지원을 받을 수 없게 돼요. 기존 지원과 팀원은 유지돼요. 기한과 정원 조건이 맞으면 직접 모집을 다시 시작할 수 있어요."
           confirmLabel="모집 종료하기"
           onConfirm={() => {
-            if (!closeRecruitment(team.id)) return false;
+            if (!closeRecruitment(team.id).ok) return false;
             setFeedback(
               '모집을 종료했어요. 기존 지원과 확정된 팀원은 유지돼요.',
             );
@@ -645,30 +674,32 @@ function TeamSpace({
   currentPath: string;
   management: boolean;
 }) {
-  const { applicants, profile } = useDemo();
-  const teamApplicants = applicants.filter(
-    (applicant) => applicant.teamId === team.id,
-  );
-  const waiting = teamApplicants.filter((applicant) =>
-    ['지원완료', '검토중'].includes(applicant.status),
-  ).length;
+  const { applications, account, db, teamMembers } = useDemo();
+  const owner = isTeamOwner(team, account.id);
+  // [출처 4] 팀장이 받은 지원(최신 접수순)
+  const teamApplicants = applications
+    .filter((application) => application.teamId === team.id)
+    .sort(
+      (left, right) =>
+        right.submittedAt.localeCompare(left.submittedAt) ||
+        right.id.localeCompare(left.id),
+    );
+  const waiting = teamApplicants.filter(isPending).length;
+  const members = teamMembers(team.id);
   return (
     <div className="preview-detail preview-stack workspace-team-space">
       <BackLink to={from}>{returnLabel(from)}</BackLink>
-      <PageIntro
-        title={team.name}
-        description={contests.find((item) => item.id === team.contestId)?.title}
-      />
+      <PageIntro title={team.name} description={team.contestTitle} />
       <div className="preview-row">
         <TeamStatusBadge team={team} />
         <span className="preview-inline-fact">
           <span>내 역할</span>
-          <strong>{team.owner ? '팀장' : '팀원'}</strong>
+          <strong>{owner ? '팀장' : '팀원'}</strong>
         </span>
         <span className="preview-inline-fact">
           <span>확정</span>
           <strong>
-            {team.members} / {team.capacity}명
+            {team.memberCount} / {team.capacity}명
           </strong>
         </span>
       </div>
@@ -693,7 +724,8 @@ function TeamSpace({
           ) : (
             <ul className="workspace-applicant-list">
               {teamApplicants.map((applicant) => {
-                const name = applicantVisibleProfile(applicant, profile).name;
+                const applicantProfile = applicantVisibleProfile(db, applicant);
+                const name = applicantProfile?.realName ?? '';
                 return (
                   <li key={applicant.id}>
                     <Link
@@ -701,13 +733,22 @@ function TeamSpace({
                       aria-label={`${name} 지원서 검토`}
                       className="workspace-applicant-row"
                     >
-                      <Avatar name={name} personId={applicant.personId} />
+                      <Avatar
+                        name={name}
+                        accountId={applicant.applicantAccountId}
+                        imageCode={applicantProfile?.profileImageCode ?? null}
+                      />
                       <div className="workspace-applicant-name">
                         <strong>{name}</strong>
-                        <p className="preview-muted">{applicant.role} 지원</p>
-                        {applicant.status === '폐기' && (
+                        <p className="preview-muted">
+                          {roleLabel(applicant.roleCode)} 지원
+                        </p>
+                        {applicant.status === 'discarded' && (
                           <p className="preview-muted">
-                            같은 공모전의 다른 팀에서 선발됨
+                            {applicant.discardReason ===
+                            'team_created_elsewhere'
+                              ? '같은 공모전에서 직접 팀을 만듦'
+                              : '같은 공모전의 다른 팀에서 선발됨'}
                           </p>
                         )}
                       </div>
@@ -731,21 +772,25 @@ function TeamSpace({
           >
             <div className="preview-section-title">
               <h2 id="team-members-title">확정된 팀원</h2>
-              <span className="preview-muted">{team.members}명</span>
+              <span className="preview-muted">{team.memberCount}명</span>
             </div>
             <ul className="workspace-member-list">
-              {team.memberProfiles?.map((member) => (
-                <li key={member.id}>
+              {/* [출처 4] 소속 표시와 프로필 열람 분리: 비공개 팀원의 사진은 보이지 않음(profile=null) */}
+              {members.map((member) => (
+                <li key={member.membershipId}>
                   <Avatar
-                    name={member.id === 'me' ? profile.name : member.name}
-                    personId={member.id}
+                    name={member.realName}
+                    accountId={member.accountId}
+                    imageCode={member.profile?.profileImageCode ?? null}
                   />
                   <div>
                     <strong>
-                      {member.id === 'me' ? profile.name : member.name}
-                      {member.id === 'me' ? ' (나)' : ''}
+                      {member.realName}
+                      {member.accountId === account.id ? ' (나)' : ''}
                     </strong>
-                    <p className="preview-muted">{member.role} · 교내 미인증</p>
+                    <p className="preview-muted">
+                      {memberRole(member)} · 교내 미인증
+                    </p>
                   </div>
                 </li>
               ))}
@@ -765,7 +810,7 @@ function TeamSpace({
 // [출처 2, 4, 5, 6] 공개 모집글·팀 공간·지원자 관리(view 파라미터)
 export function TeamPage() {
   const { teamId } = useParams();
-  const { teams, signedIn } = useDemo();
+  const { teams, signedIn, account, db } = useDemo();
   const location = useLocation();
   const view = new URLSearchParams(location.search).get('view');
   const team = teams.find((item) => item.id === teamId);
@@ -794,7 +839,10 @@ export function TeamPage() {
           <LoginPrompt from={currentPath} />
         </div>
       );
-    if (!isTeamMember(team) || (view === 'applicants' && !team.owner))
+    if (
+      !isTeamMember(db, team.id, account.id) ||
+      (view === 'applicants' && !isTeamOwner(team, account.id))
+    )
       return (
         <div className="preview-detail preview-stack">
           <BackLink to={teamPath(team.id)}>공개 모집글로</BackLink>
@@ -841,12 +889,19 @@ function TeamDetail({
   const active = useRef(false);
   const [completed, setCompleted] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const existingApplication = [...preview.applications]
-    .reverse()
-    .find(
+  const me = preview.account.id;
+  // 이 팀에 대한 본인의 최신 유효 기록(취소 제외)
+  const existingApplication = preview.applications
+    .filter(
       (application) =>
-        application.teamId === team.id && application.status !== '지원취소',
-    );
+        application.teamId === team.id &&
+        application.applicantAccountId === me &&
+        application.status !== 'canceled',
+    )
+    .sort((left, right) =>
+      right.submittedAt.localeCompare(left.submittedAt),
+    )[0];
+  const member = isTeamMember(preview.db, team.id, me);
   const missing = missingProfileFields(preview.profile);
   const issue = recruitmentIssue(team);
   const {
@@ -872,7 +927,7 @@ function TeamDetail({
     await new Promise<void>((resolve) => window.setTimeout(resolve, 350));
     if (!active.current) return;
     const latest = currentPreview.current;
-    if (!latest.signedIn || !latest.apply(team.id, role, message)) {
+    if (!latest.signedIn || !latest.apply(team.id, role, message).ok) {
       setSubmitError(
         '지원을 완료하지 못했어요. 로그인과 현재 모집 상태, 필수 프로필을 확인해 주세요.',
       );
@@ -883,10 +938,7 @@ function TeamDetail({
   return (
     <div className="preview-detail preview-stack">
       <BackLink to={from}>{returnLabel(from)}</BackLink>
-      <PageIntro
-        title={team.name}
-        description={contests.find((item) => item.id === team.contestId)?.title}
-      />
+      <PageIntro title={team.name} description={team.contestTitle} />
       <div className="preview-row">
         <TeamStatusBadge team={team} />
         <span className="preview-muted">팀장 포함 총 {team.capacity}명</span>
@@ -904,7 +956,7 @@ function TeamDetail({
               로그인하고 지원하기
             </ActionLink>
           </>
-        ) : isTeamMember(team) ? (
+        ) : member ? (
           <>
             <p>이미 함께하고 있는 팀이에요.</p>
             <ActionLink to={teamViewPath(team.id, 'space', from)}>
@@ -926,9 +978,9 @@ function TeamDetail({
           <>
             <Badge>{applicationLabel(existingApplication.status)}</Badge>
             <p>
-              {existingApplication.status === '폐기'
-                ? '같은 공모전의 다른 팀에서 선발되어 이 지원은 폐기됐어요.'
-                : `이미 ${existingApplication.role} 역할로 지원한 팀이에요.`}
+              {existingApplication.status === 'discarded'
+                ? discardMessage(existingApplication)
+                : `이미 ${roleLabel(existingApplication.roleCode)} 역할로 지원한 팀이에요.`}
             </p>
             <ActionLink to={applicationsPath}>내 지원 확인하기</ActionLink>
           </>
@@ -956,7 +1008,7 @@ function TeamDetail({
               저장 후 이 팀으로 돌아와 지원할 수 있어요.
             </p>
           </>
-        ) : !preview.profile.visibility.discoverable ? (
+        ) : !preview.profile.isPublic ? (
           <>
             <Alert role="note">
               <AlertTitle>프로필을 공개한 뒤 지원할 수 있어요</AlertTitle>
@@ -968,10 +1020,11 @@ function TeamDetail({
             <ProfileVisibilityControl
               checked={false}
               triggerLabel="프로필 공개하기"
-              onConfirm={(discoverable) =>
+              onConfirm={(isPublic) =>
                 preview.saveProfile({
                   ...preview.profile,
-                  visibility: { discoverable },
+                  isPublic,
+                  version: (BigInt(preview.profile.version) + 1n).toString(),
                 })
               }
             />
@@ -1004,14 +1057,14 @@ function TeamDetail({
                       <Label
                         className="preview-choice"
                         htmlFor={`application-role-${index}`}
-                        key={role}
+                        key={role.code}
                       >
                         <RadioGroupItem
                           id={`application-role-${index}`}
-                          value={role}
+                          value={role.code}
                           ref={index === 0 ? field.ref : undefined}
                         />
-                        <span>{role}</span>
+                        <span>{role.displayName}</span>
                       </Label>
                     ))}
                   </RadioGroup>
@@ -1096,11 +1149,12 @@ function TeamDetail({
 // [출처 4, 5, 6] 해당 팀장만 전체 현재 프로필 확인
 export function ApplicantPage() {
   const { applicantId } = useParams();
-  const { signedIn, applicants, teams } = useDemo();
+  const { signedIn, applications, teams, account } = useDemo();
   const location = useLocation();
-  const applicant = applicants.find((item) => item.id === applicantId);
+  const applicant = applications.find((item) => item.id === applicantId);
+  // [출처 5] 해당 지원을 받은 팀장만
   const team = teams.find(
-    (item) => item.id === applicant?.teamId && item.owner,
+    (item) => item.id === applicant?.teamId && isTeamOwner(item, account.id),
   );
   if (!signedIn)
     return (
@@ -1130,20 +1184,21 @@ function ApplicantDetail({
   applicant,
   team,
 }: {
-  applicant: Applicant;
+  applicant: Application;
   team: Team;
 }) {
-  const { selectApplicant, profile, signedIn } = useDemo();
-  const visible = applicantVisibleProfile(applicant, profile);
+  const { selectApplicant, signedIn, db, account } = useDemo();
+  // [출처 5] 지원 당시 사본이 아닌 현재 전체 프로필
+  const visible = applicantVisibleProfile(db, applicant)!;
   const managementPath = teamViewPath(team.id, 'applicants');
-  const pending = ['지원완료', '검토중'].includes(applicant.status);
+  const pending = isPending(applicant);
   const scenario = selectionScenario(team);
   return (
     <div className="preview-detail preview-stack">
       <BackLink to={managementPath}>지원자 관리로</BackLink>
       <PageIntro
         title="지원서 검토"
-        description={`${team.name} · ${applicant.role} 지원`}
+        description={`${team.name} · ${roleLabel(applicant.roleCode)} 지원`}
       />
       <TeamTabs team={team} active="applicants" from={workspacePath} />
       <section
@@ -1152,12 +1207,13 @@ function ApplicantDetail({
       >
         <div className="preview-row">
           <Avatar
-            name={visible.name}
-            personId={applicant.personId}
+            name={visible.realName}
+            accountId={visible.accountId}
+            imageCode={visible.profileImageCode}
             size="large"
           />
           <div>
-            <h2 id="applicant-name">{visible.name}</h2>
+            <h2 id="applicant-name">{visible.realName}</h2>
             <SchoolVerificationBadge />
           </div>
           <Badge>{applicationLabel(applicant.status)}</Badge>
@@ -1178,10 +1234,12 @@ function ApplicantDetail({
         <p>{applicant.message || '작성한 메시지가 없어요.'}</p>
       </section>
       <ApplicantReview
-        applicant={applicant}
+        application={applicant}
         profile={visible}
         mayReviewExistingApplication={
-          signedIn && team.owner && applicant.teamId === team.id
+          signedIn &&
+          isTeamOwner(team, account.id) &&
+          applicant.teamId === team.id
         }
       />
 
@@ -1190,11 +1248,13 @@ function ApplicantDetail({
         aria-labelledby="applicant-decision-title"
       >
         <h2 id="applicant-decision-title">검토 결과</h2>
-        {applicant.status === '선발' ? (
+        {applicant.status === 'selected' ? (
           <>
             <Alert role="status">
               <CheckCircle2 size={24} aria-hidden="true" />
-              <AlertTitle>{visible.name} 님이 팀원으로 확정됐어요</AlertTitle>
+              <AlertTitle>
+                {visible.realName} 님이 팀원으로 확정됐어요
+              </AlertTitle>
               <AlertDescription>
                 팀 공간에서 확정된 팀원과 남은 자리를 확인할 수 있어요.
               </AlertDescription>
@@ -1211,11 +1271,13 @@ function ApplicantDetail({
             <div className="preview-row">
               <span className="preview-inline-fact">
                 <span>현재</span>
-                <strong>{team.members}명</strong>
+                <strong>{team.memberCount}명</strong>
               </span>
               <span className="preview-inline-fact">
                 <span>남은 자리</span>
-                <strong>{Math.max(0, team.capacity - team.members)}명</strong>
+                <strong>
+                  {Math.max(0, Number(team.capacity) - team.memberCount)}명
+                </strong>
               </span>
             </div>
             {scenario !== 'ready' ? (
@@ -1226,10 +1288,10 @@ function ApplicantDetail({
               </p>
             ) : (
               <ConfirmAction
-                title={`${visible.name} 님을 선발할까요?`}
+                title={`${visible.realName} 님을 선발할까요?`}
                 description="선발하면 즉시 팀원이 확정돼요. 이 지원자가 같은 공모전의 다른 팀에 낸 대기 지원은 폐기되며, 나중에 팀 참여를 취소해도 복원되지 않아요."
                 confirmLabel="선발하고 팀원 확정"
-                onConfirm={() => selectApplicant(applicant.id)}
+                onConfirm={() => selectApplicant(applicant.id).ok}
               >
                 이 지원자 선발하기
                 <ArrowRight size={18} aria-hidden="true" />
@@ -1238,10 +1300,12 @@ function ApplicantDetail({
           </>
         ) : (
           <p>
-            {applicant.status === '지원취소'
+            {applicant.status === 'canceled'
               ? '지원자가 지원을 취소했어요.'
-              : applicant.status === '폐기'
-                ? '같은 공모전의 다른 팀에서 선발되어 폐기된 지원이에요. 지원 기록은 남지만 선발 대상에서는 제외돼요.'
+              : applicant.status === 'discarded'
+                ? applicant.discardReason === 'team_created_elsewhere'
+                  ? '같은 공모전에서 지원자가 직접 팀을 만들어 폐기된 지원이에요. 지원 기록은 남지만 선발 대상에서는 제외돼요.'
+                  : '같은 공모전의 다른 팀에서 선발되어 폐기된 지원이에요. 지원 기록은 남지만 선발 대상에서는 제외돼요.'
                 : '미선발된 지원서예요.'}
           </p>
         )}

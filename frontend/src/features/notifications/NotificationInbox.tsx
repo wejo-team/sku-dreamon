@@ -28,30 +28,22 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { type ApplicationStatus } from '@/features/demo/data';
-import { isNotificationRecipient } from '@/features/demo/notification-state';
+import type { Notification } from '@/features/notifications/api';
 import { useDemo } from '@/features/demo/demo-context';
 
-type Notification = {
+// 화면 표시용 항목. 제목·본문은 API의 Notification.title·body를 그대로 사용합니다.
+type InboxItem = {
   id: string;
   title: string;
   description: string;
   to: string;
-  kind: 'applicant' | 'application';
+  kind: Notification['kind'];
   read: boolean;
 };
 
 const icons = {
-  applicant: UserRoundPlus,
-  application: ClipboardCheck,
-};
-const applicationTitles: Record<ApplicationStatus, string> = {
-  지원취소: '지원이 취소됐어요',
-  지원완료: '지원이 접수됐어요',
-  검토중: '팀에서 지원서를 검토하고 있어요',
-  선발: '지원한 팀에서 선발됐어요',
-  미선발: '이번 모집에서는 선발되지 않았어요',
-  폐기: '다른 팀 선발로 대기 지원이 폐기됐어요',
+  new_application: UserRoundPlus,
+  application_status_changed: ClipboardCheck,
 };
 
 // [출처 2, 3, 4] 로그인 여부별 알림함, history로 열림 상태 관리
@@ -61,12 +53,7 @@ export function Notifications() {
 }
 
 function NotificationInbox() {
-  const {
-    signedIn,
-    teams,
-    notifications: history,
-    markNotificationsRead,
-  } = useDemo();
+  const { signedIn, notifications: history, markNotificationsRead } = useDemo();
   const location = useLocation();
   const navigate = useNavigate();
   const failedOnce = useRef(false);
@@ -94,23 +81,24 @@ function NotificationInbox() {
     }
   };
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const notifications: Notification[] = signedIn
-    ? history
-        .filter((item) => isNotificationRecipient(item, teams))
-        .reverse()
+  // [출처 2] 본인 알림만(상태에서 수신자 관계를 이미 확인), 정렬 occurredAt DESC, id DESC
+  const notifications: InboxItem[] = signedIn
+    ? [...history]
+        .sort(
+          (left, right) =>
+            right.occurredAt.localeCompare(left.occurredAt) ||
+            right.id.localeCompare(left.id),
+        )
         .map((item) => ({
           id: item.id,
           kind: item.kind,
-          title:
-            item.kind === 'application'
-              ? applicationTitles[item.status]
-              : `${item.applicantName} 님이 지원했어요`,
-          description: `${item.teamName} · ${item.role} 지원`,
+          title: item.title,
+          description: item.body,
           to:
-            item.kind === 'application'
+            item.kind === 'application_status_changed'
               ? '/workspace?view=applications'
               : `/applicants/${item.applicationId}`,
-          read: item.read,
+          read: item.readAt !== null,
         }))
     : [];
 

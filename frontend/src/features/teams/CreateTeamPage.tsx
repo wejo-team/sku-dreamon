@@ -19,8 +19,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { contests, roleOptions } from '@/features/demo/data';
+import type { Contest } from '@/features/contests/api';
+import { fieldLabel, roleOptions } from '@/features/demo/labels';
 import {
+  capacityBounds,
   isContestOpen,
   memberLimitLabel,
   deadlineLabel,
@@ -29,11 +31,14 @@ import { ContestPicker } from '@/features/teams/ContestPicker';
 import { ActionLink, BackLink, PageIntro } from '@/components/common/CommonUi';
 import { useDemo } from '@/features/demo/demo-context';
 import { profileTextLength } from '@/features/demo/profile-fields';
-import {
-  createTeamIssue,
-  dateValue,
-  referenceDate,
-} from '@/features/demo/team-state';
+import { createTeamIssue, referenceDate } from '@/features/demo/team-state';
+
+// [출처 3] 공식 인원이 고정(range의 최소=최대)이면 그 값을 정원으로 사용
+const fixedCapacityOf = (contest: Contest | undefined) => {
+  if (!contest || contest.capacity.kind !== 'range') return undefined;
+  const { min, max } = capacityBounds(contest.capacity);
+  return min !== null && min === max ? min : undefined;
+};
 
 const teamSchema = z
   .object({
@@ -49,7 +54,7 @@ const teamSchema = z
         (value) => profileTextLength(value) <= 40,
         '팀 이름은 40자까지 입력할 수 있어요.',
       ),
-    summary: z
+    introduction: z
       .string()
       .trim()
       .refine(
@@ -60,7 +65,7 @@ const teamSchema = z
         (value) => profileTextLength(value) <= 1000,
         '팀 소개는 1,000자까지 입력할 수 있어요.',
       ),
-    roles: z.array(z.string()),
+    roleCodes: z.array(z.string()),
     capacity: z
       .number({ invalid_type_error: '총 정원을 숫자로 입력해 주세요.' })
       .int()
@@ -70,11 +75,11 @@ const teamSchema = z
   .superRefine((values, context) => {
     if (
       values.capacity >= 2 &&
-      (values.roles.length < 1 || values.roles.length > 6)
+      (values.roleCodes.length < 1 || values.roleCodes.length > 6)
     )
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['roles'],
+        path: ['roleCodes'],
         message: '모집할 역할을 1~6개 선택해 주세요.',
       });
   });
@@ -90,7 +95,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 
 // [출처 2, 3, 4, 5] 공모전 선택·정원·역할 검증 폼
 export function CreateTeamPage() {
-  const { signedIn, createTeam, teams } = useDemo();
+  const { signedIn, createTeam, contests, db, account } = useDemo();
   const navigate = useNavigate();
   const [search] = useSearchParams();
   const [submitError, setSubmitError] = useState('');
@@ -109,22 +114,17 @@ export function CreateTeamPage() {
         ? contestId
         : '',
       name: '',
-      summary: '',
-      roles: [],
-      capacity:
-        initialContest?.memberLimit === 'range' &&
-        initialContest.minMembers === initialContest.maxMembers
-          ? initialContest.minMembers
-          : undefined,
+      introduction: '',
+      roleCodes: [],
+      capacity: fixedCapacityOf(initialContest),
       recruitmentDeadline: '',
     },
   });
   const selectedId = useWatch({ control, name: 'contestId' });
   const selected = contests.find((contest) => contest.id === selectedId);
   const capacity = useWatch({ control, name: 'capacity' });
-  const fixedCapacity =
-    selected?.memberLimit === 'range' &&
-    selected.minMembers === selected.maxMembers;
+  const fixedCapacity = fixedCapacityOf(selected) !== undefined;
+  const bounds = selected ? capacityBounds(selected.capacity) : null;
   const returnTo = `/teams/new${search.size ? `?${search.toString()}` : ''}`;
   if (!signedIn)
     return (
@@ -149,14 +149,14 @@ export function CreateTeamPage() {
         className="preview-panel preview-form"
         noValidate
         onSubmit={handleSubmit((values) => {
+          // [출처 3] 분야는 공모전에서 상속하므로 입력하지 않음. 정원 1명은 역할 없음
           const team = {
             ...values,
-            roles: values.capacity === 1 ? [] : values.roles,
-            interests: [...(selected?.interests ?? [])],
+            roleCodes: values.capacity === 1 ? [] : values.roleCodes,
           };
-          const issue = createTeamIssue(team, teams);
+          const issue = createTeamIssue(team, db, account.id);
           if (issue) {
-            setSubmitError(issue);
+            setSubmitError(issue.message);
             return;
           }
           const id = createTeam(team);
@@ -186,14 +186,8 @@ export function CreateTeamPage() {
                   field.onChange(id);
                   if (!changed) return;
                   const contest = contests.find((item) => item.id === id);
-                  setValue(
-                    'capacity',
-                    contest?.memberLimit === 'range' &&
-                      contest.minMembers === contest.maxMembers
-                      ? contest.minMembers!
-                      : Number.NaN,
-                  );
-                  setValue('roles', []);
+                  setValue('capacity', fixedCapacityOf(contest) ?? Number.NaN);
+                  setValue('roleCodes', []);
                 }}
                 onBlur={field.onBlur}
                 ref={field.ref}
@@ -226,14 +220,16 @@ export function CreateTeamPage() {
           <Textarea
             id="team-summary"
             rows={4}
-            {...register('summary')}
+            {...register('introduction')}
             placeholder="어떤 아이디어를 누구와 함께 만들고 싶나요?"
-            aria-invalid={!!errors.summary}
-            aria-describedby={errors.summary ? 'team-summary-error' : undefined}
+            aria-invalid={!!errors.introduction}
+            aria-describedby={
+              errors.introduction ? 'team-summary-error' : undefined
+            }
           />
           <FieldError
             id="team-summary-error"
-            message={errors.summary?.message}
+            message={errors.introduction?.message}
           />
         </div>
         <div className="preview-field">
@@ -241,12 +237,8 @@ export function CreateTeamPage() {
           <Input
             id="team-capacity"
             type="number"
-            min={selected?.minMembers ?? 1}
-            max={
-              selected?.memberLimit === 'range'
-                ? selected.maxMembers
-                : undefined
-            }
+            min={bounds?.min ?? 1}
+            max={bounds?.max ?? undefined}
             readOnly={fixedCapacity}
             placeholder="총 정원을 입력해 주세요"
             {...register('capacity', { valueAsNumber: true })}
@@ -255,7 +247,7 @@ export function CreateTeamPage() {
           />
           <p id="team-capacity-help" className="preview-muted">
             {selected
-              ? `공식 참가 인원: ${memberLimitLabel(selected)}. ${fixedCapacity ? '공식 인원으로 고정돼요.' : '팀장을 포함한 목표 정원을 입력해 주세요.'}`
+              ? `공식 참가 인원: ${memberLimitLabel(selected.capacity)}. ${fixedCapacity ? '공식 인원으로 고정돼요.' : '팀장을 포함한 목표 정원을 입력해 주세요.'}`
               : '공모전을 선택한 뒤 목표 정원을 입력해 주세요.'}
           </p>
           <FieldError
@@ -272,28 +264,33 @@ export function CreateTeamPage() {
             </p>
             <Controller
               control={control}
-              name="roles"
+              name="roleCodes"
               render={({ field }) => (
                 <div className="preview-choice-grid">
                   {roleOptions.map((role) => (
-                    <Label className="preview-choice" key={role}>
+                    <Label className="preview-choice" key={role.code}>
                       <Checkbox
-                        checked={field.value.includes(role)}
+                        checked={field.value.includes(role.code)}
                         onCheckedChange={(checked) =>
                           field.onChange(
                             checked
-                              ? [...field.value, role]
-                              : field.value.filter((item) => item !== role),
+                              ? [...field.value, role.code]
+                              : field.value.filter(
+                                  (item) => item !== role.code,
+                                ),
                           )
                         }
                       />
-                      <span>{role}</span>
+                      <span>{role.displayName}</span>
                     </Label>
                   ))}
                 </div>
               )}
             />
-            <FieldError id="team-roles-error" message={errors.roles?.message} />
+            <FieldError
+              id="team-roles-error"
+              message={errors.roleCodes?.message}
+            />
           </fieldset>
         )}
         <div className="preview-field">
@@ -302,16 +299,14 @@ export function CreateTeamPage() {
             id="team-deadline"
             type="date"
             min={referenceDate}
-            max={
-              selected ? dateValue(selected.deadline).slice(0, 10) : undefined
-            }
+            max={selected?.timing.closing.sourceDate}
             {...register('recruitmentDeadline')}
             aria-invalid={!!errors.recruitmentDeadline}
             aria-describedby="team-deadline-help team-deadline-error"
           />
           <p id="team-deadline-help" className="preview-muted">
             {selected
-              ? `공모전 마감일 ${deadlineLabel(selected)}까지 설정할 수 있어요. 해당 날짜 끝까지 모집하며 공모전이 먼저 마감되면 함께 마감돼요.`
+              ? `공모전 마감일 ${deadlineLabel(selected.timing.closing)}까지 설정할 수 있어요. 해당 날짜 끝까지 모집하며 공모전이 먼저 마감되면 함께 마감돼요.`
               : '공모전을 선택한 뒤 모집 마감일을 정해 주세요.'}
           </p>
           <FieldError
@@ -322,7 +317,7 @@ export function CreateTeamPage() {
         {selected && (
           <div className="preview-field">
             <Label>관심 분야</Label>
-            <p>{selected.interests.join(' · ')}</p>
+            <p>{selected.fieldCodes.map(fieldLabel).join(' · ')}</p>
             <p className="preview-muted">공모전의 관심 분야를 사용해요.</p>
           </div>
         )}

@@ -3,14 +3,11 @@
  * 1. docs/api/conventions.md#session-auth - 인증 필요 요청에 세션이 없으면 401 UNAUTHENTICATED
  * 2. docs/api/conventions.md#versioned-action - expectedVersion을 상태 판단보다 먼저 비교, 불일치 409 VERSION_CONFLICT
  * 3. docs/api/conventions.md#versioned-action - 생성 requestId: 첫 201, 같은 본문 재전송 200, 다른 본문 409 REQUEST_ID_REUSED
- * 4. docs/api/notifications.md#notification-fields - 성공한 업무 변경에서 지원 상태 변경/신규 지원 알림 생성
- * 5. docs/specs/notifications.md - 지원자 본인에게 상태 변경, 신규 지원은 팀장에게도 알림
  *
  * 목업 서버의 메모리 저장소입니다. 새로고침하면 초기 목업으로 돌아가며 다른 브라우저와 공유되지 않습니다.
  */
 
 import {
-  applicationStatusTitles,
   createDemoRecords,
   currentMemberships,
   deriveContest,
@@ -20,7 +17,6 @@ import {
   toTeamSummary,
   type DemoDatabase,
 } from '@/features/demo/fixtures';
-import type { Application } from '@/features/applications/api';
 import type { Profile } from '@/features/profiles/api';
 import { conflict, fail, notFound } from '@/lib/api-mock/http';
 
@@ -150,16 +146,6 @@ export const isCurrentMember = (teamId: string, accountId: string) =>
     (item) => item.accountId === accountId,
   );
 
-// 같은 공모전의 현재 확정 소속
-export const hasMembershipInContest = (contestId: string, accountId: string) =>
-  state.db.memberships.some(
-    (item) =>
-      !item.endedAt &&
-      item.accountId === accountId &&
-      state.db.teams.find((team) => team.id === item.teamId)?.contestId ===
-        contestId,
-  );
-
 export function catalogHas(
   list: keyof Omit<DemoDatabase['catalogs'], never>,
   code: string,
@@ -167,46 +153,4 @@ export function catalogHas(
   return state.db.catalogs[list].some(
     (item) => item.code === code && item.isSelectable,
   );
-}
-
-export function roleLabel(code: string) {
-  return (
-    state.db.catalogs.roles.find((item) => item.code === code)?.displayName ??
-    code
-  );
-}
-
-// [출처 4, 5] 지원 상태 변경 알림. 신규 지원은 팀장에게 new_application도 보냅니다.
-export function notifyApplication(application: Application, isNew = false) {
-  const team = teamById(application.teamId);
-  if (!team) return;
-  const occurredAt = nowIso();
-  const body = `${team.name} · ${roleLabel(application.roleCode)} 지원`;
-  state.db.notifications.push({
-    id: newId(),
-    recipientAccountId: application.applicantAccountId,
-    kind: 'application_status_changed',
-    applicationId: application.id,
-    teamId: team.id,
-    eventStatus: application.status,
-    occurredAt,
-    readAt: null,
-    title: applicationStatusTitles[application.status],
-    body,
-  });
-  if (isNew) {
-    const name = profileOf(application.applicantAccountId)?.realName ?? '';
-    state.db.notifications.push({
-      id: newId(),
-      recipientAccountId: team.ownerAccountId,
-      kind: 'new_application',
-      applicationId: application.id,
-      teamId: team.id,
-      eventStatus: application.status,
-      occurredAt,
-      readAt: null,
-      title: `${name} 님이 지원했어요`,
-      body,
-    });
-  }
 }

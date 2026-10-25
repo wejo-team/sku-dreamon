@@ -7,22 +7,16 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, useLocation, useNavigate } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { useState, type ReactNode } from 'react';
 import { Notifications } from '@/features/notifications/NotificationInbox';
-import {
-  initialApplicants,
-  initialApplications,
-  initialProfile,
-  initialTeams,
-} from '@/features/demo/data';
 import {
   DemoContext,
   type DemoState,
   useDemo,
 } from '@/features/demo/demo-context';
 import { DemoProvider } from '@/features/demo/DemoProvider';
-import { initialNotifications } from '@/features/demo/notification-state';
+import { demoIds, demoState } from '@/test/demo-state';
 
 function Navigation() {
   const location = useLocation();
@@ -60,7 +54,9 @@ function InboxState({
         markNotificationsRead: (ids) =>
           setNotifications((items) =>
             items.map((item) =>
-              ids.includes(item.id) ? { ...item, read: true } : item,
+              ids.includes(item.id)
+                ? { ...item, readAt: '2026-10-18T09:00:00Z' }
+                : item,
             ),
           ),
       }}
@@ -84,22 +80,24 @@ function ActivityControls() {
       <button
         onClick={() => {
           signIn();
-          saveProfile({ ...profile, visibility: { discoverable: true } });
+          saveProfile({ ...profile, isPublic: true });
         }}
       >
         지원 준비
       </button>
-      <button onClick={() => apply('makers', '기획', '')}>
+      <button onClick={() => apply(demoIds.teams.makers, 'planning', '')}>
         공개 팀에 지원
       </button>
-      <button onClick={() => apply('greenwave', '개발', '')}>
+      <button onClick={() => apply(demoIds.teams.greenwave, 'development', '')}>
         내 팀에 지원 시도
       </button>
       <button
         onClick={() => {
           const latest = applications
             .filter(
-              (item) => item.teamId === 'makers' && item.status !== '지원취소',
+              (item) =>
+                item.teamId === demoIds.teams.makers &&
+                item.status !== 'canceled',
             )
             .at(-1);
           if (latest) cancelApplication(latest.id);
@@ -112,31 +110,7 @@ function ActivityControls() {
 }
 
 function renderInbox(path = '/explore', overrides: Partial<DemoState> = {}) {
-  const state: DemoState = {
-    signedIn: true,
-    profile: initialProfile,
-    teams: initialTeams,
-    applications: initialApplications,
-    applicants: initialApplicants,
-    notifications: initialNotifications({
-      teams: initialTeams,
-      applications: initialApplications,
-      applicants: initialApplicants,
-    }),
-    markNotificationsRead: vi.fn(),
-    signIn: vi.fn(),
-    signOut: vi.fn(),
-    saveProfile: vi.fn(),
-    apply: vi.fn(() => true),
-    selectApplicant: vi.fn(() => true),
-    cancelApplication: vi.fn(() => true),
-    closeRecruitment: vi.fn(() => true),
-    reopenRecruitment: vi.fn(() => true),
-    createTeam: vi.fn(() => 'new-team'),
-    reset: vi.fn(),
-    emptyWorkspace: vi.fn(),
-    ...overrides,
-  };
+  const state = demoState(overrides);
   render(
     <MemoryRouter initialEntries={[path]}>
       <InboxState initial={state}>
@@ -246,7 +220,9 @@ describe('official reference notifications', () => {
     await user.click(within(drawer).getByRole('button', { name: '다시 시도' }));
     await waitFor(() => expect(drawer).not.toBeInTheDocument());
     expect(
-      screen.getByText('현재 경로: /applicants/app-seoyeon'),
+      screen.getByText(
+        `현재 경로: /applicants/${demoIds.applications.seoyeon}`,
+      ),
     ).toBeInTheDocument();
     const reopened = await openInbox(user);
     expect(within(reopened).getByRole('status')).toHaveTextContent(
@@ -328,7 +304,6 @@ describe('official reference notifications', () => {
     const user = renderInbox('/explore', {
       notifications: [],
       teams: [],
-      applicants: [],
       applications: [],
     });
     const drawer = await openInbox(user);

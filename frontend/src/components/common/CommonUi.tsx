@@ -31,13 +31,13 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { type Team } from '@/features/demo/data';
+import type { Team } from '@/features/teams/api';
+import { demoCatalogs } from '@/features/demo/labels';
 import { DemoContext } from '@/features/demo/demo-context';
 import { recruitmentIssue, teamStatusLabel } from '@/features/demo/team-state';
 import {
   defaultMascotAvatarId,
   mascotAvatarSource,
-  type MascotAvatarId,
 } from '@/features/demo/mascot-avatars';
 
 // [출처 3] 화면 제목·설명 (루트 화면은 sr-only)
@@ -169,40 +169,34 @@ export function EmptyState({
     </div>
   );
 }
-const avatarByPersonId: Record<string, MascotAvatarId> = {
-  me: 'skon',
-  seoyeon: 'arti',
-  doyun: 'dmo',
-  sua: 'bart',
-  minjae: 'conver',
-  'app-seoyeon': 'arti',
-  'app-sua': 'bart',
-};
-
 // [출처 4] 선택형 마스코트 아바타, 기본 스콘
 export function Avatar({
   name,
-  personId = 'me',
-  avatarId,
+  accountId,
+  imageCode,
   size = 'normal',
 }: {
   name: string;
-  personId?: string;
-  avatarId?: MascotAvatarId;
+  /** 이미지 코드를 넘기지 않으면 이 계정의 현재 프로필 이미지를 사용 */
+  accountId?: string;
+  /** profileImageCode. null이면 기본 스콘 */
+  imageCode?: string | null;
   size?: 'normal' | 'large';
 }) {
   const state = useContext(DemoContext);
-  const profileAvatar =
-    personId === 'me'
-      ? state?.profile.avatarId
-      : state?.applicants.find((applicant) => applicant.personId === personId)
-          ?.profile?.avatarId;
-  const source = mascotAvatarSource(
-    avatarId ??
-      profileAvatar ??
-      avatarByPersonId[personId] ??
-      defaultMascotAvatarId,
+  const owner = accountId ?? state?.account.id;
+  const profileImage =
+    imageCode !== undefined
+      ? imageCode
+      : state?.db.profiles.find((item) => item.accountId === owner)
+          ?.profileImageCode;
+  // [출처 4] 코드 → Catalogs.avatarPresets의 자산, 미선택은 기본 스콘
+  const preset = demoCatalogs.avatarPresets.find(
+    (item) => item.code === (profileImage ?? defaultMascotAvatarId),
   );
+  const source = preset
+    ? new URL(preset.assetUrl).pathname
+    : mascotAvatarSource(defaultMascotAvatarId);
   const [failedSource, setFailedSource] = useState<string | null>(null);
   return (
     <span

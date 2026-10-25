@@ -39,7 +39,7 @@ import type { Notification } from '@/features/notifications/api';
 import { academicCatalog } from '@/features/demo/profile-fields';
 
 // [출처 1] 재현용 고정 현재 시각(2026-10-18 KST). 운영 시계가 아닙니다.
-export const mockNow = Date.parse('2026-10-18T03:00:00Z');
+export const mockNow = Date.parse('2026-10-18T09:00:00Z');
 
 const uuid = (prefix: string, n: number) =>
   `${prefix}-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -55,6 +55,9 @@ export const demoIds = {
     yuna: uuid('aaaaaaaa', 6),
     seoyeon: uuid('aaaaaaaa', 7),
     sua: uuid('aaaaaaaa', 8),
+    // scenario=team-lifecycle 전용
+    seojun: uuid('aaaaaaaa', 9),
+    suhyun: uuid('aaaaaaaa', 10),
   },
   contests: {
     campus: uuid('cccccccc', 1),
@@ -69,11 +72,15 @@ export const demoIds = {
     makers: uuid('eeeeeeee', 1),
     greenwave: uuid('eeeeeeee', 2),
     localcrew: uuid('eeeeeeee', 3),
+    greenmakers: uuid('eeeeeeee', 4),
+    localstudio: uuid('eeeeeeee', 5),
   },
   applications: {
     localcrew: uuid('dddddddd', 1),
     seoyeon: uuid('dddddddd', 2),
     sua: uuid('dddddddd', 3),
+    discardedLocal: uuid('dddddddd', 4),
+    greenmakersSeoyeon: uuid('dddddddd', 5),
   },
   memberships: {
     makersLeader: uuid('bbbbbbbb', 1),
@@ -83,6 +90,9 @@ export const demoIds = {
     localcrewLeader: uuid('bbbbbbbb', 5),
     localcrewMe: uuid('bbbbbbbb', 6),
     localcrewYuna: uuid('bbbbbbbb', 7),
+    greenmakersLeader: uuid('bbbbbbbb', 8),
+    greenmakersSeoyeon: uuid('bbbbbbbb', 9),
+    localstudioLeader: uuid('bbbbbbbb', 10),
   },
   notifications: {
     localcrewSelected: uuid('ffffffff', 1),
@@ -736,18 +746,24 @@ export const applicationStatusTitles: Record<ApplicationStatus, string> = {
 };
 
 // 각 알림의 수신자. Notification DTO에는 없는 서버 내부 정보입니다.
-export type NotificationRecord = Notification & { recipientAccountId: string };
+// 수신자와 발생 건 키(중복 방지)는 서버 내부 정보로, Notification 응답에는 없습니다.
+export type NotificationRecord = Notification & {
+  recipientAccountId: string;
+  eventKey: string;
+};
 
 // 수신자는 서버 내부 정보이므로 Notification 응답에서 뺍니다.
 export function toNotificationDto(record: NotificationRecord): Notification {
   const notification: Partial<NotificationRecord> = { ...record };
   delete notification.recipientAccountId;
+  delete notification.eventKey;
   return notification as Notification;
 }
 
 export const fixtureNotifications = (): NotificationRecord[] => [
   {
     id: demoIds.notifications.localcrewSelected,
+    eventKey: `history:${demoIds.applications.localcrew}:applicant`,
     recipientAccountId: a.me,
     kind: 'application_status_changed',
     applicationId: demoIds.applications.localcrew,
@@ -760,6 +776,7 @@ export const fixtureNotifications = (): NotificationRecord[] => [
   },
   {
     id: demoIds.notifications.seoyeonApplied,
+    eventKey: `history:${demoIds.applications.seoyeon}:leader`,
     recipientAccountId: a.me,
     kind: 'new_application',
     applicationId: demoIds.applications.seoyeon,
@@ -772,6 +789,7 @@ export const fixtureNotifications = (): NotificationRecord[] => [
   },
   {
     id: demoIds.notifications.suaApplied,
+    eventKey: `history:${demoIds.applications.sua}:leader`,
     recipientAccountId: a.me,
     kind: 'new_application',
     applicationId: demoIds.applications.sua,

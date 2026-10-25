@@ -7,13 +7,17 @@
  * 화면 확인용 메모리 상태·예시 데이터입니다. 서버 계약이 아니며 API 연동 시 기능별 TanStack Query로 교체합니다(handoff.md 「제품 구현에 옮기는 순서」 3단계).
  */
 
-import type { Application, Contest, Person, Team } from '@/features/demo/data';
+import type { Application } from '@/features/applications/api';
+import type { Contest } from '@/features/contests/api';
+import type { Profile } from '@/features/profiles/api';
+import type { Team } from '@/features/teams/api';
 import {
   contestDeadline,
   deadlineLabel,
   isContestOpen,
 } from '@/features/demo/contest-state';
-import { isTeamMember, recruitmentIssue } from '@/features/demo/team-state';
+import { recruitmentIssue } from '@/features/demo/team-state';
+import { fieldLabel, roleLabel } from '@/features/demo/labels';
 
 export type ChatSearchState = {
   kind: 'contests' | 'teams' | 'people';
@@ -40,19 +44,28 @@ export type ChatReply = {
 type SearchData = {
   contests: Contest[];
   teams: Team[];
-  people: Person[];
+  /** 현재 공개된 사람 프로필 */
+  people: Profile[];
   applications?: Application[];
+  /** 추천을 받는 본인 계정 */
+  accountId?: string;
+  /** 본인이 현재 팀장·팀원인 팀 */
+  memberTeamIds?: string[];
 };
 
+// [출처 3] 본인·소속 팀과 유효한 지원이 있는 팀은 신규 지원 대상에서 제외
 function availableTeam(team: Team, data: SearchData) {
   const contest = data.contests.find((item) => item.id === team.contestId);
   return Boolean(
     contest &&
     isContestOpen(contest) &&
     !recruitmentIssue(team) &&
-    !isTeamMember(team) &&
+    !data.memberTeamIds?.includes(team.id) &&
     !data.applications?.some(
-      (item) => item.teamId === team.id && item.status !== '지원취소',
+      (item) =>
+        item.teamId === team.id &&
+        item.applicantAccountId === data.accountId &&
+        item.status !== 'canceled',
     ),
   );
 }
@@ -63,17 +76,26 @@ const startingQuestions = [
   '디자인에 관심 있는 사람 찾아줘',
 ];
 
+// value는 역할 카탈로그 코드(목업 임시 코드)
 const roles = [
-  { value: '개발', words: /개발자|개발/, explicit: /개발자|개발역할|역할개발/ },
   {
-    value: '디자인',
+    value: 'development',
+    words: /개발자|개발/,
+    explicit: /개발자|개발역할|역할개발/,
+  },
+  {
+    value: 'design',
     words: /디자이너|디자인/,
     explicit: /디자이너|디자인역할|역할디자인/,
   },
-  { value: '기획', words: /기획자|기획/, explicit: /기획자|기획역할|역할기획/ },
-  { value: '자료조사', words: /자료조사/, explicit: /자료조사/ },
-  { value: '발표', words: /발표자|발표/, explicit: /발표/ },
-  { value: '마케팅', words: /마케터|마케팅/, explicit: /마케터|마케팅/ },
+  {
+    value: 'planning',
+    words: /기획자|기획/,
+    explicit: /기획자|기획역할|역할기획/,
+  },
+  { value: 'research', words: /자료조사/, explicit: /자료조사/ },
+  { value: 'presentation', words: /발표자|발표/, explicit: /발표/ },
+  { value: 'marketing', words: /마케터|마케팅/, explicit: /마케터|마케팅/ },
 ];
 
 function normalize(value: string) {
@@ -128,7 +150,7 @@ function hasUnknownWords(message: string) {
 
 function contestText(contest: Contest) {
   return normalize(
-    `${contest.title} ${contest.organizer} ${contest.description} ${contest.interests.join(' · ')}`,
+    `${contest.title} ${contest.organizer} ${contest.description ?? ''} ${contest.fieldCodes.map(fieldLabel).join(' · ')}`,
   );
 }
 
@@ -204,16 +226,16 @@ export function createDemoReply(
   );
   const categories: string[] = [];
   if (/아이디어/.test(query) || (categoryContext && /기획/.test(query)))
-    categories.push('교육');
-  if (/it|기술/.test(query)) categories.push('IT·기술');
-  if (categoryContext && /디자인/.test(query)) categories.push('디자인');
+    categories.push('education');
+  if (/it|기술/.test(query)) categories.push('it_tech');
+  if (categoryContext && /디자인/.test(query)) categories.push('design');
   const keyword = /환경|그린테크/.test(query) ? '환경' : undefined;
   const unhandledRole = roles.some(
     (role) =>
       role.words.test(query) &&
       !matchedRoles.includes(role) &&
-      !(role.value === '기획' && categories.includes('교육')) &&
-      !(role.value === '디자인' && categories.includes('디자인')),
+      !(role.value === 'planning' && categories.includes('education')) &&
+      !(role.value === 'design' && categories.includes('design')),
   );
 
   if (matchedRoles.length > 1 || categories.length > 1) {
@@ -266,19 +288,23 @@ export function createDemoReply(
     const matches = data.contests.filter(
       (contest) =>
         isContestOpen(contest) &&
-        (!search.category || contest.interests.includes(search.category)) &&
+        (!search.category || contest.fieldCodes.includes(search.category)) &&
         (!search.keyword ||
           contestText(contest).includes(normalize(search.keyword))),
     );
     if (search.deadlineFirst)
       matches.sort((a, b) => deadlineKey(a) - deadlineKey(b));
     for (const contest of matches) {
-      const reasons = [`${contest.interests.join(' · ')} 분야 공모전이에요.`];
+      const reasons = [
+        `${contest.fieldCodes.map(fieldLabel).join(' · ')} 분야 공모전이에요.`,
+      ];
       if (search.keyword)
         reasons.push(
           `공개된 공모전 정보에 ‘${search.keyword}’이 포함되어 있어요.`,
         );
-      reasons.push(`등록된 마감일은 ${deadlineLabel(contest)}이에요.`);
+      reasons.push(
+        `등록된 마감일은 ${deadlineLabel(contest.timing.closing)}이에요.`,
+      );
       recommendations.push({
         kind: 'contest',
         id: contest.id,
@@ -292,12 +318,12 @@ export function createDemoReply(
     const matches = data.teams.filter((team) => {
       const contest = contestById.get(team.contestId);
       const searchable =
-        normalize(`${team.name} ${team.summary}`) +
+        normalize(`${team.name} ${team.introduction}`) +
         (contest ? contestText(contest) : '');
       return (
         availableTeam(team, data) &&
-        (!search.role || team.roles.includes(search.role)) &&
-        (!search.category || contest?.interests.includes(search.category)) &&
+        (!search.role || team.roleCodes.includes(search.role)) &&
+        (!search.category || contest?.fieldCodes.includes(search.category)) &&
         (!search.keyword || searchable.includes(normalize(search.keyword)))
       );
     });
@@ -310,18 +336,20 @@ export function createDemoReply(
     for (const team of matches) {
       const reasons = [
         search.role
-          ? `‘${search.role}’ 역할을 모집하고 있어요.`
+          ? `‘${roleLabel(search.role)}’ 역할을 모집하고 있어요.`
           : '현재 모집 중인 팀이에요.',
       ];
       if (search.category)
-        reasons.push(`참여 공모전이 ${search.category} 분야예요.`);
+        reasons.push(`참여 공모전이 ${fieldLabel(search.category)} 분야예요.`);
       if (search.keyword)
         reasons.push(
           `공개된 팀·참여 공모전 정보에 ‘${search.keyword}’이 포함되어 있어요.`,
         );
       const contest = contestById.get(team.contestId);
       if (search.deadlineFirst && contest)
-        reasons.push(`참여 공모전 마감일은 ${deadlineLabel(contest)}이에요.`);
+        reasons.push(
+          `참여 공모전 마감일은 ${deadlineLabel(contest.timing.closing)}이에요.`,
+        );
       recommendations.push({
         kind: 'team',
         id: team.id,
@@ -330,17 +358,20 @@ export function createDemoReply(
     }
   } else {
     for (const person of data.people) {
-      const searchable = normalize((person.interests ?? []).join(' '));
+      const searchable = normalize(person.fieldCodes.map(fieldLabel).join(' '));
       if (
-        (search.role && !person.roles.includes(search.role)) ||
-        (search.category && !person.interests?.includes(search.category)) ||
+        (search.role && !person.roleCodes.includes(search.role)) ||
+        (search.category && !person.fieldCodes.includes(search.category)) ||
         (search.keyword && !searchable.includes(normalize(search.keyword)))
       )
         continue;
       const reasons: string[] = [];
-      if (search.role) reasons.push(`희망 역할 ‘${search.role}’을 공개했어요.`);
+      if (search.role)
+        reasons.push(`희망 역할 ‘${roleLabel(search.role)}’을 공개했어요.`);
       if (search.category)
-        reasons.push(`관심 분야 ‘${search.category}’을 공개했어요.`);
+        reasons.push(
+          `관심 분야 ‘${fieldLabel(search.category)}’을 공개했어요.`,
+        );
       if (search.keyword)
         reasons.push(
           `공개한 관심 분야에 ‘${search.keyword}’이 포함되어 있어요.`,
@@ -348,7 +379,7 @@ export function createDemoReply(
       if (!reasons.length) reasons.push('탐색에 공개된 사람 프로필이에요.');
       recommendations.push({
         kind: 'person',
-        id: person.id,
+        id: person.accountId,
         reason: reasons.join(' '),
       });
     }
@@ -398,11 +429,11 @@ export function currentRecommendation(
   data: SearchData,
 ) {
   if (item.kind === 'person') {
-    const person = data.people.find((value) => value.id === item.id);
+    const person = data.people.find((value) => value.accountId === item.id);
     return person
       ? {
-          title: person.name,
-          reason: `희망 역할: ${person.roles.join(' · ')}.${person.interests?.length ? ` 공개한 관심 분야: ${person.interests.join(' · ')}.` : ''}`,
+          title: person.realName,
+          reason: `희망 역할: ${person.roleCodes.map(roleLabel).join(' · ')}.${person.fieldCodes.length ? ` 공개한 관심 분야: ${person.fieldCodes.map(fieldLabel).join(' · ')}.` : ''}`,
         }
       : null;
   }
@@ -415,6 +446,6 @@ export function currentRecommendation(
   if (!team || !availableTeam(team, data)) return null;
   return {
     title: team.name,
-    reason: `현재 ${team.roles.join(' · ')} 역할을 모집하고 있어요. ${team.members}/${team.capacity}명 · ${team.recruitmentDeadline} 마감.`,
+    reason: `현재 ${team.roleCodes.map(roleLabel).join(' · ')} 역할을 모집하고 있어요. ${team.memberCount}/${team.capacity}명 · ${team.recruitmentDeadline.sourceDate} 마감.`,
   };
 }

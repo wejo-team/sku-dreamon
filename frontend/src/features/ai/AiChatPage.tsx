@@ -58,7 +58,29 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar } from '@/components/common/CommonUi';
 import { LoginGate } from '@/features/account/AccountPages';
 import { ContestCover } from '@/components/common/ContestCover';
-import { contests, getPublicProfile, people } from '@/features/demo/data';
+import { demoIds } from '@/features/demo/data';
+import type { DemoState } from '@/features/demo/demo-context';
+import { isTeamMember } from '@/features/demo/team-state';
+import { fieldLabel, roleLabel } from '@/features/demo/labels';
+
+// [출처 2, 4] 추천 대상: 탐색 공모전, 팀, 로그인 후 현재 공개된 프로필. 본인 소속·지원 팀은 신규 지원 대상에서 제외
+function searchData(state: DemoState) {
+  const accountId = state.account.id;
+  return {
+    contests: state.contests.filter(
+      (contest) => contest.id !== demoIds.contests.archive,
+    ),
+    teams: state.teams,
+    applications: state.applications,
+    people: state.signedIn
+      ? state.db.profiles.filter((profile) => profile.isPublic)
+      : [],
+    accountId,
+    memberTeamIds: state.teams
+      .filter((team) => isTeamMember(state.db, team.id, accountId))
+      .map((team) => team.id),
+  };
+}
 import { useDemo } from '@/features/demo/demo-context';
 import { contestBadgeLabel } from '@/features/demo/contest-state';
 import { profileTextLength } from '@/features/demo/profile-fields';
@@ -92,7 +114,7 @@ export function AiChatProvider({ children }: { children: ReactNode }) {
 }
 
 function ChatSession({ children }: { children: ReactNode }) {
-  const { teams, signedIn, profile, applications } = useDemo();
+  const state = useDemo();
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(false);
@@ -137,8 +159,6 @@ function ChatSession({ children }: { children: ReactNode }) {
     if (!retry) setDraft('');
     setFailedRequest(null);
     setPending(true);
-    const mine = signedIn ? getPublicProfile(profile) : null;
-    const visiblePeople = signedIn ? (mine ? [...people, mine] : people) : [];
     // A short local delay makes the prototype's sending and stop states reviewable.
     timer.current = setTimeout(() => {
       timer.current = null;
@@ -148,12 +168,7 @@ function ChatSession({ children }: { children: ReactNode }) {
           failedOnce.current = true;
           throw new Error('Reference response failure');
         }
-        const reply = createDemoReply(text, search.current, {
-          contests,
-          teams,
-          applications,
-          people: visiblePeople,
-        });
+        const reply = createDemoReply(text, search.current, searchData(state));
         search.current = reply.search;
         const message: Message = {
           id: nextId.current++,
@@ -195,40 +210,34 @@ function ChatSession({ children }: { children: ReactNode }) {
 }
 
 function RecommendationCard({ item }: { item: ChatRecommendation }) {
-  const { teams, signedIn, profile, applications } = useDemo();
-  const mine = signedIn ? getPublicProfile(profile) : null;
+  const state = useDemo();
+  const { teams, signedIn } = state;
+  const data = searchData(state);
   const person =
     item.kind === 'person' && signedIn
-      ? (mine ? [...people, mine] : people).find(
-          (value) => value.id === item.id,
-        )
+      ? data.people.find((value) => value.accountId === item.id)
       : undefined;
   const contest =
     item.kind === 'contest'
-      ? contests.find((value) => value.id === item.id)
+      ? data.contests.find((value) => value.id === item.id)
       : undefined;
   const team =
     item.kind === 'team'
       ? teams.find((value) => value.id === item.id)
       : undefined;
-  const current = currentRecommendation(item, {
-    contests,
-    teams,
-    applications,
-    people: signedIn ? (mine ? [...people, mine] : people) : [],
-  });
+  const current = currentRecommendation(item, data);
   if (!current || (!person && !contest && !team))
     return (
       <p className="preview-muted">
         이 추천의 정보가 변경되었어요. 다시 요청해 주세요.
       </p>
     );
-  const title = person?.name ?? contest?.title ?? team!.name;
-  const metadata =
-    person?.roles.join(' · ') ??
-    (contest
-      ? `${contest.interests.join(' · ')} · ${contestBadgeLabel(contest)}`
-      : `${team!.roles.join(' · ')} 모집 · ${team!.members}/${team!.capacity}명 · ${team!.recruitmentDeadline} 마감`);
+  const title = person?.realName ?? contest?.title ?? team!.name;
+  const metadata = person
+    ? person.roleCodes.map(roleLabel).join(' · ')
+    : contest
+      ? `${contest.fieldCodes.map(fieldLabel).join(' · ')} · ${contestBadgeLabel(contest)}`
+      : `${team!.roleCodes.map(roleLabel).join(' · ')} 모집 · ${team!.memberCount}/${team!.capacity}명 · ${team!.recruitmentDeadline.sourceDate} 마감`;
   const path = person ? 'people' : contest ? 'contests' : 'teams';
   return (
     <Link
@@ -238,14 +247,14 @@ function RecommendationCard({ item }: { item: ChatRecommendation }) {
       <div className="preview-ai-result-heading">
         {person ? (
           <Avatar
-            name={person.name}
-            personId={person.id}
-            avatarId={person.avatarId}
+            name={person.realName}
+            accountId={person.accountId}
+            imageCode={person.profileImageCode}
           />
         ) : contest ? (
           <ContestCover
             className="preview-ai-result-cover"
-            src={contest.cover}
+            src={contest.posterUrl ?? undefined}
           />
         ) : (
           <span className="preview-ai-result-icon" aria-hidden="true">
@@ -264,7 +273,7 @@ function RecommendationCard({ item }: { item: ChatRecommendation }) {
 }
 
 function ReplyActions({ reply }: { reply: ChatReply }) {
-  const { teams, signedIn, profile, applications } = useDemo();
+  const state = useDemo();
   const [status, setStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   useEffect(() => {
     if (status !== 'copied') return;
@@ -272,15 +281,9 @@ function ReplyActions({ reply }: { reply: ChatReply }) {
     return () => clearTimeout(timer);
   }, [status]);
   const copy = async () => {
-    const mine = signedIn ? getPublicProfile(profile) : null;
-    const publicPeople = signedIn ? (mine ? [...people, mine] : people) : [];
+    const data = searchData(state);
     const items = reply.recommendations.flatMap((item) => {
-      const current = currentRecommendation(item, {
-        contests,
-        teams,
-        applications,
-        people: publicPeople,
-      });
+      const current = currentRecommendation(item, data);
       return current ? [`${current.title}\n${current.reason}`] : [];
     });
     try {

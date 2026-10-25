@@ -24,12 +24,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
+import { demoIds } from '@/features/demo/data';
 import {
-  contests,
-  archivedContest,
-  people,
-  getPublicProfile,
-} from '@/features/demo/data';
+  academicPath,
+  academicStatusLabel,
+  fieldLabel,
+  gradeLabel,
+  roleLabel,
+  skillLabel,
+  weeklyAvailabilityLabel,
+  audienceLabels,
+  koreanDate,
+} from '@/features/demo/labels';
 import { useDemo } from '@/features/demo/demo-context';
 import {
   contestBadgeLabel,
@@ -62,9 +68,14 @@ import {
 // [출처 2, 3, 6] 탭·검색·필터·정렬·페이지를 URL에 유지하는 탐색
 export function ExplorePage() {
   const [params, setParams] = useSearchParams();
-  const { teams, profile, signedIn } = useDemo();
-  const mine = signedIn ? getPublicProfile(profile) : null;
-  const visiblePeople = signedIn ? (mine ? [...people, mine] : people) : [];
+  const { teams, contests: allContests, db, signedIn } = useDemo();
+  const contests = allContests.filter(
+    (item) => item.id !== demoIds.contests.archive,
+  );
+  // [출처 5] 로그인 후 현재 공개 프로필만(본인 포함)
+  const visiblePeople = signedIn
+    ? db.profiles.filter((item) => item.isPublic)
+    : [];
   const location = useLocation();
   const tab =
     params.get('tab') === 'teams'
@@ -88,17 +99,19 @@ export function ExplorePage() {
     text.toLocaleLowerCase().includes(q.trim().toLocaleLowerCase());
   const matchedContests = contests.filter(
     (item) =>
-      includes(`${item.title} ${item.organizer} ${item.interests.join(' ')}`) &&
-      (!category || item.interests.includes(category)),
+      includes(
+        `${item.title} ${item.organizer} ${item.fieldCodes.map(fieldLabel).join(' ')}`,
+      ) &&
+      (!category || item.fieldCodes.includes(category)),
   );
   if (sort === 'deadline')
     matchedContests.sort((a, b) => contestDeadline(a) - contestDeadline(b));
   const matchedTeams = teams.filter(
     (item) =>
       includes(
-        `${item.name} ${item.summary} ${item.roles.join(' ')} ${contests.find((contest) => contest.id === item.contestId)?.title}`,
+        `${item.name} ${item.introduction} ${item.roleCodes.map(roleLabel).join(' ')} ${item.contestTitle}`,
       ) &&
-      (!role || item.roles.includes(role)) &&
+      (!role || item.roleCodes.includes(role)) &&
       (params.get('open') !== 'true' || !recruitmentIssue(item)) &&
       (!params.get('contest') || item.contestId === params.get('contest')),
   );
@@ -106,23 +119,25 @@ export function ExplorePage() {
     (item) =>
       includes(
         [
-          item.name,
-          ...item.roles,
-          ...(item.interests ?? []),
-          ...(item.skills ?? []),
-          item.academicStatus,
-          item.grade,
-          item.college,
-          item.department,
-          item.major,
-          item.intro,
-          item.experience,
-          item.availability,
-          item.portfolioTitle,
-          item.portfolio,
-        ].join(' '),
+          item.realName,
+          ...item.roleCodes.map(roleLabel),
+          ...item.fieldCodes.map(fieldLabel),
+          ...item.skillCodes.map(skillLabel),
+          item.academicStatusCode &&
+            academicStatusLabel(item.academicStatusCode),
+          item.gradeCode && gradeLabel(item.gradeCode),
+          ...academicPath(item.academicUnitId).map((unit) => unit.name),
+          item.introduction,
+          item.experienceBody,
+          item.weeklyAvailabilityCode &&
+            weeklyAvailabilityLabel(item.weeklyAvailabilityCode),
+          item.portfolio?.title,
+          item.portfolio?.url,
+        ]
+          .filter(Boolean)
+          .join(' '),
       ) &&
-      (!role || item.roles.includes(role)),
+      (!role || item.roleCodes.includes(role)),
   );
   const count =
     tab === 'contests'
@@ -294,7 +309,7 @@ export function ExplorePage() {
               >
                 <div className="preview-contest-cover">
                   <ContestCover
-                    src={item.cover}
+                    src={item.posterUrl ?? undefined}
                     loading={index === 0 ? 'eager' : 'lazy'}
                   />
                   <span
@@ -306,15 +321,16 @@ export function ExplorePage() {
                 <div className="preview-contest-copy">
                   <h3>{item.title}</h3>
                   <div className="preview-row">
-                    {item.interests.map((interest) => (
-                      <Badge key={interest}>{interest}</Badge>
+                    {item.fieldCodes.map((code) => (
+                      <Badge key={code}>{fieldLabel(code)}</Badge>
                     ))}
                   </div>
                   <p className="preview-muted">{item.organizer}</p>
                   <span className="preview-contest-teams">
                     <Users size={16} aria-hidden="true" />
                     <span className="sr-only">연결된 팀 </span>
-                    {teams.filter((team) => team.contestId === item.id).length}
+                    {/* [출처 3] 모집 상태와 관계없는 연결 팀 전체 수(teamCount) */}
+                    {item.teamCount}
                     <span className="sr-only">개</span>
                   </span>
                 </div>
@@ -334,18 +350,20 @@ export function ExplorePage() {
             matchedPeople.slice(start, end).map((item) => (
               <Link
                 className="preview-card preview-person-card"
-                key={item.id}
-                to={`/people/${item.id}?from=${from}`}
+                key={item.accountId}
+                to={`/people/${item.accountId}?from=${from}`}
               >
                 <div className="preview-row">
                   <Avatar
-                    name={item.name}
-                    personId={item.id}
-                    avatarId={item.avatarId}
+                    name={item.realName}
+                    accountId={item.accountId}
+                    imageCode={item.profileImageCode}
                   />
                   <div>
-                    <h3>{item.name}</h3>
-                    <p className="preview-muted">{item.roles.join(' · ')}</p>
+                    <h3>{item.realName}</h3>
+                    <p className="preview-muted">
+                      {item.roleCodes.map(roleLabel).join(' · ')}
+                    </p>
                   </div>
                   <ChevronRight
                     className="preview-person-arrow"
@@ -354,8 +372,8 @@ export function ExplorePage() {
                   />
                 </div>
                 <div className="preview-row">
-                  {(item.interests ?? []).map((value) => (
-                    <Badge key={value}>{value}</Badge>
+                  {item.fieldCodes.map((code) => (
+                    <Badge key={code}>{fieldLabel(code)}</Badge>
                   ))}
                 </div>
               </Link>
@@ -378,7 +396,7 @@ export function ExplorePage() {
 export function ContestPage() {
   const { contestId } = useParams();
   const [params] = useSearchParams();
-  const { teams } = useDemo();
+  const { teams, contests } = useDemo();
   const location = useLocation();
   const relatedTeams = teams.filter((team) => team.contestId === contestId);
   const { page, totalPages, start, end, hrefForPage, headingRef } = useListPage(
@@ -386,9 +404,8 @@ export function ContestPage() {
     'teamPage',
   );
   const teamFrom = encodeURIComponent(location.pathname + location.search);
-  const contest = [...contests, archivedContest].find(
-    (item) => item.id === contestId,
-  );
+  // 마감 공고 예시(archivedContest)도 같은 목록에 있어 상세로 열람할 수 있음
+  const contest = contests.find((item) => item.id === contestId);
   if (!contest)
     return (
       <EmptyState
@@ -423,8 +440,8 @@ export function ContestPage() {
       <div className="preview-detail-grid">
         <article className="preview-stack">
           <div className="preview-row">
-            {contest.interests.map((interest) => (
-              <Badge key={interest}>{interest}</Badge>
+            {contest.fieldCodes.map((code) => (
+              <Badge key={code}>{fieldLabel(code)}</Badge>
             ))}
             <Badge tone="warm">{contestBadgeLabel(contest)}</Badge>
           </div>
@@ -438,46 +455,48 @@ export function ContestPage() {
                   <CalendarDays size={16} />
                   접수 마감
                 </dt>
-                <dd>{deadlineLabel(contest)}</dd>
+                <dd>{deadlineLabel(contest.timing.closing)}</dd>
               </div>
               <div>
                 <dt>
                   <Users size={16} />
                   참가 대상
                 </dt>
-                <dd>{contest.audience.join(' · ')}</dd>
-              </div>
-              <div>
-                <dt>접수 시작</dt>
-                <dd>{contest.startsAt}</dd>
-              </div>
-              <div>
-                <dt>공식 참가 인원</dt>
-                <dd>{memberLimitLabel(contest)}</dd>
-              </div>
-              <div>
-                <dt>원문 참가 자격</dt>
-                <dd>{contest.audienceOriginal}</dd>
-              </div>
-              <div>
-                <dt>제출물</dt>
                 <dd>
-                  {contest.deliverables.length
-                    ? contest.deliverables.join(' · ')
-                    : '공식 공고 확인 필요'}
+                  {contest.audienceCodes
+                    .map((code) => audienceLabels[code])
+                    .join(' · ')}
                 </dd>
               </div>
               <div>
+                <dt>접수 시작</dt>
+                <dd>{contest.timing.openSourceDate}</dd>
+              </div>
+              <div>
+                <dt>공식 참가 인원</dt>
+                <dd>{memberLimitLabel(contest.capacity)}</dd>
+              </div>
+              <div>
+                <dt>원문 참가 자격</dt>
+                <dd>{contest.eligibilityText}</dd>
+              </div>
+              <div>
+                <dt>제출물</dt>
+                <dd>{contest.deliverables || '공식 공고 확인 필요'}</dd>
+              </div>
+              <div>
                 <dt>정보 확인일</dt>
-                <dd>{contest.verifiedOn}</dd>
+                <dd>{koreanDate(contest.verifiedAt)}</dd>
               </div>
             </dl>
-            {deadlineNotice(contest) && (
-              <p className="preview-muted">{deadlineNotice(contest)}</p>
+            {deadlineNotice(contest.timing.closing) && (
+              <p className="preview-muted">
+                {deadlineNotice(contest.timing.closing)}
+              </p>
             )}
             <a
               className="preview-button"
-              href={contest.officialUrl}
+              href={contest.sourceUrl}
               target="_blank"
               rel="noreferrer"
             >
@@ -528,7 +547,7 @@ export function ContestPage() {
               </div>
             )}
           </div>
-          {contestStatus(contest) === 'upcoming' && (
+          {contestStatus(contest) === 'scheduled' && (
             <Notice>접수가 시작되면 팀을 만들거나 지원할 수 있어요.</Notice>
           )}
           {contestStatus(contest) === 'closed' && (
@@ -568,7 +587,7 @@ export function ContestPage() {
               description={
                 contestStatus(contest) === 'closed'
                   ? '공모전 상세 정보는 계속 확인할 수 있어요.'
-                  : contestStatus(contest) === 'upcoming'
+                  : contestStatus(contest) === 'scheduled'
                     ? '접수가 시작되면 첫 팀을 만들어 보세요.'
                     : '첫 팀을 만들어 함께 도전해 보세요.'
               }
@@ -584,7 +603,7 @@ export function ContestPage() {
 export function PersonPage() {
   const { personId } = useParams();
   const [params] = useSearchParams();
-  const { profile, signedIn } = useDemo();
+  const { db, signedIn } = useDemo();
   if (!signedIn)
     return (
       <EmptyState
@@ -598,12 +617,10 @@ export function PersonPage() {
         </ActionLink>
       </EmptyState>
     );
-  const person =
-    personId === 'me'
-      ? signedIn
-        ? getPublicProfile(profile)
-        : null
-      : people.find((item) => item.id === personId);
+  // [출처 5] 공개 프로필만 상세 열람. 비공개·미존재는 같은 안내
+  const person = db.profiles.find(
+    (item) => item.accountId === personId && item.isPublic,
+  );
   if (!person)
     return (
       <EmptyState
@@ -635,14 +652,16 @@ export function PersonPage() {
       <div className="preview-panel preview-stack">
         <div className="preview-row">
           <Avatar
-            name={person.name}
-            personId={person.id}
-            avatarId={person.avatarId}
+            name={person.realName}
+            accountId={person.accountId}
+            imageCode={person.profileImageCode}
             size="large"
           />
           <div>
-            <h1>{person.name}</h1>
-            <p className="preview-muted">{person.roles.join(' · ')}</p>
+            <h1>{person.realName}</h1>
+            <p className="preview-muted">
+              {person.roleCodes.map(roleLabel).join(' · ')}
+            </p>
           </div>
         </div>
         <SchoolVerificationBadge />

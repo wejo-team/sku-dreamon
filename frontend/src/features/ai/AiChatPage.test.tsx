@@ -6,6 +6,7 @@ import { AiChatPage, AiChatProvider } from '@/features/ai/AiChatPage';
 import { LoginPage } from '@/features/account/AccountPages';
 import { DemoProvider } from '@/features/demo/DemoProvider';
 import { useDemo } from '@/features/demo/demo-context';
+import { demoIds } from '@/features/demo/fixtures';
 
 function TestNavigation() {
   const { signIn, signOut, emptyWorkspace, saveProfile, profile, apply } =
@@ -14,21 +15,13 @@ function TestNavigation() {
   return (
     <nav aria-label="테스트 탐색">
       <button onClick={emptyWorkspace}>참여 초기화</button>
-      <button onClick={() => apply('greenwave', '개발', '')}>
+      <button onClick={() => apply(demoIds.teams.greenwave, 'development', '')}>
         추천 팀에 지원
       </button>
-      <button
-        onClick={() =>
-          saveProfile({ ...profile, visibility: { discoverable: false } })
-        }
-      >
+      <button onClick={() => saveProfile({ ...profile, isPublic: false })}>
         프로필 비공개
       </button>
-      <button
-        onClick={() =>
-          saveProfile({ ...profile, visibility: { discoverable: true } })
-        }
-      >
+      <button onClick={() => saveProfile({ ...profile, isPublic: true })}>
         프로필 공개
       </button>
       <button onClick={signIn}>테스트 로그인</button>
@@ -108,7 +101,7 @@ describe('design preview AI chat', () => {
       within(log).getByRole('link', {
         name: /우리 동네를 새롭게, 로컬 브랜딩/,
       }),
-    ).toHaveAttribute('href', '/contests/local?from=%2Fai');
+    ).toHaveAttribute('href', `/contests/${demoIds.contests.local}?from=%2Fai`);
   });
 
   it('preserves oversized pasted input, explains the limit and permits editing before sending', async () => {
@@ -174,7 +167,7 @@ describe('design preview AI chat', () => {
     const log = screen.getByRole('log');
     expect(
       within(log).getByRole('link', { name: /그린웨이브/ }),
-    ).toHaveAttribute('href', '/teams/greenwave?from=%2Fai');
+    ).toHaveAttribute('href', `/teams/${demoIds.teams.greenwave}?from=%2Fai`);
     expect(
       within(log).queryByRole('link', { name: /캠퍼스 메이커스/ }),
     ).not.toBeInTheDocument();
@@ -467,7 +460,7 @@ describe('design preview AI chat', () => {
     await finishReply();
     expect(
       within(screen.getByRole('log')).getByRole('link', { name: /정수아/ }),
-    ).toHaveAttribute('href', '/people/sua?from=%2Fai');
+    ).toHaveAttribute('href', `/people/${demoIds.accounts.sua}?from=%2Fai`);
   });
 
   it('retains an unsent oversized draft when retrying a previously failed request', async () => {

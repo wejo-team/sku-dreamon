@@ -7,23 +7,33 @@ import { ApplicantReview } from '@/features/teams/ApplicantReview';
 import { ApplicantReviewProvider } from '@/features/teams/ApplicantReviewProvider';
 import { DemoProvider } from '@/features/demo/DemoProvider';
 import { useDemo } from '@/features/demo/demo-context';
-import { initialApplicants, profileToPerson } from '@/features/demo/data';
+import { createDemoRecords, demoIds } from '@/features/demo/fixtures';
+
+// 김서연의 그린웨이브 지원(Application DTO)과 현재 프로필(Profile DTO)
+const records = createDemoRecords();
+const seoyeonApplication = records.applications.find(
+  (item) => item.id === demoIds.applications.seoyeon,
+)!;
+const seoyeonProfile = records.profiles.find(
+  (item) => item.accountId === demoIds.accounts.seoyeon,
+)!;
 
 describe('applicant AI review reference', () => {
   it('uses the latest private applicant profile on each explicit request', async () => {
     const user = userEvent.setup();
-    const applicant = initialApplicants[0]!;
+    const applicant = seoyeonApplication;
     const profile = {
-      ...applicant.profile!,
-      visibility: { discoverable: false },
-      experience: '지원 후 새로 등록한 경험',
+      ...seoyeonProfile,
+      isPublic: false,
+      experienceState: 'provided' as const,
+      experienceBody: '지원 후 새로 등록한 경험',
     };
     const view = render(
       <MemoryRouter>
         <ApplicantReview
           mayReviewExistingApplication
-          applicant={applicant}
-          profile={profileToPerson(profile)}
+          application={applicant}
+          profile={profile}
         />
       </MemoryRouter>,
     );
@@ -35,11 +45,11 @@ describe('applicant AI review reference', () => {
       <MemoryRouter>
         <ApplicantReview
           mayReviewExistingApplication
-          applicant={applicant}
-          profile={profileToPerson({
+          application={applicant}
+          profile={{
             ...profile,
-            experience: '다시 수정한 경험',
-          })}
+            experienceBody: '다시 수정한 경험',
+          }}
         />
       </MemoryRouter>,
     );
@@ -54,23 +64,23 @@ describe('applicant AI review reference', () => {
     ).not.toBeInTheDocument();
   });
 
-  it.each(['선발', '미선발', '지원취소', '폐기'] as const)(
+  it.each(['selected', 'rejected', 'canceled', 'discarded'] as const)(
     'allows factual review but excludes %s from new selection candidates',
     async (status) => {
       const user = userEvent.setup();
-      const applicant = { ...initialApplicants[0]!, status };
+      const applicant = { ...seoyeonApplication, status };
       render(
         <MemoryRouter>
           <ApplicantReview
             mayReviewExistingApplication
-            applicant={applicant}
-            profile={profileToPerson(applicant.profile!)}
+            application={applicant}
+            profile={seoyeonProfile}
           />
         </MemoryRouter>,
       );
       await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
       expect(await screen.findByRole('status')).toHaveTextContent(
-        applicant.message,
+        applicant.message!,
       );
       expect(
         screen.getByText(/새 선발 후보 추천에서 제외/),
@@ -80,38 +90,38 @@ describe('applicant AI review reference', () => {
 
   it('preserves factual review after a selection decision and allows a latest-profile refresh without restoring candidacy', async () => {
     const user = userEvent.setup();
-    const applicant = initialApplicants[0]!;
-    const profile = profileToPerson(applicant.profile!);
+    const applicant = seoyeonApplication;
+    const profile = seoyeonProfile;
     const view = render(
       <MemoryRouter>
         <ApplicantReview
           mayReviewExistingApplication
-          applicant={applicant}
+          application={applicant}
           profile={profile}
         />
       </MemoryRouter>,
     );
     await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
     expect(await screen.findByRole('status')).toHaveTextContent(
-      applicant.message,
+      applicant.message!,
     );
     view.rerender(
       <MemoryRouter>
         <ApplicantReview
           mayReviewExistingApplication
-          applicant={{ ...applicant, status: '선발' }}
+          application={{ ...applicant, status: 'selected' as const }}
           profile={profile}
         />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('status')).toHaveTextContent(applicant.message);
+    expect(screen.getByRole('status')).toHaveTextContent(applicant.message!);
     expect(screen.getByText(/새 선발 후보 추천에서 제외/)).toBeInTheDocument();
     view.rerender(
       <MemoryRouter>
         <ApplicantReview
           mayReviewExistingApplication
-          applicant={{ ...applicant, status: '선발' }}
-          profile={{ ...profile, experience: '선발 이후 수정한 경험' }}
+          application={{ ...applicant, status: 'selected' as const }}
+          profile={{ ...profile, experienceBody: '선발 이후 수정한 경험' }}
         />
       </MemoryRouter>,
     );
@@ -127,13 +137,13 @@ describe('applicant AI review reference', () => {
 
   it('shows a failed request distinctly and supports retry', async () => {
     const user = userEvent.setup();
-    const applicant = initialApplicants[0]!;
+    const applicant = seoyeonApplication;
     render(
       <MemoryRouter initialEntries={['/?scenario=review-error']}>
         <ApplicantReview
           mayReviewExistingApplication
-          applicant={applicant}
-          profile={profileToPerson(applicant.profile!)}
+          application={applicant}
+          profile={seoyeonProfile}
         />
       </MemoryRouter>,
     );
@@ -143,40 +153,40 @@ describe('applicant AI review reference', () => {
     );
     await user.click(screen.getByRole('button', { name: '검토 다시 시도' }));
     expect(await screen.findByRole('status')).toHaveTextContent(
-      applicant.message,
+      applicant.message!,
     );
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('hides existing review results and requests when the current leader relationship is unavailable', async () => {
     const user = userEvent.setup();
-    const applicant = { ...initialApplicants[0]!, status: '폐기' as const };
+    const applicant = { ...seoyeonApplication, status: 'discarded' as const };
     const view = render(
       <MemoryRouter>
         <ApplicantReview
           mayReviewExistingApplication
-          applicant={applicant}
-          profile={profileToPerson(applicant.profile!)}
+          application={applicant}
+          profile={seoyeonProfile}
         />
       </MemoryRouter>,
     );
     await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
     expect(await screen.findByRole('status')).toHaveTextContent(
-      applicant.message,
+      applicant.message!,
     );
     view.rerender(
       <MemoryRouter>
         <ApplicantReview
           mayReviewExistingApplication={false}
-          applicant={applicant}
-          profile={profileToPerson(applicant.profile!)}
+          application={applicant}
+          profile={seoyeonProfile}
         />
       </MemoryRouter>,
     );
     expect(
       screen.queryByRole('region', { name: 'AI 검토 도움' }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText(applicant.message)).not.toBeInTheDocument();
+    expect(screen.queryByText(applicant.message!)).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /검토/ }),
     ).not.toBeInTheDocument();
@@ -186,7 +196,7 @@ describe('applicant AI review reference', () => {
 function ReviewSessionHarness() {
   const { signedIn, signIn, signOut } = useDemo();
   const [show, setShow] = useState(true);
-  const applicant = initialApplicants[0]!;
+  const applicant = seoyeonApplication;
   return (
     <>
       <button onClick={signedIn ? signOut : signIn}>
@@ -198,8 +208,8 @@ function ReviewSessionHarness() {
       {signedIn && show && (
         <ApplicantReview
           mayReviewExistingApplication
-          applicant={applicant}
-          profile={profileToPerson(applicant.profile!)}
+          application={applicant}
+          profile={seoyeonProfile}
         />
       )}
     </>
@@ -224,7 +234,7 @@ it('retains review results across navigation in the current session and clears t
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: '화면 전환' }));
   expect(screen.getByRole('status')).toHaveTextContent(
-    initialApplicants[0]!.message,
+    seoyeonApplication.message!,
   );
   await user.click(screen.getByRole('button', { name: '로그아웃' }));
   await user.click(screen.getByRole('button', { name: '로그인' }));

@@ -27,7 +27,8 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import type { Contest } from '@/features/demo/data';
+import type { Contest } from '@/features/contests/api';
+import { fieldLabel } from '@/features/demo/labels';
 import { deadlineLabel } from '@/features/demo/contest-state';
 import { ContestCover } from '@/components/common/ContestCover';
 
@@ -73,7 +74,7 @@ export function ContestPicker({
       .filter(Boolean);
     return contests.filter((contest) => {
       const source = normalizeSearch(
-        `${contest.title} ${contest.organizer} ${contest.interests.join(' ')}`,
+        `${contest.title} ${contest.organizer} ${contest.fieldCodes.map(fieldLabel).join(' ')}`,
       );
       return terms.every((term) => source.includes(term));
     });
@@ -109,8 +110,9 @@ export function ContestPicker({
             <strong>{selected?.title ?? '공모전 검색해서 선택'}</strong>
             {selected && (
               <span>
-                {selected.organizer} · {selected.interests.join(' · ')} · 마감{' '}
-                {deadlineLabel(selected)}
+                {selected.organizer} ·{' '}
+                {selected.fieldCodes.map(fieldLabel).join(' · ')} · 마감{' '}
+                {deadlineLabel(selected.timing.closing)}
               </span>
             )}
           </span>
@@ -160,14 +162,14 @@ export function ContestPicker({
                     value={contest.id}
                     className="preview-contest-option"
                     data-current={contest.id === value}
-                    aria-label={`${contest.title}, ${contest.organizer}, ${contest.interests.join(' ')}, 마감 ${deadlineLabel(contest)}${contest.id === value ? ', 현재 선택됨' : ''}`}
+                    aria-label={`${contest.title}, ${contest.organizer}, ${contest.fieldCodes.map(fieldLabel).join(' ')}, 마감 ${deadlineLabel(contest.timing.closing)}${contest.id === value ? ', 현재 선택됨' : ''}`}
                     onSelect={() => {
                       onChange(contest.id);
                       setOpen(false);
                     }}
                   >
                     <ContestCover
-                      src={contest.cover}
+                      src={contest.posterUrl ?? undefined}
                       className="preview-contest-option-cover"
                     />
                     <span className="preview-contest-option-copy">
@@ -176,8 +178,8 @@ export function ContestPicker({
                         {contest.organizer}
                       </span>
                       <span className="preview-contest-option-meta">
-                        {contest.interests.join(' · ')} · 마감{' '}
-                        {deadlineLabel(contest)}
+                        {contest.fieldCodes.map(fieldLabel).join(' · ')} · 마감{' '}
+                        {deadlineLabel(contest.timing.closing)}
                       </span>
                     </span>
                     {contest.id === value && (

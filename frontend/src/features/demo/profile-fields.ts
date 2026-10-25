@@ -8,7 +8,7 @@
  * 화면 확인용 메모리 상태·예시 데이터입니다. 서버 계약이 아니며 API 연동 시 기능별 TanStack Query로 교체합니다(handoff.md 「제품 구현에 옮기는 순서」 3단계).
  */
 
-import type { Profile } from '@/features/demo/data';
+import type { Profile } from '@/features/profiles/api';
 
 // Interaction fixtures copied from docs/specs/academic-structure.md. The verified
 // operating-year catalog and permanent codes remain TBD; these are not API enums.
@@ -217,32 +217,6 @@ export const academicCatalog = [
   },
 ] as const;
 
-export const academicStatuses = ['재학', '휴학', '졸업'];
-export const grades = ['1학년', '2학년', '3학년', '4학년 이상', '해당 없음'];
-export const skillOptions = [
-  '프로그래밍',
-  'UI/UX',
-  '데이터분석',
-  '영상 편집',
-  '문서 작성',
-  '서비스 기획',
-  '시장 조사',
-  '그래픽 디자인',
-  'PPT 제작',
-  '데이터 시각화',
-  'SNS 마케팅',
-  '콘텐츠 기획',
-  '발표·스피치',
-];
-
-// [출처 2] 모든 프로젝트 합산 4구간, 미입력과 구분
-export const weeklyAvailabilityOptions = [
-  '5시간 미만',
-  '5~10시간 미만',
-  '10~20시간 미만',
-  '20시간 이상',
-];
-
 // Preview counting convention; the production non-password Unicode contract
 // remains TBD. Leading/trailing whitespace is omitted, internal whitespace counts.
 // [출처 3] 코드 포인트 기준 길이
@@ -263,23 +237,13 @@ export const profileTextLength = (value: string) =>
 
 // [출처 3] 지원 전 필수 프로필 점검
 export function missingProfileFields(
-  profile: Pick<Profile, 'name' | 'roles' | 'interests'>,
+  profile: Pick<Profile, 'realName' | 'roleCodes' | 'fieldCodes'>,
 ) {
   return [
-    (!profile.name.trim() || profileTextLength(profile.name) > 50) && '이름',
-    (!profile.roles.length || profile.roles.length > 2) && '희망 역할',
-    (!profile.interests.length || profile.interests.length > 3) && '관심 분야',
+    (!profile.realName.trim() || profileTextLength(profile.realName) > 50) &&
+      '이름',
+    (!profile.roleCodes.length || profile.roleCodes.length > 2) && '희망 역할',
+    (!profile.fieldCodes.length || profile.fieldCodes.length > 3) &&
+      '관심 분야',
   ].filter((field): field is string => !!field);
-}
-
-export function academicOptions(college: string, department: string) {
-  const departments = academicCatalog.filter(
-    (item) => item.college === college,
-  );
-  return {
-    colleges: [...new Set(academicCatalog.map((item) => item.college))],
-    departments: departments.map((item) => item.department),
-    majors:
-      departments.find((item) => item.department === department)?.majors ?? [],
-  };
 }

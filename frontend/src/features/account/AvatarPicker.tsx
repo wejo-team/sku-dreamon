@@ -21,30 +21,33 @@ import {
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Avatar } from '@/components/common/CommonUi';
-import {
-  defaultMascotAvatarId,
-  mascotAvatars,
-  type MascotAvatarId,
-} from '@/features/demo/mascot-avatars';
+import { defaultMascotAvatarId } from '@/features/demo/mascot-avatars';
+import { demoCatalogs } from '@/features/demo/labels';
 
-// [출처 2, 3] 선택·적용·취소와 포커스 복귀
+// docs/api/catalogs.md#catalog-item: 프로필 이미지 선택지는 Catalogs.avatarPresets(새 선택은 isSelectable만)
+const presets = demoCatalogs.avatarPresets.filter((item) => item.isSelectable);
+const presetOf = (code: string) =>
+  presets.find((item) => item.code === code) ?? presets[0]!;
+
+// [출처 2, 3] 선택·적용·취소와 포커스 복귀. 값은 profileImageCode, 미선택(null)은 기본 스콘으로 표시
 export function AvatarPicker({
-  value = defaultMascotAvatarId,
+  value,
   onChange,
 }: {
-  value?: MascotAvatarId;
-  onChange: (value: MascotAvatarId) => void;
+  value?: string | null;
+  onChange: (value: string) => void;
 }) {
+  const current = value ?? defaultMascotAvatarId;
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const selected = mascotAvatars.find((item) => item.id === value)!;
-  const preview = mascotAvatars.find((item) => item.id === draft)!;
+  const [draft, setDraft] = useState(current);
+  const selected = presetOf(current);
+  const preview = presetOf(draft);
   return (
     <Drawer
       open={open}
       onOpenChange={(nextOpen) => {
-        if (nextOpen) setDraft(value);
+        if (nextOpen) setDraft(current);
         setOpen(nextOpen);
       }}
     >
@@ -53,12 +56,12 @@ export function AvatarPicker({
           type="button"
           variant="outline"
           className="preview-avatar-picker-trigger"
-          aria-label={`프로필 이미지 변경, 현재 ${selected.name}`}
+          aria-label={`프로필 이미지 변경, 현재 ${selected.displayName}`}
         >
-          <Avatar name={selected.name} avatarId={value} />
+          <Avatar name={selected.displayName} imageCode={current} />
           <span>
             <strong>프로필 이미지 변경</strong>
-            <span>{selected.name} · 선택사항</span>
+            <span>{selected.displayName} · 선택사항</span>
           </span>
           <Pencil size={16} aria-hidden="true" />
         </Button>
@@ -72,30 +75,30 @@ export function AvatarPicker({
         </DrawerHeader>
         <div className="preview-avatar-picker-body">
           <div className="preview-avatar-picker-preview" aria-live="polite">
-            <Avatar name={preview.name} avatarId={draft} size="large" />
+            <Avatar name={preview.displayName} imageCode={draft} size="large" />
             <p>
-              선택한 캐릭터: <strong>{preview.name}</strong>
+              선택한 캐릭터: <strong>{preview.displayName}</strong>
             </p>
           </div>
           <RadioGroup
             aria-label="프로필 캐릭터"
             value={draft}
             onValueChange={(next) => {
-              const option = mascotAvatars.find((item) => item.id === next);
-              if (option) setDraft(option.id);
+              const option = presets.find((item) => item.code === next);
+              if (option) setDraft(option.code);
             }}
             className="preview-avatar-options"
           >
-            {mascotAvatars.map((item) => (
+            {presets.map((item) => (
               <Label
-                key={item.id}
-                htmlFor={`${id}-${item.id}`}
+                key={item.code}
+                htmlFor={`${id}-${item.code}`}
                 className="preview-avatar-option"
-                data-selected={draft === item.id}
+                data-selected={draft === item.code}
               >
-                <RadioGroupItem id={`${id}-${item.id}`} value={item.id} />
-                <Avatar name={item.name} avatarId={item.id} />
-                <span>{item.name}</span>
+                <RadioGroupItem id={`${id}-${item.code}`} value={item.code} />
+                <Avatar name={item.displayName} imageCode={item.code} />
+                <span>{item.displayName}</span>
               </Label>
             ))}
           </RadioGroup>

@@ -47,12 +47,25 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import type { CatalogItem } from '@/features/catalogs/api';
+import { getPublicProfile } from '@/features/demo/data';
 import {
-  getPublicProfile,
-  interestOptions,
+  academicPath,
+  academicStatusLabel,
+  fieldLabel,
+  fieldOptions,
+  gradeLabel,
+  roleLabel,
   roleOptions,
-  type Profile,
-} from '@/features/demo/data';
+  skillLabel,
+  weeklyAvailabilityLabel,
+  weeklyAvailabilityOptions,
+} from '@/features/demo/labels';
+import {
+  fromFormValues,
+  toFormValues,
+  type ProfileFormValues,
+} from '@/features/account/profile-form';
 import { useDemo } from '@/features/demo/demo-context';
 import {
   Avatar,
@@ -63,7 +76,6 @@ import {
 } from '@/components/common/CommonUi';
 import { AvatarPicker } from '@/features/account/AvatarPicker';
 import { ProfileDetails } from '@/components/common/ProfileDetails';
-import { mascotAvatarIds } from '@/features/demo/mascot-avatars';
 import {
   AcademicFields,
   ExperienceFields,
@@ -79,7 +91,6 @@ import {
 import {
   normalizeWebUrl,
   profileTextLength,
-  weeklyAvailabilityOptions,
 } from '@/features/demo/profile-fields';
 
 // [출처 3] 저장·공개 변환과 같은 기준(normalizeWebUrl)으로 포트폴리오 주소를 판단합니다.
@@ -88,7 +99,7 @@ function isWebUrl(value: string) {
 }
 
 const requiredProfileSchema = z.object({
-  name: z
+  realName: z
     .string()
     .trim()
     .min(1, '이름을 입력해 주세요.')
@@ -96,25 +107,25 @@ const requiredProfileSchema = z.object({
       (value) => profileTextLength(value) <= 50,
       '이름은 50자 이내로 입력해 주세요.',
     ),
-  roles: z
+  roleCodes: z
     .array(z.string())
     .min(1, '희망 역할을 하나 이상 선택해 주세요.')
     .max(2, '희망 역할은 최대 2개까지 선택해 주세요.'),
-  interests: z
+  fieldCodes: z
     .array(z.string())
     .min(1, '관심 분야를 하나 이상 선택해 주세요.')
     .max(3, '관심 분야는 최대 3개까지 선택해 주세요.'),
 });
 const profileSchema = requiredProfileSchema.extend({
-  avatarId: z.enum(mascotAvatarIds).optional(),
-  intro: z
+  profileImageCode: z.string().nullable(),
+  introduction: z
     .string()
     .trim()
     .refine(
       (value) => profileTextLength(value) <= 300,
       '자기소개는 300자 이내로 입력해 주세요.',
     ),
-  experience: z
+  experienceBody: z
     .string()
     .trim()
     .refine(
@@ -122,12 +133,12 @@ const profileSchema = requiredProfileSchema.extend({
       '관련 경험은 500자 이내로 입력해 주세요.',
     ),
   experienceState: z.enum(['unspecified', 'none', 'provided']),
-  academicStatus: z.string().optional(),
-  grade: z.string().optional(),
-  college: z.string().optional(),
-  department: z.string().optional(),
-  major: z.string().optional(),
-  skills: z.array(z.string()),
+  academicStatusCode: z.string(),
+  gradeCode: z.string(),
+  collegeId: z.string(),
+  departmentId: z.string(),
+  majorId: z.string(),
+  skillCodes: z.array(z.string()),
   portfolioTitle: z
     .string()
     .trim()
@@ -135,20 +146,18 @@ const profileSchema = requiredProfileSchema.extend({
       (value) => profileTextLength(value) <= 50,
       '포트폴리오 제목은 50자 이내로 입력해 주세요.',
     ),
-  visibility: z.object({
-    discoverable: z.boolean(),
-  }),
-  portfolio: z
+  portfolioUrl: z
     .string()
     .trim()
     .refine(
       (value) => !value || isWebUrl(value),
       'http:// 또는 https://로 시작하는 링크를 입력해 주세요.',
     ),
-  availability: z
+  weeklyAvailabilityCode: z
     .string()
     .refine(
-      (value) => !value || weeklyAvailabilityOptions.includes(value),
+      (value) =>
+        !value || weeklyAvailabilityOptions.some((item) => item.code === value),
       '주당 참여 가능 시간을 다시 선택해 주세요.',
     ),
 });
@@ -182,7 +191,7 @@ function ChoiceField({
   id,
 }: {
   label: string;
-  options: string[];
+  options: CatalogItem[];
   value: string[];
   onChange: (value: string[]) => void;
   error?: string;
@@ -202,23 +211,23 @@ function ChoiceField({
       <div className="preview-row">
         {options.map((option) => (
           <Label
-            key={option}
-            htmlFor={`${id}-${option}`}
+            key={option.code}
+            htmlFor={`${id}-${option.code}`}
             className="preview-choice"
           >
             <Checkbox
-              id={`${id}-${option}`}
-              checked={value.includes(option)}
+              id={`${id}-${option.code}`}
+              checked={value.includes(option.code)}
               aria-invalid={!!error}
               onCheckedChange={(checked) =>
                 onChange(
                   checked === true
-                    ? [...value, option]
-                    : value.filter((item) => item !== option),
+                    ? [...value, option.code]
+                    : value.filter((item) => item !== option.code),
                 )
               }
             />
-            {option}
+            {option.displayName}
           </Label>
         ))}
       </div>
@@ -247,8 +256,8 @@ function AvailabilityField({
       >
         <NativeSelectOption value="">미입력</NativeSelectOption>
         {weeklyAvailabilityOptions.map((option) => (
-          <NativeSelectOption value={option} key={option}>
-            {option}
+          <NativeSelectOption value={option.code} key={option.code}>
+            {option.displayName}
           </NativeSelectOption>
         ))}
       </NativeSelect>
@@ -427,40 +436,27 @@ function ProfileEditor({
     handleSubmit,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<Profile>({
+  } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
-    defaultValues: profile,
+    defaultValues: toFormValues(profile),
     mode: 'onChange',
   });
-  const name = useWatch({ control, name: 'name' });
-  const intro = useWatch({ control, name: 'intro' });
+  const name = useWatch({ control, name: 'realName' });
+  const intro = useWatch({ control, name: 'introduction' });
   const portfolioTitle = useWatch({ control, name: 'portfolioTitle' });
   return (
     <form
       className="preview-panel preview-form"
       noValidate
       onSubmit={handleSubmit((values) => {
-        // [출처 3] 검증을 통과한 주소는 정규화된 형태로 저장해 공개 미리보기와 같은 링크를 사용합니다.
-        const portfolio = values.portfolio
-          ? normalizeWebUrl(values.portfolio)
-          : '';
-        saveProfile({
-          ...values,
-          portfolio,
-          experienceState:
-            values.experienceState === 'provided' && !values.experience
-              ? 'unspecified'
-              : values.experienceState,
-          experience:
-            values.experienceState === 'provided' ? values.experience : '',
-          portfolioTitle: portfolio ? values.portfolioTitle : '',
-        });
+        // [출처 3] 폼 값을 Profile DTO로 변환(빈 선택은 null, 포트폴리오 URL은 정규화해 저장)
+        saveProfile(fromFormValues(values, profile));
         onDone();
       })}
     >
       <Controller
         control={control}
-        name="avatarId"
+        name="profileImageCode"
         render={({ field }) => (
           <AvatarPicker value={field.value} onChange={field.onChange} />
         )}
@@ -481,40 +477,45 @@ function ProfileEditor({
           <Label htmlFor="profile-name">이름 (필수)</Label>
           <Input
             id="profile-name"
-            {...register('name')}
+            {...register('realName')}
             autoComplete="off"
-            aria-invalid={!!errors.name}
-            aria-describedby={errors.name ? 'profile-name-error' : undefined}
+            aria-invalid={!!errors.realName}
+            aria-describedby={
+              errors.realName ? 'profile-name-error' : undefined
+            }
           />
           <p className="preview-field-count">
             {profileTextLength(name)} / 50자
           </p>
-          <FieldError id="profile-name-error" message={errors.name?.message} />
+          <FieldError
+            id="profile-name-error"
+            message={errors.realName?.message}
+          />
         </div>
         <Controller
           control={control}
-          name="interests"
+          name="fieldCodes"
           render={({ field }) => (
             <ChoiceField
               id="profile-interests"
               label="관심 분야"
-              options={interestOptions}
+              options={fieldOptions}
               {...field}
-              error={errors.interests?.message}
+              error={errors.fieldCodes?.message}
             />
           )}
         />
 
         <Controller
           control={control}
-          name="roles"
+          name="roleCodes"
           render={({ field }) => (
             <ChoiceField
               id="profile-roles"
               label="희망 역할"
               options={roleOptions}
               {...field}
-              error={errors.roles?.message}
+              error={errors.roleCodes?.message}
             />
           )}
         />
@@ -534,15 +535,15 @@ function ProfileEditor({
           control={control}
           register={register}
           setValue={setValue}
-          error={errors.experience?.message}
+          error={errors.experienceBody?.message}
         />
         <div className="preview-field">
           <Label htmlFor="profile-intro">자기소개 (선택)</Label>
           <Textarea
             id="profile-intro"
             rows={3}
-            {...register('intro')}
-            aria-invalid={!!errors.intro}
+            {...register('introduction')}
+            aria-invalid={!!errors.introduction}
             aria-describedby="profile-intro-count profile-intro-error"
             placeholder="함께하고 싶은 활동을 소개해 주세요."
           />
@@ -551,12 +552,12 @@ function ProfileEditor({
           </p>
           <FieldError
             id="profile-intro-error"
-            message={errors.intro?.message}
+            message={errors.introduction?.message}
           />
         </div>
         <Controller
           control={control}
-          name="availability"
+          name="weeklyAvailabilityCode"
           render={({ field }) => (
             <AvailabilityField value={field.value} onChange={field.onChange} />
           )}
@@ -575,18 +576,18 @@ function ProfileEditor({
           <Input
             id="profile-portfolio"
             type="url"
-            {...register('portfolio')}
+            {...register('portfolioUrl')}
             placeholder="https://example.com/portfolio"
             autoComplete="off"
-            aria-invalid={!!errors.portfolio}
-            aria-describedby={`portfolio-help${errors.portfolio ? ' portfolio-error' : ''}`}
+            aria-invalid={!!errors.portfolioUrl}
+            aria-describedby={`portfolio-help${errors.portfolioUrl ? ' portfolio-error' : ''}`}
           />
           <p id="portfolio-help" className="preview-muted">
             외부 페이지의 공유 권한을 확인해 주세요.
           </p>
           <FieldError
             id="portfolio-error"
-            message={errors.portfolio?.message}
+            message={errors.portfolioUrl?.message}
           />
         </div>
         <div className="preview-field">
@@ -687,9 +688,13 @@ export function ProfilePage() {
           >
             <div className="preview-row preview-profile-heading">
               <div className="preview-profile-identity">
-                <Avatar name={profile.name} avatarId={profile.avatarId} />
+                <Avatar
+                  name={profile.realName}
+                  accountId={profile.accountId}
+                  imageCode={profile.profileImageCode}
+                />
                 <div>
-                  <h2>{profile.name}</h2>
+                  <h2>{profile.realName}</h2>
                   <SchoolVerificationBadge interactive />
                 </div>
               </div>
@@ -712,10 +717,15 @@ export function ProfilePage() {
                   <SquarePen size={20} aria-hidden="true" />
                 </Button>
                 <ProfileVisibilityControl
-                  checked={profile.visibility.discoverable}
-                  onConfirm={(discoverable) => {
+                  checked={profile.isPublic}
+                  onConfirm={(isPublic) => {
                     setSaved(false);
-                    saveProfile({ ...profile, visibility: { discoverable } });
+                    // docs/api/profiles.md#visibility-write: 공개 전환은 별도 저장, 버전 증가
+                    saveProfile({
+                      ...profile,
+                      isPublic,
+                      version: (BigInt(profile.version) + 1n).toString(),
+                    });
                   }}
                 />
                 <Button
@@ -738,8 +748,8 @@ export function ProfilePage() {
                 희망 역할
               </h3>
               <div className="preview-row">
-                {profile.roles.map((role) => (
-                  <Badge key={role}>{role}</Badge>
+                {profile.roleCodes.map((code) => (
+                  <Badge key={code}>{roleLabel(code)}</Badge>
                 ))}
               </div>
             </div>
@@ -750,7 +760,7 @@ export function ProfilePage() {
                 </h3>
               </div>
               <p className="preview-info-value">
-                {profile.interests.join(' · ')}
+                {profile.fieldCodes.map(fieldLabel).join(' · ')}
               </p>
             </div>
             <div>
@@ -762,7 +772,7 @@ export function ProfilePage() {
               <p className="preview-info-copy">
                 {profile.experienceState === 'none'
                   ? '관련 경험 없음'
-                  : profile.experience || '아직 경험을 입력하지 않았어요.'}
+                  : profile.experienceBody || '아직 경험을 입력하지 않았어요.'}
               </p>
             </div>
             <div>
@@ -772,7 +782,7 @@ export function ProfilePage() {
                 </h3>
               </div>
               <p className="preview-info-copy">
-                {profile.intro || '아직 자기소개를 작성하지 않았어요.'}
+                {profile.introduction || '아직 자기소개를 작성하지 않았어요.'}
               </p>
             </div>
           </section>
@@ -780,11 +790,12 @@ export function ProfilePage() {
             <h2 className="preview-section-title">학사 정보와 보유 역량</h2>
             <p>
               {[
-                profile.academicStatus,
-                profile.grade,
-                profile.college,
-                profile.department,
-                profile.major,
+                profile.academicStatusCode &&
+                  academicStatusLabel(profile.academicStatusCode),
+                profile.gradeCode && gradeLabel(profile.gradeCode),
+                ...academicPath(profile.academicUnitId).map(
+                  (unit) => unit.name,
+                ),
               ]
                 .filter(Boolean)
                 .join(' · ') || '등록한 학사 정보가 없어요.'}
@@ -795,10 +806,13 @@ export function ProfilePage() {
               </h3>
               <p
                 className={
-                  profile.skills.length ? 'preview-info-value' : 'preview-muted'
+                  profile.skillCodes.length
+                    ? 'preview-info-value'
+                    : 'preview-muted'
                 }
               >
-                {profile.skills.join(' · ') || '아직 역량을 선택하지 않았어요.'}
+                {profile.skillCodes.map(skillLabel).join(' · ') ||
+                  '아직 역량을 선택하지 않았어요.'}
               </p>
             </div>
           </section>
@@ -807,10 +821,14 @@ export function ProfilePage() {
               <h2 className="preview-section-title">주당 참여 가능 시간</h2>
               <p
                 className={
-                  profile.availability ? 'preview-info-value' : 'preview-muted'
+                  profile.weeklyAvailabilityCode
+                    ? 'preview-info-value'
+                    : 'preview-muted'
                 }
               >
-                {profile.availability || '미입력'}
+                {profile.weeklyAvailabilityCode
+                  ? weeklyAvailabilityLabel(profile.weeklyAvailabilityCode)
+                  : '미입력'}
               </p>
               <p className="preview-muted">
                 모든 참여 프로젝트의 예상 시간이에요. 팀별 약속이나 남은 시간이
@@ -819,15 +837,15 @@ export function ProfilePage() {
             </section>
             <section className="preview-panel preview-stack">
               <h2 className="preview-section-title">포트폴리오</h2>
-              {profile.portfolio && isWebUrl(profile.portfolio) ? (
+              {profile.portfolio && isWebUrl(profile.portfolio.url) ? (
                 <>
                   <a
                     className="preview-text-link"
-                    href={profile.portfolio}
+                    href={profile.portfolio.url}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    {profile.portfolioTitle || '등록한 링크 열기'} (새 창)
+                    {profile.portfolio.title || '등록한 링크 열기'} (새 창)
                   </a>
                 </>
               ) : (
@@ -873,13 +891,13 @@ export function PublicProfilePage() {
         >
           <div className="preview-row">
             <Avatar
-              name={person.name}
-              personId={person.id}
-              avatarId={person.avatarId}
+              name={person.realName}
+              accountId={person.accountId}
+              imageCode={person.profileImageCode}
               size="large"
             />
             <div>
-              <h2>{person.name}</h2>
+              <h2>{person.realName}</h2>
               <SchoolVerificationBadge />
             </div>
           </div>
@@ -1068,7 +1086,7 @@ export function LoginPage() {
 
 // [출처 2] 가입 입력 규칙 확인(실제 계정 발급 없음)
 export function SignupPage() {
-  const { saveProfile, signOut } = useDemo();
+  const { saveProfile, signOut, profile } = useDemo();
   const [search] = useSearchParams();
   const returnTo = safeReturnTo(search.get('returnTo') ?? search.get('from'));
   const [complete, setComplete] = useState(false);
@@ -1085,9 +1103,9 @@ export function SignupPage() {
     defaultValues: {
       username: '',
       password: '',
-      name: '',
-      roles: [],
-      interests: [],
+      realName: '',
+      roleCodes: [],
+      fieldCodes: [],
     },
   });
   if (complete)
@@ -1116,26 +1134,23 @@ export function SignupPage() {
         className="preview-panel preview-form"
         noValidate
         onSubmit={handleSubmit((values) => {
+          // 가입 화면 확인용: 필수 항목만 담은 새 프로필(기본 비공개). 계정 정보는 프로필에 넣지 않음
           saveProfile({
-            name: values.name,
-            roles: values.roles,
-            interests: values.interests,
-            intro: '',
-            experience: '',
-            academicStatus: '',
-            grade: '',
-            college: '',
-            department: '',
-            major: '',
-            skills: [],
+            ...profile,
+            realName: values.realName.trim(),
+            roleCodes: values.roleCodes,
+            fieldCodes: values.fieldCodes,
+            profileImageCode: null,
+            academicStatusCode: null,
+            gradeCode: null,
+            weeklyAvailabilityCode: null,
+            academicUnitId: null,
             experienceState: 'unspecified',
-            portfolioTitle: '',
-            visibility: {
-              discoverable: false,
-            },
-            portfolio: '',
-
-            availability: '',
+            experienceBody: null,
+            introduction: null,
+            skillCodes: [],
+            portfolio: null,
+            isPublic: false,
           });
           resetField('password', { defaultValue: '' });
           signOut();
@@ -1207,36 +1222,39 @@ export function SignupPage() {
           <Label htmlFor="signup-name">이름 (필수)</Label>
           <Input
             id="signup-name"
-            {...register('name')}
+            {...register('realName')}
             autoComplete="off"
-            aria-invalid={!!errors.name}
-            aria-describedby={errors.name ? 'signup-name-error' : undefined}
+            aria-invalid={!!errors.realName}
+            aria-describedby={errors.realName ? 'signup-name-error' : undefined}
           />
-          <FieldError id="signup-name-error" message={errors.name?.message} />
+          <FieldError
+            id="signup-name-error"
+            message={errors.realName?.message}
+          />
         </div>
         <Controller
           control={control}
-          name="interests"
+          name="fieldCodes"
           render={({ field }) => (
             <ChoiceField
               id="signup-interests"
               label="관심 분야"
-              options={interestOptions}
+              options={fieldOptions}
               {...field}
-              error={errors.interests?.message}
+              error={errors.fieldCodes?.message}
             />
           )}
         />
         <Controller
           control={control}
-          name="roles"
+          name="roleCodes"
           render={({ field }) => (
             <ChoiceField
               id="signup-roles"
               label="희망 역할"
               options={roleOptions}
               {...field}
-              error={errors.roles?.message}
+              error={errors.roleCodes?.message}
             />
           )}
         />

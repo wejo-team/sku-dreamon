@@ -5,17 +5,18 @@
  * 3. docs/design/handoff.md - 레퍼런스의 외부 링크를 실제 공고 근거로 사용하지 않음
  */
 
-import { useParams } from 'react-router';
+import { useLocation, useParams } from 'react-router';
 import { archivedContest, contests } from '@/features/demo/data';
-import { memberLimitLabel } from '@/features/demo/contest-state';
+import { deadlineLabel, memberLimitLabel } from '@/features/demo/contest-state';
 import { BackLink, EmptyState, PageIntro } from '@/components/common/CommonUi';
 
 // Local destinations keep fixture links reviewable without inventing organizer URLs.
 // [출처 2, 3] 공고 원문 자리 표시
 export function ReferenceNoticePage() {
-  const { contestId } = useParams();
+  const { pathname } = useLocation();
+  // [출처 2] 공고 DTO의 sourceUrl이 가리키는 로컬 경로로 공고를 찾습니다.
   const contest = [...contests, archivedContest].find(
-    (item) => item.id === contestId,
+    (item) => new URL(item.sourceUrl).pathname === pathname,
   );
   if (!contest)
     return (
@@ -33,20 +34,21 @@ export function ReferenceNoticePage() {
         <div>
           <dt>접수 기간</dt>
           <dd>
-            {contest.startsAt} ~ {contest.deadline}
+            {contest.timing.openSourceDate.replaceAll('-', '.')} ~{' '}
+            {deadlineLabel(contest.timing.closing)}
           </dd>
         </div>
         <div>
           <dt>참가 대상</dt>
-          <dd>{contest.audienceOriginal}</dd>
+          <dd>{contest.eligibilityText}</dd>
         </div>
         <div>
           <dt>참가 인원</dt>
-          <dd>{memberLimitLabel(contest)}</dd>
+          <dd>{memberLimitLabel(contest.capacity)}</dd>
         </div>
         <div>
           <dt>제출물</dt>
-          <dd>{contest.deliverables.join(' · ') || '주최 기관 문의'}</dd>
+          <dd>{contest.deliverables || '주최 기관 문의'}</dd>
         </div>
       </dl>
     </article>

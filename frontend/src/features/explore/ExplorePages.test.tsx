@@ -18,6 +18,9 @@ import {
   type Team,
 } from '@/features/demo/data';
 import { DemoContext, type DemoState } from '@/features/demo/demo-context';
+import type { DemoDatabase } from '@/features/demo/fixtures';
+import { demoAcademicUnits } from '@/features/demo/labels';
+import { demoIds, demoState, recordsWithMyProfile } from '@/test/demo-state';
 
 function CurrentLocation() {
   const { pathname, search } = useLocation();
@@ -31,28 +34,15 @@ function currentUrl() {
   );
 }
 
-function renderExplore(path: string, overrides: Partial<DemoState> = {}) {
-  const state: DemoState = {
+function renderExplore(
+  path: string,
+  overrides: Partial<DemoState> & { db?: DemoDatabase } = {},
+) {
+  const state = demoState({
     signedIn: false,
-    profile: initialProfile,
-    teams: initialTeams,
-    applications: [],
-    applicants: [],
-    notifications: [],
-    markNotificationsRead: vi.fn(),
-    signIn: vi.fn(),
-    signOut: vi.fn(),
-    saveProfile: vi.fn(),
-    apply: vi.fn(() => true),
-    selectApplicant: vi.fn(() => true),
-    cancelApplication: vi.fn(() => true),
-    closeRecruitment: vi.fn(() => true),
-    reopenRecruitment: vi.fn(() => true),
     createTeam: vi.fn(() => 'created'),
-    reset: vi.fn(),
-    emptyWorkspace: vi.fn(),
     ...overrides,
-  };
+  });
   render(
     <MemoryRouter initialEntries={[path]}>
       <DemoContext value={state}>
@@ -69,29 +59,33 @@ function renderExplore(path: string, overrides: Partial<DemoState> = {}) {
   return state;
 }
 
-const publicProfile: Profile = {
-  ...initialProfile,
-  name: '공개검색검증사용자',
-  academicStatus: '재학',
-  grade: '3학년',
-  college: '융합과학대학',
-  department: '디지털미디어학과',
-  major: '콘텐츠공학전공',
-  skills: ['프로토타이핑'],
-  intro: '사용자인터뷰를 함께 진행하고 싶어요.',
-  experience: '졸업전시기획 프로젝트',
+const visualMajor = demoAcademicUnits.find(
+  (unit) => unit.name === '시각정보디자인전공',
+)!;
+// 본인 프로필에 등록 가능한 모든 항목을 채운 값
+const publicPatch: Partial<Profile> = {
+  realName: '공개검색검증사용자',
+  academicStatusCode: 'enrolled',
+  gradeCode: 'grade_3',
+  academicUnitId: visualMajor.id,
+  skillCodes: ['data_visualization'],
+  introduction: '사용자인터뷰를 함께 진행하고 싶어요.',
+  experienceBody: '졸업전시기획 프로젝트',
   experienceState: 'provided',
-  availability: '5~10시간 미만',
-  portfolioTitle: '캠퍼스작업집',
-  portfolio: 'https://portfolio.example.com/jiwoo',
-  visibility: { discoverable: true },
+  weeklyAvailabilityCode: 'from_5_to_10',
+  portfolio: {
+    url: 'https://portfolio.example.com/jiwoo',
+    title: '캠퍼스작업집',
+  },
+  isPublic: true,
 };
+const publicProfile = { ...initialProfile, ...publicPatch } as Profile;
 
 const pagedTeams: Team[] = Array.from({ length: 14 }, (_, index) => ({
   ...initialTeams[0]!,
   id: `paged-${index + 1}`,
   name: `페이지 팀 ${String(index + 1).padStart(2, '0')}`,
-  roles: ['개발', '디자인'],
+  roleCodes: ['development', 'design'],
 }));
 
 describe('official reference public exploration', () => {
@@ -114,7 +108,7 @@ describe('official reference public exploration', () => {
   });
 
   it('discards filter drafts and clears applied filters while retaining the selected tab', async () => {
-    renderExplore('/explore?tab=teams&role=개발&open=true');
+    renderExplore('/explore?tab=teams&role=development&open=true');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: '탐색 필터' }));
     await user.click(screen.getByRole('radio', { name: '디자인' }));
@@ -153,7 +147,7 @@ describe('official reference public exploration', () => {
     const link = screen.getByRole('link', { name: /캠퍼스 메이커스/ });
     expect(link).toHaveAttribute(
       'href',
-      '/teams/makers?from=%2Fexplore%3Ftab%3Dteams',
+      `/teams/${demoIds.teams.makers}?from=%2Fexplore%3Ftab%3Dteams`,
     );
     expect(
       screen.queryByRole('link', { name: /팀 공간/ }),
@@ -165,9 +159,9 @@ describe('official reference public exploration', () => {
     const params = new URLSearchParams({
       tab: 'teams',
       q: '페이지',
-      role: '개발',
+      role: 'development',
       open: 'true',
-      contest: 'campus',
+      contest: demoIds.contests.campus,
       page: '2',
     });
     renderExplore(`/explore?${params}`, {
@@ -231,7 +225,7 @@ describe('official reference public exploration', () => {
   it.each(['search', 'filter', 'tab', 'reset'])(
     'returns to page one when the user changes %s',
     async (action) => {
-      renderExplore('/explore?tab=teams&q=페이지&role=개발&page=2', {
+      renderExplore('/explore?tab=teams&q=페이지&role=development&page=2', {
         signedIn: true,
         teams: pagedTeams,
       });
@@ -246,7 +240,7 @@ describe('official reference public exploration', () => {
         await user.click(screen.getByRole('button', { name: '탐색 필터' }));
         await user.click(screen.getByRole('radio', { name: '디자인' }));
         await user.click(screen.getByRole('button', { name: '필터 적용' }));
-        expect(currentUrl().searchParams.get('role')).toBe('디자인');
+        expect(currentUrl().searchParams.get('role')).toBe('design');
       } else if (action === 'tab') {
         await user.click(screen.getByRole('link', { name: '사람' }));
         expect(
@@ -284,14 +278,14 @@ describe('official reference public exploration', () => {
   ])(
     'normalizes page=$requested to a reachable page without losing filters',
     ({ requested, expectedPage }) => {
-      renderExplore(`/explore?tab=teams&role=개발&page=${requested}`, {
+      renderExplore(`/explore?tab=teams&role=development&page=${requested}`, {
         teams: pagedTeams,
       });
       expect(currentUrl().searchParams.get('page')).toBe(
         expectedPage === 1 ? null : String(expectedPage),
       );
       expect(currentUrl().searchParams.get('tab')).toBe('teams');
-      expect(currentUrl().searchParams.get('role')).toBe('개발');
+      expect(currentUrl().searchParams.get('role')).toBe('development');
       expect(
         screen.getByRole('link', { name: `${expectedPage}페이지` }),
       ).toHaveAttribute('aria-current', 'page');
@@ -316,7 +310,7 @@ describe('official reference public exploration', () => {
     ).toHaveAttribute('href', '/ai');
     for (const person of people)
       expect(
-        screen.queryByRole('heading', { name: person.name }),
+        screen.queryByRole('heading', { name: person.realName }),
       ).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '로그인하기' })).toHaveAttribute(
       'href',
@@ -332,7 +326,7 @@ describe('official reference public exploration', () => {
   });
 
   it('guards direct people detail links and keeps the target for login', () => {
-    renderExplore('/people/sua');
+    renderExplore(`/people/${demoIds.accounts.sua}`);
     expect(
       screen.getByRole('heading', { name: '로그인이 필요해요' }),
     ).toBeInTheDocument();
@@ -342,16 +336,16 @@ describe('official reference public exploration', () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '로그인하기' })).toHaveAttribute(
       'href',
-      '/login?returnTo=%2Fpeople%2Fsua',
+      `/login?returnTo=%2Fpeople%2F${demoIds.accounts.sua}`,
     );
   });
 
   it('does not create a public detail for a profile excluded from people exploration', () => {
-    renderExplore('/people/me', { signedIn: true });
+    renderExplore(`/people/${demoIds.accounts.me}`, { signedIn: true });
     expect(
       screen.getByRole('heading', { name: '프로필을 찾을 수 없어요' }),
     ).toBeInTheDocument();
-    expect(screen.queryByText(initialProfile.name)).not.toBeInTheDocument();
+    expect(screen.queryByText(initialProfile.realName)).not.toBeInTheDocument();
   });
 
   it.each(['공개검색검증사용자', '졸업전시기획', 'portfolio.example.com'])(
@@ -359,13 +353,13 @@ describe('official reference public exploration', () => {
     (query) => {
       renderExplore(`/explore?tab=people&q=${encodeURIComponent(query)}`, {
         signedIn: true,
-        profile: { ...publicProfile, visibility: { discoverable: false } },
+        db: recordsWithMyProfile({ ...publicPatch, isPublic: false }),
       });
       expect(
         screen.getByRole('heading', { name: '검색 결과가 없어요' }),
       ).toBeInTheDocument();
       expect(
-        screen.queryByRole('heading', { name: publicProfile.name }),
+        screen.queryByRole('heading', { name: publicProfile.realName }),
       ).not.toBeInTheDocument();
     },
   );
@@ -374,10 +368,10 @@ describe('official reference public exploration', () => {
     '공개검색검증사용자',
     '재학',
     '3학년',
-    '융합과학대학',
-    '디지털미디어학과',
-    '콘텐츠공학전공',
-    '프로토타이핑',
+    '디자인&영상대학',
+    '디자인학부',
+    '시각정보디자인전공',
+    '데이터 시각화',
     '사용자인터뷰',
     '졸업전시기획',
     '5~10시간 미만',
@@ -388,38 +382,39 @@ describe('official reference public exploration', () => {
     (query) => {
       renderExplore(`/explore?tab=people&q=${encodeURIComponent(query)}`, {
         signedIn: true,
-        profile: publicProfile,
+        db: recordsWithMyProfile(publicPatch),
       });
       expect(
-        screen.getByRole('heading', { name: publicProfile.name }),
+        screen.getByRole('heading', { name: publicProfile.realName }),
       ).toBeInTheDocument();
     },
   );
 
   it('shows every registered public profile field including the schedule and portfolio link', () => {
-    renderExplore('/people/me', {
+    renderExplore(`/people/${demoIds.accounts.me}`, {
       signedIn: true,
-      profile: publicProfile,
+      db: recordsWithMyProfile(publicPatch),
     });
     expect(
-      screen.getByRole('heading', { name: publicProfile.name }),
+      screen.getByRole('heading', { name: publicProfile.realName }),
     ).toBeInTheDocument();
     for (const value of [
-      publicProfile.academicStatus!,
-      publicProfile.grade!,
-      publicProfile.college!,
-      publicProfile.department!,
-      publicProfile.major!,
-      ...publicProfile.skills,
-      ...publicProfile.interests,
-      publicProfile.intro,
-      publicProfile.experience,
-      publicProfile.availability,
+      '재학',
+      '3학년',
+      '디자인&영상대학',
+      '디자인학부',
+      '시각정보디자인전공',
+      '데이터 시각화',
+      'IT·기술',
+      '교육',
+      publicProfile.introduction!,
+      publicProfile.experienceBody!,
+      '5~10시간 미만',
     ])
       expect(screen.getByText(value)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /캠퍼스작업집/ })).toHaveAttribute(
       'href',
-      publicProfile.portfolio,
+      publicProfile.portfolio!.url,
     );
     expect(screen.getByRole('link', { name: /캠퍼스작업집/ })).toHaveAttribute(
       'target',
@@ -428,7 +423,7 @@ describe('official reference public exploration', () => {
   });
 
   it('keeps closed contest history readable with its source while preventing new participation actions', () => {
-    const state = renderExplore('/contests/archive');
+    const state = renderExplore(`/contests/${demoIds.contests.archive}`);
     expect(
       screen.getByRole('heading', { name: archivedContest.title }),
     ).toBeInTheDocument();
@@ -439,7 +434,7 @@ describe('official reference public exploration', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: '공식 공고 확인하기' }),
-    ).toHaveAttribute('href', archivedContest.officialUrl);
+    ).toHaveAttribute('href', archivedContest.sourceUrl);
     expect(
       screen.queryByRole('link', { name: '팀 만들기' }),
     ).not.toBeInTheDocument();
@@ -453,7 +448,7 @@ describe('official reference public exploration', () => {
   });
 
   it('shows the official entry size, submission material and dates separately from team recruitment', () => {
-    renderExplore('/contests/campus');
+    renderExplore(`/contests/${demoIds.contests.campus}`);
     const facts = screen.getByText('공식 참가 인원').closest('dl')!;
     expect(within(facts).getByText('2~5명')).toBeInTheDocument();
     expect(
@@ -466,12 +461,12 @@ describe('official reference public exploration', () => {
     ).toHaveAttribute('target', '_blank');
     expect(screen.getByRole('link', { name: '팀 만들기' })).toHaveAttribute(
       'href',
-      '/teams/new?contest=campus',
+      `/teams/new?contest=${demoIds.contests.campus}`,
     );
   });
 
   it('shows only this contest’s teams inline with accessible create and AI icon actions', () => {
-    renderExplore('/contests/campus');
+    renderExplore(`/contests/${demoIds.contests.campus}`);
     const teamSection = screen.getByRole('region', { name: '함께할 팀' });
     expect(
       within(teamSection).getByRole('link', { name: /캠퍼스 메이커스/ }),
@@ -489,7 +484,10 @@ describe('official reference public exploration', () => {
       screen.queryByRole('link', { name: '팀 찾기' }),
     ).not.toBeInTheDocument();
     const create = within(teamSection).getByRole('link', { name: '팀 만들기' });
-    expect(create).toHaveAttribute('href', '/teams/new?contest=campus');
+    expect(create).toHaveAttribute(
+      'href',
+      `/teams/new?contest=${demoIds.contests.campus}`,
+    );
     expect(create.textContent).toBe('');
     const ai = within(teamSection).getByRole('link', {
       name: 'AI로 팀 찾아보기',
@@ -500,12 +498,12 @@ describe('official reference public exploration', () => {
 
   it.each([
     {
-      contestId: 'campus',
+      contestId: demoIds.contests.campus,
       action: '팀 만들기',
       prompt: '첫 팀을 만들어 함께 도전해 보세요.',
     },
     {
-      contestId: 'local',
+      contestId: demoIds.contests.local,
       action: '팀 만들기',
       prompt: '첫 팀을 만들어 함께 도전해 보세요.',
     },
@@ -530,9 +528,9 @@ describe('official reference public exploration', () => {
   );
 
   it('paginates related teams and returns from a team to the same contest team page and explore context', async () => {
-    const from = '/explore?category=교육';
+    const from = '/explore?category=education';
     const params = new URLSearchParams({ from, teamPage: '2' });
-    const contestPath = `/contests/campus?${params}`;
+    const contestPath = `/contests/${demoIds.contests.campus}?${params}`;
     renderExplore(contestPath, { teams: [...pagedTeams, initialTeams[1]!] });
     const user = userEvent.setup();
     const teamSection = screen.getByRole('region', { name: '함께할 팀' });
@@ -569,11 +567,11 @@ describe('official reference public exploration', () => {
   });
 
   it('preserves the existing local team under official capacity rules without a preparation exception', () => {
-    renderExplore('/contests/local');
+    renderExplore(`/contests/${demoIds.contests.local}`);
     expect(screen.getByText('2~3명')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '팀 만들기' })).toHaveAttribute(
       'href',
-      '/teams/new?contest=local',
+      `/teams/new?contest=${demoIds.contests.local}`,
     );
     expect(screen.queryByText('개인 참가')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /로컬 크루/ })).toBeInTheDocument();
@@ -589,20 +587,28 @@ describe('official reference public exploration', () => {
     const base = initialTeams[0]!;
     renderExplore('/explore?tab=teams&open=true', {
       teams: [
+        { ...base, id: 'available', name: '검토 중 지원 가능' },
         {
           ...base,
-          id: 'available',
-          name: '검토 중 지원 가능',
-          status: '지원자검토',
+          id: 'full',
+          name: '가득 찬 팀',
+          memberCount: Number(base.capacity),
         },
-        { ...base, id: 'full', name: '가득 찬 팀', members: 4 },
         {
           ...base,
           id: 'expired',
           name: '기한 지난 팀',
-          recruitmentDeadline: '2026-10-17',
+          recruitmentEndsAt: '2026-10-17T15:00:00Z',
         },
-        { ...base, id: 'future', name: '시작 전 팀', contestId: 'upcoming' },
+        {
+          ...base,
+          id: 'future',
+          name: '시작 전 팀',
+          contestId: demoIds.contests.upcoming,
+          contest: contests.find(
+            (item) => item.id === demoIds.contests.upcoming,
+          )!,
+        },
       ],
     });
     expect(
@@ -613,7 +619,7 @@ describe('official reference public exploration', () => {
   });
 
   it('shows upcoming public contests without allowing team creation', () => {
-    renderExplore('/contests/upcoming');
+    renderExplore(`/contests/${demoIds.contests.upcoming}`);
     expect(screen.getByText('접수 예정')).toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: '팀 만들기' }),

@@ -7,7 +7,7 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import {
   LoginPage,
   ProfilePage,
@@ -16,15 +16,34 @@ import {
   ProfileVisibilityControl,
 } from '@/features/account/AccountPages';
 import { demoId, demoPassword } from '@/features/demo/auth-policy';
-import { weeklyAvailabilityOptions } from '@/features/demo/profile-fields';
-import { CreateTeamPage } from '@/features/teams/CreateTeamPage';
+import { Avatar } from '@/components/common/CommonUi';
 import {
-  getPublicProfile,
-  initialProfile,
-  initialTeams,
-} from '@/features/demo/data';
+  demoAcademicUnits,
+  weeklyAvailabilityOptions,
+} from '@/features/demo/labels';
+import { CreateTeamPage } from '@/features/teams/CreateTeamPage';
+import { getPublicProfile, initialProfile } from '@/features/demo/data';
 import { DemoProvider } from '@/features/demo/DemoProvider';
 import { DemoContext, type DemoState } from '@/features/demo/demo-context';
+import { createDemoRecords, type DemoDatabase } from '@/features/demo/fixtures';
+import { demoIds, demoState } from '@/test/demo-state';
+
+// 팀·소속·지원이 하나도 없는 목업 저장소(어느 공모전에서든 새 팀을 만들 수 있음)
+const withoutTeams = (): DemoDatabase => ({
+  ...createDemoRecords(),
+  teams: [],
+  memberships: [],
+  applications: [],
+  notifications: [],
+});
+
+// 상위 항목 이름까지 맞춰 학사 항목 ID를 찾습니다(같은 이름의 전공이 여러 학부에 있음).
+const unitId = (name: string, parentName: string) => {
+  const parent = demoAcademicUnits.find((unit) => unit.name === parentName)!;
+  return demoAcademicUnits.find(
+    (unit) => unit.name === name && unit.parentId === parent.id,
+  )!.id;
+};
 
 function CurrentLocation() {
   const location = useLocation();
@@ -36,28 +55,11 @@ function CurrentLocation() {
   );
 }
 
-function renderAccount(path: string, overrides: Partial<DemoState> = {}) {
-  const state: DemoState = {
-    signedIn: true,
-    profile: initialProfile,
-    teams: initialTeams,
-    applications: [],
-    applicants: [],
-    notifications: [],
-    markNotificationsRead: vi.fn(),
-    signIn: vi.fn(),
-    signOut: vi.fn(),
-    saveProfile: vi.fn(),
-    apply: vi.fn(() => true),
-    selectApplicant: vi.fn(() => true),
-    cancelApplication: vi.fn(() => true),
-    closeRecruitment: vi.fn(() => true),
-    reopenRecruitment: vi.fn(() => true),
-    createTeam: vi.fn(() => 'new-team'),
-    reset: vi.fn(),
-    emptyWorkspace: vi.fn(),
-    ...overrides,
-  };
+function renderAccount(
+  path: string,
+  overrides: Partial<DemoState> & { db?: DemoDatabase } = {},
+) {
+  const state = demoState(overrides);
   render(
     <MemoryRouter initialEntries={[path]}>
       <DemoContext value={state}>
@@ -104,29 +106,15 @@ describe('design preview account flows', () => {
   it('projects every registered field of a public profile and none of a private profile', () => {
     const profile = {
       ...initialProfile,
-      academicStatus: '재학',
-      skills: ['프로그래밍'],
-      experience: '프로젝트 경험',
+      academicStatusCode: 'enrolled',
+      skillCodes: ['programming'],
+      experienceBody: '프로젝트 경험',
       experienceState: 'provided' as const,
-      portfolio: 'https://example.com/work',
-      portfolioTitle: '작업집',
-      visibility: { discoverable: true },
+      portfolio: { url: 'https://example.com/work', title: '작업집' },
+      isPublic: true,
     };
-    expect(getPublicProfile(profile)).toMatchObject({
-      id: 'me',
-      name: profile.name,
-      interests: profile.interests,
-      intro: profile.intro,
-      availability: profile.availability,
-      academicStatus: '재학',
-      skills: ['프로그래밍'],
-      experience: '프로젝트 경험',
-      portfolio: profile.portfolio,
-      portfolioTitle: '작업집',
-    });
-    expect(
-      getPublicProfile({ ...profile, visibility: { discoverable: false } }),
-    ).toBeNull();
+    expect(getPublicProfile(profile)).toEqual(profile);
+    expect(getPublicProfile({ ...profile, isPublic: false })).toBeNull();
   });
 
   it('keeps character choices in the edit draft until saved and discards cancelled choices', async () => {
@@ -188,26 +176,24 @@ describe('design preview account flows', () => {
     await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
     expect(
       screen
-        .getByRole('heading', { name: initialProfile.name })
+        .getByRole('heading', { name: initialProfile.realName })
         .closest('section')
         ?.querySelector('img'),
     ).toHaveAttribute('src', '/mascots/conver.png');
   });
 
   it('uses the default character when no optional avatar is selected', () => {
-    expect(
-      getPublicProfile({
-        ...initialProfile,
-        avatarId: undefined,
-        visibility: { ...initialProfile.visibility, discoverable: true },
-      })?.avatarId,
-    ).toBe('skon');
+    const { container } = render(<Avatar name="김지우" imageCode={null} />);
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      '/mascots/skon.png',
+    );
   });
 
   it.each([false, true])(
     'requires confirmation for a visibility change from %s and preserves cancelled changes',
     async (discoverable) => {
-      const profile = { ...initialProfile, visibility: { discoverable } };
+      const profile = { ...initialProfile, isPublic: discoverable };
       const state = renderAccount('/profile', { profile });
       const user = userEvent.setup();
       const toggle = screen.getByRole('switch', { name: '프로필 공개' });
@@ -237,7 +223,8 @@ describe('design preview account flows', () => {
       );
       expect(state.saveProfile).toHaveBeenCalledExactlyOnceWith({
         ...profile,
-        visibility: { discoverable: !discoverable },
+        isPublic: !discoverable,
+        version: String(Number(profile.version) + 1),
       });
     },
   );
@@ -259,7 +246,7 @@ describe('design preview account flows', () => {
     await user.click(screen.getByRole('switch', { name: '프로필 공개' }));
     await user.click(screen.getByRole('button', { name: '공개로 전환' }));
     await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
-    expect(screen.getByText(initialProfile.intro)).toBeVisible();
+    expect(screen.getByText(initialProfile.introduction!)).toBeVisible();
     expect(screen.getByText('미입력')).toBeVisible();
     expect(screen.getByRole('link', { name: /나의 작업/ })).toHaveAttribute(
       'href',
@@ -270,7 +257,9 @@ describe('design preview account flows', () => {
     await user.click(screen.getByRole('button', { name: '비공개로 전환' }));
     await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
     expect(screen.getByText('현재 비공개 상태입니다.')).toBeVisible();
-    expect(screen.queryByText(initialProfile.intro)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(initialProfile.introduction!),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: /나의 작업/ }),
     ).not.toBeInTheDocument();
@@ -313,7 +302,9 @@ describe('design preview account flows', () => {
   });
 
   it('reports invalid demo credentials and restores a working demo login', async () => {
-    const state = renderAccount('/login?from=%2Fteams%2Fmakers');
+    const state = renderAccount(
+      `/login?from=%2Fteams%2F${demoIds.teams.makers}`,
+    );
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('아이디'), '  DREAMONDEMO  ');
     await user.type(screen.getByLabelText('비밀번호'), 'incorrect-password');
@@ -326,7 +317,7 @@ describe('design preview account flows', () => {
     await user.type(screen.getByLabelText('비밀번호'), demoPassword);
     await user.click(screen.getByRole('button', { name: '로그인' }));
     expect(
-      await screen.findByText('이동한 경로: /teams/makers'),
+      await screen.findByText(`이동한 경로: /teams/${demoIds.teams.makers}`),
     ).toBeInTheDocument();
     expect(state.signIn).toHaveBeenCalledOnce();
   });
@@ -347,21 +338,23 @@ describe('design preview account flows', () => {
   });
 
   it('preserves the original team destination when visiting signup and returning to login', async () => {
-    const state = renderAccount('/login?returnTo=%2Fteams%2Fmakers');
+    const state = renderAccount(
+      `/login?returnTo=%2Fteams%2F${demoIds.teams.makers}`,
+    );
     const user = userEvent.setup();
     await user.click(screen.getByRole('link', { name: '회원가입' }));
     await user.click(screen.getByRole('link', { name: '로그인으로' }));
     await enterLogin(user);
     await user.click(screen.getByRole('button', { name: '로그인' }));
     expect(
-      await screen.findByText('이동한 경로: /teams/makers'),
+      await screen.findByText(`이동한 경로: /teams/${demoIds.teams.makers}`),
     ).toBeInTheDocument();
     expect(state.signIn).toHaveBeenCalledOnce();
   });
 
   it('validates profile requirements and saves an optional portfolio without changing global privacy', async () => {
     const state = renderAccount('/profile', {
-      profile: { ...initialProfile, availability: '' },
+      profile: { ...initialProfile, weeklyAvailabilityCode: null },
     });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
@@ -402,17 +395,16 @@ describe('design preview account flows', () => {
     );
     expect(state.saveProfile).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: '김예시',
-        portfolio: 'https://example.com/portfolio',
-
-        availability: '5~10시간 미만',
+        realName: '김예시',
+        portfolio: { url: 'https://example.com/portfolio', title: null },
+        weeklyAvailabilityCode: 'from_5_to_10',
       }),
     );
   });
 
   it('keeps weekly availability optional and discards unsaved changes', async () => {
     const state = renderAccount('/profile', {
-      profile: { ...initialProfile, availability: '10~20시간 미만' },
+      profile: { ...initialProfile, weeklyAvailabilityCode: 'from_10_to_20' },
     });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
@@ -421,14 +413,17 @@ describe('design preview account flows', () => {
       within(field)
         .getAllByRole('option')
         .map((option) => option.textContent),
-    ).toEqual(['미입력', ...weeklyAvailabilityOptions]);
+    ).toEqual([
+      '미입력',
+      ...weeklyAvailabilityOptions.map((item) => item.displayName),
+    ]);
     expect(field).toHaveAccessibleDescription(/참여 중인 모든 프로젝트를 합한/);
     await user.selectOptions(field, '20시간 이상');
     await user.click(screen.getByRole('button', { name: '취소' }));
     expect(state.saveProfile).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
     expect(screen.getByLabelText('주당 참여 가능 시간 (선택)')).toHaveValue(
-      '10~20시간 미만',
+      'from_10_to_20',
     );
     await user.selectOptions(
       screen.getByLabelText('주당 참여 가능 시간 (선택)'),
@@ -436,7 +431,7 @@ describe('design preview account flows', () => {
     );
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(state.saveProfile).toHaveBeenCalledWith(
-      expect.objectContaining({ availability: '' }),
+      expect.objectContaining({ weeklyAvailabilityCode: null }),
     );
   });
 
@@ -484,7 +479,7 @@ describe('design preview account flows', () => {
     const state = renderAccount('/profile', {
       profile: {
         ...initialProfile,
-        portfolio: 'https://example.com/previous',
+        portfolio: { url: 'https://example.com/previous', title: '이전 제목' },
       },
     });
     const user = userEvent.setup();
@@ -492,7 +487,7 @@ describe('design preview account flows', () => {
     await user.clear(screen.getByLabelText('포트폴리오 링크 (선택)'));
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(state.saveProfile).toHaveBeenCalledWith(
-      expect.objectContaining({ portfolio: '', portfolioTitle: '' }),
+      expect.objectContaining({ portfolio: null }),
     );
   });
 
@@ -553,21 +548,27 @@ describe('design preview account flows', () => {
   });
 
   it('keeps signed-out team creation behind login and preserves the contest choice', () => {
-    const state = renderAccount('/teams/new?contest=campus', {
-      signedIn: false,
-    });
+    const state = renderAccount(
+      `/teams/new?contest=${demoIds.contests.campus}`,
+      {
+        signedIn: false,
+      },
+    );
     expect(screen.queryByLabelText('팀 이름')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '로그인하기' })).toHaveAttribute(
       'href',
-      '/login?returnTo=%2Fteams%2Fnew%3Fcontest%3Dcampus',
+      `/login?returnTo=%2Fteams%2Fnew%3Fcontest%3D${demoIds.contests.campus}`,
     );
     expect(state.createTeam).not.toHaveBeenCalled();
   });
 
   it('validates team fields, creates the chosen contest team and navigates to its own detail', async () => {
-    const state = renderAccount('/teams/new?contest=green', {
-      teams: [],
-    });
+    const state = renderAccount(
+      `/teams/new?contest=${demoIds.contests.green}`,
+      {
+        db: withoutTeams(),
+      },
+    );
     const user = userEvent.setup();
     expect(screen.getByLabelText('참여 공모전')).toHaveTextContent(
       '일상 속 그린테크 챌린지',
@@ -594,19 +595,18 @@ describe('design preview account flows', () => {
       await screen.findByText('이동한 경로: /teams/new-team?view=space'),
     ).toBeInTheDocument();
     expect(state.createTeam).toHaveBeenCalledWith({
-      contestId: 'green',
+      contestId: demoIds.contests.green,
       name: '새로운 예시 팀',
-      summary: '환경 문제를 함께 해결해요.',
-      roles: ['개발'],
+      introduction: '환경 문제를 함께 해결해요.',
+      roleCodes: ['development'],
       capacity: 3,
       recruitmentDeadline: '2026-10-24',
-      interests: ['환경', 'IT·기술'],
     });
   });
 
   it('requires a known contest and preserves the team draft while searching and changing it', async () => {
     const state = renderAccount('/teams/new?contest=unknown', {
-      teams: [],
+      db: withoutTeams(),
     });
     const user = userEvent.setup();
     const trigger = screen.getByLabelText('참여 공모전');
@@ -651,20 +651,21 @@ describe('design preview account flows', () => {
     await user.click(screen.getByRole('button', { name: '팀 만들기' }));
     await waitFor(() =>
       expect(state.createTeam).toHaveBeenCalledWith({
-        contestId: 'local',
+        contestId: demoIds.contests.local,
         name: '검색해서 만든 팀',
-        summary: '함께 자료를 조사하고 정리해요.',
-        roles: ['개발'],
+        introduction: '함께 자료를 조사하고 정리해요.',
+        roleCodes: ['development'],
         capacity: 3,
         recruitmentDeadline: '2026-11-01',
-        interests: ['디자인', '사회·문화'],
       }),
     );
   });
 
   // PR #121 리뷰: 현재 공모전을 다시 고르면 입력한 정원·역할을 유지하고, 다른 공모전일 때만 초기화한다.
   it('keeps capacity and roles when the same contest is chosen again and resets them for a different contest', async () => {
-    renderAccount('/teams/new?contestId=campus', { teams: [] });
+    renderAccount(`/teams/new?contestId=${demoIds.contests.campus}`, {
+      db: withoutTeams(),
+    });
     const user = userEvent.setup();
     const capacity = screen.getByLabelText('팀장 포함 총 정원');
     await user.type(capacity, '4');
@@ -724,7 +725,9 @@ describe('design preview account flows', () => {
   it('keeps the profile edit intent and team return path through login', async () => {
     render(
       <MemoryRouter
-        initialEntries={['/profile?edit=details&returnTo=%2Fteams%2Fmakers']}
+        initialEntries={[
+          `/profile?edit=details&returnTo=%2Fteams%2F${demoIds.teams.makers}`,
+        ]}
       >
         <DemoProvider>
           <Routes>
@@ -739,7 +742,7 @@ describe('design preview account flows', () => {
     const login = screen.getByRole('link', { name: '로그인' });
     expect(login).toHaveAttribute(
       'href',
-      `/login?returnTo=${encodeURIComponent('/profile?edit=details&returnTo=%2Fteams%2Fmakers')}`,
+      `/login?returnTo=${encodeURIComponent(`/profile?edit=details&returnTo=%2Fteams%2F${demoIds.teams.makers}`)}`,
     );
     await user.click(login);
     await enterLogin(user);
@@ -749,7 +752,7 @@ describe('design preview account flows', () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(
-      await screen.findByText('이동한 경로: /teams/makers'),
+      await screen.findByText(`이동한 경로: /teams/${demoIds.teams.makers}`),
     ).toBeInTheDocument();
   });
 
@@ -759,7 +762,7 @@ describe('design preview account flows', () => {
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(state.saveProfile).toHaveBeenCalledWith(
-      expect.objectContaining({ visibility: { discoverable: false } }),
+      expect.objectContaining({ isPublic: false }),
     );
   });
 
@@ -796,21 +799,24 @@ describe('design preview account flows', () => {
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(state.saveProfile).toHaveBeenCalledWith(
       expect.objectContaining({
-        college: '이공대학',
-        department: '소프트웨어학과',
-        major: '',
+        academicUnitId: unitId('소프트웨어학과', '이공대학'),
       }),
     );
   });
 
   it('preserves a stored legacy affiliation while other profile fields change', async () => {
+    // 더 이상 새로 선택할 수 없는(isSelectable=false) 과거 학사 항목
+    const legacy = [
+      { id: '9001', name: '과거 대학', parentId: null, isSelectable: false },
+      { id: '9002', name: '과거 학부', parentId: '9001', isSelectable: false },
+      { id: '9003', name: '과거 전공', parentId: '9002', isSelectable: false },
+    ];
+    demoAcademicUnits.push(...legacy);
+    onTestFinished(() => {
+      demoAcademicUnits.splice(-legacy.length);
+    });
     const state = renderAccount('/profile?edit=details', {
-      profile: {
-        ...initialProfile,
-        college: '과거 대학',
-        department: '과거 학부',
-        major: '과거 전공',
-      },
+      profile: { ...initialProfile, academicUnitId: '9003' },
     });
     const user = userEvent.setup();
     expect(
@@ -819,11 +825,7 @@ describe('design preview account flows', () => {
     await user.type(screen.getByLabelText('자기소개 (선택)'), ' 새로운 소개');
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(state.saveProfile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        college: '과거 대학',
-        department: '과거 학부',
-        major: '과거 전공',
-      }),
+      expect.objectContaining({ academicUnitId: '9003' }),
     );
   });
 
@@ -860,22 +862,24 @@ describe('design preview account flows', () => {
     expect(state.saveProfile).toHaveBeenCalledWith(
       expect.objectContaining({
         experienceState: 'none',
-        experience: '',
-        skills: ['프로그래밍'],
-        portfolioTitle: '나의 작업',
+        experienceBody: null,
+        skillCodes: ['programming'],
+        portfolio: { url: 'https://example.com/work', title: '나의 작업' },
       }),
     );
   });
 
   it('returns to the team after required profile completion without submitting an application', async () => {
     const state = renderAccount(
-      '/profile?edit=details&returnTo=%2Fteams%2Fmakers',
-      { profile: { ...initialProfile, name: '' } },
+      `/profile?edit=details&returnTo=%2Fteams%2F${demoIds.teams.makers}`,
+      { profile: { ...initialProfile, realName: '' } },
     );
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('이름 (필수)'), '김지우');
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
-    expect(screen.getByText('이동한 경로: /teams/makers')).toBeInTheDocument();
+    expect(
+      screen.getByText(`이동한 경로: /teams/${demoIds.teams.makers}`),
+    ).toBeInTheDocument();
     expect(state.apply).not.toHaveBeenCalled();
   });
   it.each([
@@ -937,7 +941,7 @@ describe('design preview account flows', () => {
       profile: {
         ...initialProfile,
         experienceState: 'provided',
-        experience: '이전 경험',
+        experienceBody: '이전 경험',
       },
     });
     const user = userEvent.setup();
@@ -950,11 +954,11 @@ describe('design preview account flows', () => {
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     expect(state.saveProfile).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: '김지우',
-        experience: '',
+        realName: '김지우',
+        experienceBody: null,
         experienceState: 'unspecified',
-        academicStatus: '',
-        grade: '',
+        academicStatusCode: null,
+        gradeCode: null,
       }),
     );
   });
@@ -963,9 +967,7 @@ describe('design preview account flows', () => {
     const state = renderAccount('/profile?edit=details', {
       profile: {
         ...initialProfile,
-        college: '인문사회과학대학',
-        department: '경영학부',
-        major: '경영학전공',
+        academicUnitId: unitId('경영학전공', '경영학부'),
       },
     });
     const user = userEvent.setup();
@@ -977,7 +979,9 @@ describe('design preview account flows', () => {
       screen.getByLabelText('학부·학과 (선택)'),
       '경영학부',
     );
-    expect(screen.getByLabelText('세부전공 (선택)')).toHaveValue('경영학전공');
+    expect(screen.getByLabelText('세부전공 (선택)')).toHaveValue(
+      unitId('경영학전공', '경영학부'),
+    );
     await user.selectOptions(
       screen.getByLabelText('학부·학과 (선택)'),
       '공공인재학부',
