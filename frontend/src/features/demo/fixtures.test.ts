@@ -10,9 +10,9 @@
 import { describe, expect, it } from 'vitest';
 import { Account } from '@/features/auth/api';
 import { AcademicUnit, Catalogs } from '@/features/catalogs/api';
-import { Contest, ContestSummary } from '@/features/contests/api';
+import { ContestDetail, ContestSummary } from '@/features/contests/api';
 import { Profile } from '@/features/profiles/api';
-import { Team, TeamMember, TeamSummary } from '@/features/teams/api';
+import { TeamDetail, TeamMember, TeamSummary } from '@/features/teams/api';
 import { Application } from '@/features/applications/api';
 import { Notification } from '@/features/notifications/api';
 import {
@@ -48,7 +48,9 @@ describe('demo fixtures follow the API contract', () => {
   it.each(records.contests.map((seed) => [seed.title, seed] as const))(
     'contest %s',
     (_, seed) => {
-      expect(() => Contest.parse(deriveContest(seed, records))).not.toThrow();
+      expect(() =>
+        ContestDetail.parse(deriveContest(seed, records)),
+      ).not.toThrow();
     },
   );
 
@@ -66,7 +68,7 @@ describe('demo fixtures follow the API contract', () => {
   it('teams and current members with server-computed values', () => {
     for (const record of records.teams) {
       const team = deriveTeam(record, records);
-      expect(() => Team.parse(team)).not.toThrow();
+      expect(() => TeamDetail.parse(team)).not.toThrow();
       for (const membership of records.memberships.filter(
         (item) => item.teamId === team.id,
       ))
@@ -99,7 +101,7 @@ describe('demo fixtures follow the API contract', () => {
         ).not.toThrow();
       for (const record of db.teams) {
         const team = deriveTeam(record, db);
-        expect(() => Team.parse(team)).not.toThrow();
+        expect(() => TeamDetail.parse(team)).not.toThrow();
         expect(() => TeamSummary.parse(toTeamSummary(team))).not.toThrow();
         for (const membership of db.memberships.filter(
           (item) => item.teamId === team.id,

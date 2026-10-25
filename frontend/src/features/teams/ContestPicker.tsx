@@ -27,7 +27,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import type { Contest } from '@/features/contests/api';
+import type { ContestDetail } from '@/features/contests/api';
 import { fieldLabel } from '@/features/demo/labels';
 import { deadlineLabel } from '@/features/demo/contest-state';
 import { ContestCover } from '@/components/common/ContestCover';
@@ -39,7 +39,7 @@ function normalizeSearch(value: string) {
 }
 
 type ContestPickerProps = {
-  contests: readonly Contest[];
+  contests: readonly ContestDetail[];
   value: string;
   onChange: (value: string) => void;
   id: string;

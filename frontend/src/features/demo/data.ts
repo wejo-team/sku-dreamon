@@ -14,13 +14,13 @@ import { createDemoRecords, demoIds } from '@/features/demo/fixtures';
 import { allContests, allTeams } from '@/features/demo/team-state';
 
 export type { Account } from '@/features/auth/api';
-export type { Contest, ContestSummary } from '@/features/contests/api';
+export type { ContestDetail, ContestSummary } from '@/features/contests/api';
 export type {
   Profile,
   PersonSummary,
   ProfileWrite,
 } from '@/features/profiles/api';
-export type { Team, TeamSummary, TeamMember } from '@/features/teams/api';
+export type { TeamDetail, TeamSummary, TeamMember } from '@/features/teams/api';
 export type {
   Application,
   ApplicationStatus,

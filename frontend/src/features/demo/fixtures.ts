@@ -8,7 +8,7 @@
  * 6. docs/api/applications.md#application - Application 필드
  * 7. docs/api/notifications.md#notification-fields - Notification 필드
  * 8. docs/api/auth.md#account - Account
- * 9. docs/specs/profile-options.md#open-questions - 실제 코드 문자열은 OPTIONS-02·07에서 미정
+ * 9. backend/app/rules/catalogs.py - 서버 선택 코드·표시명·정렬 순서(0부터)·마스코트 assetUrl (docs/api/catalogs.md 원본)
  * 10. design-reference/src/features/design-preview/data.ts - 변환 전 예시 데이터 원본
  *
  * 화면 확인용 목업이며 서버 계약을 대신하지 않습니다(docs/design/handoff.md 「제품 구현에 옮기는 순서」 3단계).
@@ -19,7 +19,7 @@
 import type { AcademicUnit, Catalogs } from '@/features/catalogs/api';
 import type { Account } from '@/features/auth/api';
 import type {
-  Contest,
+  ContestDetail,
   ContestSummary,
   DeadlineInterpretation,
   RegistrationStatus,
@@ -27,7 +27,7 @@ import type {
 import type { Profile } from '@/features/profiles/api';
 import type {
   MembershipRole,
-  Team,
+  TeamDetail,
   TeamMember,
   TeamSummary,
 } from '@/features/teams/api';
@@ -111,19 +111,19 @@ export const isDemoId = (id: string) => seedIds.has(id);
 const origin = () => globalThis.location?.origin ?? 'http://localhost:5173';
 export const absoluteUrl = (path: string) => new URL(path, origin()).href;
 
-// [출처 2, 9] 목업 전용 임시 코드. 표시명은 기존 화면 문구 그대로입니다.
+// [출처 2, 9] 서버 enum과 같은 코드·표시명·정렬 순서
 const items = (pairs: [string, string][]) =>
   pairs.map(([code, displayName], index) => ({
     code,
     displayName,
     isSelectable: true,
-    sortOrder: index + 1,
+    sortOrder: index,
   }));
 
 export const fixtureCatalogs = (): Catalogs => ({
   fields: items([
-    ['it_tech', 'IT·기술'],
-    ['business', '경영·창업'],
+    ['it_technology', 'IT·기술'],
+    ['business_startup', '경영·창업'],
     ['design', '디자인'],
     ['society_culture', '사회·문화'],
     ['environment', '환경'],
@@ -137,9 +137,9 @@ export const fixtureCatalogs = (): Catalogs => ({
     ['planning', '기획'],
     ['design', '디자인'],
     ['development', '개발'],
+    ['marketing', '마케팅'],
     ['research', '자료조사'],
     ['presentation', '발표'],
-    ['marketing', '마케팅'],
   ]),
   skills: items([
     ['programming', '프로그래밍'],
@@ -150,9 +150,9 @@ export const fixtureCatalogs = (): Catalogs => ({
     ['service_planning', '서비스 기획'],
     ['market_research', '시장 조사'],
     ['graphic_design', '그래픽 디자인'],
-    ['slide_making', 'PPT 제작'],
+    ['presentation_design', 'PPT 제작'],
     ['data_visualization', '데이터 시각화'],
-    ['sns_marketing', 'SNS 마케팅'],
+    ['social_media_marketing', 'SNS 마케팅'],
     ['content_planning', '콘텐츠 기획'],
     ['public_speaking', '발표·스피치'],
   ]),
@@ -162,17 +162,17 @@ export const fixtureCatalogs = (): Catalogs => ({
     ['graduated', '졸업'],
   ]),
   grades: items([
-    ['grade_1', '1학년'],
-    ['grade_2', '2학년'],
-    ['grade_3', '3학년'],
-    ['grade_4_plus', '4학년 이상'],
+    ['year_1', '1학년'],
+    ['year_2', '2학년'],
+    ['year_3', '3학년'],
+    ['year_4_or_higher', '4학년 이상'],
     ['not_applicable', '해당 없음'],
   ]),
   weeklyAvailabilityRanges: items([
     ['under_5', '5시간 미만'],
     ['from_5_to_10', '5~10시간 미만'],
     ['from_10_to_20', '10~20시간 미만'],
-    ['over_20', '20시간 이상'],
+    ['at_least_20', '20시간 이상'],
   ]),
   avatarPresets: items([
     ['skon', '스콘'],
@@ -182,7 +182,8 @@ export const fixtureCatalogs = (): Catalogs => ({
     ['conver', '컨버'],
   ]).map((item) => ({
     ...item,
-    assetUrl: absoluteUrl(`/mascots/${item.code}.png`),
+    // [출처 9] 서버가 내려주는 학교 사이트 마스코트 이미지 주소
+    assetUrl: `https://www.skuniv.ac.kr/wp-content/themes/_tw/theme/assets/images/mascot/${{ dmo: 'd-mo', bart: 'b-art' }[item.code] ?? item.code}-head.png`,
   })),
 });
 
@@ -220,7 +221,7 @@ const kstDateEnd = (date: string): DeadlineInterpretation => ({
 });
 
 type ContestSeed = Omit<
-  Contest,
+  ContestDetail,
   'registrationStatus' | 'teamCount' | 'isDemo' | 'version'
 >;
 
@@ -249,9 +250,9 @@ const contestSeed = ({
   closing: DeadlineInterpretation;
   endsAt: string;
   createdAt: string;
-  audienceCodes: Contest['audienceCodes'];
+  audienceCodes: ContestDetail['audienceCodes'];
   eligibilityText: string;
-  capacity: Contest['capacity'];
+  capacity: ContestDetail['capacity'];
   description: string;
   deliverables: string;
 }): ContestSeed => ({
@@ -286,7 +287,7 @@ const contestSeed = ({
   ),
 });
 
-const range = (min: number, max: number): Contest['capacity'] => ({
+const range = (min: number, max: number): ContestDetail['capacity'] => ({
   kind: 'range',
   minimumMembers: String(min),
   maximumMembers: String(max),
@@ -297,7 +298,7 @@ const contestSeeds: ContestSeed[] = [
   contestSeed({
     key: 'campus',
     title: '더 나은 캠퍼스 아이디어 공모전',
-    fieldCodes: ['education', 'it_tech'],
+    fieldCodes: ['education', 'it_technology'],
     poster: '/contest-covers/campus.webp',
     opens: '2026-10-01',
     startsAt: '2026-09-30T15:00:00Z',
@@ -314,7 +315,7 @@ const contestSeeds: ContestSeed[] = [
   contestSeed({
     key: 'green',
     title: '일상 속 그린테크 챌린지',
-    fieldCodes: ['environment', 'it_tech'],
+    fieldCodes: ['environment', 'it_technology'],
     poster: '/contest-covers/green.webp',
     opens: '2026-10-01',
     startsAt: '2026-09-30T15:00:00Z',
@@ -372,7 +373,7 @@ const contestSeeds: ContestSeed[] = [
   contestSeed({
     key: 'openLab',
     title: '함께 만드는 열린 아이디어 실험실',
-    fieldCodes: ['it_tech', 'society_culture'],
+    fieldCodes: ['it_technology', 'society_culture'],
     poster: null,
     opens: '2026-10-01',
     startsAt: '2026-09-30T15:00:00Z',
@@ -406,7 +407,7 @@ const contestSeeds: ContestSeed[] = [
   contestSeed({
     key: 'archive',
     title: '지난 캠퍼스 아이디어 공모전',
-    fieldCodes: ['education', 'it_tech'],
+    fieldCodes: ['education', 'it_technology'],
     poster: '/contest-covers/campus.webp',
     opens: '2026-08-01',
     startsAt: '2026-07-31T15:00:00Z',
@@ -452,7 +453,7 @@ export const fixtureProfiles = (): Profile[] => [
     realName: '김지우',
     introduction:
       '다양한 전공의 사람들과 의미 있는 프로젝트를 완성하고 싶어요.',
-    fieldCodes: ['it_tech', 'education'],
+    fieldCodes: ['it_technology', 'education'],
     roleCodes: ['planning'],
   }),
   profile({
@@ -461,7 +462,7 @@ export const fixtureProfiles = (): Profile[] => [
     isPublic: true,
     updatedAt: '2026-10-16T00:00:00Z',
     profileImageCode: 'arti',
-    fieldCodes: ['it_tech', 'environment'],
+    fieldCodes: ['it_technology', 'environment'],
     roleCodes: ['development'],
     skillCodes: ['programming', 'ui_ux'],
     experienceState: 'provided',
@@ -478,7 +479,7 @@ export const fixtureProfiles = (): Profile[] => [
     isPublic: true,
     updatedAt: '2026-10-15T00:00:00Z',
     profileImageCode: 'dmo',
-    fieldCodes: ['it_tech', 'design'],
+    fieldCodes: ['it_technology', 'design'],
     roleCodes: ['development'],
     introduction:
       '아이디어를 동작하는 화면으로 만드는 프론트엔드 개발에 관심이 있어요.',
@@ -526,7 +527,6 @@ export const fixtureProfiles = (): Profile[] => [
 export const fixtureAccount = (): Account => ({
   id: a.me,
   loginId: 'dreamondemo',
-  isDemo: true,
   hasProfile: true,
   schoolVerification: 'unverified',
   createdAt: '2026-10-01T00:00:00Z',
@@ -534,7 +534,7 @@ export const fixtureAccount = (): Account => ({
 
 // [출처 5] 팀 원본(계산값 제외)과 현재 소속
 export type TeamRecord = Omit<
-  Team,
+  TeamDetail,
   | 'contestTitle'
   | 'fieldCodes'
   | 'memberCount'
@@ -806,7 +806,7 @@ export const fixtureNotifications = (): NotificationRecord[] => [
 
 // [출처 3] 접수 예정·중·마감. startsAt 포함, endsAt 제외 경계
 export function registrationStatusAt(
-  contest: Pick<Contest, 'startsAt' | 'endsAt'>,
+  contest: Pick<ContestDetail, 'startsAt' | 'endsAt'>,
   now = mockNow,
 ): RegistrationStatus {
   if (now >= Date.parse(contest.endsAt)) return 'closed';
@@ -824,7 +824,7 @@ export function deriveContest(
   seed: ContestSeed,
   records: Pick<DemoRecords, 'teams'>,
   now = mockNow,
-): Contest {
+): ContestDetail {
   return {
     ...seed,
     registrationStatus: registrationStatusAt(seed, now),
@@ -835,7 +835,7 @@ export function deriveContest(
   };
 }
 
-export function toContestSummary(contest: Contest): ContestSummary {
+export function toContestSummary(contest: ContestDetail): ContestSummary {
   return {
     id: contest.id,
     title: contest.title,
@@ -862,7 +862,7 @@ export function deriveTeam(
   team: TeamRecord,
   records: DemoRecords,
   now = mockNow,
-): Team {
+): TeamDetail {
   const seed = records.contests.find((item) => item.id === team.contestId);
   if (!seed) throw new Error(`contest ${team.contestId} not found`);
   const contest = deriveContest(seed, records, now);
@@ -883,7 +883,7 @@ export function deriveTeam(
   };
 }
 
-export function toTeamSummary(team: Team): TeamSummary {
+export function toTeamSummary(team: TeamDetail): TeamSummary {
   return {
     id: team.id,
     version: team.version,

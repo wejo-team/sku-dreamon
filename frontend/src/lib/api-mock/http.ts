@@ -74,8 +74,9 @@ export const errorResponse = (status: number, code: string, message: string) =>
 export const fail = (status: number, code: string, message: string): never => {
   throw new MockHttpError(status, code, message);
 };
-export const notFound = (): never =>
-  fail(404, 'RESOURCE_NOT_FOUND', '요청한 정보를 찾을 수 없어요.');
+// 서버는 리소스별 404 코드(CONTEST_NOT_FOUND·TEAM_NOT_FOUND·APPLICATION_NOT_FOUND)도 사용합니다.
+export const notFound = (code = 'RESOURCE_NOT_FOUND'): never =>
+  fail(404, code, '요청한 정보를 찾을 수 없어요.');
 export const forbidden = (): never =>
   fail(403, 'FORBIDDEN', '이 작업을 할 권한이 없어요.');
 export const conflict = (code: string, message: string): never =>

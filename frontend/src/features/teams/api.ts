@@ -100,11 +100,11 @@ export const TeamSummary = z
 export type TeamSummary = z.infer<typeof TeamSummary>;
 
 // [출처 5] TeamSummary 전체 + ownerAccountId, contest
-export const Team = TeamSummary.extend({
+export const TeamDetail = TeamSummary.extend({
   ownerAccountId: Id,
   contest: ContestSummary,
 }).strict();
-export type Team = z.infer<typeof Team>;
+export type TeamDetail = z.infer<typeof TeamDetail>;
 
 // [출처 6] 소속 표시와 프로필 열람 분리. profile은 권한이 있을 때만
 export const TeamMember = z
@@ -124,7 +124,7 @@ export type TeamMember = z.infer<typeof TeamMember>;
 // [출처 6] pendingApplicationCount는 팀장에게만 값, 일반 팀원은 null
 export const TeamSpace = z
   .object({
-    team: Team,
+    team: TeamDetail,
     members: z.array(TeamMember).min(1),
     viewerRole: MembershipRole,
     pendingApplicationCount: SafeInteger.nullable(),
@@ -183,7 +183,7 @@ export async function listTeams(
 
 // [출처 1, 5] GET /teams/{teamId} → 200 Success<Team>
 export async function getTeam(teamId: string, signal?: AbortSignal) {
-  return success(Team).parse(
+  return success(TeamDetail).parse(
     await apiRequest(`/teams/${encodeURIComponent(teamId)}`, { signal }),
   ).data;
 }
@@ -196,7 +196,7 @@ export async function createTeam(body: TeamCreate, signal?: AbortSignal) {
     signal,
   });
   return {
-    team: success(Team).parse(response.body).data,
+    team: success(TeamDetail).parse(response.body).data,
     created: response.status === 201,
   };
 }

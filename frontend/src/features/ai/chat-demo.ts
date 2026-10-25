@@ -8,9 +8,9 @@
  */
 
 import type { Application } from '@/features/applications/api';
-import type { Contest } from '@/features/contests/api';
+import type { ContestDetail } from '@/features/contests/api';
 import type { Profile } from '@/features/profiles/api';
-import type { Team } from '@/features/teams/api';
+import type { TeamDetail } from '@/features/teams/api';
 import {
   contestDeadline,
   deadlineLabel,
@@ -42,8 +42,8 @@ export type ChatReply = {
 };
 
 type SearchData = {
-  contests: Contest[];
-  teams: Team[];
+  contests: ContestDetail[];
+  teams: TeamDetail[];
   /** 현재 공개된 사람 프로필 */
   people: Profile[];
   applications?: Application[];
@@ -54,7 +54,7 @@ type SearchData = {
 };
 
 // [출처 3] 본인·소속 팀과 유효한 지원이 있는 팀은 신규 지원 대상에서 제외
-function availableTeam(team: Team, data: SearchData) {
+function availableTeam(team: TeamDetail, data: SearchData) {
   const contest = data.contests.find((item) => item.id === team.contestId);
   return Boolean(
     contest &&
@@ -148,13 +148,13 @@ function hasUnknownWords(message: string) {
   );
 }
 
-function contestText(contest: Contest) {
+function contestText(contest: ContestDetail) {
   return normalize(
     `${contest.title} ${contest.organizer} ${contest.description ?? ''} ${contest.fieldCodes.map(fieldLabel).join(' · ')}`,
   );
 }
 
-function deadlineKey(contest: Contest | undefined) {
+function deadlineKey(contest: ContestDetail | undefined) {
   return contest ? contestDeadline(contest) : Infinity;
 }
 
@@ -227,7 +227,7 @@ export function createDemoReply(
   const categories: string[] = [];
   if (/아이디어/.test(query) || (categoryContext && /기획/.test(query)))
     categories.push('education');
-  if (/it|기술/.test(query)) categories.push('it_tech');
+  if (/it|기술/.test(query)) categories.push('it_technology');
   if (categoryContext && /디자인/.test(query)) categories.push('design');
   const keyword = /환경|그린테크/.test(query) ? '환경' : undefined;
   const unhandledRole = roles.some(

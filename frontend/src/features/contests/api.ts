@@ -109,7 +109,7 @@ export const ContestTiming = z
 export type ContestTiming = z.infer<typeof ContestTiming>;
 
 // [출처 5] audienceCodes: 1~2개, student+general만 함께 가능
-export const Contest = ContestSummary.extend({
+export const ContestDetail = ContestSummary.extend({
   description: z.string().nullable(),
   audienceCodes: z
     .array(AudienceCode)
@@ -138,7 +138,7 @@ export const Contest = ContestSummary.extend({
       value.timing.endsAt === value.endsAt,
     { path: ['timing'], message: '접수 일정 경계가 상위 값과 다릅니다.' },
   );
-export type Contest = z.infer<typeof Contest>;
+export type ContestDetail = z.infer<typeof ContestDetail>;
 
 // [출처 2] 목록 조건. 모두 선택 입력
 export type ContestListQuery = {
@@ -162,7 +162,7 @@ export async function listContests(
 
 // [출처 1, 5] GET /contests/{contestId} → 200 Success<Contest>, 없으면 404
 export async function getContest(contestId: string, signal?: AbortSignal) {
-  return success(Contest).parse(
+  return success(ContestDetail).parse(
     await apiRequest(`/contests/${encodeURIComponent(contestId)}`, { signal }),
   ).data;
 }

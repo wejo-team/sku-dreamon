@@ -2,13 +2,20 @@
  * [참조 출처]
  * 1. docs/api/auth.md#account-endpoints - POST /accounts, GET /auth/login-id-availability, POST /auth/login, POST /auth/logout, GET /me
  * 2. docs/api/auth.md#credentials - Credentials { loginId, password }
- * 3. docs/api/auth.md#account - Account { id, loginId, isDemo, hasProfile, schoolVerification, createdAt }
+ * 3. docs/api/auth.md#account - Account { id, loginId, hasProfile, schoolVerification, createdAt } (isDemo 없음),
+ *    원본 backend/app/schemas/auth.py AccountResponse
  * 4. docs/api/auth.md#auth-results - SignupResult, LoginResult, LoginIdAvailability
  * 5. docs/api/conventions.md#session-auth - 세션 토큰은 본문에 없고 Set-Cookie로만 전달
+ * 6. docs/api/conventions.md#csrf-transport - GET /auth/csrf, 인증 전환(가입·로그인·로그아웃) 후 토큰 폐기
  */
 
 import { z } from 'zod';
-import { apiRequest, withQuery } from '@/lib/api';
+import {
+  apiRequest,
+  fetchCsrfToken,
+  resetCsrfToken,
+  withQuery,
+} from '@/lib/api';
 import { Id, Timestamp, success } from '@/lib/api-contract';
 
 const LOGIN_ID = /^[a-z0-9]{4,24}$/;
@@ -24,7 +31,6 @@ export const Account = z
   .object({
     id: Id,
     loginId: z.string().regex(LOGIN_ID),
-    isDemo: z.boolean(),
     hasProfile: z.boolean(),
     schoolVerification: z.literal('unverified'),
     createdAt: Timestamp,
@@ -45,6 +51,9 @@ export const LoginIdAvailability = z
   .strict();
 export type LoginIdAvailability = z.infer<typeof LoginIdAvailability>;
 
+// [출처 6] GET /auth/csrf → 200 Success<CsrfToken>. 로그인 전에도 호출 가능
+export const getCsrfToken = fetchCsrfToken;
+
 // [출처 1, 5] POST /accounts → 201 Success<SignupResult>. 성공 시 서버가 Set-Cookie로 자동 로그인
 export async function createAccount(body: Credentials, signal?: AbortSignal) {
   const response = await apiRequest('/accounts', {
@@ -52,6 +61,7 @@ export async function createAccount(body: Credentials, signal?: AbortSignal) {
     json: Credentials.parse(body),
     signal,
   });
+  resetCsrfToken();
   return success(SignupResult).parse(response).data;
 }
 
@@ -74,12 +84,14 @@ export async function login(body: Credentials, signal?: AbortSignal) {
     json: Credentials.parse(body),
     signal,
   });
+  resetCsrfToken();
   return success(LoginResult).parse(response).data;
 }
 
 // [출처 1] POST /auth/logout → 204 본문 없음
 export async function logout(signal?: AbortSignal) {
   await apiRequest('/auth/logout', { method: 'POST', signal });
+  resetCsrfToken();
 }
 
 // [출처 1, 3] GET /me → 200 Success<Account>. 미인증은 401 UNAUTHENTICATED

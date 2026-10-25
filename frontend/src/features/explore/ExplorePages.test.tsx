@@ -15,7 +15,7 @@ import {
   initialTeams,
   people,
   type Profile,
-  type Team,
+  type TeamDetail,
 } from '@/features/demo/data';
 import { DemoContext, type DemoState } from '@/features/demo/demo-context';
 import type { DemoDatabase } from '@/features/demo/fixtures';
@@ -66,7 +66,7 @@ const visualMajor = demoAcademicUnits.find(
 const publicPatch: Partial<Profile> = {
   realName: '공개검색검증사용자',
   academicStatusCode: 'enrolled',
-  gradeCode: 'grade_3',
+  gradeCode: 'year_3',
   academicUnitId: visualMajor.id,
   skillCodes: ['data_visualization'],
   introduction: '사용자인터뷰를 함께 진행하고 싶어요.',
@@ -81,7 +81,7 @@ const publicPatch: Partial<Profile> = {
 };
 const publicProfile = { ...initialProfile, ...publicPatch } as Profile;
 
-const pagedTeams: Team[] = Array.from({ length: 14 }, (_, index) => ({
+const pagedTeams: TeamDetail[] = Array.from({ length: 14 }, (_, index) => ({
   ...initialTeams[0]!,
   id: `paged-${index + 1}`,
   name: `페이지 팀 ${String(index + 1).padStart(2, '0')}`,

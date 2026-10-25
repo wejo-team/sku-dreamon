@@ -19,7 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import type { Contest } from '@/features/contests/api';
+import type { ContestDetail } from '@/features/contests/api';
 import { fieldLabel, roleOptions } from '@/features/demo/labels';
 import {
   capacityBounds,
@@ -34,7 +34,7 @@ import { profileTextLength } from '@/features/demo/profile-fields';
 import { createTeamIssue, referenceDate } from '@/features/demo/team-state';
 
 // [출처 3] 공식 인원이 고정(range의 최소=최대)이면 그 값을 정원으로 사용
-const fixedCapacityOf = (contest: Contest | undefined) => {
+const fixedCapacityOf = (contest: ContestDetail | undefined) => {
   if (!contest || contest.capacity.kind !== 'range') return undefined;
   const { min, max } = capacityBounds(contest.capacity);
   return min !== null && min === max ? min : undefined;

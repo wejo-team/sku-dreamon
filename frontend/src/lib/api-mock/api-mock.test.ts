@@ -5,7 +5,6 @@
  * 3. docs/api/conventions.md#errors - 401·403·404·409·422 구분
  * 4. docs/api/applications.md#transitions - 선발 시 같은 공모전의 다른 대기 지원 폐기·정원 충족 시 마감
  * 5. docs/api/notifications.md#notification-fields - unreadCount는 필터와 무관, 읽음은 전부 성공 또는 전부 실패
- * 6. docs/api/ai.md#conversation-endpoints - 202 + Location
  * 7. docs/development/testing.md - 「의미 있는 테스트」 권한·검증 규칙·오류 처리·데이터 무결성
  *
  * 목업 어댑터가 계약의 응답 구조와 업무 규칙을 지키는지, 실제 API 모듈(Zod 검증 포함)을 통해 확인합니다.
@@ -13,7 +12,6 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mockFetch, resetMockApi } from '@/lib/api-mock';
-import * as ai from '@/features/ai/api';
 import * as applications from '@/features/applications/api';
 import * as auth from '@/features/auth/api';
 import * as contests from '@/features/contests/api';
@@ -183,7 +181,7 @@ describe('mock API adapter', () => {
       await code(applications.getApplication(ids.applications.localcrew)),
     ).toEqual({
       status: 404,
-      code: 'RESOURCE_NOT_FOUND',
+      code: 'APPLICATION_NOT_FOUND',
     });
     await auth.logout();
     await signIn();
@@ -250,30 +248,5 @@ describe('mock API adapter', () => {
       ],
     });
     expect(result.unreadCount).toBe(1);
-  });
-
-  it('accepts an AI message with 202 and a Location, then serves the finished request', async () => {
-    await signIn();
-    const conversation = await ai.createConversation({});
-    const accepted = await ai.sendMessage(conversation.id, {
-      clientMessageId: '33333333-3333-4333-8333-333333333333',
-      content: '디자인 역할 팀 찾아줘',
-    });
-    expect(accepted.request.status).toBe('pending');
-    expect(accepted.location).toBe(
-      `/api/v1/ai/requests/${accepted.request.id}`,
-    );
-    const done = await ai.getAiRequest(accepted.request.id);
-    expect(done.status).toBe('succeeded');
-    expect(done.result?.kind).toBe('chat');
-    // 같은 메시지 ID에 다른 본문은 409
-    expect(
-      await code(
-        ai.sendMessage(conversation.id, {
-          clientMessageId: '33333333-3333-4333-8333-333333333333',
-          content: '다른 내용',
-        }),
-      ),
-    ).toEqual({ status: 409, code: 'MESSAGE_ID_CONFLICT' });
   });
 });

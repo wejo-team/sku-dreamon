@@ -8,7 +8,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import * as ai from '@/features/ai/api';
+import { resetCsrfToken } from '@/lib/api';
 import * as applications from '@/features/applications/api';
 import * as auth from '@/features/auth/api';
 import * as catalogs from '@/features/catalogs/api';
@@ -24,7 +24,10 @@ import {
   toTeamSummary,
 } from '@/features/demo/fixtures';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetCsrfToken();
+});
 
 const records = createDemoRecords();
 const contest = deriveContest(records.contests[0]!, records);
@@ -39,19 +42,25 @@ function respond(
   status = 200,
   headers: Record<string, string> = {},
 ) {
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValue(
-      status === 204
-        ? new Response(null, { status })
-        : Response.json(body, { status, headers }),
-    );
+  // docs/api/conventions.md#csrf-transport: 상태 변경 전 토큰 조회(GET /auth/csrf)에는 발급 응답을 줍니다.
+  const fetchMock = vi.fn((url: string) =>
+    Promise.resolve(
+      url.endsWith('/auth/csrf')
+        ? Response.json({ data: { csrfToken: 'csrf-token-1' } })
+        : status === 204
+          ? new Response(null, { status })
+          : Response.json(body, { status, headers }),
+    ),
+  );
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
 
+// 토큰 조회를 뺀 첫 실제 요청
 const call = (fetchMock: ReturnType<typeof vi.fn>) => {
-  const [url, init] = fetchMock.mock.calls[0]! as [string, RequestInit];
+  const [url, init] = fetchMock.mock.calls.find(
+    ([target]) => !String(target).endsWith('/auth/csrf'),
+  )! as [string, RequestInit];
   return {
     url,
     method: init.method ?? 'GET',
@@ -269,14 +278,6 @@ describe('endpoint requests match docs/api', () => {
       '/api/v1/me/notifications/read',
       { notificationIds: [ID] },
     ],
-    [
-      'POST /ai/conversations',
-      () => ai.createConversation(),
-      { data: { id: ID, createdAt: '2026-10-18T00:00:00Z' } },
-      'POST',
-      '/api/v1/ai/conversations',
-      {},
-    ],
   ];
 
   it.each(cases)('%s', async (_, run, body, method, url, requestBody) => {
@@ -315,36 +316,6 @@ describe('endpoint requests match docs/api', () => {
       created: false,
     });
   });
-
-  it('AI message send returns the request and its polling Location (202)', async () => {
-    const request = {
-      id: ID,
-      purpose: 'chat',
-      conversationId: ID,
-      messageId: ID,
-      teamId: null,
-      applicationId: null,
-      attempt: 1,
-      status: 'pending',
-      createdAt: '2026-10-18T00:00:00Z',
-      updatedAt: '2026-10-18T00:00:00Z',
-      result: null,
-      failure: null,
-    };
-    const fetchMock = respond({ data: request }, 202, {
-      Location: `/api/v1/ai/requests/${ID}`,
-    });
-    const accepted = await ai.sendMessage(ID, {
-      clientMessageId: ID,
-      content: '디자인 팀 찾아줘',
-    });
-    expect(accepted.location).toBe(`/api/v1/ai/requests/${ID}`);
-    expect(call(fetchMock)).toEqual({
-      url: `/api/v1/ai/conversations/${ID}/messages`,
-      method: 'POST',
-      body: { clientMessageId: ID, content: '디자인 팀 찾아줘' },
-    });
-  });
 });
 
 // [출처 2] 응답이 문서 필드와 다르면 화면에 넘기지 않음
@@ -371,47 +342,6 @@ describe('response schemas reject shapes outside the contract', () => {
     await expect(contests.listContests()).rejects.toThrow();
   });
 
-  it('enforces AiRequest purpose references and status/result combinations', () => {
-    const base = {
-      id: ID,
-      purpose: 'chat',
-      conversationId: ID,
-      messageId: ID,
-      teamId: null,
-      applicationId: null,
-      attempt: 1,
-      createdAt: '2026-10-18T00:00:00Z',
-      updatedAt: '2026-10-18T00:00:00Z',
-    };
-    expect(
-      ai.AiRequest.safeParse({
-        ...base,
-        status: 'pending',
-        result: null,
-        failure: null,
-      }).success,
-    ).toBe(true);
-    // failed에 failure 없음
-    expect(
-      ai.AiRequest.safeParse({
-        ...base,
-        status: 'failed',
-        result: null,
-        failure: null,
-      }).success,
-    ).toBe(false);
-    // chat 요청에 teamId
-    expect(
-      ai.AiRequest.safeParse({
-        ...base,
-        teamId: ID,
-        status: 'pending',
-        result: null,
-        failure: null,
-      }).success,
-    ).toBe(false);
-  });
-
   it('enforces ParticipationCapacity combinations and the audience pairing rule', () => {
     expect(
       contests.ParticipationCapacity.safeParse({
@@ -428,7 +358,7 @@ describe('response schemas reject shapes outside the contract', () => {
       }).success,
     ).toBe(false);
     expect(
-      contests.Contest.safeParse({
+      contests.ContestDetail.safeParse({
         ...contest,
         audienceCodes: ['unknown', 'student'],
       }).success,

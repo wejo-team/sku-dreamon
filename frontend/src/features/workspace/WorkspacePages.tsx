@@ -43,7 +43,7 @@ import type {
   Application,
   ApplicationStatus,
 } from '@/features/applications/api';
-import type { Team, TeamMember } from '@/features/teams/api';
+import type { TeamDetail, TeamMember } from '@/features/teams/api';
 import { fieldLabel, roleLabel, roleOptions } from '@/features/demo/labels';
 import {
   ActionLink,
@@ -475,7 +475,7 @@ function TeamTabs({
   active,
   from,
 }: {
-  team: Team;
+  team: TeamDetail;
   active: 'space' | 'applicants';
   from: string;
 }) {
@@ -504,7 +504,7 @@ function TeamOverview({
   team,
   currentPath,
 }: {
-  team: Team;
+  team: TeamDetail;
   currentPath: string;
 }) {
   const { contests } = useDemo();
@@ -599,7 +599,7 @@ function TeamOverview({
   );
 }
 
-function RecruitmentControl({ team }: { team: Team }) {
+function RecruitmentControl({ team }: { team: TeamDetail }) {
   const { closeRecruitment, reopenRecruitment, account } = useDemo();
   const [feedback, setFeedback] = useState('');
   if (!isTeamOwner(team, account.id)) return null;
@@ -669,7 +669,7 @@ function TeamSpace({
   currentPath,
   management,
 }: {
-  team: Team;
+  team: TeamDetail;
   from: string;
   currentPath: string;
   management: boolean;
@@ -866,7 +866,7 @@ export function TeamPage() {
     );
   }
   return (
-    <TeamDetail
+    <TeamRecruitmentDetail
       key={team.id}
       team={team}
       from={from}
@@ -875,12 +875,12 @@ export function TeamPage() {
   );
 }
 
-function TeamDetail({
+function TeamRecruitmentDetail({
   team,
   from,
   currentPath,
 }: {
-  team: Team;
+  team: TeamDetail;
   from: string;
   currentPath: string;
 }) {
@@ -1185,7 +1185,7 @@ function ApplicantDetail({
   team,
 }: {
   applicant: Application;
-  team: Team;
+  team: TeamDetail;
 }) {
   const { selectApplicant, signedIn, db, account } = useDemo();
   // [출처 5] 지원 당시 사본이 아닌 현재 전체 프로필

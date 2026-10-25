@@ -9,13 +9,16 @@ import {
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ContestPicker } from '@/features/teams/ContestPicker';
-import type { Contest } from '@/features/contests/api';
+import type { ContestDetail } from '@/features/contests/api';
 import { createDemoRecords, deriveContest } from '@/features/demo/fixtures';
 
 // Contest DTO 예시: 첫 목업 공모전을 바탕으로 식별자·제목·분야 코드만 바꿉니다.
 const records = createDemoRecords();
 const base = deriveContest(records.contests[0]!, records);
-function contest(id: string, overrides: Partial<Contest> = {}): Contest {
+function contest(
+  id: string,
+  overrides: Partial<ContestDetail> = {},
+): ContestDetail {
   return {
     ...base,
     id,
@@ -40,7 +43,7 @@ const fixtures = [
   contest('project', {
     title: 'Local Project Challenge',
     organizer: '지역 청년 재단',
-    fieldCodes: ['it_tech'],
+    fieldCodes: ['it_technology'],
   }),
 ];
 
@@ -49,7 +52,7 @@ function renderPicker({
   initialValue = '',
   invalid = false,
 }: {
-  contests?: readonly Contest[];
+  contests?: readonly ContestDetail[];
   initialValue?: string;
   invalid?: boolean;
 } = {}) {

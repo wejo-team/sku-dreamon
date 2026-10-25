@@ -8,7 +8,7 @@
 
 import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
-import type { Team } from '@/features/teams/api';
+import type { TeamDetail } from '@/features/teams/api';
 import { roleLabel } from '@/features/demo/labels';
 import { Badge, TeamStatusBadge } from '@/components/common/CommonUi';
 
@@ -18,7 +18,7 @@ export function TeamCard({
   to,
   showContest = true,
 }: {
-  team: Team;
+  team: TeamDetail;
   to: string;
   showContest?: boolean;
 }) {

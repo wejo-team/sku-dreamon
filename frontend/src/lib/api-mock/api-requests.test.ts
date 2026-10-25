@@ -1,17 +1,17 @@
 /**
  * [참조 출처]
  * 1. docs/api/README.md - 영역별 문서의 메서드·경로·요청·응답을 프론트와 서버가 같이 검토
- * 2. docs/api/auth.md, catalogs.md, contests.md, profiles.md, teams.md, applications.md, notifications.md, ai.md
+ * 2. docs/api/auth.md, catalogs.md, contests.md, profiles.md, teams.md, applications.md, notifications.md
  *    - 각 엔드포인트의 메서드·경로·query·요청 본문·성공 상태 코드
- * 3. docs/api/conventions.md#success-responses - 200·201·202·204 구분
+ * 3. docs/api/conventions.md#success-responses - 200·201·204 구분
+ * 5. docs/api/conventions.md#csrf-transport - 상태 변경 요청에 X-CSRF-Token, 토큰은 GET /auth/csrf로 발급
  * 4. docs/development/testing.md - 「의미 있는 테스트」 API 계약은 실제 요청·응답으로 검사
  *
- * 영역별 API 함수 44개를 하나의 목업 세션에서 실제 사용 순서대로 호출하고,
+ * 영역별 API 함수(AI 제외, docs/api/ai.md 미구현)를 하나의 목업 세션에서 실제 사용 순서대로 호출하고,
  * 각 함수가 fetch로 내보낸 메서드·URL·JSON 본문과 응답 상태를 기록해 문서 값과 비교합니다.
  */
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import * as ai from '@/features/ai/api';
 import * as applications from '@/features/applications/api';
 import * as auth from '@/features/auth/api';
 import * as catalogs from '@/features/catalogs/api';
@@ -21,10 +21,15 @@ import * as profiles from '@/features/profiles/api';
 import * as teams from '@/features/teams/api';
 import { demoIds } from '@/features/demo/fixtures';
 import { mockFetch, resetMockApi } from '@/lib/api-mock';
-import { failAiRequestForMock } from '@/lib/api-mock/handlers-notifications-ai';
 
 const ids = demoIds;
-type Sent = { method: string; url: string; body: unknown; status: number };
+type Sent = {
+  method: string;
+  url: string;
+  body: unknown;
+  status: number;
+  csrf: boolean;
+};
 const sent: Sent[] = [];
 
 beforeAll(() => resetMockApi({ signedIn: false }));
@@ -39,6 +44,7 @@ beforeEach(() => {
       url,
       body: typeof init.body === 'string' ? JSON.parse(init.body) : undefined,
       status: response.status,
+      csrf: new Headers(init.headers).has('X-CSRF-Token'),
     });
     return response;
   });
@@ -53,13 +59,10 @@ const saved: {
   seoyeonVersion?: string;
   suaVersion?: string;
   notificationIds?: string[];
-  conversationId?: string;
-  requestId?: string;
 } = {};
 
 const REQUEST_ID = '11111111-1111-4111-8111-111111111111';
 const APPLICATION_REQUEST_ID = '22222222-2222-4222-8222-222222222222';
-const MESSAGE_ID = '33333333-3333-4333-8333-333333333333';
 const PASSWORD = '새로운비밀번호를길게만들어요123';
 const DEMO_PASSWORD = 'DreamonReview2026!';
 
@@ -91,7 +94,7 @@ const profileWrite = (): profiles.ProfileWrite => {
     realName: current.realName,
     profileImageCode: 'arti',
     academicStatusCode: 'enrolled',
-    gradeCode: 'grade_3',
+    gradeCode: 'year_3',
     weeklyAvailabilityCode: 'from_5_to_10',
     academicUnitId: null,
     experienceState: 'provided',
@@ -107,6 +110,12 @@ const profileWrite = (): profiles.ProfileWrite => {
 const v1 = '/api/v1';
 const cases: Case[] = [
   // ─── auth ───
+  {
+    name: 'GET /auth/csrf',
+    run: () => auth.getCsrfToken(),
+    expected: () => ({ method: 'GET', url: `${v1}/auth/csrf` }),
+    status: 200,
+  },
   {
     name: 'GET /auth/login-id-availability',
     run: () => auth.getLoginIdAvailability('NewMember01'),
@@ -226,14 +235,14 @@ const cases: Case[] = [
     run: () =>
       profiles.listPeople({
         q: '김서연',
-        fieldCode: 'it_tech',
+        fieldCode: 'it_technology',
         roleCode: 'development',
         page: 1,
         pageSize: 10,
       }),
     expected: () => ({
       method: 'GET',
-      url: `${v1}/people?q=${encodeURIComponent('김서연')}&fieldCode=it_tech&roleCode=development&page=1&pageSize=10`,
+      url: `${v1}/people?q=${encodeURIComponent('김서연')}&fieldCode=it_technology&roleCode=development&page=1&pageSize=10`,
     }),
     status: 200,
   },
@@ -499,121 +508,27 @@ const cases: Case[] = [
     }),
     status: 200,
   },
-  // ─── ai ───
-  {
-    name: 'POST /ai/conversations',
-    run: async () =>
-      (saved.conversationId = (await ai.createConversation({})).id),
-    expected: () => ({
-      method: 'POST',
-      url: `${v1}/ai/conversations`,
-      body: {},
-    }),
-    status: 201,
-  },
-  {
-    name: 'POST /ai/conversations/{conversationId}/messages',
-    run: async () => {
-      const accepted = await ai.sendMessage(saved.conversationId!, {
-        clientMessageId: MESSAGE_ID,
-        content: '디자인 역할 팀 찾아줘',
-      });
-      saved.requestId = accepted.request.id;
-      expect(accepted.location).toBe(
-        `${v1}/ai/requests/${accepted.request.id}`,
-      );
-    },
-    expected: () => ({
-      method: 'POST',
-      url: `${v1}/ai/conversations/${saved.conversationId}/messages`,
-      body: { clientMessageId: MESSAGE_ID, content: '디자인 역할 팀 찾아줘' },
-    }),
-    status: 202,
-  },
-  {
-    name: 'GET /ai/conversations/{conversationId}',
-    run: () => ai.getConversation(saved.conversationId!),
-    expected: () => ({
-      method: 'GET',
-      url: `${v1}/ai/conversations/${saved.conversationId}`,
-    }),
-    status: 200,
-  },
-  {
-    name: 'GET /ai/requests/{requestId}',
-    run: () => ai.getAiRequest(saved.requestId!),
-    expected: () => ({
-      method: 'GET',
-      url: `${v1}/ai/requests/${saved.requestId}`,
-    }),
-    status: 200,
-  },
-  {
-    name: 'POST /ai/requests/{requestId}/retries',
-    run: () => {
-      // 목업에는 실제 모델 실패가 없으므로 현재 시도를 재시도 가능한 실패로 만든 뒤 호출
-      failAiRequestForMock(saved.requestId!);
-      return ai.retryAiRequest(saved.requestId!, { expectedAttempt: 1 });
-    },
-    expected: () => ({
-      method: 'POST',
-      url: `${v1}/ai/requests/${saved.requestId}/retries`,
-      body: { expectedAttempt: 1 },
-    }),
-    status: 202,
-  },
-  {
-    name: 'PUT /ai/requests/{requestId}/cancellation',
-    run: () => ai.cancelAiRequest(saved.requestId!, { expectedAttempt: 2 }),
-    expected: () => ({
-      method: 'PUT',
-      url: `${v1}/ai/requests/${saved.requestId}/cancellation`,
-      body: { expectedAttempt: 2 },
-    }),
-    status: 200,
-  },
-  {
-    name: 'POST /applications/{applicationId}/ai-reviews',
-    run: () => ai.requestApplicantReview(ids.applications.sua),
-    expected: () => ({
-      method: 'POST',
-      url: `${v1}/applications/${ids.applications.sua}/ai-reviews`,
-    }),
-    status: 202,
-  },
-  {
-    name: 'GET /applications/{applicationId}/ai-review',
-    run: () => ai.getApplicantReview(ids.applications.sua),
-    expected: () => ({
-      method: 'GET',
-      url: `${v1}/applications/${ids.applications.sua}/ai-review`,
-    }),
-    status: 200,
-  },
-  {
-    name: 'POST /teams/{teamId}/applicant-recommendations',
-    run: () => ai.requestApplicantRecommendations(ids.teams.greenwave),
-    expected: () => ({
-      method: 'POST',
-      url: `${v1}/teams/${ids.teams.greenwave}/applicant-recommendations`,
-    }),
-    status: 202,
-  },
 ];
 
 describe('API functions send the documented method, path and body', () => {
   it('covers every documented endpoint exactly once', () => {
-    expect(cases).toHaveLength(44);
-    expect(new Set(cases.map((item) => item.name)).size).toBe(44);
+    expect(cases).toHaveLength(36);
+    expect(new Set(cases.map((item) => item.name)).size).toBe(36);
   });
 
   // 같은 목업 세션에서 순서대로 실행합니다(앞 단계의 생성 ID·버전을 사용).
-  it.each(cases)('$name', async ({ run, expected, status }) => {
+  it.each(cases)('$name', async ({ name, run, expected, status }) => {
     const before = sent.length;
     await run();
-    const requests = sent.slice(before);
+    // [출처 5] CSRF 토큰 조회(GET /auth/csrf)는 함수 요청과 따로 셉니다.
+    const requests = sent
+      .slice(before)
+      .filter(
+        (item) => name === 'GET /auth/csrf' || !item.url.endsWith('/auth/csrf'),
+      );
     expect(requests).toHaveLength(1);
     const { body, ...rest } = expected();
-    expect(requests[0]).toEqual({ ...rest, body, status });
+    const csrf = rest.method !== 'GET';
+    expect(requests[0]).toEqual({ ...rest, body, status, csrf });
   });
 });

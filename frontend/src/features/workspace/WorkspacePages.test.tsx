@@ -412,7 +412,7 @@ describe('applicant review', () => {
       experienceState: 'provided',
       experienceBody: '지원자의 경험',
       academicStatusCode: 'enrolled',
-      gradeCode: 'grade_3',
+      gradeCode: 'year_3',
       academicUnitId: major.id,
       skillCodes: ['data_analysis'],
       fieldCodes: ['education'],

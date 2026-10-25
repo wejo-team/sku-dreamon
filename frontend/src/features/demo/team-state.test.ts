@@ -412,7 +412,7 @@ describe('applicant visibility', () => {
     experienceState: 'provided' as const,
     experienceBody: '지원자의 경험',
     academicStatusCode: 'enrolled',
-    gradeCode: 'grade_3',
+    gradeCode: 'year_3',
     academicUnitId: department.id,
     skillCodes: ['programming', 'ui_ux'],
     fieldCodes: ['society_culture'],

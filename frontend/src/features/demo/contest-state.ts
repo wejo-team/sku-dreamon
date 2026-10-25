@@ -12,7 +12,7 @@
  */
 
 import type {
-  Contest,
+  ContestDetail,
   DeadlineInterpretation,
   ParticipationCapacity,
   RegistrationStatus,
@@ -109,21 +109,21 @@ export function interpretDeadline(input: DeadlineInput): {
 }
 
 // [출처 3] 실제 마감 경계는 endsAt
-export const contestDeadline = (contest: Pick<Contest, 'endsAt'>) =>
+export const contestDeadline = (contest: Pick<ContestDetail, 'endsAt'>) =>
   Date.parse(contest.endsAt);
-export const contestStartsAt = (contest: Pick<Contest, 'startsAt'>) =>
+export const contestStartsAt = (contest: Pick<ContestDetail, 'startsAt'>) =>
   Date.parse(contest.startsAt);
 
 // [출처 2] 접수 예정/중/마감. startsAt 포함, endsAt 제외
 export function contestStatus(
-  contest: Pick<Contest, 'startsAt' | 'endsAt'>,
+  contest: Pick<ContestDetail, 'startsAt' | 'endsAt'>,
   now = referenceNow,
 ): RegistrationStatus {
   if (now >= contestDeadline(contest)) return 'closed';
   return now < contestStartsAt(contest) ? 'scheduled' : 'open';
 }
 export const isContestOpen = (
-  contest: Pick<Contest, 'startsAt' | 'endsAt'>,
+  contest: Pick<ContestDetail, 'startsAt' | 'endsAt'>,
   now = referenceNow,
 ) => contestStatus(contest, now) === 'open';
 
@@ -142,7 +142,7 @@ function dateIn(timeZone: string, now: number) {
 
 // [출처 3] D-day: 마감 원문 날짜와 적용 시간대의 오늘 날짜 차이
 export function contestDaysLeft(
-  contest: Pick<Contest, 'timing'>,
+  contest: Pick<ContestDetail, 'timing'>,
   now = referenceNow,
 ): number {
   const { sourceDate, effectiveTimeZone } = contest.timing.closing;
@@ -151,7 +151,7 @@ export function contestDaysLeft(
 }
 
 export function contestBadgeLabel(
-  contest: Pick<Contest, 'startsAt' | 'endsAt' | 'timing'>,
+  contest: Pick<ContestDetail, 'startsAt' | 'endsAt' | 'timing'>,
   now = referenceNow,
 ): string {
   const status = contestStatus(contest, now);

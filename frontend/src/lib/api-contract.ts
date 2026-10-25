@@ -27,10 +27,10 @@ export const Id = z
     'UUID 문자열이어야 합니다.',
   );
 
-// [출처 1] UTC ISO 8601, 끝은 Z
+// [출처 1] UTC ISO 8601, 끝은 Z. 서버(backend/app/core/http/schemas.py Timestamp)는 초까지 항상 포함
 export const Timestamp = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/)
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/)
   .refine(
     (value) => !Number.isNaN(Date.parse(value)),
     '유효한 시각이 아닙니다.',

@@ -73,6 +73,9 @@ import {
 // [출처 8] 업무 코드 → HTTP 상태
 const STATUS: Record<string, number> = {
   RESOURCE_NOT_FOUND: 404,
+  TEAM_NOT_FOUND: 404,
+  CONTEST_NOT_FOUND: 404,
+  APPLICATION_NOT_FOUND: 404,
   FORBIDDEN: 403,
   UNAUTHENTICATED: 401,
   VALIDATION_ERROR: 422,
@@ -166,9 +169,11 @@ function viewApplication(
 // [출처 5] 지원 본인 또는 받은 팀장만. 관계 밖이면 존재를 숨기는 404
 function relatedApplication(applicationId: string, viewer: string) {
   const application =
-    db().applications.find((item) => item.id === applicationId) ?? notFound();
+    db().applications.find((item) => item.id === applicationId) ??
+    notFound('APPLICATION_NOT_FOUND');
   const owner = teamById(application.teamId)?.ownerAccountId;
-  if (application.applicantAccountId !== viewer && owner !== viewer) notFound();
+  if (application.applicantAccountId !== viewer && owner !== viewer)
+    notFound('APPLICATION_NOT_FOUND');
   return { application, isOwner: owner === viewer };
 }
 
@@ -208,7 +213,7 @@ function ownerAction(
 export function registerTeamRoutes(router: MockRouter) {
   router
     .on('GET', '/contests/{contestId}/teams', ({ params, query }) => {
-      if (!contestById(params.contestId!)) notFound();
+      if (!contestById(params.contestId!)) notFound('CONTEST_NOT_FOUND');
       return teamList(query, params.contestId!, 'contest');
     })
     .on('GET', '/teams', ({ query }) =>
@@ -219,7 +224,7 @@ export function registerTeamRoutes(router: MockRouter) {
       ),
     )
     .on('GET', '/teams/{teamId}', ({ params }) =>
-      ok(teamById(params.teamId!) ?? notFound()),
+      ok(teamById(params.teamId!) ?? notFound('TEAM_NOT_FOUND')),
     )
     // [출처 2] 팀 생성. 첫 생성 201, 같은 시도 재전송 200
     .on('POST', '/teams', ({ body }) => {
@@ -280,7 +285,7 @@ export function registerTeamRoutes(router: MockRouter) {
     // [출처 3] 팀 공간: 현재 소속만
     .on('GET', '/teams/{teamId}/space', ({ params }) => {
       const accountId = requireSession();
-      const team = teamById(params.teamId!) ?? notFound();
+      const team = teamById(params.teamId!) ?? notFound('TEAM_NOT_FOUND');
       if (!isCurrentMember(team.id, accountId)) forbidden();
       const viewerRole =
         team.ownerAccountId === accountId ? 'leader' : 'member';
@@ -327,7 +332,7 @@ export function registerApplicationRoutes(router: MockRouter) {
       const route = `POST /teams/${params.teamId}/applications`;
       const attempt = idempotent(input.requestId, accountId, route, input);
       if (attempt.replayOf) return ok(findApplication(attempt.replayOf), 200);
-      if (!teamById(params.teamId!)) notFound();
+      if (!teamById(params.teamId!)) notFound('TEAM_NOT_FOUND');
       const id = newId();
       commit(
         applyToTeam(
@@ -410,7 +415,7 @@ export function registerApplicationRoutes(router: MockRouter) {
     // 팀장 지원자 목록
     .on('GET', '/teams/{teamId}/applicants', ({ params, query }) => {
       const accountId = requireSession();
-      const team = teamById(params.teamId!) ?? notFound();
+      const team = teamById(params.teamId!) ?? notFound('TEAM_NOT_FOUND');
       if (team.ownerAccountId !== accountId) forbidden();
       const status = parseOptionalQuery(
         ApplicationStatus,

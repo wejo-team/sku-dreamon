@@ -31,12 +31,12 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import type { Team } from '@/features/teams/api';
-import { demoCatalogs } from '@/features/demo/labels';
+import type { TeamDetail } from '@/features/teams/api';
 import { DemoContext } from '@/features/demo/demo-context';
 import { recruitmentIssue, teamStatusLabel } from '@/features/demo/team-state';
 import {
   defaultMascotAvatarId,
+  mascotAvatarIds,
   mascotAvatarSource,
 } from '@/features/demo/mascot-avatars';
 
@@ -94,7 +94,7 @@ export function Badge({
   );
 }
 // [출처 2, 5] 모집 상태: 녹색·회색 면 + 상태 문구
-export function TeamStatusBadge({ team }: { team: Team }) {
+export function TeamStatusBadge({ team }: { team: TeamDetail }) {
   return (
     <Badge tone={recruitmentIssue(team) ? 'closed' : 'recruiting'}>
       {teamStatusLabel(team)}
@@ -190,13 +190,9 @@ export function Avatar({
       ? imageCode
       : state?.db.profiles.find((item) => item.accountId === owner)
           ?.profileImageCode;
-  // [출처 4] 코드 → Catalogs.avatarPresets의 자산, 미선택은 기본 스콘
-  const preset = demoCatalogs.avatarPresets.find(
-    (item) => item.code === (profileImage ?? defaultMascotAvatarId),
-  );
-  const source = preset
-    ? new URL(preset.assetUrl).pathname
-    : mascotAvatarSource(defaultMascotAvatarId);
+  // [출처 4] 프로필 이미지 코드 → 저장소의 마스코트 이미지(docs/design/assets.md), 미선택·모르는 코드는 기본 스콘
+  const code = mascotAvatarIds.find((id) => id === profileImage);
+  const source = mascotAvatarSource(code ?? defaultMascotAvatarId);
   const [failedSource, setFailedSource] = useState<string | null>(null);
   return (
     <span

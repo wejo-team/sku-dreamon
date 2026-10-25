@@ -13,9 +13,13 @@
  */
 
 import type { Application } from '@/features/applications/api';
-import type { Contest } from '@/features/contests/api';
+import type { ContestDetail } from '@/features/contests/api';
 import type { Profile } from '@/features/profiles/api';
-import type { DeadlineInput, Team, TeamMember } from '@/features/teams/api';
+import type {
+  DeadlineInput,
+  TeamDetail,
+  TeamMember,
+} from '@/features/teams/api';
 import {
   contestStatus,
   hasConfirmedMemberLimit,
@@ -61,14 +65,17 @@ export const contestOf = (db: DemoDatabase, contestId: string) => {
   const seed = db.contests.find((item) => item.id === contestId);
   return seed ? deriveContest(seed, db) : undefined;
 };
-export const allContests = (db: DemoDatabase): Contest[] =>
+export const allContests = (db: DemoDatabase): ContestDetail[] =>
   db.contests.map((seed) => deriveContest(seed, db));
 
-export const teamOf = (db: DemoDatabase, teamId: string): Team | undefined => {
+export const teamOf = (
+  db: DemoDatabase,
+  teamId: string,
+): TeamDetail | undefined => {
   const record = db.teams.find((item) => item.id === teamId);
   return record ? deriveTeam(record, db) : undefined;
 };
-export const allTeams = (db: DemoDatabase): Team[] =>
+export const allTeams = (db: DemoDatabase): TeamDetail[] =>
   db.teams.map((record) => deriveTeam(record, db));
 
 export const profileOf = (db: DemoDatabase, accountId: string) =>
@@ -85,7 +92,7 @@ export const isTeamMember = (
   );
 
 export const isTeamOwner = (
-  team: Pick<Team, 'ownerAccountId'>,
+  team: Pick<TeamDetail, 'ownerAccountId'>,
   accountId: string,
 ) => team.ownerAccountId === accountId;
 
@@ -135,13 +142,13 @@ export function teamMembers(
 
 // [출처 2] 팀 모집 마감 경계: 팀 기한과 공고 마감 중 이른 쪽
 export const teamRecruitmentDeadline = (
-  team: Pick<Team, 'recruitmentEndsAt' | 'contest'>,
+  team: Pick<TeamDetail, 'recruitmentEndsAt' | 'contest'>,
 ) =>
   Math.min(Date.parse(team.recruitmentEndsAt), Date.parse(team.contest.endsAt));
 
 // [출처 2, 4] 신규 접수가 막힌 이유(없으면 null)
 export function recruitmentIssue(
-  team: Team,
+  team: TeamDetail,
   now = referenceNow,
 ): string | null {
   const status = contestStatus(team.contest, now);
@@ -156,7 +163,7 @@ export function recruitmentIssue(
   return null;
 }
 
-const recruitmentIssueCode = (team: Team, now: number) => {
+const recruitmentIssueCode = (team: TeamDetail, now: number) => {
   const status = contestStatus(team.contest, now);
   if (status !== 'open') return 'CONTEST_NOT_OPEN';
   if (team.recruitmentState === 'closed') return 'RECRUITMENT_CLOSED';
@@ -167,7 +174,7 @@ const recruitmentIssueCode = (team: Team, now: number) => {
 
 // [출처 6] 재개 불가 사유(없으면 null)
 export function recruitmentReopeningIssue(
-  team: Team,
+  team: TeamDetail,
   accountId: string,
   now = referenceNow,
 ) {
@@ -188,7 +195,7 @@ export function recruitmentReopeningIssue(
 }
 
 // [출처 2] 모집 상태 문구. 색과 함께 문구로 구분
-export function teamStatusLabel(team: Team, now = referenceNow) {
+export function teamStatusLabel(team: TeamDetail, now = referenceNow) {
   if (team.recruitmentState === 'closed') return '모집 마감';
   if (team.memberCount >= Number(team.capacity)) return '정원 충족';
   if (contestStatus(team.contest, now) === 'scheduled') return '모집 예정';
@@ -198,7 +205,7 @@ export function teamStatusLabel(team: Team, now = referenceNow) {
 
 // [출처 3] 선발 가능 여부: 정원이 남았고 공고 접수 기간 안
 export function selectionScenario(
-  team: Team,
+  team: TeamDetail,
   now = referenceNow,
 ): 'ready' | 'full' | 'not-modeled' {
   if (team.memberCount >= Number(team.capacity)) return 'full';
@@ -253,7 +260,7 @@ export function applyToTeam(
   now = referenceNow,
 ): Transition {
   const team = teamOf(db, teamId);
-  if (!team) return failure('RESOURCE_NOT_FOUND', '팀을 찾을 수 없어요.');
+  if (!team) return failure('TEAM_NOT_FOUND', '팀을 찾을 수 없어요.');
   const profile = profileOf(db, accountId);
   if (!profile || missingProfileFields(profile).length)
     return failure('PROFILE_REQUIRED', '필수 프로필을 먼저 완성해 주세요.');
@@ -319,7 +326,7 @@ export function selectTeamApplicant(
   const application = db.applications.find((item) => item.id === applicationId);
   const team = application && teamOf(db, application.teamId);
   if (!application || !team)
-    return failure('RESOURCE_NOT_FOUND', '지원서를 찾을 수 없어요.');
+    return failure('APPLICATION_NOT_FOUND', '지원서를 찾을 수 없어요.');
   if (!isTeamOwner(team, ownerId))
     return failure('FORBIDDEN', '팀장만 선발할 수 있어요.');
   if (!isPending(application))
@@ -394,7 +401,7 @@ export function startApplicantReview(
   const application = db.applications.find((item) => item.id === applicationId);
   const team = application && teamOf(db, application.teamId);
   if (!application || !team)
-    return failure('RESOURCE_NOT_FOUND', '지원서를 찾을 수 없어요.');
+    return failure('APPLICATION_NOT_FOUND', '지원서를 찾을 수 없어요.');
   if (!isTeamOwner(team, ownerId))
     return failure('FORBIDDEN', '팀장만 검토를 시작할 수 있어요.');
   if (application.status !== 'submitted')
@@ -425,7 +432,7 @@ export function rejectTeamApplicant(
   const application = db.applications.find((item) => item.id === applicationId);
   const team = application && teamOf(db, application.teamId);
   if (!application || !team)
-    return failure('RESOURCE_NOT_FOUND', '지원서를 찾을 수 없어요.');
+    return failure('APPLICATION_NOT_FOUND', '지원서를 찾을 수 없어요.');
   if (!isTeamOwner(team, ownerId))
     return failure('FORBIDDEN', '팀장만 미선발 처리할 수 있어요.');
   if (!isPending(application))
@@ -455,7 +462,7 @@ export function cancelTeamApplication(
 ): Transition {
   const application = db.applications.find((item) => item.id === applicationId);
   if (!application || application.applicantAccountId !== accountId)
-    return failure('RESOURCE_NOT_FOUND', '지원서를 찾을 수 없어요.');
+    return failure('APPLICATION_NOT_FOUND', '지원서를 찾을 수 없어요.');
   if (!['submitted', 'reviewing', 'selected'].includes(application.status))
     return failure(
       'INVALID_APPLICATION_STATE',
@@ -493,7 +500,7 @@ export function closeTeamRecruitment(
   accountId: string,
 ): Transition {
   const record = db.teams.find((item) => item.id === teamId);
-  if (!record) return failure('RESOURCE_NOT_FOUND', '팀을 찾을 수 없어요.');
+  if (!record) return failure('TEAM_NOT_FOUND', '팀을 찾을 수 없어요.');
   if (record.ownerAccountId !== accountId)
     return failure('FORBIDDEN', '팀장만 모집을 마감할 수 있어요.');
   if (record.recruitmentState === 'closed')
@@ -523,7 +530,7 @@ export function reopenTeamRecruitment(
   now = referenceNow,
 ): Transition {
   const team = teamOf(db, teamId);
-  if (!team) return failure('RESOURCE_NOT_FOUND', '팀을 찾을 수 없어요.');
+  if (!team) return failure('TEAM_NOT_FOUND', '팀을 찾을 수 없어요.');
   const issue = recruitmentReopeningIssue(team, accountId, now);
   if (issue) {
     const code = !isTeamOwner(team, accountId)
@@ -577,6 +584,10 @@ export function createTeamIssue(
   const contest = contestOf(db, input.contestId);
   if (!contest || contestStatus(contest, now) !== 'open')
     return issue('CONTEST_NOT_OPEN', '접수 중인 공모전을 선택해 주세요.');
+  // [출처 5] 팀 생성에는 필수 프로필이 필요하고 공개 여부는 요구하지 않음(409 PROFILE_REQUIRED)
+  const profile = profileOf(db, accountId);
+  if (!profile || missingProfileFields(profile).length)
+    return issue('PROFILE_REQUIRED', '필수 프로필을 먼저 작성해 주세요.');
   if (hasMembershipInContest(db, contest.id, accountId))
     return issue(
       'MEMBERSHIP_CONFLICT',

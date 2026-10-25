@@ -8,6 +8,7 @@
  * 6. docs/api/profiles.md#experience - 경험 상태·본문 정규화
  * 7. docs/api/profiles.md#directory-endpoints - 공개 프로필만, 정렬 updatedAt DESC, accountId ASC
  * 8. docs/design/handoff.md - 공개 UI 확인용 계정(dreamondemo)은 실제 계정이 아님
+ * 11. docs/api/conventions.md#csrf-transport, docs/api/auth.md - GET /auth/csrf → Success<CsrfToken>, 인증 전환 시 새 토큰
  * 9. docs/api/catalogs.md#academic-unit - 저장 시 학사 항목의 존재·부모 경로·선택 가능 여부 검증, 기존 비활성 소속 유지 허용
  * 10. docs/api/profiles.md#portfolio - 제목은 앞뒤 공백 제거 후 최대 50자
  */
@@ -22,6 +23,7 @@ import {
   type Profile,
 } from '@/features/profiles/api';
 import {
+  commonPasswordFixtures,
   demoPassword,
   normalizeLoginId,
   normalizePassword,
@@ -82,21 +84,29 @@ function accountById(accountId: string): Account | undefined {
 
 export function registerAccountRoutes(router: MockRouter) {
   router
+    // [출처 11] CSRF 토큰 발급. 같은 인증 상태에서는 기존 토큰을 재사용
+    .on('GET', '/auth/csrf', () => {
+      state.csrfToken ??= crypto.randomUUID();
+      return ok({ csrfToken: state.csrfToken });
+    })
     // [출처 1, 2] 가입 → 201, 자동 로그인
     .on('POST', '/accounts', ({ body }) => {
       const { loginId, password } = normalizedCredentials(body);
+      // [출처 1] 차단 목록의 비밀번호는 400 PASSWORD_BLOCKED
+      if (commonPasswordFixtures.has(password.toLowerCase()))
+        fail(400, 'PASSWORD_BLOCKED', '다른 비밀번호를 선택해 주세요.');
       if (loginId === db().account.loginId || signedUp.has(loginId))
         conflict('LOGIN_ID_TAKEN', '이미 사용 중인 아이디예요.');
       const account: Account = {
         id: newId(),
         loginId,
-        isDemo: false,
         hasProfile: false,
         schoolVerification: 'unverified',
         createdAt: nowIso(),
       };
       signedUp.set(loginId, { account, password });
       state.sessionAccountId = account.id;
+      state.csrfToken = null;
       return ok({ account }, 201);
     })
     // [출처 1, 2] 아이디 중복 확인
@@ -130,12 +140,14 @@ export function registerAccountRoutes(router: MockRouter) {
           '아이디 또는 비밀번호를 확인해 주세요.',
         );
       state.sessionAccountId = entry!.account.id;
+      state.csrfToken = null;
       return ok({ account: accountById(entry!.account.id)! });
     })
     // [출처 1] 로그아웃 → 204
     .on('POST', '/auth/logout', () => {
       requireSession();
       state.sessionAccountId = null;
+      state.csrfToken = null;
       return noContent();
     })
     .on('GET', '/me', () => ok(accountById(requireSession())!))
@@ -187,7 +199,7 @@ export function registerAccountRoutes(router: MockRouter) {
       return pageResponse(paginate(items, query));
     })
     .on('GET', '/contests/{contestId}', ({ params }) =>
-      ok(contestById(params.contestId!) ?? notFound()),
+      ok(contestById(params.contestId!) ?? notFound('CONTEST_NOT_FOUND')),
     )
     // [출처 5] 본인 프로필
     .on('GET', '/me/profile', () =>

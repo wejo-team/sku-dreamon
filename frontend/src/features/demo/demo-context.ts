@@ -9,9 +9,9 @@
 
 import { createContext, useContext } from 'react';
 import type { Account } from '@/features/auth/api';
-import type { Contest } from '@/features/contests/api';
+import type { ContestDetail } from '@/features/contests/api';
 import type { Profile } from '@/features/profiles/api';
-import type { Team, TeamMember } from '@/features/teams/api';
+import type { TeamDetail, TeamMember } from '@/features/teams/api';
 import type { Application } from '@/features/applications/api';
 import type { Notification } from '@/features/notifications/api';
 import type { DemoDatabase } from '@/features/demo/fixtures';
@@ -28,8 +28,8 @@ export type DemoState = {
   account: Account;
   /** 본인 현재 프로필 */
   profile: Profile;
-  contests: Contest[];
-  teams: Team[];
+  contests: ContestDetail[];
+  teams: TeamDetail[];
   applications: Application[];
   /** 본인에게 보이는 알림(최신순 아님, 화면에서 정렬) */
   notifications: Notification[];

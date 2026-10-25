@@ -32,6 +32,8 @@ type MockState = {
   /** 현재 세션의 계정 ID. 목업에서는 쿠키 대신 메모리에 둡니다. */
   sessionAccountId: string | null;
   idempotency: Map<string, IdempotentRecord>;
+  /** 현재 CSRF 토큰. 인증 전환(가입·로그인·로그아웃) 때 폐기합니다. */
+  csrfToken: string | null;
   now: number;
   sequence: number;
 };
@@ -40,6 +42,7 @@ const fresh = (): MockState => ({
   db: createDemoRecords(),
   sessionAccountId: null,
   idempotency: new Map(),
+  csrfToken: null,
   now: mockNow,
   sequence: 0,
 });
@@ -151,7 +154,10 @@ export function teamById(teamId: string) {
 }
 
 export function teamRecord(teamId: string) {
-  return state.db.teams.find((item) => item.id === teamId) ?? notFound();
+  return (
+    state.db.teams.find((item) => item.id === teamId) ??
+    notFound('TEAM_NOT_FOUND')
+  );
 }
 
 export const teamSummary = (teamId: string) => toTeamSummary(teamById(teamId)!);
