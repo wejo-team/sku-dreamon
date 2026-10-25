@@ -2,6 +2,8 @@
 
 이 문서는 **검토용 전송 설계**입니다. 제품 정책은 [기능 명세](../specs/README.md), 물리 저장 형식은 [DB 공통 기준](../database/conventions.md), 개별 요청·응답 필드는 [영역별 API 문서](README.md)를 따릅니다. 공통 타입·성공 응답·페이지·오류는 여기서만 정의합니다.
 
+**공통 기반 구현:** [DTO·응답 모델·전송 타입](../../backend/app/core/http/schemas.py), [애플리케이션 예외](../../backend/app/core/exceptions.py)와 [HTTP 핸들러](../../backend/app/core/http/handlers.py)를 제공합니다. 아래 계약의 제품 endpoint 적용 여부는 각 영역의 구현 상태를 따릅니다. 상세 사용법과 책임 경계는 [백엔드 공통 기반](../development/backend.md#api-core), 실제 HTTP·OpenAPI 대응은 [계약 테스트](../../backend/tests/integration/test_api_contract.py)에서 확인합니다. 공통 기반 구현이 인증·도메인 API 구현 완료를 뜻하지 않습니다.
+
 <a id="types"></a>
 
 ## 주소와 값의 표현
@@ -43,7 +45,7 @@
 - 선언하지 않은 객체 필드는 요청·응답 계약에 없습니다. 요청은 중첩 객체까지 검증하여 오타·snake_case·혼용을 422로 거부하고 응답에는 인증정보 등 추가 값을 섞지 않습니다.
 - `A의 전체 필드 + 아래 필드` 표기는 평탄한 객체 확장입니다. 실제 JSON에 `A`라는 하위 객체를 만들지 않습니다. 이름을 가진 하위 필드 표는 그 이름의 객체로 반환합니다.
 
-일반 프로필·팀·메시지 텍스트의 길이 상한은 영역별 표와 연결된 기능 명세를 참조합니다. Unicode 계수 단위가 미정인 항목은 정책상의 글자 수와 계수 방식 미정을 함께 표시합니다. 비밀번호는 이미 확정된 [NFC·Unicode 코드 포인트 기준](../specs/authentication.md#password-policy)을 적용합니다. 계수 단위를 임의로 확정하거나 입력을 잘라 저장하지 않습니다.
+일반 프로필·팀·메시지 텍스트의 길이 상한은 영역별 표와 연결된 기능 명세를 참조합니다. 2026-10-24 사용자 결정으로 프로필·팀·지원 메시지는 NFC 정규화 후 Unicode 코드 포인트로 셉니다. 각 필드의 공백 제거 규칙을 함께 적용합니다. 비밀번호는 이미 확정된 [NFC·Unicode 코드 포인트 기준](../specs/authentication.md#password-policy)을 적용합니다. 입력을 잘라 저장하지 않습니다.
 
 <a id="success-responses"></a>
 
@@ -70,7 +72,9 @@
 }
 ```
 
-HTTP 상태는 각 API의 200·201·202·204를 그대로 사용합니다. 가입·로그인의 `Set-Cookie`, 로그아웃의 쿠키 만료, AI 접수의 `Location` 헤더도 유지합니다. 성공 여부·HTTP 상태를 중복하는 `success`·`statusCode`나 공통 성공 문구는 추가하지 않습니다. 구현 시 Pydantic 응답 모델과 생성된 OpenAPI에도 이 구조를 명시하고 실제 응답과 대조합니다.
+HTTP 상태는 각 API의 200·201·202·204를 그대로 사용합니다. 가입·로그인의 `Set-Cookie`와 로그아웃의 쿠키 만료 등 경로별 헤더도 유지합니다. 성공 여부·HTTP 상태를 중복하는 `success`·`statusCode`나 공통 성공 문구는 추가하지 않습니다. 구현 시 Pydantic 응답 모델과 생성된 OpenAPI에도 이 구조를 명시하고 실제 응답과 대조합니다.
+
+[AI 스트리밍 검토안](ai.md#streaming-proposal)은 200 `text/event-stream`으로, 응답 전체를 JSON `Success<T>`로 감싸지 않습니다. 스트림 시작 전 HTTP 오류와 시작 후 이벤트 오류를 구분합니다. 이전 AI `202 + Location + polling` 초안은 대체 대상이며 실제 구현된 계약이 아닙니다.
 
 <a id="access"></a>
 
@@ -113,7 +117,33 @@ API 설계에서 **누가 무엇을 할 수 있는지**와 **인증을 어떻게
 
 로그인·로그아웃을 포함한 모든 상태 변경 요청에 CSRF 보호를 적용합니다. `HttpOnly`·`SameSite`만으로 보호가 완성되었다고 판단하지 않습니다. CSRF 검사 실패는 공통 `403 FORBIDDEN`이며 업무 상태를 변경하지 않습니다. 이 규칙은 각 endpoint 표에 반복하지 않고 공통으로 적용합니다.
 
-**구체 전송 계약은 후속 설계가 필요합니다.** 쿠키 이름·경로, 가입·로그인 전 CSRF 보호값 발급·전달 헤더·검증 방식, 운영 도메인·CORS와 로컬 개발 설정은 아직 확정하지 않습니다. 시도 제한 수치·종료된 세션의 정리·보존은 [AUTH 미정 사항](../specs/authentication.md#open-questions)을 따릅니다. 구현 PR에서 FastAPI의 인증 의존성·응답과 자동 생성 OpenAPI의 쿠키 보안 설정·CSRF 계약을 함께 확인합니다. 방식 선택은 인증 구현 완료를 뜻하지 않습니다.
+<a id="csrf-transport"></a>
+
+### 쿠키와 CSRF 전송
+
+[인증 전송 설계 #98](https://github.com/wejo-team/sku-dreamon/issues/98)의 구현 계약입니다. 아래 전송 규칙은 인증 구현과 함께 HTTP·OpenAPI로 검증하며, 문서 반영만으로 구현 완료를 뜻하지 않습니다.
+
+| 항목 | 계약 |
+| --- | --- |
+| 세션 쿠키 | `__Host-sku-dreamon-session`, `Path=/`, `Secure`, `HttpOnly`, `SameSite=Lax`; `Domain` 미지정. 32바이트 이상의 암호학적 난수로 토큰 생성 |
+| CSRF 발급 | `GET /api/v1/auth/csrf`. 로그인 전에도 호출 가능. 같은 인증 상태의 유효한 기존 쿠키는 재사용하고 없거나 무효일 때만 발급. `Success<CsrfToken>`의 `data.csrfToken`과 쿠키 값은 같으며 `Cache-Control: no-store` 적용 |
+| CSRF 쿠키 | `__Host-sku-dreamon-csrf`, `Path=/`, `Secure`, `HttpOnly`, `SameSite=Lax`; `Domain` 미지정. 브라우저 메모리에 보관할 토큰은 발급 응답에서 읽음 |
+| 상태 변경 | `X-CSRF-Token` 헤더를 전달. 쿠키·헤더의 일치, 서버 HMAC 서명, 현재 세션에 대한 결합을 함께 확인. 가입·로그인·로그아웃에도 적용 |
+| 출처 검사 | 설정된 HTTPS origin과 요청의 `Origin`을 정확히 비교. `Origin`이 없으면 `Referer`의 origin을 검사하고 둘 다 없거나 불일치하면 403 |
+| 인증 전환 | 가입·로그인 성공 시 세션과 CSRF 값을 새로 발급. 기존 로그인 전 토큰이나 다른 세션의 토큰을 재사용하지 않음. 로그아웃 성공 시 두 쿠키 삭제 |
+| 실패 | 토큰 누락·위조·불일치·출처 오류는 `403 FORBIDDEN`; 계정·세션 발급/회수와 업무 쓰기를 시작하지 않음. 오류·로그에 토큰 원문을 넣지 않음 |
+
+CSRF 토큰은 임의 nonce에 HMAC-SHA-256을 적용하며 로그인 후에는 현재 세션 토큰의 해시와 결합합니다. 로그인 전에는 별도 무작위 nonce와 서버 서명으로 보호합니다. HMAC 키는 운영 설정으로 주입하고 저장소·프론트 번들에 포함하지 않습니다. 로그인 후 발급 토큰은 세션 자체가 유효할 때만 상태 변경에 사용할 수 있습니다. 응답에 세션 원문이나 그 해시를 포함하지 않습니다.
+
+`/auth/csrf`는 만료·회수·미존재 세션의 쿠키가 남아 있어도 재로그인을 막지 않습니다. 해당 요청은 익명 상태로 처리하고 무효 세션 쿠키를 만료시킨 뒤 로그인 전 CSRF 토큰을 제공합니다. 이 과정에서 기존 세션을 되살리거나 새 로그인 세션을 만들지 않습니다.
+
+프론트는 가입·로그인 전과 인증 전환 후 `/auth/csrf`에서 토큰을 읽고, 상태 변경 요청에 `credentials: "include"`와 `X-CSRF-Token`을 보냅니다. CSRF 토큰은 현재 화면의 메모리에만 보관하며 로그인 세션이 바뀌면 폐기합니다. 같은 세션의 다른 탭이 토큰을 조회해도 기존 쿠키를 교체하지 않습니다. 쿠키가 없는 최초 동시 발급이나 다른 탭의 로그인 전환으로 403이 발생하면 토큰을 다시 조회하고 사용자가 요청을 재시도할 수 있게 합니다. 업무 403과 구별하지 않고 상태 변경을 자동 재전송하지 않습니다. JSON 본문이 있는 요청의 `Content-Type`은 `application/json`입니다.
+
+운영 도메인은 배포 설정으로 전달하고 허용 origin에 wildcard를 쓰지 않습니다. `SameSite=Lax`를 유지하므로 프론트와 API는 같은 HTTPS site에 배치합니다. 같은 site 안의 서로 다른 origin이면 명시한 origin·credentials·CSRF 헤더에 대해서만 CORS를 허용하고, 같은 origin의 reverse proxy도 사용할 수 있습니다. 서로 다른 site의 cross-site 배치는 이 계약의 지원 범위가 아닙니다. 로컬 브라우저 검증 역시 HTTPS를 사용하며 개발 편의를 위한 비보안 쿠키 전환은 제공하지 않습니다.
+
+세션의 `last_seen_at`은 유효 조건을 만족하는 행에 대해서만 짧은 인증 트랜잭션에서 갱신·커밋합니다. 이후 업무 트랜잭션이 실패해도 유효한 활동 기록은 유지하며, 회수·유휴 만료·절대 만료된 세션을 갱신으로 되살리지 않습니다. 업무 권한은 해당 요청에서 현재 관계를 다시 검사합니다.
+
+시도 제한 수치와 로컬 차단 목록 공급 방식은 [인증 운영 기준](../specs/authentication.md#auth-operation-settings)을 따릅니다. 실제 파일·설정 배포와 종료 세션의 정리·보존 기간은 후속 운영 범위입니다. 이 전송 계약으로 자동 삭제나 계정 잠금 정책을 추가하지 않습니다. 설계 근거는 [OWASP의 서명된 double-submit 및 origin 검사](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html), [세션 관리](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)입니다.
 
 개인 프로필·지원·AI·알림 응답은 공유 캐시에 저장하지 않는 방향을 제안합니다. 비공개 전환 후 일반 조회가 이전 응답을 다시 사용하지 않도록 서버 재검증과 클라이언트 무효화 범위를 함께 구현합니다. 구체 캐시 기술은 이 문서로 선택하지 않습니다.
 
@@ -201,7 +231,7 @@ API 설계에서 **누가 무엇을 할 수 있는지**와 **인증을 어떻게
 | 404 | 없음 또는 존재 자체를 노출하면 안 되는 개인 리소스 | `RESOURCE_NOT_FOUND` |
 | 409 | 유일성·현재 상태·버전 충돌 | `LOGIN_ID_TAKEN`, `VERSION_CONFLICT`, `TEAM_FULL` 등 |
 | 422 | 요청 필드·형식·검증 실패 | FastAPI 호환 `detail[]`의 `loc`, `msg`, `type` |
-| 429 | 요청 제한 | `RATE_LIMITED`; 구체 제한 수치는 미정 |
+| 429 | 요청 제한 | `RATE_LIMITED`; 인증 수치는 [운영 기준](../specs/authentication.md#auth-operation-settings) 적용 |
 | 503 | 일시적 서비스 장애 | `TEMPORARY_UNAVAILABLE` |
 | 500 | 예상하지 못한 내부 오류 | `INTERNAL_ERROR`; 미정 기능을 임시 500으로 제공하지 않음 |
 
@@ -250,14 +280,14 @@ API 설계에서 **누가 무엇을 할 수 있는지**와 **인증을 어떻게
 
 | 결정이 필요한 부분 | 현재 API 설계의 경계 | 정책 원본 |
 | --- | --- | --- |
-| 쿠키 세부 설정·CSRF 전송 계약·운영 도메인 | 지속 쿠키·가입 직후 자동 로그인은 확정. 쿠키 이름·경로와 가입·로그인 전 보호값 발급·헤더·검증 방식, CORS는 구현 전에 설계하며 현재 인증 계약을 완성된 SDK 입력으로 취급하지 않음 | [공통 세션 계약](#session-auth), [서버 세션 정책](../specs/authentication.md#session-policy) |
+| 인증 운영 설정 | 쿠키·CSRF 전송 계약은 정의. 운영 origin·키와 제한 수치·차단 목록·보존은 실제 운영 전에 준비하며 인증 구현 완료와 구분 | [CSRF 전송](#csrf-transport), [AUTH 미정 사항](../specs/authentication.md#open-questions) |
 | 탈퇴·이전 데이터 표시 | DELETE 계정 endpoint를 만들지 않음 | [PROFILE-04](../specs/profile.md#open-questions) |
 | 계정 복구 — MVP 범위 밖 | 복구 endpoint를 만들지 않으며 현재 인증 구현의 선행 조건으로 두지 않음. 복구 도입 시 정책·계약 후속 검토 | [계정 복구 범위](../specs/authentication.md#account-recovery) |
-| 일반 텍스트 계수·URL 길이 | 정책 수치는 필드 표에 기록, 계수 방식·미확정 상한은 임의 추가하지 않음 | [PROFILE-07](../specs/profile.md#open-questions) |
+| 일반 텍스트·URL의 추가 제한 | 프로필·팀·지원 메시지의 NFC·코드 포인트 기준은 확정. URL의 운영 길이 상한 등 명시하지 않은 추가 제한은 보류 | [프로필 입력](../specs/profile.md#input-validation) |
 | 팀장 선발 취소·강퇴·팀장 탈퇴·팀 삭제 — MVP 범위 밖 | 관리 endpoint나 범용 상태 PATCH로 제공하지 않음. 본인의 선발 후 지원 취소는 확정 계약 유지 | [소속 관리 제외 범위](../specs/team-recruitment.md#membership-exclusions) |
 | 모집 정보 편집·제출 후 메시지 수정 | 범용 수정 endpoint 없음 | [TEAM-07~09](../specs/team-recruitment.md#open-questions) |
-| 마감 공고 목록 기본 배치·기본 필터 | 상세 열람은 정의. 목록의 미지정 상태 조건은 CONTEST-05 검토 필요 | [공고 미정 사항](../specs/contests.md#open-questions) |
+| 마감 공고 목록 기본 배치·기본 필터 | 상세 열람은 정의. 상태 생략 시 전체·최신 등록순으로 확정. 삭제·보존은 후속 범위 | [공고 미정 사항](../specs/contests.md#open-questions) |
 | 관리자 공고 관리·공식 조건 변경 영향 | 관리 책임만 유지. 관리자 CRUD·일괄 소급 변경 API 없음 | [공고 운영](../specs/contests.md#operation-flow), [TEAM-06](../specs/team-recruitment.md#open-questions) |
-| AI 서버 보존·제공자·실행·스트리밍 | 외부 요청·결과 모양만 제안. 현재 대화 조회를 과거 대화 복원 API로 확대하지 않음 | [MATCH-10·12·13·14](../specs/matching.md#open-questions) |
+| AI 실행 저장·전송 상세·현재 권한 검증 | `create_agent`·OpenAI Luna·실시간 스트리밍·탭 메모리 유지 확정. SSE·실행 메타데이터·지원자 결과 보존 등은 검토안 | [SDD 미정](../development-plans/ai-agent.md#open-decisions), [MATCH-10·12·13·14](../specs/matching.md#open-questions) |
 
 미정 분기는 운영에서 임시 500을 반환하도록 구현하라는 뜻이 아닙니다. 해당 유스케이스를 출시하기 전에 정책을 결정하고 성공·실패 계약을 완성해야 합니다.

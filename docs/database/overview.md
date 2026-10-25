@@ -1,6 +1,6 @@
 # 전체 ERD
 
-현재 물리 설계의 **17개 테이블과 도메인 간 FK 관계**를 한 그림으로 표시합니다. 아직 구현하지 않은 설계안이며, 핵심 키와 관계를 먼저 보여줍니다. 전체 컬럼·복합 키·제약·인덱스는 각 도메인 문서가 원본입니다.
+아래 그림은 **17개 업무 테이블과 도메인 간 FK 관계**를 표시합니다. 이들과 FK로 연결되지 않는 인증 시도 제한 테이블 `auth_attempts`는 [계정·인증 문서](identity.md)에 별도로 설명하며, 현재 전체 저장 모델은 18개입니다. ORM·마이그레이션으로 구현한 핵심 키와 관계를 먼저 보여줍니다. 실제 등록 모델과 업무 구현 범위는 [DB 인덱스](README.md)를 따릅니다. 전체 컬럼·복합 키·제약·인덱스는 각 도메인 문서가 원본입니다.
 
 ![전체 데이터베이스 물리 ERD](diagrams/overview.svg)
 
@@ -36,22 +36,22 @@ erDiagram
     accounts ||--o{ notifications : recipient
 
     accounts {
-        uuid id PK
+        uuid account_id PK
         varchar login_id_normalized UK
     }
     auth_sessions {
-        uuid id PK
+        uuid auth_session_id PK
         uuid account_id FK
         bytea token_hash UK
     }
     academic_units {
-        bigint id PK
+        bigint academic_unit_id PK
         varchar name
         bigint parent_id FK
         boolean is_selectable
     }
     profiles {
-        uuid account_id PK,FK
+        uuid profile_id PK,FK
         bigint academic_unit_id FK
     }
     profile_interests {
@@ -67,11 +67,11 @@ erDiagram
         varchar skill_code PK
     }
     portfolio_links {
-        uuid account_id PK,FK
+        uuid portfolio_link_id PK,FK
         text url
     }
     contests {
-        uuid id PK
+        uuid contest_id PK
         text title
     }
     contest_audiences {
@@ -83,7 +83,7 @@ erDiagram
         varchar field_code PK
     }
     teams {
-        uuid id PK
+        uuid team_id PK
         uuid contest_id FK
         uuid leader_account_id FK
     }
@@ -92,20 +92,20 @@ erDiagram
         varchar role_code PK
     }
     applications {
-        uuid id PK
+        uuid application_id PK
         uuid team_id FK
         uuid contest_id FK
         uuid applicant_account_id FK
     }
     team_memberships {
-        uuid id PK
+        uuid team_membership_id PK
         uuid team_id FK
         uuid contest_id FK
         uuid account_id FK
         uuid source_application_id FK
     }
     application_events {
-        uuid id PK
+        uuid application_event_id PK
         uuid application_id FK
         uuid team_id FK
         uuid contest_id FK
@@ -115,7 +115,7 @@ erDiagram
         uuid cause_membership_id FK
     }
     notifications {
-        uuid id PK
+        uuid notification_id PK
         uuid event_id FK
         uuid recipient_account_id FK
     }

@@ -1,3 +1,5 @@
+"""공통 ORM metadata와 비동기 DB 연결로 Alembic 실행 환경을 구성한다."""
+
 import asyncio
 from logging.config import fileConfig
 
@@ -6,13 +8,21 @@ from sqlalchemy import Connection, pool
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import Settings
-from app.db.base import Base
+from app.core.db.base import Base
+from app.models import academic_units as catalog_models  # noqa: F401 -- 학사 모델 등록
+from app.models import applications as application_models  # noqa: F401 -- 지원 모델 등록
+from app.models import auth as auth_models  # noqa: F401 -- metadata 모델 등록
+from app.models import auth_attempts as auth_attempt_models  # noqa: F401 -- 시도 제한 등록
+from app.models import contests as contest_models  # noqa: F401 -- 공고 모델 등록
+from app.models import notifications as notification_models  # noqa: F401 -- 알림 모델 등록
+from app.models import profiles as profile_models  # noqa: F401 -- 프로필 모델 등록
+from app.models import teams as team_models  # noqa: F401 -- 팀 모델 등록
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import domain model modules here when they are introduced so metadata includes them.
+# 도메인 모델을 import하여 실제 migration 대상 metadata에 포함한다.
 target_metadata = Base.metadata
 
 

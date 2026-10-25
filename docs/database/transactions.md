@@ -1,6 +1,6 @@
 # 트랜잭션과 조회 일관성
 
-**상태: 구현 전 처리 설계.** 정책은 [팀 모집](../specs/team-recruitment.md), [프로필](../specs/profile.md), [알림](../specs/notifications.md)에 두고, 여기서는 여러 테이블이 함께 지켜야 하는 저장 경계를 정의합니다.
+**상태: 일부 구현.** 지원 검토·미선발·선발·취소와 알림 읽음의 트랜잭션을 구현했습니다. 팀 생성·신규 지원·프로필 저장 등 남은 처리 설계와 구분하며, 실제 구현 범위는 [API 인덱스](../api/README.md)를 따릅니다. 정책은 [팀 모집](../specs/team-recruitment.md), [프로필](../specs/profile.md), [알림](../specs/notifications.md)에 두고, 여기서는 여러 테이블이 함께 지켜야 하는 저장 경계를 정의합니다.
 
 ## 공통 잠금 순서
 

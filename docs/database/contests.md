@@ -1,10 +1,12 @@
 # 공모전 테이블
 
-이 문서는 공모전 원문 정보와 분류를 PostgreSQL에 어떻게 저장하고 조회할지 정하는 **미구현 설계안**입니다. 등록·공개·참가 조건은 [공모전 기능 명세](../specs/contests.md)가 원본이며, 이 문서에서는 각 테이블의 업무상 의미와 컬럼·무결성을 설명합니다. 타입·기본값·삭제 원칙은 [공통 규칙](conventions.md)을 따릅니다.
+이 문서는 공모전 원문 정보와 분류의 PostgreSQL 저장 계약을 정의합니다. **ORM 모델·마이그레이션·순수 규칙과 공개 상세 조회를 구현했습니다.** 공고 신규 입력 CLI는 [공고 API 안내](../api/contests.md#contest-import-cli)를 따릅니다. 공고 목록과 관리자 수정 경로는 아직 미구현이며, 상세의 실제 전송 계약은 [공고 API](../api/contests.md)에서 코드로 연결합니다. 등록·공개·참가 조건은 [공모전 기능 명세](../specs/contests.md)가 원본이며, 이 문서에서는 각 테이블의 업무상 의미와 컬럼·무결성을 설명합니다. 타입·기본값·삭제 원칙은 [공통 규칙](conventions.md)을 따릅니다.
+
+구현 원본은 [공고 모델](../../backend/app/models/contests.py), [접수·인원·분류 규칙](../../backend/app/rules/contests.py), [마이그레이션](../../backend/alembic/versions/20261024_02_contests.py)입니다. [규칙 테스트](../../backend/tests/unit/test_contest_rules.py)와 [PostgreSQL 제약·마이그레이션 테스트](../../backend/tests/integration/test_contest_models.py)가 저장 제약과 시간 경계를 검증합니다. URL·원문/적용 시각의 일치와 분류 집합을 한 트랜잭션에서 검증하는 [신규 등록 서비스](../../backend/app/services/contest_import.py)를 구현했으며, 모델 생성만으로 등록 전 확인을 완료한 것으로 취급하지 않습니다.
 
 ## 먼저 볼 구조
 
-공모전 한 건에 참가 대상과 분야를 연결합니다. 팀은 `contests.id`를 참조하며 분야를 복제하지 않습니다. 주최 기관은 현재 독립 관리 기능이 없어 이름 문자열로 둡니다.
+공모전 한 건에 참가 대상과 분야를 연결합니다. 팀은 `contests.contest_id`를 참조하며 분야를 복제하지 않습니다. 주최 기관은 현재 독립 관리 기능이 없어 이름 문자열로 둡니다.
 
 ![공모전 물리 ERD](diagrams/contests.svg)
 
@@ -17,7 +19,7 @@ erDiagram
   contests ||--o{ contest_fields : has
   contests ||--o{ teams : contains
   contests {
-    uuid id PK
+    uuid contest_id PK
     text title
     varchar member_limit_kind
     bigint min_members
@@ -34,7 +36,7 @@ erDiagram
     varchar field_code PK
   }
   teams {
-    uuid id PK
+    uuid team_id PK
     uuid contest_id FK
   }
 ```
@@ -51,7 +53,7 @@ erDiagram
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
-| `id` | `uuid` | 불가 | — | PK `pk_contests`; 서버가 생성한 공고 ID |
+| `contest_id` | `uuid` | 불가 | — | PK `pk_contests`; 서버가 생성한 공고 ID |
 | `title` | `text` | 불가 | — | 공모전명; 공백만 있는 값 금지 |
 | `organizer_name` | `text` | 불가 | — | 주최 기관 표시명 |
 | `official_url` | `text` | 불가 | — | 공식 원문 HTTP(S) URL; 유일키 아님 |
@@ -93,6 +95,8 @@ erDiagram
 
 마감의 원문·적용 시각은 [마감 정책](../specs/contests.md#deadline-policy)에 따라 **한 번의 저장에서 함께 검증**합니다. 예를 들어 날짜만 있는 마감은 해석 시간대의 다음 날 00:00을 종료 경계로 저장합니다. `timestamptz` 자체가 원문의 시간대 이름을 보존하지 않으므로 원문 필드를 분리합니다.
 
+`interpret_deadline`은 마감 원문의 IANA 시간대 또는 `±HH:MM` 고정 오프셋을 받아 UTC 종료 경계와 보완 여부를 반환합니다. 서머타임 때문에 현지 시각이 중복되거나 존재하지 않으면 임의 해석하지 않고 오류를 반환하므로 운영 입력에서 정확한 오프셋을 추가 확인해야 합니다. 이 함수로 시작 시각을 보완하지 않습니다.
+
 **시작 시각이 없는 공고의 보완 기준은 미정입니다.** `open_source_time=NULL`을 자동으로 00:00으로 바꾸지 않습니다. 기준이 확정되기 전에는 관리자가 시작 경계를 추가 확인한 공고만 이 저장 계약을 만족할 수 있습니다. 관리자 입력 화면과 등록 API는 아직 제공 계약에 포함하지 않습니다.
 
 ### 행 제약
@@ -115,7 +119,7 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
-| `contest_id` | `uuid` | 불가 | — | PK 구성, FK → `contests.id` |
+| `contest_id` | `uuid` | 불가 | — | PK 구성, FK → `contests.contest_id` |
 | `audience_code` | `varchar(16)` | 불가 | — | PK 구성, 아래 고정 코드 |
 
 | 코드 | 표시 이름 |
@@ -135,7 +139,7 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
-| `contest_id` | `uuid` | 불가 | — | PK 구성, FK → `contests.id` |
+| `contest_id` | `uuid` | 불가 | — | PK 구성, FK → `contests.contest_id` |
 | `field_code` | `varchar(64)` | 불가 | — | PK 구성. `FieldCode` 검증, 코드 FK 없음 |
 
 - `pk_contest_fields (contest_id, field_code)`: 중복 분야 연결 금지.
@@ -147,8 +151,8 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 
 | FK 이름 | 참조 | 삭제 동작 |
 | --- | --- | --- |
-| `fk_contest_audiences_contest` | `contest_audiences.contest_id` → `contests.id` | `RESTRICT` |
-| `fk_contest_fields_contest` | `contest_fields.contest_id` → `contests.id` | `RESTRICT` |
+| `fk_contest_audiences_contest` | `contest_audiences.contest_id` → `contests.contest_id` | `RESTRICT` |
+| `fk_contest_fields_contest` | `contest_fields.contest_id` → `contests.contest_id` | `RESTRICT` |
 
 식별자의 갱신 동작도 `RESTRICT`입니다. 공고 삭제·보존 기간이 미정이므로 연쇄 삭제나 soft-delete 공개 숨김을 추가하지 않습니다.
 
@@ -156,8 +160,8 @@ HTTP(S) URL 유효성, IANA 시간대·고정 UTC 오프셋의 해석, 원문과
 
 | 인덱스 이름 | 방식·열 | 용도 |
 | --- | --- | --- |
-| `ix_contests_created` | B-tree `(created_at DESC, id DESC)` | 등록순과 동률 순서 |
-| `ix_contests_closes` | B-tree `(registration_closes_at ASC, id ASC)` | 마감 임박순 |
+| `ix_contests_created` | B-tree `(created_at DESC, contest_id DESC)` | 등록순과 동률 순서 |
+| `ix_contests_closes` | B-tree `(registration_closes_at ASC, contest_id ASC)` | 마감 임박순 |
 | `ix_contest_fields_field` | B-tree `(field_code, contest_id)` | 분야 필터 |
 
 초기 이름·주최자 검색은 `ILIKE` 조건으로 설계합니다. 분야 검색은 검증한 코드를 `contest_fields.field_code`와 비교하며 결과는 공고 단위로 중복 제거합니다. 한글 부분 검색 성능 개선용 확장·전문 검색은 실제 데이터와 실행 계획을 확인한 뒤 결정하며 이 설계에서 `pg_trgm`을 필수 설치하지 않습니다.

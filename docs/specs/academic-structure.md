@@ -1,8 +1,8 @@
 # 대학·학부·전공 분류
 
-- 구현 상태: 예정
+- 구현 상태: 진행 중
 - 명세 검토: [PR #14](https://github.com/wejo-team/sku-dreamon/pull/14), PDF 대조·명세 연결 보완 [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17)
-- 구현 작업: 미등록
+- 구현 작업: [학사 기반·조회 API #101](https://github.com/wejo-team/sku-dreamon/issues/101). 계층·선택 검증과 조회를 구현하며 검증된 운영 원장 적재는 남아 있습니다.
 - 변경 근거: 2026-10-19 [#77 최신 사용자 결정](https://github.com/wejo-team/sku-dreamon/issues/77#issuecomment-6260435650)의 동일 의미 표기·식별자 보존 및 학사 종속값 처리 반영. 실제 현행 목록 검증·디자인·서버 구현 완료는 별도
 
 서경대학교 학사 분류를 기획 원문에서 옮긴 초안입니다. 아래 목록은 원문 보존용 이관 목록이며, 적용 학년도와 공식 자료 전체와의 일치는 아직 확정되지 않았습니다.
@@ -46,7 +46,7 @@
 
 ### 단일 계층과 항목 식별
 
-2026-10-22 사용자 결정으로 [학사 저장 구조](../database/catalogs.md#academic-tables)는 `id`·`name`·`parent_id`·`is_selectable`의 단일 인접 리스트로 단순화합니다. ID는 DB가 발급하는 증가형 정수이며, 프로필은 가장 깊게 선택한 항목 ID 하나를 참조합니다. 기존 소속 보존 정책은 유지합니다.
+2026-10-22 사용자 결정으로 [학사 저장 구조](../database/catalogs.md#academic-tables)는 `academic_unit_id`·`name`·`parent_id`·`is_selectable`의 단일 인접 리스트로 단순화합니다. PK 컬럼명은 [DB 명명 규칙](../database/conventions.md#primary-key-names)을 따르며 API의 `id`는 유지합니다. ID는 DB가 발급하는 증가형 정수이며, 프로필은 가장 깊게 선택한 항목 ID 하나를 참조합니다. 기존 소속 보존 정책은 유지합니다.
 
 단과대학은 루트, 학부·학과는 두 번째 단계, 세부전공은 세 번째 단계입니다. 이름이 같아도 다른 소속이면 다른 ID로 구분합니다. 조직 개편·실질적 항목 변경은 기존 부모 연결을 바꾸지 않고 새 항목을 만들며, 이동한 하위 전공도 새 부모 아래 새 ID로 등록합니다. 이전 항목은 신규 선택만 막고 기존 사용자의 참조를 유지합니다. 같은 의미의 단순 표기 정리는 기존 ID를 유지합니다.
 

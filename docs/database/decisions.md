@@ -23,20 +23,56 @@
 | 프로필 수정 버전 | 기존 AI 결과가 어떤 프로필을 사용했는지 비교. 과거 프로필 전문 보존과 분리 | [현재 프로필 기준](../specs/profile.md#application-profile) |
 | 서버 읽음 기록 | 다음 조회에 같은 읽음 상태를 반환. 실시간 전송 방식과 분리 | [알림 저장](notifications.md) |
 
+<a id="primary-keys"></a>
+
+## 기본 키 선택 기준
+
+[업무 테이블](overview.md)의 공유·복합 PK 구성과 식별 정책은 아래 기준으로 유지합니다. 계정과 FK로 연결하지 않는 운영 집계 `auth_attempts`는 [인증 시도 제한](identity.md)의 해시 키를 PK로 사용합니다. 단일 PK 컬럼명은 [명명 규칙](conventions.md#primary-key-names)에 따라 `<단수형 테이블명>_id`로 통일합니다. 외부 API 식별자·구현 상태는 변경하지 않습니다.
+
+- **독립적으로 구별할 대상은 별도 대리키를 둡니다.** 같은 소유자 아래에서도 발생 건·기간·시도를 구별하거나 다른 테이블·API가 개별 행을 참조하면 별도 ID가 유용합니다. 부모가 있어야 존재한다는 이유만으로 복합 PK를 선택하지 않습니다.
+- **소유자의 단일 구성요소는 공유 PK를 사용합니다.** 현재 값 하나만 있고 독립적인 이전·참조가 필요하지 않으면 소유자 ID 값을 PK이자 FK로 사용합니다. `profiles.profile_id`는 이름·이메일 같은 자연키가 아니라 이미 불변 대리키인 `accounts.account_id`와 같은 값입니다. `portfolio_links.portfolio_link_id`도 `profiles.profile_id`의 값을 공유합니다. 자신의 테이블명으로 컬럼을 명명해도 별도 ID를 발급하지 않습니다.
+- **중복 없는 단순 선택 집합은 복합 PK를 사용합니다.** 소유자와 선택 코드의 조합 자체가 관계를 식별하고, 개별 연결의 별도 생명주기·API·외부 참조가 없다면 추가 ID를 두지 않습니다. 소유자나 코드를 바꾸는 것은 기존 연결의 이전이 아니라 다른 선택 관계로의 교체입니다.
+
+| 테이블 | 현재 PK | 선택 근거 |
+| --- | --- | --- |
+| [`accounts`](identity.md#accounts) | UUID `account_id` | 로그인 수단과 분리된 업무 주체이며 여러 관계가 참조 |
+| [`auth_sessions`](identity.md#auth-sessions) | UUID `auth_session_id` | 한 계정의 여러 로그인마다 만료·회수를 독립적으로 관리 |
+| [`academic_units`](catalogs.md#academic-tables) | BIGINT `academic_unit_id` | 이름·계층과 별개로 학사 항목과 기존 소속 참조를 보존 |
+| [`profiles`](identity.md#profiles) | UUID `profile_id`, FK → `accounts.account_id` | 계정당 현재 프로필 하나이며 계정과 같은 ID 값을 사용 |
+| [`portfolio_links`](identity.md) | UUID `portfolio_link_id`, FK → `profiles.profile_id` | 현재 프로필의 선택적인 URL 슬롯 하나이며 프로필과 같은 ID 값을 사용 |
+| [`profile_interests`](identity.md) | `(account_id, field_code)` | 프로필의 중복 없는 관심 분야 집합 |
+| [`profile_desired_roles`](identity.md) | `(account_id, role_code)` | 프로필의 중복 없는 희망 역할 집합 |
+| [`profile_skills`](identity.md) | `(account_id, skill_code)` | 프로필의 중복 없는 역량 집합 |
+| [`contests`](contests.md) | UUID `contest_id` | 독립 공고 조회와 팀 참조의 기준 |
+| [`contest_audiences`](contests.md) | `(contest_id, audience_code)` | 공고의 중복 없는 참가 대상 집합 |
+| [`contest_fields`](contests.md) | `(contest_id, field_code)` | 공고의 중복 없는 분야 집합 |
+| [`teams`](teams.md) | UUID `team_id` | 모집·팀 공간·지원 관계에서 같은 팀을 식별 |
+| [`team_recruitment_roles`](teams.md) | `(team_id, role_code)` | 모집 역할 코드 집합이며 역할별 정원·충원·개별 슬롯은 없음 |
+| [`applications`](teams.md) | UUID `application_id` | 같은 사용자·팀의 재지원도 이전 지원과 다른 시도로 식별 |
+| [`team_memberships`](teams.md) | UUID `team_membership_id` | 종료된 소속과 새 소속 기간을 구별하며 폐기 사건의 원인으로 참조 |
+| [`application_events`](teams.md) | UUID `application_event_id` | 상태 변경 발생 건마다 알림·후속 폐기 원인이 참조 |
+| [`notifications`](notifications.md) | UUID `notification_id` | 개별 알림의 읽음 처리 대상으로 식별 |
+
+프로필은 [계정 ID로 조회](../api/profiles.md#directory-endpoints)하고, 포트폴리오는 [URL 1개와 프로필 전체 공개 정책](../specs/profile.md#portfolio)을 따릅니다. 별도 프로필·포트폴리오 ID를 추가할 현재 요구는 없습니다. 반면 [재지원은 새 지원 ID](../specs/team-recruitment.md#reapplication)를 사용하고, 소속은 [팀 API의 `membershipId`](../api/teams.md)로 구별하며, 알림에는 [개별 읽음 API](../api/notifications.md)가 있습니다. 관계 테이블처럼 보여도 별도 발생 건을 식별해야 하는 세 경우에 이미 대리키를 둔 이유입니다.
+
+대리키는 업무 중복과 참조 문맥의 일치를 대신 보장하지 않습니다. 별도 대리키가 있어도 같은 사건·수신자 알림의 UNIQUE, 공모전별 활성 소속의 부분 UNIQUE, 지원·소속·사건의 계정·공모전 일치를 보장하는 복합 FK와 그 참조용 UNIQUE는 유지합니다. 구체 제약은 각 테이블 정의가 원본입니다.
+
+향후 한 계정의 여러 프로필, 개별 식별·참조가 필요한 여러 포트폴리오, 정원·충원 상태를 가진 개별 모집 슬롯, 소유자가 바뀌어도 같은 대상을 유지해야 하는 요구가 확정되면 별도 ID를 다시 검토합니다. 이는 **도입이 확정된 정책이 아니라 재검토 조건**입니다. 전환이 필요할 때는 기존 데이터·참조·업무 유일성·API 식별자와 마이그레이션 영향을 함께 설계합니다.
+
 <a id="ai-storage"></a>
 
 ## AI의 물리 저장 경계
 
-[AI API](../api/ai.md)는 대화·메시지·요청·결과의 식별과 상태를 설계합니다. 이 식별자가 존재한다는 이유만으로 모두 PostgreSQL 영구 테이블이 되지는 않습니다.
+[AI API](../api/ai.md#streaming-proposal)는 스트리밍 요청·결과·실행 상태를 제안합니다. 2026-10-25 현재 대화는 탭 메모리에서만 유지하고 새로고침 시 초기화하는 것으로 결정했습니다. 식별자가 존재한다는 이유만으로 대화·메시지가 PostgreSQL 영구 테이블이 되지는 않습니다. 상세 실행·저장 구조는 [AI 에이전트 SDD](../development-plans/ai-agent.md)에서 검토합니다.
 
 | 정보 | 현재 설계 범위 | 아직 확정하지 않는 것 |
 | --- | --- | --- |
-| 현재 대화·작성 메시지 | 소유자, 순서, 새 대화와 이전 응답 구분 | 서버 보존 기간, 새로고침 복원, 기기 동기화 |
-| 추천 실행·결과 | 요청 상태, 재시도·중단, 검증된 대상 참조 | 작업 큐, 캐시, 제공자, 모델, 실행 저장소 |
-| 지원자 AI 검토 | 실제 지원 관계, 사용한 프로필 버전, 현재 접근 검사 | 모델 입력 전문·응답 원문의 저장·삭제 |
+| 현재 대화·작성 메시지 | 현재 탭 메모리에서 유지. 새로고침·탭 종료·새 대화·로그아웃 시 초기화, 기기 간 동기화 없음 | 서버 실행 중의 입력 처리와 별개이며 복원용 대화 테이블을 확정하지 않음 |
+| 추천 실행·결과 | 요청 상태, 재시도·중단, 검증된 대상 참조. `create_agent`·OpenAI Luna·실시간 스트리밍 선택 | 공유 실행 메타데이터의 저장소·필드·보존/정리, 장애 후 만료와 결과 재검증 |
+| 지원자 AI 검토 | 실제 지원 관계, 사용한 프로필 버전, 현재 접근 검사 | 검토 결과의 별도 보존, 모델 입력·응답의 기록/삭제 |
 | 추천 카드 | 공고·팀·프로필 ID와 결과 근거 | 외부 검색 인덱스·벡터 DB·임베딩 스키마 |
 
-영속화를 선택할 때는 관계형 FK 또는 그에 준하는 참조 검증을 적용하고, 존재하지 않는 대상 ID를 카드로 내보내지 않습니다. 이 문서에서 임의의 `ai_messages`·벡터 테이블을 확정하지 않는 이유는 [MATCH-10·12·13](../specs/matching.md#open-questions)의 선행 결정이 남아 있기 때문입니다.
+SDD는 다중 프로세스에서 중복·취소를 제어하기 위해 PostgreSQL에 실행 메타데이터를 두는 안을 제안합니다. 메시지·프로필 전문 저장과 구분하며 물리 모델·migration은 아직 추가하지 않습니다. 채택 시 소유 세션·시도별 원자적 갱신·참조 검증·보존 기한·정리 작업을 함께 설계합니다. 존재하지 않는 대상 ID를 카드로 내보내지 않습니다. `ai_messages`·벡터 테이블이나 지원자 결과 영속화는 [MATCH-10·12·13](../specs/matching.md#open-questions)의 결정 없이 확정하지 않습니다.
 
 <a id="open-decisions"></a>
 
@@ -44,13 +80,13 @@
 
 | 결정 | 이 설계에서 가능한 것 | 결정 전 확정하지 않을 것 | 정책 원본 |
 | --- | --- | --- | --- |
-| 남은 인증·세션 운영 정책 | 서버 세션·지속 쿠키 전달, 가입 후 자동 로그인, 토큰 해시 저장, 유휴 24시간·절대 7일 만료, 독립된 동시 세션·현재 세션 즉시 회수 | CSRF 전달·검증 세부, 쿠키 이름·경로, 운영 도메인·시도 제한 수치·정리 및 보존 기간·라이브러리 | [세션 정책](../specs/authentication.md#session-policy), [AUTH 미정](../specs/authentication.md#open-questions) |
+| 남은 인증·세션 운영 정책 | 서버 세션·지속 쿠키 전달, 가입 후 자동 로그인, 토큰 해시 저장, 유휴 24시간·절대 7일 만료, 독립된 동시 세션·현재 세션 즉시 회수 | 운영 origin·키와 확정된 시도 제한·로컬 차단 목록의 실제 설정/공급, 정리 및 보존 기간; 쿠키·CSRF는 [API 전송 계약](../api/conventions.md#csrf-transport) 적용 | [세션 정책](../specs/authentication.md#session-policy), [AUTH 미정](../specs/authentication.md#open-questions) |
 | 학교 이메일 인증 · 후속 | 로그인 아이디와 별개인 학교 이메일·인증 완료 시각 저장 필드. 현재는 모두 NULL | 대상 도메인·구성원·인증 수단·주소 정규화·중복 사용·유효 기간·재인증과 API | [저장 필드](identity.md#accounts), [AUTH-02](../specs/authentication.md#open-questions) |
 | 계정 탈퇴·데이터 보존 | 안정된 계정 FK, 종료된 소속·지원 이력 | 연쇄 삭제·익명화·아이디 재사용 정책 | [프로필 미정](../specs/profile.md#open-questions) |
 | 공고·모집 조건 변경 | 현재 조건과 생성·수정 시각 저장 | 기존 지원 자동 취소·소속 변경 | [주최 측 변경](../specs/contests.md#eligibility-changes) |
 | 관리자 운영 | 공고 등록·수정·등록 전 확인의 관리자 책임 | 관리자 계정·인증·권한 저장 방식, 관리자 화면·권한 부여·관리 API | [공고 운영](../specs/contests.md#operation-flow) |
 | 코드·학사 원장 확정 | 공통 enum 코드·부모가 고정된 증가형 학사 ID | 확인하지 않은 실제 원장 식별자·임의 분류 추가 | [선택지](../specs/profile-options.md), [학사 구조](../specs/academic-structure.md) |
-| AI 운영·저장·미완성 프로필 | 외부 HTTP 계약·소유·대상 권한 | 내부 제공자·영속화·개인화 허용 범위 | [MATCH 미정](../specs/matching.md#open-questions) |
+| AI 운영·저장·미완성 프로필 | `create_agent`·OpenAI Luna·실시간 답변·탭 메모리 유지·대상 권한 | SSE 상세 계약·실행 저장·재검증·개인화 허용 범위 | [SDD 미정](../development-plans/ai-agent.md#open-decisions) |
 | 알림 전달·보존 | DB 저장·읽음·중복 방지·정렬 설계 | 실시간 채널·보존 기한·삭제·운영 상한 | [NOTIFY 미정](../specs/notifications.md) |
 
 테이블에 상태 코드가 있다고 보류한 기능까지 구현하지 않습니다. API에서도 확정 경로와 정책 결정이 필요한 경로를 구분합니다.

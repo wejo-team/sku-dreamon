@@ -1,6 +1,6 @@
 # 선택지 API
 
-**상태: 설계 제안 · 미구현.** 공통 선택지와 학사 목록을 조회하는 2개 공개 API를 정의합니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
+**상태: 구현 진행 중 — [#101](https://github.com/wejo-team/sku-dreamon/issues/101).** [선택지 코드](../../backend/app/rules/catalogs.py), [응답 DTO](../../backend/app/schemas/catalogs.py), [응답 구성](../../backend/app/services/catalogs.py), [공개 라우터](../../backend/app/routers/catalogs.py)를 구현합니다. 앱 연결·학사 원장·프론트 통합의 완료 여부는 구현 PR의 검증 결과를 따릅니다. 아래 표는 전송 계약을 설명하며 생성 OpenAPI와 대조합니다. 경로에는 `/api/v1` 접두사가 붙습니다. JSON 표기와 타입은 [공통 타입](conventions.md#types), 실패 응답은 [오류 계약](conventions.md#errors)을 따릅니다.
 
 | 확인할 내용 | 위치 |
 | --- | --- |
@@ -54,12 +54,14 @@
 
 일곱 목록은 모두 필수이며 `null`을 허용하지 않습니다. 각 목록은 `sortOrder ASC, code ASC`로 정렬합니다. 현재 선택 가능 항목과 기존 데이터의 표시를 위한 비활성 항목을 함께 제공합니다. 새 선택에는 `isSelectable=true`만 사용합니다. 코드·표시명·정렬·선택 가능 여부 변경은 서버 코드 수정·배포로 반영하고 실제 코드 사전은 [카탈로그 관리](../specs/profile-options.md#catalog-management)에서 검토합니다. 학사 경로 목록은 별도 DB 조회를 유지합니다.
 
+초기 기술 코드는 서버 enum에서 명시적인 영문 `snake_case`로 정의하며 표시명으로 실행 시 생성하지 않습니다. 예를 들어 `FieldCode.IT_TECHNOLOGY="it_technology"`, `RoleCode.PLANNING="planning"`입니다. 코드는 한 번 공개한 뒤 의미를 바꾸거나 재사용하지 않습니다. 기존 운영 데이터의 이관이나 새 학사 원장의 확정을 뜻하지 않습니다. 프로필 이미지의 `assetUrl`은 [공식 자산 출처](../design/assets.md)에 기록한 학교 PNG URL을 제공합니다.
+
 <a id="academic-placement"></a>
 <a id="academic-unit"></a>
 
 ### AcademicUnit — 학사 계층
 
-`GET /catalogs/academic-units` 응답의 **필수 `data: AcademicUnit[]`**는 `null`을 허용하지 않으며, 빈 목록은 `[]`입니다. 현행·비활성 항목을 부모와 함께 모두 반환합니다. 서버는 DB의 숫자 ID 기준 `id ASC`로 정렬하며, 이 순서는 학교의 공식 표시 순서를 뜻하지 않습니다.
+`GET /catalogs/academic-units` 응답의 **필수 `data: AcademicUnit[]`**는 `null`을 허용하지 않으며, 빈 목록은 `[]`입니다. 현행·비활성 항목을 부모와 함께 모두 반환합니다. 서버는 DB의 숫자 ID인 `academic_units.academic_unit_id ASC`로 정렬하고 응답의 `id`에 십진 문자열로 매핑합니다. 이 순서는 학교의 공식 표시 순서를 뜻하지 않습니다.
 
 | AcademicUnit 필드 | 타입 | null | 의미·허용값 |
 | --- | --- | --- | --- |
@@ -79,7 +81,9 @@
 5. 서버가 `profiles.academic_unit_id`와 다른 프로필 항목을 저장하고 버전을 증가시킨 뒤 커밋한 결과를 반환합니다. 기존 학사 항목을 참조하므로 학사 행이나 새 학사 ID는 생성하지 않습니다.
 6. 실패하면 전체 프로필 저장을 취소하고 편집값을 유지합니다. 버전 충돌이나 유효하지 않은 선택은 위 [프로필 오류 계약](profiles.md#profile-endpoints)에 따라 최신 값을 확인합니다.
 
-프로필 화면은 `academicUnitId`에서 부모를 따라 선택한 항목까지의 소속 경로를 표시합니다. 학부·학과만 선택한 이유나 전공 배정 상태는 별도 필드로 전달하거나 추정하지 않으며, 학사 정보 전체가 미입력이면 `academicUnitId=null`입니다. 실제 초기 목록·부모 관계·기존 데이터의 ID 대응은 [학사 미정 사항](../specs/academic-structure.md#open-questions)을 검토한 뒤 등록합니다.
+프로필 화면은 `academicUnitId`에서 부모를 따라 선택한 항목까지의 소속 경로를 표시합니다. 학부·학과만 선택한 이유나 전공 배정 상태는 별도 필드로 전달하거나 추정하지 않으며, 학사 정보 전체가 미입력이면 `academicUnitId=null`입니다. 실제 초기 목록·부모 관계·기존 데이터의 ID 대응은 [학사 미정 사항](../specs/academic-structure.md#open-questions)을 검토한 뒤 등록합니다. 현재 migration은 빈 테이블만 만들며, 미검증 31행을 운영 seed로 적재하지 않습니다. 빈 원장 조회는 `200 {"data": []}`입니다.
+
+[학사 서비스](../../backend/app/services/catalogs.py)의 `validate_academic_selection`은 [학사 Repository](../../backend/app/repositories/catalogs.py)를 통해 대상·모든 조상의 행을 ID 오름차순으로 공유 잠금하고 같은 트랜잭션에서 유효성을 확인합니다. `set_academic_selectable`의 변경 잠금은 신규 선택과 경합하며 여러 항목을 바꾸는 내부 작업도 ID 오름차순을 따릅니다. 최상위 프로필/원장 작업이 commit을 소유합니다. 기준 데이터 신규 생성은 `create_academic_unit`을 사용하고 기존 `parent_id`를 수정하는 기능은 제공하지 않습니다. 소속 변경은 새 행 등록과 기존 행 비활성화로 처리합니다.
 
 ## DB 연결과 남은 범위
 

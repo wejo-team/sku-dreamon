@@ -1,6 +1,6 @@
 # 알림 테이블
 
-**상태: 물리 설계 제안.** 수신자별 알림과 읽음 시각을 PostgreSQL에 저장합니다. 기능의 대상·문구·이동·예외는 [서비스 알림 명세](../specs/notifications.md)를 참조합니다.
+**상태: 저장 모델·제약, 본인 조회·읽음 및 지원 상태 변경 알림 생성 구현.** 검토·미선발·선발·취소와 선발에 따른 다른 대기 지원 폐기는 같은 트랜잭션에서 알림을 생성합니다. 신규 지원의 본인·팀장 알림과 팀 생성에 따른 대기 지원 폐기 알림도 해당 업무와 함께 원자적으로 저장합니다. 수신자별 알림과 읽음 시각은 [알림 모델](../../backend/app/models/notifications.py)과 [마이그레이션](../../backend/alembic/versions/20261024_05_team_integrity.py)에서 정의합니다. 기능의 대상·문구·이동·예외는 [서비스 알림 명세](../specs/notifications.md)를 참조합니다.
 
 ## ERD
 
@@ -15,18 +15,18 @@ erDiagram
     applications ||--|{ application_events : records
     application_events ||--o{ notifications : causes
     accounts {
-        uuid id PK
+        uuid account_id PK
     }
     applications {
-        uuid id PK
+        uuid application_id PK
     }
     application_events {
-        uuid id PK
+        uuid application_event_id PK
         uuid application_id FK
         timestamptz occurred_at
     }
     notifications {
-        uuid id PK
+        uuid notification_id PK
         uuid event_id FK
         uuid recipient_account_id FK
         varchar kind
@@ -44,9 +44,9 @@ erDiagram
 
 | 컬럼 | PostgreSQL 타입 | NULL | 기본값 | 키·의미 |
 | --- | --- | --- | --- | --- |
-| `id` | `UUID` | 불가 | 서버 생성 | PK |
-| `event_id` | `UUID` | 불가 | — | FK → `application_events.id` |
-| `recipient_account_id` | `UUID` | 불가 | — | FK → `accounts.id` |
+| `notification_id` | `UUID` | 불가 | 서버 생성 | PK |
+| `event_id` | `UUID` | 불가 | — | FK → `application_events.application_event_id` |
+| `recipient_account_id` | `UUID` | 불가 | — | FK → `accounts.account_id` |
 | `kind` | `VARCHAR(32)` | 불가 | — | 아래 코드 중 하나 |
 | `read_at` | `TIMESTAMPTZ` | 허용 | NULL | 최초 읽음 성공 시각 |
 
@@ -63,13 +63,13 @@ erDiagram
 
 | 이름 | 정의 | 목적 |
 | --- | --- | --- |
-| `pk_notifications` | PK `(id)` | 개별 읽음 대상 |
+| `pk_notifications` | PK `(notification_id)` | 개별 읽음 대상 |
 | `uq_notifications_event_recipient` | UNIQUE `(event_id, recipient_account_id)` | 실제 발생 건·수신자마다 한 번 |
 | `ck_notifications_kind` | `kind`는 위 두 코드 | 현재 알림 범위 고정 |
-| `ix_notifications_recipient` | `(recipient_account_id, event_id, id)` | 본인 목록·원천 사건 결합 |
-| `ix_notifications_unread` | `(recipient_account_id, event_id, id)`, 조건 `read_at IS NULL` | 미읽음 목록·수 |
+| `ix_notifications_recipient` | `(recipient_account_id, event_id, notification_id)` | 본인 목록·원천 사건 결합 |
+| `ix_notifications_unread` | `(recipient_account_id, event_id, notification_id)`, 조건 `read_at IS NULL` | 미읽음 목록·수 |
 
-FK는 모두 `ON DELETE RESTRICT`, `ON UPDATE RESTRICT`입니다. 유일 인덱스가 `event_id`로 시작하므로 별도 단일 FK 인덱스를 추가하지 않습니다. 정렬은 원천 사건의 `occurred_at DESC`, 알림 `id DESC`를 사용합니다. 초기 설계는 수신자 범위의 결과를 결합·정렬하며, 조회량을 확인하기 전 발생 시각을 알림에 복제하지 않습니다.
+FK는 모두 `ON DELETE RESTRICT`, `ON UPDATE RESTRICT`입니다. 유일 인덱스가 `event_id`로 시작하므로 별도 단일 FK 인덱스를 추가하지 않습니다. 정렬은 원천 사건의 `occurred_at DESC`, 알림 `notification_id DESC`를 사용합니다. 초기 설계는 수신자 범위의 결과를 결합·정렬하며, 조회량을 확인하기 전 발생 시각을 알림에 복제하지 않습니다.
 
 ## 저장과 읽음
 

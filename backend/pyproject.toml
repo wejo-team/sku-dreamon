@@ -5,6 +5,7 @@ description = "SKU DreamOn API for student contests and ongoing challenges"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "alembic>=1.18,<2",
+    "argon2-cffi>=25.1,<26",
     "asyncpg>=0.30,<1",
     "fastapi>=0.115,<1",
     "pydantic-settings>=2.8,<3",
@@ -44,7 +45,10 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --strict-markers"
-markers = ["integration: requires an isolated PostgreSQL via TEST_DATABASE_URL"]
+markers = [
+    "integration: checks HTTP or database integration boundaries",
+    "database: requires an isolated PostgreSQL via TEST_DATABASE_URL",
+]
 
 [tool.ruff.lint.isort]
 known-third-party = ["alembic"]

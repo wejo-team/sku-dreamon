@@ -1,6 +1,8 @@
 # 팀·지원·소속 테이블
 
-이 문서는 [팀 모집·지원 명세](../specs/team-recruitment.md)를 PostgreSQL 테이블과 제약으로 옮긴 **미구현 설계안**입니다. 사용자 흐름·권한·정책은 원문 링크로 참조하고, 여기서는 저장 구조와 정합성에 집중합니다. 공통 타입·기본값·삭제 규칙은 [공통 규칙](conventions.md), 여러 테이블을 함께 바꾸는 처리 순서는 [트랜잭션 설계](transactions.md)가 원본입니다.
+이 문서는 [팀 모집·지원 명세](../specs/team-recruitment.md)의 PostgreSQL 저장 구조와 제약을 설명합니다. **저장 모델·행 제약, 팀 조회·공간·모집 변경, 지원 조회·취소·팀장 검토·선발을 구현했습니다. 팀 생성과 신규 지원도 관련 소속·사건·알림과 함께 원자적으로 저장합니다.** 실제 경로와 계약은 [팀 API](../api/teams.md)와 [지원 API](../api/applications.md)에서 코드로 연결합니다. 사용자 흐름·권한·정책은 원문 링크로 참조하고, 공통 타입·기본값·삭제 규칙은 [공통 규칙](conventions.md), 여러 테이블을 함께 바꾸는 처리 순서는 [트랜잭션 설계](transactions.md)를 따릅니다.
+
+구현 원본은 [팀·소속 모델](../../backend/app/models/teams.py), [지원·사건 모델](../../backend/app/models/applications.py), [마이그레이션](../../backend/alembic/versions/20261024_05_team_integrity.py)입니다. [PostgreSQL 통합 검사](../../backend/tests/integration/test_team_integrity.py)는 복합 참조·현재 소속과 지원의 중복·상태 사건 제약·트랜잭션 롤백·마이그레이션 정합성을 검증합니다. 구현한 검토·선발·취소·모집 변경의 권한·잠금 순서·정원 보호는 각 [지원 API](../api/applications.md)·[팀 API](../api/teams.md)에 연결한 실제 DB·HTTP 테스트에서 검증합니다. 팀 생성과 신규 지원의 유스케이스 검증은 후속 범위입니다.
 
 ## 구조와 책임
 
@@ -32,21 +34,21 @@ erDiagram
   applications ||--|{ application_events : records
   team_memberships o|--o{ application_events : causes_discard
   teams {
-    uuid id PK
+    uuid team_id PK
     uuid contest_id FK
     uuid leader_account_id FK
     bigint target_capacity
     varchar recruitment_state
   }
   applications {
-    uuid id PK
+    uuid application_id PK
     uuid team_id FK
     uuid contest_id FK
     uuid applicant_account_id FK
     varchar status
   }
   team_memberships {
-    uuid id PK
+    uuid team_membership_id PK
     uuid team_id FK
     uuid contest_id FK
     uuid account_id FK
@@ -58,7 +60,7 @@ erDiagram
     varchar role_code PK
   }
   application_events {
-    uuid id PK
+    uuid application_event_id PK
     uuid application_id FK
     uuid team_id FK
     uuid contest_id FK
@@ -78,11 +80,11 @@ erDiagram
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
-| `id` | `uuid` | 불가 | — | PK `pk_teams` |
+| `team_id` | `uuid` | 불가 | — | PK `pk_teams` |
 | `request_id` | `uuid` | 불가 | — | 최초 생성 요청 식별자; 재전송 중복 방지 |
 | `request_fingerprint` | `char(64)` | 불가 | — | 서버가 생성한 최초 생성 요청의 SHA-256 지문 |
-| `contest_id` | `uuid` | 불가 | — | FK → `contests.id` |
-| `leader_account_id` | `uuid` | 불가 | — | FK → `accounts.id`; 생성자, 일반 수정 불가 |
+| `contest_id` | `uuid` | 불가 | — | FK → `contests.contest_id` |
+| `leader_account_id` | `uuid` | 불가 | — | FK → `accounts.account_id`; 생성자, 일반 수정 불가 |
 | `name` | `text` | 불가 | — | 팀명, 정규화 후 2~40자 |
 | `introduction` | `text` | 불가 | — | 소개·목표, 정규화 후 10~1,000자 |
 | `target_capacity` | `bigint` | 불가 | — | 팀장 포함 목표 총 정원, 양의 정수 |
@@ -111,7 +113,7 @@ erDiagram
 | 이름 | 종류 | 보장하는 내용 |
 | --- | --- | --- |
 | `uq_teams_request` | UNIQUE `(leader_account_id, request_id)` | 같은 생성 요청으로 팀 중복 생성 금지 |
-| `uq_teams_id_contest` | UNIQUE `(id, contest_id)` | 자식의 공모전 일치 검사용 참조키 |
+| `uq_teams_id_contest` | UNIQUE `(team_id, contest_id)` | 자식의 공모전 일치 검사용 참조키 |
 | `ck_teams_text` | CHECK | 팀명·소개가 공백만으로 이루어지지 않음 |
 | `ck_teams_request_fingerprint` | CHECK | 소문자 16진수 64자리 |
 | `ck_teams_capacity` | CHECK | `target_capacity > 0`; 정수 타입 자체가 소수 입력을 허용한다는 뜻은 아니며 API에서 반올림 없이 거부 |
@@ -120,7 +122,7 @@ erDiagram
 | `ck_teams_deadline_assumptions` | CHECK | 시각·시간대 보완 플래그와 해당 원문 필드의 NULL 여부 일치 |
 | `ck_teams_version` | CHECK | `version > 0` |
 
-팀명 2~40자·소개 10~1,000자 및 정규화는 저장 유스케이스에서 검사합니다. Unicode 계수 계약이 미정이므로 DB의 `varchar(n)` 길이로 제품의 글자 수를 대신 결정하지 않습니다. 공식 인원 범위와 목표 정원의 일치, 기한 해석, 현재 팀장 권한도 저장 유스케이스에서 검사합니다. 인원 타입은 [공모전의 숫자 표현](contests.md)을 따르며 서비스 별도 상한·초기 기본 정원은 만들지 않습니다. 공고 조건 변경의 기존 팀 영향은 [미정 정책](../specs/contests.md#eligibility-changes)을 따릅니다.
+팀명 2~40자·소개 10~1,000자 및 정규화는 저장 유스케이스에서 검사합니다. NFC·trim 후 Unicode 코드 포인트로 검사하며 DB의 `varchar(n)`만으로 입력 정규화·검증을 대체하지 않습니다. 공식 인원 범위와 목표 정원의 일치, 기한 해석, 현재 팀장 권한도 저장 유스케이스에서 검사합니다. 인원 타입은 [공모전의 숫자 표현](contests.md)을 따르며 서비스 별도 상한·초기 기본 정원은 만들지 않습니다. 공고 조건 변경의 기존 팀 영향은 [미정 정책](../specs/contests.md#eligibility-changes)을 따릅니다.
 
 정원 충족 시 `closed + capacity_reached`를 함께 저장합니다. 이후 소속 종료는 이 두 값을 바꾸지 않으며, 재개 성공 때만 `open + NULL`로 변경합니다. 정원 1명 팀의 생성도 팀장 소속과 `closed + capacity_reached`를 함께 기록합니다. 이 상태 표현은 [명시적 모집 재개 정책](../specs/team-recruitment.md#recruitment-reopening)의 자동 재개 방지를 위한 설계입니다.
 
@@ -130,7 +132,7 @@ erDiagram
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
-| `team_id` | `uuid` | 불가 | — | PK 구성, FK → `teams.id` |
+| `team_id` | `uuid` | 불가 | — | PK 구성, FK → `teams.team_id` |
 | `role_code` | `varchar(64)` | 불가 | — | PK 구성. `RoleCode` 검증, 코드 FK 없음 |
 
 `pk_team_recruitment_roles (team_id, role_code)`로 중복을 막습니다. 저장 서비스가 [공통 enum](catalogs.md#code-enums)의 코드·새 선택 가능 여부와 정원 1명이면 0개, 2명 이상이면 1~6개인지 검사합니다. 팀 행 잠금 아래 팀 생성·정원과 최종 역할 집합을 같은 트랜잭션에서 저장합니다. 역할별 정원·충원 상태·팀별 분야 연결은 추가하지 않습니다.
@@ -141,12 +143,12 @@ erDiagram
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
-| `id` | `uuid` | 불가 | — | PK `pk_applications` |
+| `application_id` | `uuid` | 불가 | — | PK `pk_applications` |
 | `request_id` | `uuid` | 불가 | — | 최초 접수 요청 식별자; 재전송 중복 방지 |
 | `request_fingerprint` | `char(64)` | 불가 | — | 서버가 생성한 최초 접수 요청의 SHA-256 지문 |
 | `team_id` | `uuid` | 불가 | — | 아래 결합 FK 구성 |
 | `contest_id` | `uuid` | 불가 | — | 팀에서 가져온 공모전; 결합 FK로 일치 강제 |
-| `applicant_account_id` | `uuid` | 불가 | — | FK → `accounts.id` |
+| `applicant_account_id` | `uuid` | 불가 | — | FK → `accounts.account_id` |
 | `applied_role_code` | `varchar(64)` | 불가 | — | 지원 시 선택 역할. 서버가 `RoleCode`와 새 선택 가능 여부 검증, 코드 FK 없음 |
 | `message` | `text` | 허용 | `NULL` | 선택 메시지, 공백만 입력하면 NULL |
 | `status` | `varchar(16)` | 불가 | `submitted` | 아래 지원 상태 |
@@ -168,7 +170,7 @@ erDiagram
 | 이름 | 종류·열 | 보장하는 내용 |
 | --- | --- | --- |
 | `uq_applications_request` | UNIQUE `(applicant_account_id, request_id)` | 같은 접수 요청으로 지원 중복 생성 금지 |
-| `uq_applications_context` | UNIQUE `(id, team_id, contest_id, applicant_account_id)` | 소속·사건의 팀·공모전·지원자 일치 참조키 |
+| `uq_applications_context` | UNIQUE `(application_id, team_id, contest_id, applicant_account_id)` | 소속·사건의 팀·공모전·지원자 일치 참조키 |
 | `uq_applications_current` | 부분 UNIQUE `(team_id, applicant_account_id)`; `status IN (submitted, reviewing, selected)` | 같은 팀의 현재 유효 지원 중복 금지 |
 | `ck_applications_status` | CHECK | 위 여섯 상태만 허용 |
 | `ck_applications_message` | CHECK | NULL 또는 공백만이 아닌 문자열. 1,000자 상한·정규화는 서비스 입력 검증 |
@@ -187,10 +189,10 @@ erDiagram
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
-| `id` | `uuid` | 불가 | — | PK `pk_team_memberships` |
+| `team_membership_id` | `uuid` | 불가 | — | PK `pk_team_memberships` |
 | `team_id` | `uuid` | 불가 | — | 결합 FK → `teams` |
 | `contest_id` | `uuid` | 불가 | — | 팀과 같은 공모전 |
-| `account_id` | `uuid` | 불가 | — | FK → `accounts.id` |
+| `account_id` | `uuid` | 불가 | — | FK → `accounts.account_id` |
 | `source_application_id` | `uuid` | 허용 | `NULL` | 선발 원인이 된 지원. 팀장 생성 소속에만 NULL |
 | `joined_at` | `timestamptz` | 불가 | `now()` | 생성·선발 성공 시각 |
 | `ended_at` | `timestamptz` | 허용 | `NULL` | 활성 소속이면 NULL |
@@ -200,7 +202,7 @@ erDiagram
 | --- | --- | --- |
 | `uq_memberships_active_contest` | 부분 UNIQUE `(account_id, contest_id)`; `ended_at IS NULL` | 팀장 포함 공모전별 활성 소속 최대 1개 |
 | `uq_memberships_source_application` | UNIQUE `(source_application_id)` | 같은 지원으로 소속 기간을 두 번 만들지 않음; 팀장 NULL은 여러 팀에서 가능 |
-| `uq_memberships_cause_context` | UNIQUE `(id, contest_id, account_id)` | 팀 생성 폐기 원인이 같은 사용자·공모전인지 FK로 검증하는 참조키 |
+| `uq_memberships_cause_context` | UNIQUE `(team_membership_id, contest_id, account_id)` | 팀 생성 폐기 원인이 같은 사용자·공모전인지 FK로 검증하는 참조키 |
 | `ck_memberships_end` | CHECK | 활성: 종료 시각·사유 모두 NULL. 종료: `ended_at ≥ joined_at`이고 사유 `application_canceled` |
 
 여러 행의 상태·개수는 저장 서비스가 [공통 잠금 순서](transactions.md) 아래 검증합니다. DB에는 위 행 제약·유일성과 아래 결합 FK를 최종 방어선으로 둡니다.
@@ -222,7 +224,7 @@ erDiagram
 
 | 컬럼 | PostgreSQL 타입 | NULL | DB 기본값 | 키·설명 |
 | --- | --- | --- | --- | --- |
-| `id` | `uuid` | 불가 | — | PK `pk_application_events`; 알림이 참조하는 사건 ID |
+| `application_event_id` | `uuid` | 불가 | — | PK `pk_application_events`; 알림이 참조하는 사건 ID |
 | `application_id` | `uuid` | 불가 | — | 지원 문맥 결합 FK 구성 |
 | `team_id` | `uuid` | 불가 | — | 지원받은 팀 |
 | `contest_id` | `uuid` | 불가 | — | 지원한 공모전 |
@@ -249,7 +251,7 @@ erDiagram
 | 이름 | 종류 | 보장하는 내용 |
 | --- | --- | --- |
 | `uq_application_events_version` | UNIQUE `(application_id, application_version)` | 동일 상태 버전의 사건 중복 금지 |
-| `uq_application_events_cause_context` | UNIQUE `(id, contest_id, applicant_account_id)` | 폐기 원인이 같은 사용자·공모전인지 FK로 검증 |
+| `uq_application_events_cause_context` | UNIQUE `(application_event_id, contest_id, applicant_account_id)` | 폐기 원인이 같은 사용자·공모전인지 FK로 검증 |
 | `ck_application_events_transition` | CHECK | 위 코드·상태 조합, 최초 버전 1·나머지 버전 > 1, 이전·결과 상태가 다름 |
 | `ck_application_events_cause` | CHECK | `selected_elsewhere`: `cause_event_id`만 필수·행위자 NULL. `team_created_elsewhere`: `cause_membership_id`만 필수·행위자 NULL. 나머지: 두 원인 모두 NULL·행위자 필수 |
 
@@ -263,18 +265,18 @@ erDiagram
 
 | FK 이름 | 자식 컬럼 → 부모 컬럼 |
 | --- | --- |
-| `fk_teams_contest` | `teams.contest_id` → `contests.id` |
-| `fk_teams_leader` | `teams.leader_account_id` → `accounts.id` |
-| `fk_team_recruitment_roles_team` | `team_recruitment_roles.team_id` → `teams.id` |
-| `fk_applications_team_context` | `applications.(team_id, contest_id)` → `teams.(id, contest_id)` |
-| `fk_applications_account` | `applications.applicant_account_id` → `accounts.id` |
-| `fk_memberships_team_context` | `team_memberships.(team_id, contest_id)` → `teams.(id, contest_id)` |
-| `fk_memberships_account` | `team_memberships.account_id` → `accounts.id` |
-| `fk_memberships_application_context` | `team_memberships.(source_application_id, team_id, contest_id, account_id)` → `applications.(id, team_id, contest_id, applicant_account_id)` |
-| `fk_application_events_application` | `application_events.(application_id, team_id, contest_id, applicant_account_id)` → `applications.(id, team_id, contest_id, applicant_account_id)` |
-| `fk_application_events_actor` | `application_events.actor_account_id` → `accounts.id` |
-| `fk_application_events_cause` | `application_events.(cause_event_id, contest_id, applicant_account_id)` → `application_events.(id, contest_id, applicant_account_id)` |
-| `fk_application_events_cause_membership` | `application_events.(cause_membership_id, contest_id, applicant_account_id)` → `team_memberships.(id, contest_id, account_id)` |
+| `fk_teams_contest` | `teams.contest_id` → `contests.contest_id` |
+| `fk_teams_leader` | `teams.leader_account_id` → `accounts.account_id` |
+| `fk_team_recruitment_roles_team` | `team_recruitment_roles.team_id` → `teams.team_id` |
+| `fk_applications_team_context` | `applications.(team_id, contest_id)` → `teams.(team_id, contest_id)` |
+| `fk_applications_account` | `applications.applicant_account_id` → `accounts.account_id` |
+| `fk_memberships_team_context` | `team_memberships.(team_id, contest_id)` → `teams.(team_id, contest_id)` |
+| `fk_memberships_account` | `team_memberships.account_id` → `accounts.account_id` |
+| `fk_memberships_application_context` | `team_memberships.(source_application_id, team_id, contest_id, account_id)` → `applications.(application_id, team_id, contest_id, applicant_account_id)` |
+| `fk_application_events_application` | `application_events.(application_id, team_id, contest_id, applicant_account_id)` → `applications.(application_id, team_id, contest_id, applicant_account_id)` |
+| `fk_application_events_actor` | `application_events.actor_account_id` → `accounts.account_id` |
+| `fk_application_events_cause` | `application_events.(cause_event_id, contest_id, applicant_account_id)` → `application_events.(application_event_id, contest_id, applicant_account_id)` |
+| `fk_application_events_cause_membership` | `application_events.(cause_membership_id, contest_id, applicant_account_id)` → `team_memberships.(team_membership_id, contest_id, account_id)` |
 
 ## 조회용 인덱스
 
@@ -282,18 +284,18 @@ PK·UNIQUE가 만드는 인덱스 외의 초기 인덱스입니다. 팀의 공�
 
 | 인덱스 이름 | 방식·열·조건 | 조회 목적 |
 | --- | --- | --- |
-| `ix_teams_contest_created` | B-tree `(contest_id, created_at DESC, id DESC)` | 공모전 상세의 팀 목록·전체 팀 수 |
-| `ix_teams_created` | B-tree `(created_at DESC, id DESC)` | 전체 팀 목록 |
-| `ix_teams_leader` | B-tree `(leader_account_id, id)` | 팀장 소유 확인 |
+| `ix_teams_contest_created` | B-tree `(contest_id, created_at DESC, team_id DESC)` | 공모전 상세의 팀 목록·전체 팀 수 |
+| `ix_teams_created` | B-tree `(created_at DESC, team_id DESC)` | 전체 팀 목록 |
+| `ix_teams_leader` | B-tree `(leader_account_id, team_id)` | 팀장 소유 확인 |
 | `ix_team_recruitment_roles_role` | B-tree `(role_code, team_id)` | 모집 역할 필터 |
-| `ix_applications_team_status` | B-tree `(team_id, status, submitted_at DESC, id DESC)` | 팀장 지원자 목록·대기 수 |
-| `ix_applications_account` | B-tree `(applicant_account_id, submitted_at DESC, id DESC)` | 내 지원 목록 |
-| `ix_applications_pending_contest` | B-tree `(applicant_account_id, contest_id, id)`; `status IN (submitted, reviewing)` | 선발·팀 생성 시 다른 대기 지원 잠금·폐기 |
+| `ix_applications_team_status` | B-tree `(team_id, status, submitted_at DESC, application_id DESC)` | 팀장 지원자 목록·대기 수 |
+| `ix_applications_account` | B-tree `(applicant_account_id, submitted_at DESC, application_id DESC)` | 내 지원 목록 |
+| `ix_applications_pending_contest` | B-tree `(applicant_account_id, contest_id, application_id)`; `status IN (submitted, reviewing)` | 선발·팀 생성 시 다른 대기 지원 잠금·폐기 |
 | `ix_applications_rejected_history` | B-tree `(team_id, applicant_account_id)`; `status = rejected` | 같은 팀 재지원 금지 이력 확인 |
 | `ix_applications_role` | B-tree `(applied_role_code)` | 지원 역할 조건 조회 |
 | `ix_memberships_team_active` | B-tree `(team_id, account_id)`; `ended_at IS NULL` | 현재 팀원·현재 인원 |
-| `ix_memberships_team_history` | B-tree `(team_id, joined_at, id)` | 팀 소속 이력·FK 참조 |
-| `ix_memberships_account_history` | B-tree `(account_id, joined_at DESC, id DESC)` | 계정 소속 이력·FK 참조 |
+| `ix_memberships_team_history` | B-tree `(team_id, joined_at, team_membership_id)` | 팀 소속 이력·FK 참조 |
+| `ix_memberships_account_history` | B-tree `(account_id, joined_at DESC, team_membership_id DESC)` | 계정 소속 이력·FK 참조 |
 | `ix_application_events_cause` | B-tree `(cause_event_id)` | 선발로 발생한 폐기 사건 |
 | `ix_application_events_cause_membership` | B-tree `(cause_membership_id)` | 팀 생성으로 발생한 폐기 사건·원인 소속 FK 참조 |
 | `ix_application_events_actor` | B-tree `(actor_account_id)` | 사건 행위자 FK 참조 |
@@ -315,4 +317,4 @@ PK·UNIQUE가 만드는 인덱스 외의 초기 인덱스입니다. 팀의 공�
 
 [공고 조건 변경의 기존 팀 영향](../specs/contests.md#eligibility-changes) 등 남은 질문은 별도 정책 결정이며, 위 확정 전이의 구현을 모두 보류한다는 뜻은 아닙니다.
 
-이 문서는 DDL·마이그레이션·트리거·서버 코드가 아닙니다. 구현 단계에서 제약과 [동시성 검증 사례](transactions.md)를 실제 PostgreSQL에서 검증해야 합니다.
+DB 행 제약만으로 실제 선발·팀 생성의 정원·권한·교차 행 상태가 보장되지는 않습니다. 후속 서비스는 [트랜잭션 경계](transactions.md)와 동시성 검증 사례를 적용하고, HTTP 동작까지 확인한 뒤 해당 기능의 완료 조건을 갱신합니다.

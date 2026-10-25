@@ -32,13 +32,15 @@ cd backend
 cp .env.example .env
 uv sync --locked
 uv run alembic upgrade head
-uv run python -m app.db.check
+uv run python -m app.core.db.check
 uv run uvicorn app.main:app --reload
 ```
 
 API는 `http://127.0.0.1:8000`, 대화형 API 문서는 `/docs`입니다. `GET /api/v1/health`는 `{"status":"ok"}`를 반환합니다. health는 프로세스 연결 확인이며 DB 준비 상태 검사가 아닙니다.
 
-도메인 모델과 최초 migration은 아직 없습니다. `upgrade head`는 현재 비동기 Alembic 연결 경로를 실행하며 서비스 테이블을 생성하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
+`upgrade head`는 계정·서버 세션, 학사, 공고, 프로필, 팀·지원·소속·발생 건·알림의 migration 5개를 적용합니다. 현재 적용 대상은 [DB 인덱스](../database/README.md)와 [Alembic 모델 등록](../../backend/alembic/env.py)에서 확인합니다. 스키마 적용은 운영 학사 원장·공고·시연 데이터를 적재하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
+
+현재 인증 HTTP는 CSRF 조회·본인 계정 조회·로그아웃을 제공하며 가입·로그인은 아직 연결하지 않았습니다. 전체 API 구현 범위는 [API 인덱스](../api/README.md)를 따릅니다. 인증 관련 요청을 검증할 환경에서는 `.env`의 `CSRF_SIGNING_KEY`에 32바이트 이상의 난수 키를 주입하고 `AUTH_ALLOWED_ORIGINS`에 정확한 HTTPS origin 목록을 설정합니다. 설정 형식은 [환경변수 예시](../../backend/.env.example), 검증은 [Settings](../../backend/app/core/config.py), 쿠키 속성은 [인증 쿠키 코드](../../backend/app/routers/auth_cookies.py)를 확인합니다.
 
 ## 프론트엔드 — 별도 터미널
 
@@ -49,9 +51,9 @@ npm ci
 npm run dev
 ```
 
-`http://localhost:5173`에서 연결 확인 화면을 엽니다. Vite 개발 서버가 `/api` 요청을 백엔드 8000 포트로 전달합니다. API 실패 시 오류를 표시하고 다시 확인할 수 있습니다.
+`http://localhost:5173`에서 화면 시연 앱을 엽니다. 현재 로그인·프로필·팀·지원 등은 `DemoProvider`의 메모리 예시 데이터를 사용합니다. 실제 백엔드 연결 확인 화면은 `http://localhost:5173/health`이며, Vite 개발 서버가 `/api` 요청을 백엔드 8000 포트로 전달합니다. 연결 실패 시 오류를 표시하고 다시 확인할 수 있습니다. 화면별 API 연결은 후속 작업이며 [구현 현황](implementation-status.md)에서 구분합니다.
 
-`VITE_API_BASE_URL`은 브라우저에 노출되는 API 경로입니다. `API_PROXY_TARGET`은 Vite 개발 서버만 사용합니다. 인증은 [서버 세션 쿠키](../specs/authentication.md#session-policy)로 결정했으며 아직 구현하지 않았습니다. 운영 배포의 API 연결 방식·도메인·CORS와 보안 쿠키를 검증할 로컬 HTTPS 구성은 후속 개발 계획에서 정합니다.
+`VITE_API_BASE_URL`은 브라우저에 노출되는 API 경로입니다. `API_PROXY_TARGET`은 Vite 개발 서버만 사용합니다. 위 HTTP 주소는 화면 시연·연결 확인용이며 현재 프론트에 가입·로그인 흐름이 연결된 것은 아닙니다. 서버의 인증 쿠키는 `Secure`를 유지하므로 브라우저 인증 검증에는 HTTPS 구성이 필요합니다. 운영 API 연결 방식·도메인·CORS와 로컬 HTTPS 구성은 후속 범위이며, 인증 전송 설계는 별도 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)에서 확인합니다.
 
 ## 검사
 
@@ -75,6 +77,8 @@ uv run pytest
 uv run alembic check
 ```
 
+유닛 테스트만 실행하려면 `uv run pytest tests/unit`, DB 없이 HTTP 통합만 확인하려면 `uv run pytest tests/integration -m "not database"`를 사용합니다. 전체 테스트는 위의 `uv run pytest`로 실행합니다. `integration` marker는 HTTP·DB 경계 검사를, `database` marker는 전용 PostgreSQL이 필요한 검사를 뜻합니다.
+
 `pytest`는 `TEST_DATABASE_URL`이 없으면 DB 통합 테스트를 건너뜁니다. 전체 DB 검증에는 전용 테스트 DB를 만듭니다. 아래 생성 명령은 저장소 루트에서 한 번만 실행합니다.
 
 ```bash
@@ -87,7 +91,7 @@ docker compose exec postgres createdb -U wejo wejo_test
 export TEST_DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:5432/wejo_test
 DATABASE_URL="$TEST_DATABASE_URL" uv run alembic upgrade head
 DATABASE_URL="$TEST_DATABASE_URL" uv run alembic check
-DATABASE_URL="$TEST_DATABASE_URL" uv run python -m app.db.check
+DATABASE_URL="$TEST_DATABASE_URL" uv run python -m app.core.db.check
 uv run pytest
 ```
 
