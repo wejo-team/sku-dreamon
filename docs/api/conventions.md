@@ -72,7 +72,9 @@
 }
 ```
 
-HTTP 상태는 각 API의 200·201·202·204를 그대로 사용합니다. 가입·로그인의 `Set-Cookie`, 로그아웃의 쿠키 만료, AI 접수의 `Location` 헤더도 유지합니다. 성공 여부·HTTP 상태를 중복하는 `success`·`statusCode`나 공통 성공 문구는 추가하지 않습니다. 구현 시 Pydantic 응답 모델과 생성된 OpenAPI에도 이 구조를 명시하고 실제 응답과 대조합니다.
+HTTP 상태는 각 API의 200·201·202·204를 그대로 사용합니다. 가입·로그인의 `Set-Cookie`와 로그아웃의 쿠키 만료 등 경로별 헤더도 유지합니다. 성공 여부·HTTP 상태를 중복하는 `success`·`statusCode`나 공통 성공 문구는 추가하지 않습니다. 구현 시 Pydantic 응답 모델과 생성된 OpenAPI에도 이 구조를 명시하고 실제 응답과 대조합니다.
+
+[AI 스트리밍 검토안](ai.md#streaming-proposal)은 200 `text/event-stream`으로, 응답 전체를 JSON `Success<T>`로 감싸지 않습니다. 스트림 시작 전 HTTP 오류와 시작 후 이벤트 오류를 구분합니다. 이전 AI `202 + Location + polling` 초안은 대체 대상이며 실제 구현된 계약이 아닙니다.
 
 <a id="access"></a>
 
@@ -286,6 +288,6 @@ CSRF 토큰은 임의 nonce에 HMAC-SHA-256을 적용하며 로그인 후에는 
 | 모집 정보 편집·제출 후 메시지 수정 | 범용 수정 endpoint 없음 | [TEAM-07~09](../specs/team-recruitment.md#open-questions) |
 | 마감 공고 목록 기본 배치·기본 필터 | 상세 열람은 정의. 상태 생략 시 전체·최신 등록순으로 확정. 삭제·보존은 후속 범위 | [공고 미정 사항](../specs/contests.md#open-questions) |
 | 관리자 공고 관리·공식 조건 변경 영향 | 관리 책임만 유지. 관리자 CRUD·일괄 소급 변경 API 없음 | [공고 운영](../specs/contests.md#operation-flow), [TEAM-06](../specs/team-recruitment.md#open-questions) |
-| AI 서버 보존·제공자·실행·스트리밍 | 외부 요청·결과 모양만 제안. 현재 대화 조회를 과거 대화 복원 API로 확대하지 않음 | [MATCH-10·12·13·14](../specs/matching.md#open-questions) |
+| AI 실행 저장·전송 상세·현재 권한 검증 | `create_agent`·OpenAI Luna·실시간 스트리밍·탭 메모리 유지 확정. SSE·실행 메타데이터·지원자 결과 보존 등은 검토안 | [SDD 미정](../development-plans/ai-agent.md#open-decisions), [MATCH-10·12·13·14](../specs/matching.md#open-questions) |
 
 미정 분기는 운영에서 임시 500을 반환하도록 구현하라는 뜻이 아닙니다. 해당 유스케이스를 출시하기 전에 정책을 결정하고 성공·실패 계약을 완성해야 합니다.

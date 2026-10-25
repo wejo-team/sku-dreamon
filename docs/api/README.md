@@ -1,6 +1,6 @@
 # API 설계
 
-**상태: 설계가 확정된 비AI API 구현 · AI 설계 보류.** 화면과 서버가 주고받을 요청·응답, 오류와 권한을 안내합니다. 현재 등록된 경로는 [앱 연결](../../backend/app/main.py)과 실행 앱의 `/docs`·`/openapi.json`에서 확인합니다. 아래 구현 범위는 저장소 코드 기준이며 전체 기능의 완료·운영 배포를 뜻하지 않습니다.
+**상태: 설계가 확정된 비AI API 구현 · AI 스트리밍 설계 검토 중.** 화면과 서버가 주고받을 요청·응답, 오류와 권한을 안내합니다. 현재 등록된 경로는 [앱 연결](../../backend/app/main.py)과 실행 앱의 `/docs`·`/openapi.json`에서 확인합니다. 아래 구현 범위는 저장소 코드 기준이며 전체 기능의 완료·운영 배포를 뜻하지 않습니다.
 
 ## 읽는 순서
 
@@ -13,12 +13,12 @@
 | [공모전 API](contests.md) | 저장 모델·값 검증·공개 목록/상세·확인된 JSON 입력 CLI | 실제 자료 확인·적재·갱신 운영 |
 | [팀 API](teams.md) | 팀 생성·공개 목록·모집글·공고 하위 팀 목록, 내 팀·팀 공간, 모집 종료·재개 | 화면 API 연결 |
 | [지원 API](applications.md) | 신규 지원·본인 조회·취소, 팀장 지원자 조회·검토·미선발·선발 | 화면 API 연결 |
-| [AI API](ai.md) | 미구현 | 대화·추천·지원자 AI 검토 |
+| [AI API](ai.md) | 미구현 | [SDD](../development-plans/ai-agent.md)에 따른 스트리밍·대화·추천·지원자 AI 검토 계약 확정 및 구현 |
 | [알림 API](notifications.md) | 본인 조회·읽음, 신규 지원·상태 변경·팀 생성에 따른 사건/알림 | 화면 API 연결 |
 
 각 영역 문서에서 실제 라우터·DTO·검증 코드로 이동합니다. 정책·DB·API의 대조 방법은 [정합성 확인 기준](#consistency)을 따릅니다. 학사 원장과 시연 데이터는 아직 적재하지 않았으며, 빈 조회 결과를 실제 운영 데이터가 준비된 상태로 해석하지 않습니다.
 
-각 영역 문서는 **경로·권한·응답 → 요청 조건 → 데이터 필드 → 상태·실패 처리** 순서로 읽습니다. 본문이 있는 성공 응답의 실제 결과는 최상위 `data`에서 읽습니다. 표의 `Success<T>`·`Page<T>`와 본문 없는 204의 구분은 [공통 성공 응답](conventions.md#success-responses)을 참조합니다.
+각 영역 문서는 **경로·권한·응답 → 요청 조건 → 데이터 필드 → 상태·실패 처리** 순서로 읽습니다. JSON 성공 응답의 실제 결과는 최상위 `data`에서 읽습니다. 표의 `Success<T>`·`Page<T>`, 본문 없는 204, AI SSE 검토안의 구분은 [공통 성공 응답](conventions.md#success-responses)을 참조합니다.
 
 문서는 기능의 책임을 기준으로 나눕니다. `/contests/{contestId}/teams`는 팀, `/teams/{teamId}/applications`는 지원 문서에서 정의합니다. 지원자 AI 검토는 AI 문서에 두고, 실제 지원 상태를 바꾸는 검토·선발은 지원 문서에서 정의합니다.
 
@@ -66,6 +66,6 @@ FastAPI의 기본 제공 경로는 `/docs`(Swagger UI), `/redoc`(ReDoc), `/opena
 
 인증은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다. 구현된 CSRF 필드·쿠키 속성·실패 처리는 [인증 DTO](../../backend/app/schemas/auth.py), [쿠키 처리](../../backend/app/routers/auth_cookies.py), [CSRF 검사](../../backend/app/dependencies/csrf.py)가 원본이며 전송 계약은 [병합된 PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)와 [공통 계약](conventions.md#csrf-transport)을 따릅니다. 가입·로그인·아이디 확인과 공유 시도 제한은 구현했습니다. 운영 origin·키·차단 목록 설정, CORS·로컬 HTTPS 구성은 후속 범위입니다.
 
-일반 텍스트 NFC·코드 포인트, 팀 생성의 필수 프로필·공개 불필요 조건, 공고 목록 전체 상태 기본값과 인증 시도 제한·로컬 차단 목록 공급 방식은 2026-10-24 결정으로 확정했습니다. 실제 차단 목록/운영 설정 배포·종료 세션 정리와 보존, 학사 시드 원장의 범위, 공고 입력·갱신 운영 절차, AI 제공자·내부 구조·데이터 보존은 후속 결정으로 남습니다. 모집 정보·지원 메시지 편집과 공고 변경 영향도 [공통 계약의 보류 목록](conventions.md#deferred) 및 각 기능 명세를 따릅니다. 확정된 모집·지원 전이는 [모집 상태 변경](teams.md#transitions)과 [지원 상태 변경](applications.md#transitions)을 참조합니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖이며 현재 인증 구현의 선행 조건이 아닙니다.
+일반 텍스트 NFC·코드 포인트, 팀 생성의 필수 프로필·공개 불필요 조건, 공고 목록 전체 상태 기본값과 인증 시도 제한·로컬 차단 목록 공급 방식은 2026-10-24 결정으로 확정했습니다. 실제 차단 목록/운영 설정 배포·종료 세션 정리와 보존, 학사 시드 원장의 범위, 공고 입력·갱신 운영 절차는 후속 결정으로 남습니다. AI는 `create_agent`·OpenAI Luna·실시간 답변을 선택했으며 전송·실행·데이터 보존의 상세는 [SDD](../development-plans/ai-agent.md)에서 검토합니다. 모집 정보·지원 메시지 편집과 공고 변경 영향도 [공통 계약의 보류 목록](conventions.md#deferred) 및 각 기능 명세를 따릅니다. 확정된 모집·지원 전이는 [모집 상태 변경](teams.md#transitions)과 [지원 상태 변경](applications.md#transitions)을 참조합니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖이며 현재 인증 구현의 선행 조건이 아닙니다.
 
 JSON 이름과 접두사는 [저장소 API 작성 규칙](../development/conventions.md)을 따릅니다. 저장 모델·마이그레이션의 구현 범위는 [DB 인덱스](../database/README.md), 로컬 실행·검사는 [개발 안내](../development/local-development.md)에서 확인합니다.

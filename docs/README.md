@@ -10,6 +10,7 @@
 | --- | --- |
 | [collaboration/](collaboration/README.md) | GitHub에서 문서 작성·PR·리뷰·게시 확인을 하는 방법 |
 | [development/](development/README.md) | 설치·실행, 기술 규칙, 개발·리뷰·검증 방법 |
+| [development-plans/](development-plans/README.md) | 기능 명세에 연결된 상세 설계·구현 순서·검증 계획 |
 | [specs/](specs/README.md) | 팀이 검토하는 기능 동작·정책·예외·완료 조건 |
 | [database/](database/README.md) | 물리 ERD·테이블 정의·DB 제약·트랜잭션 설계안 |
 | [api/](api/README.md) | 요청·응답 필드·권한·오류·페이지네이션의 Markdown 설계 |
