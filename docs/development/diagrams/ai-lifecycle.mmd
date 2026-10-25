@@ -1,0 +1,21 @@
+sequenceDiagram
+    accTitle: 일반 채팅의 스트리밍과 저장 순서
+    accDescr: 입력과 실행은 접수 트랜잭션에 저장하고, 텍스트는 권한 검사 뒤 전송한다. 답변과 실행 완료는 별도 트랜잭션으로 확정한 뒤 최종 결과를 보낸다.
+    participant client as 클라이언트
+    participant service as AI 서비스
+    participant database as PostgreSQL
+    client->>service: POST · 입력 + 이전 맥락
+    service->>database: 접수 TX · 대화/입력/pending
+    database-->>service: COMMIT
+    service-->>client: started / progress
+    service->>service: Planner → 검증 → Writer
+    loop 텍스트 조각마다
+        service->>database: 현재 세션·자료 검사 / 잠금
+        database-->>service: 검증된 현재 자료
+        service-->>client: answer.delta → 잠금 해제
+    end
+    service->>database: 완료 TX · 권한/답변/완료 상태
+    database-->>service: COMMIT
+    service->>database: 최종 전송 권한 검사 / 잠금
+    database-->>service: 현재 권한 확인
+    service-->>client: result·done → 잠금 해제

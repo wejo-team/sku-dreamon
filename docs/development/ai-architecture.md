@@ -4,19 +4,12 @@
 
 ## 구성과 실행 흐름
 
-```text
-인증된 POST 요청
-  → FastAPI: 쿠키·CSRF·입력 DTO 검증
-  → 실행 접수 트랜잭션: 소유권·중복·한도 확인
-      ai_runs 생성/재시도 + 일반 채팅 사용자 메시지 저장
-  → Planner: create_agent + 목적별 조회 도구 + 구조화 출력
-      도메인 서비스 → repositories → PostgreSQL
-  → 서버: 실제 ID·현재 권한·후보 조건·근거 버전 검증
-  → Writer: 검증된 자료로 답변 텍스트 생성
-      조각마다 권한 재검증 → SSE answer.delta
-  → 완료 트랜잭션: 권한 재검증 + 채팅 완성 답변 저장 + 실행 완료
-  → 전송 직전 재검증 → SSE result·done
-```
+![AI 요청 처리 흐름: 입력 접수, Planner의 자료 조회, 서버 검증, Writer 스트리밍, 답변 저장과 완료 전송](diagrams/ai-flow.svg)
+
+[그림 크게 보기](diagrams/ai-flow.svg) · [Mermaid 원본](diagrams/ai-flow.mmd)
+
+보라색은 **Luna를 호출하는 두 단계**, 초록색은 **서버의 처리·검증**, 노란색은 **완료 저장**입니다. Planner가 도구를 호출해 자료를 찾은 뒤 서버 검증을 통과한 내용으로 Writer가 답변을 작성합니다. 답변의 텍스트 조각을 먼저 전송하고, 생성 완료 후 저장과 최종 결과 전송으로 이어집니다. 실패 경로는 대표 사례만 표시했으며 자세한 처리는 아래 절을 따릅니다. 대화 원문 저장은 일반 채팅에만 적용합니다.
+
 
 별도 worker·작업 큐 없이 요청을 받은 FastAPI 프로세스가 실행합니다. [앱 수명](../../backend/app/main.py) 동안 모델 클라이언트를 공유하지만 사용자 대화 상태를 공유 객체에 두지 않습니다. 요청마다 [create_agent](../../backend/app/agents/factory.py)의 그래프와 조회 도구를 구성하며 LangGraph 영속 checkpointer·store는 연결하지 않습니다. 서버 재시작 뒤 중단된 그래프를 재개하는 기능은 없습니다.
 
@@ -33,6 +26,12 @@
 [프롬프트](../../backend/app/agents/prompts.py)는 자유 텍스트의 지시를 자료로 취급하고 고정 점수·자동 선발을 금지합니다. 참가 자격 원문은 확인 안내에 사용하며 학사 조건으로 후보를 차단하지 않습니다. 주당 참여 가능 시간은 모든 프로젝트를 합산한 참고값입니다. 보안·권한 검사는 프롬프트 준수 여부에 의존하지 않습니다.
 
 ## 목적별 도구와 권한
+
+![도구 구성: 서버의 AgentContext와 SourceTools 팩토리가 목적별 도구를 만들고 SourceReader와 도메인 서비스를 통해 PostgreSQL을 조회](diagrams/ai-tools.svg)
+
+[그림 크게 보기](diagrams/ai-tools.svg) · [Mermaid 원본](diagrams/ai-tools.mmd)
+
+`SourceTools.build()`가 **요청 목적에 맞는 도구 묶음 하나**를 Planner에 전달합니다. 그림의 세 묶음을 한 요청에 모두 제공하지 않습니다. 도구 함수는 요청별 `SourceTools`를 클로저로 참조하고, 서버가 주입한 `SourceReader`에서 권한과 자료 범위를 확인합니다. Writer에는 도구를 제공하지 않습니다.
 
 | 목적 | 허용 도구·자료 | 경계 |
 | --- | --- | --- |
@@ -59,6 +58,12 @@ DB에 원문이 있어도 조회·목록·복원 API를 제공하거나 다음 �
 OpenAI 호출은 `store=False`, 이전 응답 ID 연결은 끄고 LangSmith tracing도 비활성화합니다. 이는 우리 PostgreSQL의 대화 저장과 별개의 설정이며 제공자의 모든 로그·보존을 없앤다는 뜻은 아닙니다. 공급자·운영 로그·백업의 보존은 배포 단계에서 확인합니다.
 
 ## 트랜잭션과 중복 방지
+
+![일반 채팅의 저장과 전송 순서: 입력 접수 커밋, 텍스트 조각마다 권한 검사와 전송, 답변 완료 커밋, 최종 권한 검사와 결과 전송](diagrams/ai-lifecycle.svg)
+
+[그림 크게 보기](diagrams/ai-lifecycle.svg) · [Mermaid 원본](diagrams/ai-lifecycle.mmd)
+
+**접수 커밋과 완료 커밋은 별개의 트랜잭션**입니다. 그림은 일반 채팅의 정상 경로이며 모델·도구 호출 내부는 첫 번째 흐름 그림으로 묶었습니다. 모델을 기다릴 때는 DB 잠금을 유지하지 않고, 조각·최종 결과를 보내는 짧은 구간에서는 현재 권한을 잠금 아래 확인합니다. 완료 커밋은 클라이언트 수신 성공을 뜻하지 않습니다.
 
 1. **접수:** 계정 잠금과 기존 실행·한도 확인 뒤 대화 소유권을 확인하고 현재 사용자 메시지와 `pending` 실행을 함께 커밋합니다. 같은 요청의 재시도는 사용자 메시지를 추가하지 않습니다. 입력 저장이 실패하면 실행과 새 대화 생성도 롤백됩니다.
 2. **생성:** 모델을 기다리는 동안 DB 세션·잠금을 유지하지 않습니다. 각 텍스트 조각 전송 시 관련 자료와 현재 세션을 짧게 잠그고 근거·기한·시도를 재검사합니다.
@@ -88,3 +93,5 @@ OpenAI 호출은 `store=False`, 이전 응답 ID 연결은 끄고 LangSmith trac
 | [대화 레포지토리](../../backend/app/repositories/ai_chat.py), [실행 레포지토리](../../backend/app/repositories/ai_runs.py) | SQL·고유 제약·행 잠금·flush. 자체 commit 없음 |
 
 의존 방향은 [공통 아키텍처](architecture.md#responsibility-boundaries)를 따릅니다. [통합 테스트](../../backend/tests/integration/test_ai.py)는 실제 PostgreSQL과 가짜 모델로 권한·중복·취소·원문 저장·트랜잭션 실패·연결 종료를 검사합니다. [도구 테스트](../../backend/tests/unit/test_ai_tools.py)는 병렬 조회 한도와 자료 변경을 검사합니다. 실제 모델 수동 검사는 [로컬 실행](local-development.md#ai-backend)을 따르며 일반 테스트는 유료 API를 호출하지 않습니다.
+
+시각자료의 수정·재생성 방법은 [도표 원본 안내](diagrams/README.md)를 따릅니다.
