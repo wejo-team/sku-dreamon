@@ -11,8 +11,80 @@ describe('apiRequest', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(apiRequest('/health')).resolves.toEqual({ status: 'ok' });
+    // docs/api/conventions.md#session-auth: 세션은 브라우저 쿠키로 전달합니다.
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/health', {
       headers: new Headers({ Accept: 'application/json' }),
+      credentials: 'include',
+    });
+  });
+
+  it('serializes a JSON body with its content type', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ data: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiRequest('/auth/login', {
+      method: 'POST',
+      json: { loginId: 'dreamondemo', password: 'x'.repeat(15) },
+    });
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect(init.body).toBe(
+      JSON.stringify({ loginId: 'dreamondemo', password: 'x'.repeat(15) }),
+    );
+    expect(new Headers(init.headers).get('Content-Type')).toBe(
+      'application/json',
+    );
+  });
+
+  it('exposes the business error code and request ID from the common Error body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: 'VERSION_CONFLICT',
+              message: '정보가 변경되었습니다.',
+            },
+            requestId: 'request-1',
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    await expect(apiRequest('/me/profile')).rejects.toMatchObject({
+      status: 409,
+      code: 'VERSION_CONFLICT',
+      requestId: 'request-1',
+      issues: [],
+    });
+  });
+
+  it('exposes validation issues from a 422 body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            detail: [
+              {
+                loc: ['body', 'loginId'],
+                msg: '형식 오류',
+                type: 'value_error',
+              },
+            ],
+          },
+          { status: 422 },
+        ),
+      ),
+    );
+
+    await expect(apiRequest('/accounts')).rejects.toMatchObject({
+      status: 422,
+      code: null,
+      issues: [
+        { loc: ['body', 'loginId'], msg: '형식 오류', type: 'value_error' },
+      ],
     });
   });
 
