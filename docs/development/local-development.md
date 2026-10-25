@@ -15,7 +15,13 @@
 docker compose up -d --wait
 ```
 
-기본 개발 DB는 `127.0.0.1:5432`, DB·사용자·암호는 모두 `wejo`입니다. localhost에만 포트를 공개하며 이 값은 개발용입니다. 데이터는 Compose 볼륨에 유지됩니다.
+기본 개발 DB는 `127.0.0.1:5432/wejo_dev`이며 사용자·암호는 `wejo`입니다. localhost에만 포트를 공개하며 이 값은 개발용입니다. 데이터는 Compose 볼륨에 유지됩니다.
+
+| DB | 용도 | 연결 설정 |
+| --- | --- | --- |
+| `wejo_dev` | 앱을 직접 사용하며 확인하는 로컬 개발 데이터 | `backend/.env`의 `DATABASE_URL` |
+| `wejo_test` | 자동 테스트의 데이터 생성·정리 | 셸의 `TEST_DATABASE_URL`, 테스트 migration에만 `DATABASE_URL` 임시 지정 |
+| 운영 DB | 별도 배포 환경의 실제 데이터 | 배포 환경에서 주입하며 로컬 설정과 분리 |
 
 5432 포트를 사용할 수 없다면 다른 포트로 실행합니다.
 
@@ -25,20 +31,41 @@ POSTGRES_PORT=55432 docker compose up -d --wait
 
 이때 아래 백엔드 `.env`의 `DATABASE_URL` 포트도 55432로 바꿉니다. DB 포트 변경은 프론트의 API 프록시 주소와 무관합니다.
 
+다음 실행에도 이 포트를 유지하려면 저장소 루트의 `.env`에 `POSTGRES_PORT=55432`를 저장합니다. 루트 `.env`는 Compose용이고 `backend/.env`는 백엔드용입니다. 두 파일 모두 Git에서 제외합니다. 이 경우 백엔드 주소는 `postgresql+asyncpg://wejo:wejo@127.0.0.1:55432/wejo_dev`입니다.
+
+### 기존 `wejo` DB를 사용하던 경우
+
+`POSTGRES_DB`는 비어 있는 볼륨을 처음 초기화할 때만 DB를 만듭니다. 기존 볼륨은 설정만 바꿔도 DB 이름이 바뀌지 않습니다. 기존 백엔드·DB 도구의 `wejo` 연결을 종료하고, `wejo_dev`가 아직 없는 경우에만 다음 명령으로 이름을 바꿉니다. 테이블과 데이터는 유지됩니다.
+
+```bash
+docker compose exec postgres psql -U wejo -d postgres -v ON_ERROR_STOP=1 \
+  -c "ALTER DATABASE wejo RENAME TO wejo_dev;"
+```
+
+변경 후 기존 `backend/.env`의 `DATABASE_URL` 마지막 DB 이름을 `/wejo_dev`로 수정합니다. `.env` 전체를 복사해 덮어쓰지 않으며 API 키·인증 설정은 유지합니다. `wejo_dev`가 이미 있다면 위 이름 변경을 반복하지 않습니다. [PostgreSQL 이미지 초기화](https://hub.docker.com/_/postgres), [DB 이름 변경](https://www.postgresql.org/docs/17/sql-alterdatabase.html)을 참고합니다.
+
 ## 백엔드 — 별도 터미널
 
 ```bash
 cd backend
-cp .env.example .env
+cp -n .env.example .env
 uv sync --locked
 uv run alembic upgrade head
 uv run python -m app.core.db.check
 uv run uvicorn app.main:app --reload
 ```
 
+`cp -n`은 기존 `.env`를 덮어쓰지 않습니다. 기존 파일이 있다면 아래 DB 주소가 맞는지 직접 확인합니다. 포트를 변경했다면 주소의 포트도 맞춥니다.
+
+```dotenv
+DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:5432/wejo_dev
+```
+
 API는 `http://127.0.0.1:8000`, 대화형 API 문서는 `/docs`입니다. `GET /api/v1/health`는 `{"status":"ok"}`를 반환합니다. health는 프로세스 연결 확인이며 DB 준비 상태 검사가 아닙니다.
 
 `upgrade head`는 계정·서버 세션, 학사, 공고, 프로필, 팀·지원·소속·발생 건·알림과 AI 실행 메타데이터·대화·메시지까지 migration 8개를 적용합니다. 현재 적용 대상은 [DB 인덱스](../database/README.md)와 [Alembic 모델 등록](../../backend/alembic/env.py)에서 확인합니다. 스키마 적용은 운영 학사 원장·공고·시연 데이터를 적재하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
+
+개발용 데이터는 `wejo_dev`에 넣고 실제 API로 변경하면서 검증합니다. 공고 등록은 [공고 CLI](../api/contests.md#contest-import-cli), 가입·프로필·팀 생성은 각 [API](../api/README.md)를 사용합니다. 전체 예시 데이터를 한 번에 넣는 개발용 seed 명령은 아직 없습니다. 자동 테스트 fixture는 `wejo_test`에서 생성·정리하며 개발 DB의 예시 데이터를 대신하지 않습니다.
 
 인증 HTTP는 가입·로그인·CSRF 조회·본인 계정 조회·로그아웃을 제공하며, 화면 연결은 별도 작업입니다. 전체 API 구현 범위는 [API 인덱스](../api/README.md)를 따릅니다. 인증 관련 요청을 검증할 환경에서는 `.env`의 `CSRF_SIGNING_KEY`에 32바이트 이상의 난수 키를 주입하고 `AUTH_ALLOWED_ORIGINS`에 정확한 HTTPS origin 목록을 설정합니다. 설정 형식은 [환경변수 예시](../../backend/.env.example), 검증은 [Settings](../../backend/app/core/config.py), 쿠키 속성은 [인증 쿠키 코드](../../backend/app/routers/auth_cookies.py)를 확인합니다.
 

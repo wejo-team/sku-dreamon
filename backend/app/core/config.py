@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     database_url: PostgresDsn = PostgresDsn(
-        "postgresql+asyncpg://wejo:wejo@127.0.0.1:5432/wejo"
+        "postgresql+asyncpg://wejo:wejo@127.0.0.1:5432/wejo_dev"
     )
     openai_api_key: SecretStr | None = Field(default=None, repr=False)
     ai_model: Literal["gpt-6-luna"] = "gpt-6-luna"
