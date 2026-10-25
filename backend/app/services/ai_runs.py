@@ -4,10 +4,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Literal, cast
 from uuid import UUID
 
 from pydantic import TypeAdapter
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.types import AgentContext, Reference, Resource, fingerprint
 from app.core.config import Settings
@@ -24,6 +25,7 @@ from app.schemas.ai import (
     ChatStart,
     TargetStart,
 )
+from app.services import ai_chat
 from app.services.ai_sources import SourceReader
 from app.services.sessions import IDLE_LIFETIME, SessionPrincipal
 
@@ -134,7 +136,6 @@ class RunService:
         expected_attempt: int | None = None,
     ) -> Execution:
         await self.clean_expired()
-        now = datetime.now(UTC)
         principal = context.principal
         conversation_id = (
             payload.conversation_id if isinstance(payload, ChatStart) else None
@@ -154,6 +155,7 @@ class RunService:
         )
         async with self.database.session() as session:
             await lock_accounts(session, [principal.account_id])
+            now = datetime.now(UTC)
             run = await repository.get_run(session, payload.request_id, lock=True)
             if run is not None:
                 self.require_owner(run, principal)
@@ -222,6 +224,14 @@ class RunService:
                     "RATE_LIMITED",
                     "요청이 많습니다. 잠시 후 다시 시도해 주세요.",
                     {"Retry-After": "60"},
+                )
+            if isinstance(payload, ChatStart):
+                await ai_chat.save_user(
+                    session,
+                    principal.account_id,
+                    payload,
+                    now,
+                    retry=expected_attempt is not None,
                 )
             if run is None:
                 run = AiRun(
@@ -336,6 +346,37 @@ class RunService:
             await session.commit()
             return True
 
+    async def complete(
+        self,
+        execution: Execution,
+        *,
+        status: Literal["succeeded", "empty"],
+        sources: list[Reference],
+        selected_keys: list[str],
+        result_hash: str,
+        answer: str,
+    ) -> None:
+        """현재 권한 검사·완성 답변 저장·실행 완료를 하나의 트랜잭션으로 확정한다."""
+        async with self.database.session() as session:
+            run, _ = await self._publication(session, execution, sources)
+            now = datetime.now(UTC)
+            if isinstance(execution.input, ChatStart):
+                await ai_chat.save_answer(
+                    session,
+                    execution.input,
+                    answer,
+                    execution.attempt,
+                    self.settings.ai_model,
+                    sources,
+                    now,
+                )
+            run.status, run.failure_code = status, None
+            run.result_hash = result_hash
+            run.references = [ref.model_dump(mode="json") for ref in sources]
+            run.selected_keys = selected_keys
+            run.updated_at = now
+            await session.commit()
+
     @asynccontextmanager
     async def publishing(
         self,
@@ -345,70 +386,80 @@ class RunService:
         completed: bool = False,
         allow_stale: bool = False,
     ) -> AsyncIterator[list[Resource]]:
-        """ASGI send가 끝날 때까지 자료 변경과 세션 회수를 직렬화한다.
-
-        LLM을 기다리는 동안에는 이 경계를 열지 않는다. 호출자는 전송을
-        제한 시간 안에 끝내며 연결 종료 시 반드시 컨텍스트를 닫는다.
-        """
-        principal = execution.context.principal
+        """짧은 ASGI 전송 동안 자료 변경과 세션 회수를 직렬화한다."""
         async with self.database.session() as session:
-            await repository.lock_publication_sources(
+            _, values = await self._publication(
                 session,
-                account_ids=sorted(
-                    {
-                        principal.account_id,
-                        *(ref.account_id for ref in sources if ref.account_id),
-                    }
-                ),
-                contest_ids=sorted(
-                    {ref.contest_id for ref in sources if ref.contest_id}
-                ),
-                team_ids=sorted({ref.team_id for ref in sources if ref.team_id}),
-                application_ids=sorted(
-                    {ref.resource_id for ref in sources if ref.kind == "application"}
-                ),
-                profile_ids=sorted(
-                    {ref.account_id for ref in sources if ref.account_id}
-                ),
+                execution,
+                sources,
+                completed=completed,
+                allow_stale=allow_stale,
             )
-            run = self.require_owner(
-                await repository.get_run(session, execution.request_id, lock=True),
-                principal,
-            )
-            allowed = ("succeeded", "empty") if completed else ("pending",)
-            if run.attempt != execution.attempt or run.status not in allowed:
-                raise RunCanceled()
-            login = await repository.session_record(
-                session, principal.auth_session_id, lock=True
-            )
-            now = datetime.now(UTC)
-            if not completed and now >= run.deadline_at:
-                raise TimeoutError()
-            if (
-                login is None
-                or login.account_id != principal.account_id
-                or login.revoked_at is not None
-                or now >= login.expires_at
-                or now >= login.last_seen_at + IDLE_LIFETIME
-            ):
-                raise ContextChanged()
-            reader = SourceReader(self.database, execution.context)
-            values: list[Resource] = []
-            for source in sources:
-                try:
-                    current = await reader.get(source.kind, source.resource_id)
-                except AppError as error:
-                    if error.status_code in (401, 403, 404, 409):
-                        raise ContextChanged() from None
-                    raise
-                if allow_stale and source.kind == "application":
-                    if (
-                        execution.context.purpose == "applicant_recommendation"
-                        and source.key in run.selected_keys
-                        and not current.is_selection_candidate
-                    ):
-                        raise ContextChanged()
-                elif current.reference.fingerprint != source.fingerprint:
-                    raise ContextChanged()
-                values.append(current)
             yield values
+
+    async def _publication(
+        self,
+        session: AsyncSession,
+        execution: Execution,
+        sources: list[Reference],
+        *,
+        completed: bool = False,
+        allow_stale: bool = False,
+    ) -> tuple[AiRun, list[Resource]]:
+        principal = execution.context.principal
+        await repository.lock_publication_sources(
+            session,
+            account_ids=sorted(
+                {
+                    principal.account_id,
+                    *(ref.account_id for ref in sources if ref.account_id),
+                }
+            ),
+            contest_ids=sorted({ref.contest_id for ref in sources if ref.contest_id}),
+            team_ids=sorted({ref.team_id for ref in sources if ref.team_id}),
+            application_ids=sorted(
+                {ref.resource_id for ref in sources if ref.kind == "application"}
+            ),
+            profile_ids=sorted({ref.account_id for ref in sources if ref.account_id}),
+        )
+        run = self.require_owner(
+            await repository.get_run(session, execution.request_id, lock=True),
+            principal,
+        )
+        allowed = ("succeeded", "empty") if completed else ("pending",)
+        if run.attempt != execution.attempt or run.status not in allowed:
+            raise RunCanceled()
+        login = await repository.session_record(
+            session, principal.auth_session_id, lock=True
+        )
+        now = datetime.now(UTC)
+        if not completed and now >= run.deadline_at:
+            raise TimeoutError()
+        if (
+            login is None
+            or login.account_id != principal.account_id
+            or login.revoked_at is not None
+            or now >= login.expires_at
+            or now >= login.last_seen_at + IDLE_LIFETIME
+        ):
+            raise ContextChanged()
+        reader = SourceReader(self.database, execution.context)
+        values: list[Resource] = []
+        for source in sources:
+            try:
+                current = await reader.get(source.kind, source.resource_id)
+            except AppError as error:
+                if error.status_code in (401, 403, 404, 409):
+                    raise ContextChanged() from None
+                raise
+            if allow_stale and source.kind == "application":
+                if (
+                    execution.context.purpose == "applicant_recommendation"
+                    and source.key in run.selected_keys
+                    and not current.is_selection_candidate
+                ):
+                    raise ContextChanged()
+            elif current.reference.fingerprint != source.fingerprint:
+                raise ContextChanged()
+            values.append(current)
+        return run, values

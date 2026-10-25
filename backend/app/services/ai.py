@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 from typing import Literal, cast
 from uuid import UUID
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.agents.factory import AgentDriver as AgentDriver
 from app.agents.tools import SourceTools, ToolBudgetExceeded
 from app.agents.types import RecommendationPlan, Resource, fingerprint
@@ -162,9 +164,22 @@ class AiService:
         context = await self.runs.resolve_context(
             principal, purpose, team_id=team_id, application_id=application_id
         )
-        return await self.runs.prepare(
-            context, payload, expected_attempt=expected_attempt
-        )
+        try:
+            return await self.runs.prepare(
+                context, payload, expected_attempt=expected_attempt
+            )
+        except SQLAlchemyError as error:
+            # SQL 인자의 대화 원문을 서버 traceback에 남기지 않는다.
+            logger.warning(
+                "AI request storage failed: request_id=%s error_type=%s",
+                payload.request_id,
+                type(error).__name__,
+            )
+            raise AppError(
+                503,
+                "TEMPORARY_UNAVAILABLE",
+                "요청을 저장하지 못했습니다. 다시 시도해 주세요.",
+            ) from None
 
     async def _await_active[T](
         self, execution: Execution, operation: Awaitable[T]
@@ -283,17 +298,14 @@ class AiService:
                 status: Literal["empty", "succeeded"] = (
                     "empty" if plan.intent == "empty" else "succeeded"
                 )
-                async with self.runs.publishing(execution, refs):
-                    pass
-                accepted = await self.runs.finish(
+                await self.runs.complete(
                     execution,
                     status=status,
                     sources=refs,
                     selected_keys=[item.key for item in plan.selections],
                     result_hash=fingerprint(result.model_dump(mode="json")),
+                    answer=text,
                 )
-                if not accepted:
-                    raise RunCanceled()
                 async with self.runs.publishing(execution, refs, completed=True):
                     # 완료는 커밋됐지만 클라이언트의 수신 성공까지 보장하지 않는다.
                     yield event("result", result=result.model_dump(mode="json"))

@@ -107,7 +107,11 @@ async def ai_data(review_data: ApplicationData) -> ApplicationData:  # noqa: F81
     async with data.database.engine.begin() as connection:
         await connection.run_sync(
             lambda sync: Base.metadata.create_all(
-                sync, [Base.metadata.tables["ai_runs"]]
+                sync,
+                [
+                    Base.metadata.tables[name]
+                    for name in ("ai_runs", "ai_conversations", "ai_messages")
+                ],
             )
         )
     async with data.database.session() as session:
@@ -618,3 +622,295 @@ async def test_failed_initial_headers_do_not_leave_an_unstarted_run_pending(
         await response(scope, receive, send)
     assert (await service.runs.get(owner, execution.request_id)).status == "canceled"
     assert driver.plan_calls == 0
+
+
+async def test_chat_archives_current_messages_once_without_history_api(
+    ai_data: ApplicationData,
+) -> None:
+    from app.models.ai_chat import AiConversation, AiMessage
+
+    driver = FakeDriver(ai_data)
+    body = {**payload(), "history": ["과거 발화는 다시 저장하지 않는다"]}
+    async with client_for(ai_data, driver, ai_data.applicant_id) as client:
+        response = await client.post("/api/v1/ai/chat/stream", json=body)
+        assert events(response.text)[-1]["event"] == "done"
+        assert (
+            await client.post("/api/v1/ai/chat/stream", json=body)
+        ).status_code == 409
+        duplicate = {**body, "requestId": str(uuid4())}
+        assert (
+            await client.post("/api/v1/ai/chat/stream", json=duplicate)
+        ).status_code == 409
+        assert (await client.get("/api/v1/ai/conversations")).status_code == 404
+    async with ai_data.database.session() as session:
+        conversations = list(await session.scalars(select(AiConversation)))
+        messages = list(
+            await session.scalars(select(AiMessage).order_by(AiMessage.created_at))
+        )
+        assert len(conversations) == 1
+        assert conversations[0].account_id == ai_data.applicant_id
+        assert [m.role for m in messages] == ["user", "assistant"]
+        assert [m.content for m in messages] == [
+            body["content"],
+            "등록된 정보를 바탕으로 추천합니다.",
+        ]
+        assert messages[1].attempt == 1
+        assert messages[1].model == "gpt-6-luna"
+        assert messages[1].source_references[0]["resource_id"] == str(
+            ai_data.stranger_id
+        )
+        assert messages[0].source_references == []
+
+
+async def test_chat_retry_archives_one_user_and_only_completed_answer(
+    ai_data: ApplicationData,
+) -> None:
+    from app.models.ai_chat import AiMessage
+
+    driver = FakeDriver(ai_data)
+    driver.fail_once = True
+    body = payload()
+    async with client_for(ai_data, driver, ai_data.applicant_id) as client:
+        first = await client.post("/api/v1/ai/chat/stream", json=body)
+        assert events(first.text)[-1]["event"] == "error"
+        async with ai_data.database.session() as session:
+            assert [m.role for m in await session.scalars(select(AiMessage))] == [
+                "user"
+            ]
+        response = await client.post(
+            f"/api/v1/ai/requests/{body['requestId']}/retries/stream",
+            json={"expectedAttempt": 1, "input": body},
+        )
+        assert events(response.text)[-1]["event"] == "done"
+    async with ai_data.database.session() as session:
+        rows = list(await session.scalars(select(AiMessage).order_by(AiMessage.role)))
+        assert len(rows) == 2
+        assert rows[0].role == "assistant" and rows[0].attempt == 2
+        assert rows[1].role == "user"
+
+
+async def test_chat_archive_survives_run_cleanup_and_prevents_reexecution(
+    ai_data: ApplicationData,
+) -> None:
+    from datetime import timedelta
+
+    from app.models.ai_chat import AiMessage
+    from app.repositories.ai_runs import expire_runs
+
+    driver = FakeDriver(ai_data)
+    body = payload()
+    async with client_for(ai_data, driver, ai_data.applicant_id) as client:
+        assert (
+            events((await client.post("/api/v1/ai/chat/stream", json=body)).text)[-1][
+                "event"
+            ]
+            == "done"
+        )
+        async with ai_data.database.session() as session:
+            await expire_runs(session, datetime.now(UTC) + timedelta(days=2))
+            await session.commit()
+            assert await session.get(AiRun, UUID(str(body["requestId"]))) is None
+            assert len(list(await session.scalars(select(AiMessage)))) == 2
+        assert (
+            await client.post("/api/v1/ai/chat/stream", json=body)
+        ).status_code == 409
+        duplicate = {**body, "requestId": str(uuid4())}
+        assert (
+            await client.post("/api/v1/ai/chat/stream", json=duplicate)
+        ).status_code == 409
+        next_message = payload(UUID(str(body["conversationId"])))
+        assert (
+            events(
+                (await client.post("/api/v1/ai/chat/stream", json=next_message)).text
+            )[-1]["event"]
+            == "done"
+        )
+    assert driver.plan_calls == 2
+
+
+async def test_another_account_cannot_append_to_owned_conversation(
+    ai_data: ApplicationData,
+) -> None:
+    driver = FakeDriver(ai_data)
+    body = payload()
+    async with client_for(ai_data, driver, ai_data.applicant_id) as client:
+        await client.post("/api/v1/ai/chat/stream", json=body)
+    async with client_for(ai_data, driver, ai_data.leader_id) as client:
+        stolen = payload(UUID(str(body["conversationId"])))
+        assert (
+            await client.post("/api/v1/ai/chat/stream", json=stolen)
+        ).status_code == 404
+    assert driver.plan_calls == 1
+
+
+async def test_answer_storage_failure_cannot_commit_success(
+    ai_data: ApplicationData,
+) -> None:
+    from sqlalchemy import text
+
+    from app.models.ai_chat import AiMessage
+
+    async with ai_data.database.session() as session:
+        connection = await session.connection()
+        assert connection.sync_connection is not None
+        schema = connection.sync_connection.get_execution_options()[
+            "schema_translate_map"
+        ][None]
+        await session.execute(
+            text(
+                f'ALTER TABLE "{schema}".ai_messages ADD CONSTRAINT reject_answer '
+                "CHECK (role != 'assistant')"
+            )
+        )
+        await session.commit()
+    body = payload()
+    async with client_for(ai_data, FakeDriver(ai_data), ai_data.applicant_id) as client:
+        response = await client.post("/api/v1/ai/chat/stream", json=body)
+        assert events(response.text)[-1]["event"] == "error"
+        assert all(e["event"] != "done" for e in events(response.text))
+    async with ai_data.database.session() as session:
+        run = await session.get(AiRun, UUID(str(body["requestId"])))
+        assert run is not None and run.status == "failed" and run.result_hash is None
+        assert [m.role for m in await session.scalars(select(AiMessage))] == ["user"]
+
+
+@pytest.mark.parametrize("outcome", ["failure", "disconnect", "revocation"])
+async def test_partial_answers_are_not_archived(
+    ai_data: ApplicationData,
+    outcome: str,
+) -> None:
+    from app.models.ai_chat import AiMessage
+
+    class PartialDriver(FakeDriver):
+        async def write(
+            self, plan: RecommendationPlan, resources: list[Resource], content: str
+        ) -> AsyncIterator[str]:
+            yield "완성되지 않은 답변"
+            if outcome == "failure":
+                raise RuntimeError("generation interrupted")
+            if outcome == "revocation":
+                async with ai_data.database.session() as session:
+                    await session.execute(
+                        update(Profile)
+                        .where(Profile.profile_id == ai_data.stranger_id)
+                        .values(is_public=False)
+                    )
+                    await session.commit()
+            yield "후속 내용"
+
+    service = AiService(ai_data.database, settings(), PartialDriver(ai_data))
+    execution = await service.start(
+        principal(ai_data, ai_data.applicant_id),
+        "chat",
+        ChatStart.model_validate(payload()),
+    )
+    stream = service.stream(execution)
+    try:
+        while b"event: answer.delta" not in await anext(stream):
+            pass
+        if outcome != "disconnect":
+            remaining = [part async for part in stream]
+            assert b"event: done" not in b"".join(remaining)
+    finally:
+        await stream.aclose()
+    async with ai_data.database.session() as session:
+        assert [m.role for m in await session.scalars(select(AiMessage))] == ["user"]
+
+
+async def test_concurrent_accounts_cannot_claim_same_conversation(
+    ai_data: ApplicationData,
+) -> None:
+    from app.models.ai_chat import AiConversation, AiMessage
+
+    conversation_id = uuid4()
+    service = AiService(ai_data.database, settings(), FakeDriver(ai_data))
+    results = await asyncio.gather(
+        *(
+            service.start(
+                principal(ai_data, account_id),
+                "chat",
+                ChatStart.model_validate(payload(conversation_id)),
+            )
+            for account_id in (ai_data.applicant_id, ai_data.leader_id)
+        ),
+        return_exceptions=True,
+    )
+    assert (
+        len([r for r in results if isinstance(r, AppError) and r.status_code == 404])
+        == 1
+    )
+    async with ai_data.database.session() as session:
+        assert len(list(await session.scalars(select(AiConversation)))) == 1
+        assert len(list(await session.scalars(select(AiMessage)))) == 1
+        assert len(list(await session.scalars(select(AiRun)))) == 1
+
+
+async def test_user_storage_failure_rolls_back_conversation_and_run(
+    ai_data: ApplicationData,
+) -> None:
+    from sqlalchemy import text
+
+    from app.models.ai_chat import AiConversation, AiMessage
+
+    async with ai_data.database.session() as session:
+        connection = await session.connection()
+        assert connection.sync_connection is not None
+        schema = connection.sync_connection.get_execution_options()[
+            "schema_translate_map"
+        ][None]
+        await session.execute(
+            text(
+                f'ALTER TABLE "{schema}".ai_messages ADD CONSTRAINT reject_user '
+                "CHECK (role != 'user')"
+            )
+        )
+        await session.commit()
+    driver = FakeDriver(ai_data)
+    service = AiService(ai_data.database, settings(), driver)
+    with pytest.raises(AppError) as error:
+        await service.start(
+            principal(ai_data, ai_data.applicant_id),
+            "chat",
+            ChatStart.model_validate(payload()),
+        )
+    async with ai_data.database.session() as session:
+        assert list(await session.scalars(select(AiConversation))) == []
+        assert list(await session.scalars(select(AiMessage))) == []
+        assert list(await session.scalars(select(AiRun))) == []
+    assert error.value.status_code == 503
+    assert driver.plan_calls == 0
+
+
+async def test_empty_chat_answer_is_archived_but_applicant_review_is_not(
+    ai_data: ApplicationData,
+) -> None:
+    from app.models.ai_chat import AiMessage
+
+    class EmptyDriver(FakeDriver):
+        async def plan(
+            self,
+            tools: SourceTools,
+            content: str,
+            history: list[str],
+            previous: list[dict[str, object]],
+        ) -> RecommendationPlan:
+            return RecommendationPlan(
+                intent="empty", selections=[], guidance="현재 후보 없음"
+            )
+
+    body = payload()
+    async with client_for(
+        ai_data, EmptyDriver(ai_data), ai_data.applicant_id
+    ) as client:
+        response = await client.post("/api/v1/ai/chat/stream", json=body)
+        assert events(response.text)[-1]["status"] == "empty"
+    async with client_for(ai_data, FakeDriver(ai_data), ai_data.leader_id) as client:
+        response = await client.post(
+            f"/api/v1/applications/{ai_data.application_id}/ai-reviews/stream",
+            json={"requestId": str(uuid4())},
+        )
+        assert events(response.text)[-1]["event"] == "done"
+    async with ai_data.database.session() as session:
+        rows = list(await session.scalars(select(AiMessage)))
+        assert len(rows) == 2
+        assert all(row.request_id == UUID(str(body["requestId"])) for row in rows)

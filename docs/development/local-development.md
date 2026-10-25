@@ -38,7 +38,7 @@ uv run uvicorn app.main:app --reload
 
 API는 `http://127.0.0.1:8000`, 대화형 API 문서는 `/docs`입니다. `GET /api/v1/health`는 `{"status":"ok"}`를 반환합니다. health는 프로세스 연결 확인이며 DB 준비 상태 검사가 아닙니다.
 
-`upgrade head`는 계정·서버 세션, 학사, 공고, 프로필, 팀·지원·소속·발생 건·알림의 AI 실행 메타데이터까지 migration 7개를 적용합니다. 현재 적용 대상은 [DB 인덱스](../database/README.md)와 [Alembic 모델 등록](../../backend/alembic/env.py)에서 확인합니다. 스키마 적용은 운영 학사 원장·공고·시연 데이터를 적재하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
+`upgrade head`는 계정·서버 세션, 학사, 공고, 프로필, 팀·지원·소속·발생 건·알림과 AI 실행 메타데이터·대화·메시지까지 migration 8개를 적용합니다. 현재 적용 대상은 [DB 인덱스](../database/README.md)와 [Alembic 모델 등록](../../backend/alembic/env.py)에서 확인합니다. 스키마 적용은 운영 학사 원장·공고·시연 데이터를 적재하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
 
 인증 HTTP는 가입·로그인·CSRF 조회·본인 계정 조회·로그아웃을 제공하며, 화면 연결은 별도 작업입니다. 전체 API 구현 범위는 [API 인덱스](../api/README.md)를 따릅니다. 인증 관련 요청을 검증할 환경에서는 `.env`의 `CSRF_SIGNING_KEY`에 32바이트 이상의 난수 키를 주입하고 `AUTH_ALLOWED_ORIGINS`에 정확한 HTTPS origin 목록을 설정합니다. 설정 형식은 [환경변수 예시](../../backend/.env.example), 검증은 [Settings](../../backend/app/core/config.py), 쿠키 속성은 [인증 쿠키 코드](../../backend/app/routers/auth_cookies.py)를 확인합니다.
 
@@ -132,7 +132,7 @@ uv run pytest tests/integration/test_ai.py
 PYTHONPATH=. uv run python tests/manual/check_ai_model.py
 ```
 
-만료된 실행 메타데이터는 새 요청 접수 또는 다음 운영 명령에서 정리합니다. 유휴 시간에도 물리 삭제가 필요하면 운영 스케줄러에서 정기 실행합니다. 이 명령은 LLM을 호출하지 않습니다.
+만료된 실행 메타데이터는 새 요청 접수 또는 다음 운영 명령에서 정리합니다. 유휴 시간에도 물리 삭제가 필요하면 운영 스케줄러에서 정기 실행합니다. 이 명령은 LLM을 호출하지 않으며 대화·메시지도 삭제하지 않습니다. 일반 채팅 원문은 별도 보존 기간 결정 전까지 자동 만료하지 않습니다.
 
 ```bash
 cd backend
