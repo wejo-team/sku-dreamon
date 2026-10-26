@@ -1,6 +1,6 @@
 # 테스트·CI 기준
 
-문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `main`에 병합된 뒤에는 전체를 검사합니다. 현재 실행 기반과 구현한 업무 기능의 unit·HTTP·PostgreSQL 검사가 있으며, 새 기능과 E2E 검사는 해당 동작을 구현할 때 추가합니다. 앱 실행 명령은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 공식 디자인 앱은 필요할 때 아래 [수동 확인](#design-reference)을 수행합니다.
+문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `main`에 병합된 뒤에는 전체를 검사합니다. 현재 unit·HTTP·PostgreSQL 검사와 수동 실행하는 제품 Playwright E2E가 있습니다. 실제 프론트·서버·DB 실행은 [통합테스트와 bug bash](bug-bash.md), 일반 앱 실행은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 공식 디자인 앱은 필요할 때 아래 [수동 확인](#design-reference)을 수행합니다.
 
 ## 의미 있는 테스트
 
@@ -16,7 +16,7 @@
 - 다단어 필드를 가진 API DTO를 처음 구현할 때 [컨벤션](conventions.md)의 「API JSON 필드명」 규칙을 실제 HTTP 요청·응답으로 검사합니다. camelCase 요청 허용·응답 이름, snake_case·혼용 요청 거부, 선택 필드의 잘못된 이름, 중첩 DTO·목록에 대한 규칙 적용과 임의 map 키 보존을 확인합니다. 이 검사는 해당 DTO 구현과 함께 추가합니다.
 - DB 통합 테스트는 전용 PostgreSQL을 사용하고 테스트 사이의 데이터 오염을 막습니다. 서비스 내부 commit이 있는 경우에도 격리되는 전략을 구현하고 검증합니다.
 - 일반 PR 테스트에서 AI·유료 외부 API는 mock으로 대체합니다. 실 API 테스트는 필요할 때 수동·정기 workflow로 분리합니다.
-- Playwright는 로그인·모집·지원 같은 실제 핵심 흐름이 생길 때 추가합니다. 모바일 viewport 검사는 실제 기기의 키보드·스크롤 확인을 보완합니다.
+- 제품 Playwright는 `frontend/e2e/`에서 실제 HTTPS·쿠키·CSRF·서버·DB를 검사합니다. `npm run test:e2e`는 현재 별도 수동 실행이며 기존 `npm test`·CI에서 자동 실행하지 않습니다. 모바일 viewport 검사는 실제 기기의 키보드·스크롤 확인을 보완합니다.
 
 ## 단계별 CI
 
@@ -29,7 +29,7 @@
 | 백엔드 실행 기반 | `uv sync --locked`, Ruff lint·format check, mypy, pytest |
 | 비동기 DB 기반 | PostgreSQL에서 `alembic upgrade head`, `alembic check`, 연결 검사, 세션 분리·commit·rollback·종료 정리 통합 테스트 |
 | DB 모델 도입 | 위 검사에 실제 모델의 migration 적용·조회 테스트 추가 |
-| 핵심 사용자 흐름 완성 | 선택한 Playwright 흐름을 CI에서 실행 |
+| 제품 브라우저 통합 | `npm run test:e2e` 수동 실행. 선택한 흐름의 CI 상시 실행은 후속 |
 
 - 프론트 검사 명령은 package.json scripts, Python 도구 설정은 pyproject.toml에 모읍니다. README·로컬 실행·CI가 같은 명령을 사용하도록 맞춥니다.
 - DB 통합 테스트의 데이터베이스는 운영 환경과 분리합니다. Alembic 적용 후 모델을 실제로 조회할 수 있는지 확인합니다.
