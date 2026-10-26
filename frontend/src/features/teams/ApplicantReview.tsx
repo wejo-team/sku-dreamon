@@ -10,63 +10,89 @@ import { LoaderCircle, RotateCcw, Sparkles } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import type { Applicant, Person } from '@/features/demo/data';
+import type { Application } from '@/features/applications/api';
+import type { Profile } from '@/features/profiles/api';
+import type { Labels } from '@/features/catalogs/labels';
+import { useLabels } from '@/features/catalogs/queries';
 import {
   ApplicantReviewContext,
-  type ApplicantReviewResult,
+  type ApplicantReviewFacts,
 } from '@/features/demo/applicant-review-state';
 
-type Review = ApplicantReviewResult;
+type Review = ApplicantReviewFacts;
 
 // Local reference output deliberately quotes current registered information;
 // it is not a scoring model or a decision about a production LLM architecture.
-function reviewFacts(applicant: Applicant, profile: Person): Review {
+function reviewFacts(
+  application: Application,
+  profile: Profile,
+  { fieldLabel, roleLabel, skillLabel, weeklyAvailabilityLabel }: Labels,
+): Review {
+  const list = (codes: string[], label: (code: string) => string) =>
+    codes.map(label).join(' · ') || '미입력';
   return [
-    { label: '지원 역할', value: applicant.role },
-    { label: '현재 희망 역할', value: profile.roles.join(' · ') || '미입력' },
-    { label: '관심 분야', value: profile.interests?.join(' · ') || '미입력' },
-    { label: '등록한 역량', value: profile.skills?.join(' · ') || '미입력' },
+    { label: '지원 역할', value: roleLabel(application.roleCode) },
+    { label: '현재 희망 역할', value: list(profile.roleCodes, roleLabel) },
+    { label: '관심 분야', value: list(profile.fieldCodes, fieldLabel) },
+    { label: '등록한 역량', value: list(profile.skillCodes, skillLabel) },
     {
       label: '관련 경험',
       value:
         profile.experienceState === 'none'
           ? '관련 경험 없음'
-          : profile.experience || '미입력',
+          : profile.experienceBody || '미입력',
     },
-    { label: '주당 참여 가능 시간', value: profile.availability || '미입력' },
-    { label: '팀에 전한 말', value: applicant.message || '미입력' },
+    {
+      label: '주당 참여 가능 시간',
+      value: profile.weeklyAvailabilityCode
+        ? weeklyAvailabilityLabel(profile.weeklyAvailabilityCode)
+        : '미입력',
+    },
+    { label: '팀에 전한 말', value: application.message || '미입력' },
   ];
 }
 
 // [출처 2, 3] 권한이 있을 때만 결과·요청 UI 표시(모의 응답)
 export function ApplicantReview({
-  applicant,
+  application: applicant,
   profile,
   mayReviewExistingApplication,
 }: {
-  applicant: Applicant;
-  profile: Person;
+  application: Application;
+  profile: Profile;
   mayReviewExistingApplication: boolean;
 }) {
   const [params] = useSearchParams();
+  const labels = useLabels();
   const session = useContext(ApplicantReviewContext);
   const [localResult, setLocalResult] = useState<Review | null>(null);
   const result = session?.results[applicant.id] ?? localResult;
   const profileChanged =
     result !== null &&
-    JSON.stringify(result) !== JSON.stringify(reviewFacts(applicant, profile));
+    JSON.stringify(result) !==
+      JSON.stringify(reviewFacts(applicant, profile, labels));
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const failedOnce = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latest = useRef({ applicant, profile, mayReviewExistingApplication });
-  const isSelectionCandidate = ['지원완료', '검토중'].includes(
+  const latest = useRef({
+    applicant,
+    profile,
+    labels,
+    mayReviewExistingApplication,
+  });
+  const isSelectionCandidate = ['submitted', 'reviewing'].includes(
     applicant.status,
   );
 
   useEffect(() => {
-    latest.current = { applicant, profile, mayReviewExistingApplication };
-  }, [applicant, profile, mayReviewExistingApplication]);
+    latest.current = {
+      applicant,
+      profile,
+      labels,
+      mayReviewExistingApplication,
+    };
+  }, [applicant, profile, labels, mayReviewExistingApplication]);
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
@@ -88,7 +114,11 @@ export function ApplicantReview({
         setFailed(true);
         return;
       }
-      const next = reviewFacts(current.applicant, current.profile);
+      const next = reviewFacts(
+        current.applicant,
+        current.profile,
+        current.labels,
+      );
       if (session) session.save(current.applicant.id, next);
       else setLocalResult(next);
     }, 350);
@@ -168,9 +198,9 @@ export function ApplicantReview({
       </Button>
       {!isSelectionCandidate && (
         <p className="preview-muted">
-          {applicant.status === '지원취소'
+          {applicant.status === 'canceled'
             ? '취소된 지원은 새 선발 후보 추천에서 제외돼요.'
-            : applicant.status === '폐기'
+            : applicant.status === 'discarded'
               ? '다른 팀에서 선발되어 폐기된 지원은 새 선발 후보 추천에서 제외돼요.'
               : '결정이 끝난 지원은 새 선발 후보 추천에서 제외돼요.'}
         </p>

@@ -4,6 +4,7 @@
  * 2. docs/specs/profile-options.md - 학적·학년·역량·주당 시간 선택지
  * 3. docs/specs/profile.md#experience - 경험 미입력/경험 없음/서술 3상태
  * 4. docs/design/assets/profile-320.png - 실제 수정 화면
+ * 5. docs/specs/profile.md - 글자 수는 앞뒤 공백 제거 후 표시(profileTextLength)
  */
 
 import {
@@ -20,51 +21,93 @@ import {
   NativeSelectOption,
 } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
-import type { Profile } from '@/features/demo/data';
-import {
-  academicOptions,
-  academicStatuses,
-  grades,
-  skillOptions,
-  profileTextLength,
-} from '@/features/demo/profile-fields';
+import type { CatalogItem } from '@/features/catalogs/api';
+import type { ProfileFormValues } from '@/features/account/profile-form';
+import { useLabels } from '@/features/catalogs/queries';
+import { profileTextLength } from '@/features/demo/profile-fields';
 
+type Option = { value: string; label: string };
+
+// [출처 2] 새 선택은 선택 가능한 항목만. 저장된 비활성 값은 "기존 소속"으로 보여 유지만 허용
 function SelectOptions({
   options,
   value,
+  current,
 }: {
-  options: readonly string[];
+  options: Option[];
   value: string;
+  /** 목록에 없는 저장값의 표시 이름 */
+  current?: string;
 }) {
   return (
     <>
       <NativeSelectOption value="">선택 안 함</NativeSelectOption>
-      {value && !options.includes(value) && (
+      {value && !options.some((option) => option.value === value) && (
         <NativeSelectOption value={value} disabled>
-          {value} (기존 소속)
+          {current ?? value} (기존 소속)
         </NativeSelectOption>
       )}
       {options.map((option) => (
-        <NativeSelectOption key={option} value={option}>
-          {option}
+        <NativeSelectOption key={option.value} value={option.value}>
+          {option.label}
         </NativeSelectOption>
       ))}
     </>
   );
 }
 
+const catalogOptions = (items: CatalogItem[]): Option[] =>
+  items.map((item) => ({ value: item.code, label: item.displayName }));
+
 // [출처 2, 4] 학사 종속 선택, 다른 소속 관계로 이동하면 무효 하위값만 비움
+// [출처 5] 글자 수 표시. 해당 필드만 구독해 입력할 때 폼 전체가 아니라 이 숫자만 다시 그립니다.
+export function CharacterCount({
+  control,
+  name,
+  max,
+  id,
+}: {
+  control: Control<ProfileFormValues>;
+  name: 'realName' | 'introduction' | 'portfolioTitle' | 'experienceBody';
+  max: number;
+  id?: string;
+}) {
+  const value = useWatch({ control, name }) ?? '';
+  return (
+    <p id={id} className="preview-field-count">
+      {profileTextLength(value)} / {max}자
+    </p>
+  );
+}
+
 export function AcademicFields({
   control,
   setValue,
 }: {
-  control: Control<Profile>;
-  setValue: UseFormSetValue<Profile>;
+  control: Control<ProfileFormValues>;
+  setValue: UseFormSetValue<ProfileFormValues>;
 }) {
-  const college = useWatch({ control, name: 'college' }) ?? '';
-  const department = useWatch({ control, name: 'department' }) ?? '';
-  const major = useWatch({ control, name: 'major' }) ?? '';
-  const options = academicOptions(college, department);
+  const {
+    academicChildren,
+    academicStatusOptions,
+    academicUnitById,
+    catalogs,
+    gradeOptions,
+  } = useLabels();
+  // [출처 4] 부모 아래의 새로 선택 가능한 학사 항목
+  const unitOptions = (parentId: string | null): Option[] =>
+    academicChildren(parentId)
+      .filter((unit) => unit.isSelectable)
+      .map((unit) => ({ value: unit.id, label: unit.name }));
+  const college = useWatch({ control, name: 'collegeId' }) ?? '';
+  const department = useWatch({ control, name: 'departmentId' }) ?? '';
+  const major = useWatch({ control, name: 'majorId' }) ?? '';
+  const options = {
+    colleges: unitOptions(null),
+    departments: college ? unitOptions(college) : [],
+    majors: department ? unitOptions(department) : [],
+  };
+  const nameOf = (id: string) => academicUnitById(id)?.name;
   return (
     <section
       className="preview-form-section"
@@ -80,10 +123,20 @@ export function AcademicFields({
       <div className="profile-academic-fields">
         {(
           [
-            ['academicStatus', '학적 상태', academicStatuses],
-            ['grade', '학년', grades],
+            [
+              'academicStatusCode',
+              '학적 상태',
+              catalogOptions(academicStatusOptions),
+              catalogs.academicStatuses,
+            ],
+            [
+              'gradeCode',
+              '학년',
+              catalogOptions(gradeOptions),
+              catalogs.grades,
+            ],
           ] as const
-        ).map(([name, label, choices]) => (
+        ).map(([name, label, choices, all]) => (
           <div className="preview-field" key={name}>
             <Label htmlFor={`profile-${name}`}>{label} (선택)</Label>
             <Controller
@@ -95,7 +148,13 @@ export function AcademicFields({
                   value={field.value ?? ''}
                   id={`profile-${name}`}
                 >
-                  <SelectOptions options={choices} value={field.value ?? ''} />
+                  <SelectOptions
+                    options={choices}
+                    value={field.value ?? ''}
+                    current={
+                      all.find((item) => item.code === field.value)?.displayName
+                    }
+                  />
                 </NativeSelect>
               )}
             />
@@ -106,7 +165,7 @@ export function AcademicFields({
         <Label htmlFor="profile-college">단과대학 (선택)</Label>
         <Controller
           control={control}
-          name="college"
+          name="collegeId"
           render={({ field }) => (
             <NativeSelect
               {...field}
@@ -118,12 +177,16 @@ export function AcademicFields({
                 // Display names alone cannot prove identity across colleges.
                 // Keep the existing relationship when it remains the same.
                 if (nextCollege !== college) {
-                  setValue('department', '', { shouldDirty: true });
-                  setValue('major', '', { shouldDirty: true });
+                  setValue('departmentId', '', { shouldDirty: true });
+                  setValue('majorId', '', { shouldDirty: true });
                 }
               }}
             >
-              <SelectOptions options={options.colleges} value={college} />
+              <SelectOptions
+                options={options.colleges}
+                value={college}
+                current={nameOf(college)}
+              />
             </NativeSelect>
           )}
         />
@@ -132,7 +195,7 @@ export function AcademicFields({
         <Label htmlFor="profile-department">학부·학과 (선택)</Label>
         <Controller
           control={control}
-          name="department"
+          name="departmentId"
           render={({ field }) => (
             <NativeSelect
               {...field}
@@ -143,11 +206,15 @@ export function AcademicFields({
                 const nextDepartment = event.target.value;
                 field.onChange(event);
                 if (nextDepartment !== department) {
-                  setValue('major', '', { shouldDirty: true });
+                  setValue('majorId', '', { shouldDirty: true });
                 }
               }}
             >
-              <SelectOptions options={options.departments} value={department} />
+              <SelectOptions
+                options={options.departments}
+                value={department}
+                current={nameOf(department)}
+              />
             </NativeSelect>
           )}
         />
@@ -157,7 +224,7 @@ export function AcademicFields({
           <Label htmlFor="profile-major">세부전공 (선택)</Label>
           <Controller
             control={control}
-            name="major"
+            name="majorId"
             render={({ field }) => (
               <NativeSelect
                 {...field}
@@ -165,7 +232,11 @@ export function AcademicFields({
                 disabled={!department}
                 id="profile-major"
               >
-                <SelectOptions options={options.majors} value={major} />
+                <SelectOptions
+                  options={options.majors}
+                  value={major}
+                  current={nameOf(major)}
+                />
               </NativeSelect>
             )}
           />
@@ -180,7 +251,12 @@ export function AcademicFields({
 }
 
 // [출처 2] 목록 내 역량 선택
-export function SkillFields({ control }: { control: Control<Profile> }) {
+export function SkillFields({
+  control,
+}: {
+  control: Control<ProfileFormValues>;
+}) {
+  const { skillOptions } = useLabels();
   return (
     <fieldset className="preview-field">
       <legend>
@@ -188,27 +264,27 @@ export function SkillFields({ control }: { control: Control<Profile> }) {
       </legend>
       <Controller
         control={control}
-        name="skills"
+        name="skillCodes"
         render={({ field }) => (
           <div className="preview-row">
             {skillOptions.map((skill) => (
               <Label
-                key={skill}
-                htmlFor={`profile-skill-${skill}`}
+                key={skill.code}
+                htmlFor={`profile-skill-${skill.code}`}
                 className="preview-choice"
               >
                 <Checkbox
-                  id={`profile-skill-${skill}`}
-                  checked={field.value.includes(skill)}
+                  id={`profile-skill-${skill.code}`}
+                  checked={field.value.includes(skill.code)}
                   onCheckedChange={(checked) =>
                     field.onChange(
                       checked === true
-                        ? [...field.value, skill]
-                        : field.value.filter((value) => value !== skill),
+                        ? [...field.value, skill.code]
+                        : field.value.filter((value) => value !== skill.code),
                     )
                   }
                 />
-                {skill}
+                {skill.displayName}
               </Label>
             ))}
           </div>
@@ -225,12 +301,11 @@ export function ExperienceFields({
   setValue,
   error,
 }: {
-  control: Control<Profile>;
-  register: UseFormRegister<Profile>;
-  setValue: UseFormSetValue<Profile>;
+  control: Control<ProfileFormValues>;
+  register: UseFormRegister<ProfileFormValues>;
+  setValue: UseFormSetValue<ProfileFormValues>;
   error?: string;
 }) {
-  const experience = useWatch({ control, name: 'experience' });
   const experienceState = useWatch({ control, name: 'experienceState' });
   return (
     <div className="preview-field">
@@ -245,7 +320,7 @@ export function ExperienceFields({
             onChange={(event) => {
               field.onChange(event);
               if (event.target.value !== 'provided')
-                setValue('experience', '', {
+                setValue('experienceBody', '', {
                   shouldDirty: true,
                   shouldValidate: true,
                 });
@@ -266,7 +341,7 @@ export function ExperienceFields({
         aria-invalid={!!error}
         aria-describedby="profile-experience-help profile-experience-count profile-experience-error"
         disabled={experienceState === 'none'}
-        {...register('experience', {
+        {...register('experienceBody', {
           onChange: (event: { target: { value: string } }) =>
             setValue(
               'experienceState',
@@ -276,9 +351,12 @@ export function ExperienceFields({
         })}
         placeholder="프로젝트나 공모전에서 맡았던 역할"
       />
-      <p id="profile-experience-count" className="preview-field-count">
-        {profileTextLength(experience)} / 500자
-      </p>
+      <CharacterCount
+        control={control}
+        name="experienceBody"
+        max={500}
+        id="profile-experience-count"
+      />
       {error && (
         <p id="profile-experience-error" className="preview-error" role="alert">
           {error}

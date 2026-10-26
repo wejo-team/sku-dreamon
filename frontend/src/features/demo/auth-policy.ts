@@ -45,7 +45,7 @@ export const passwordSchema = z
 
 // Interaction fixtures only. Production must use an approved, maintained
 // compromised-password source; this set does not claim breach coverage.
-const commonPasswordFixtures = new Set([
+export const commonPasswordFixtures = new Set([
   '123456789012345',
   '1234567890123456',
   'passwordpassword',

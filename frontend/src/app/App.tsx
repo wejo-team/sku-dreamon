@@ -4,6 +4,7 @@
  * 2. docs/design/screens.md - 「화면별 참조」 15개 화면 경로
  * 3. docs/design/handoff.md - /design-preview 접두사는 개발용 식별자, 메모리 상태는 서버 계약이 아님
  * 4. docs/development/frontend.md - 「화면과 상태」 라우트 화면은 pages/, 서버 데이터는 TanStack Query
+ * 5. docs/api/catalogs.md#catalog-endpoints - 화면 전체가 쓰는 공통 선택지를 먼저 조회
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -16,7 +17,7 @@ import {
   SignupPage,
 } from '@/features/account/AccountPages';
 import { AiChatPage, AiChatProvider } from '@/features/ai/AiChatPage';
-import { DemoProvider } from '@/features/demo/DemoProvider';
+import { CatalogGate } from '@/features/catalogs/CatalogGate';
 import {
   ContestPage,
   ExplorePage,
@@ -38,18 +39,18 @@ import {
   ReferencePortfolioPage,
 } from '@/pages/ReferencePages';
 
-// [출처 1, 3] 화면 확인용 메모리 상태(로그인·프로필·팀·지원)와 AI 대화·지원자 검토 상태를 공유합니다.
-// API 연동 시 각 기능의 TanStack Query로 교체하며 이 Provider를 서버 계약으로 사용하지 않습니다(출처 4).
-function DemoLayout() {
+// [출처 4, 5] 서버 데이터는 각 화면이 TanStack Query로 조회합니다(VITE_API_MOCK이면 목업 서버).
+// AI 대화·지원자 검토는 API 미구현이라 화면 데모 상태만 이 범위에서 공유합니다.
+function ServiceLayout() {
   return (
     <div className="dreamon-mobile-viewport">
-      <DemoProvider>
+      <CatalogGate>
         <AiChatProvider>
           <ApplicantReviewProvider>
             <Outlet />
           </ApplicantReviewProvider>
         </AiChatProvider>
-      </DemoProvider>
+      </CatalogGate>
     </div>
   );
 }
@@ -61,7 +62,7 @@ export function App() {
         <Routes>
           {/* 백엔드 연결 확인 화면은 서비스 Shell 밖에 둡니다. */}
           <Route path="/health" element={<HealthPage />} />
-          <Route element={<DemoLayout />}>
+          <Route element={<ServiceLayout />}>
             {/* [출처 2] 시작 안내 */}
             <Route index element={<LoadingPage />} />
             <Route path="loading" element={<LoadingPage />} />

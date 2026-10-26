@@ -7,43 +7,59 @@
  */
 
 import { ExternalLink } from 'lucide-react';
-import type { Person } from '@/features/demo/data';
+import type { Profile } from '@/features/profiles/api';
 import { Badge } from '@/components/common/CommonUi';
+import type { Labels } from '@/features/catalogs/labels';
+import { normalizeWebUrl } from '@/features/demo/profile-fields';
 
-function portfolioUrl(value?: string) {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
-  } catch {
-    return null;
-  }
-}
+// 학사 경로 계층별 표시 이름(단과대학 → 학부·학과 → 전공)
+const academicLevels = ['단과대학', '학과', '전공'];
 
 // [출처 2, 3, 4] 등록 항목만 표시하고 인증 정보·미수집 연락처는 추가하지 않음
 export function ProfileDetails({
   profile,
+  labels,
 }: {
-  profile: Omit<Person, 'id' | 'name'>;
+  profile: Profile;
+  /** 코드 → 표시명(GET /catalogs). 공통 UI는 API를 직접 조회하지 않습니다. */
+  labels: Labels;
 }) {
+  const {
+    academicPath,
+    academicStatusLabel,
+    fieldLabel,
+    gradeLabel,
+    roleLabel,
+    skillLabel,
+    weeklyAvailabilityLabel,
+  } = labels;
   const academics = [
-    ['학적 상태', profile.academicStatus],
-    ['학년', profile.grade],
-    ['단과대학', profile.college],
-    ['학과', profile.department],
-    ['전공', profile.major],
-  ].filter(([, value]) => value);
-  const portfolio = portfolioUrl(profile.portfolio);
+    [
+      '학적 상태',
+      profile.academicStatusCode &&
+        academicStatusLabel(profile.academicStatusCode),
+    ],
+    ['학년', profile.gradeCode && gradeLabel(profile.gradeCode)],
+    ...academicPath(profile.academicUnitId).map(
+      (unit, index) => [academicLevels[index] ?? '소속', unit.name] as const,
+    ),
+  ].filter(([, value]) => value) as [string, string][];
+  // [출처 4] 저장·공개와 같은 기준으로 링크를 판단
+  const portfolio = profile.portfolio
+    ? normalizeWebUrl(profile.portfolio.url) || null
+    : null;
   const experience =
-    profile.experienceState === 'none' ? '관련 경험 없음' : profile.experience;
+    profile.experienceState === 'none'
+      ? '관련 경험 없음'
+      : (profile.experienceBody ?? '');
 
   return (
     <dl className="preview-profile-facts">
       <div>
         <dt>희망 역할</dt>
         <dd className="preview-row">
-          {profile.roles.map((role) => (
-            <Badge key={role}>{role}</Badge>
+          {profile.roleCodes.map((code) => (
+            <Badge key={code}>{roleLabel(code)}</Badge>
           ))}
         </dd>
       </div>
@@ -53,62 +69,54 @@ export function ProfileDetails({
           <dd className="preview-info-value">{value}</dd>
         </div>
       ))}
-      {profile.skills !== undefined && (
-        <div>
-          <dt>보유 역량</dt>
-          <dd>
-            {profile.skills.length ? (
-              <div className="preview-row">
-                {profile.skills.map((skill) => (
-                  <Badge key={skill}>{skill}</Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="preview-muted">아직 입력하지 않았어요.</p>
-            )}
-          </dd>
-        </div>
-      )}
-      {profile.interests !== undefined && (
-        <div>
-          <dt>관심 분야</dt>
-          <dd>
+      <div>
+        <dt>보유 역량</dt>
+        <dd>
+          {profile.skillCodes.length ? (
             <div className="preview-row">
-              {profile.interests.map((interest) => (
-                <Badge key={interest}>{interest}</Badge>
+              {profile.skillCodes.map((code) => (
+                <Badge key={code}>{skillLabel(code)}</Badge>
               ))}
             </div>
-          </dd>
-        </div>
-      )}
-      {experience !== undefined && (
-        <div>
-          <dt>경험</dt>
-          <dd className="preview-info-copy">
-            {experience || '아직 입력하지 않았어요.'}
-          </dd>
-        </div>
-      )}
-      {profile.intro !== undefined && (
-        <div>
-          <dt>자기소개</dt>
-          <dd className="preview-info-copy">
-            {profile.intro || '아직 입력하지 않았어요.'}
-          </dd>
-        </div>
-      )}
-      {profile.availability !== undefined && (
-        <div>
-          <dt>주당 참여 가능 시간</dt>
-          <dd className="preview-info-copy">
-            {profile.availability || '미입력'}
-            <p className="preview-muted">
-              모든 참여 프로젝트를 합산한 예상 시간으로, 팀별 약속이나 남은
-              시간이 아니에요.
-            </p>
-          </dd>
-        </div>
-      )}
+          ) : (
+            <p className="preview-muted">아직 입력하지 않았어요.</p>
+          )}
+        </dd>
+      </div>
+      <div>
+        <dt>관심 분야</dt>
+        <dd>
+          <div className="preview-row">
+            {profile.fieldCodes.map((code) => (
+              <Badge key={code}>{fieldLabel(code)}</Badge>
+            ))}
+          </div>
+        </dd>
+      </div>
+      <div>
+        <dt>경험</dt>
+        <dd className="preview-info-copy">
+          {experience || '아직 입력하지 않았어요.'}
+        </dd>
+      </div>
+      <div>
+        <dt>자기소개</dt>
+        <dd className="preview-info-copy">
+          {profile.introduction || '아직 입력하지 않았어요.'}
+        </dd>
+      </div>
+      <div>
+        <dt>주당 참여 가능 시간</dt>
+        <dd className="preview-info-copy">
+          {profile.weeklyAvailabilityCode
+            ? weeklyAvailabilityLabel(profile.weeklyAvailabilityCode)
+            : '미입력'}
+          <p className="preview-muted">
+            모든 참여 프로젝트를 합산한 예상 시간으로, 팀별 약속이나 남은 시간이
+            아니에요.
+          </p>
+        </dd>
+      </div>
       {portfolio && (
         <div>
           <dt>포트폴리오</dt>
@@ -119,7 +127,7 @@ export function ProfileDetails({
               target="_blank"
               rel="noreferrer"
             >
-              {profile.portfolioTitle || '포트폴리오 열기'}
+              {profile.portfolio?.title || '포트폴리오 열기'}
               <ExternalLink size={16} aria-hidden="true" />
               <span className="sr-only"> (새 창)</span>
             </a>

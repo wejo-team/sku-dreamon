@@ -7,7 +7,7 @@
  * 5. docs/design/assets/workspace-390.png - 모집 중(녹색)/모집 마감(회색) 배지
  */
 
-import { useContext, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -31,13 +31,15 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { type Team } from '@/features/demo/data';
-import { DemoContext } from '@/features/demo/demo-context';
-import { recruitmentIssue, teamStatusLabel } from '@/features/demo/team-state';
+import {
+  recruitmentIssue,
+  teamStatusLabel,
+  type TeamWithContest,
+} from '@/features/teams/status';
 import {
   defaultMascotAvatarId,
+  mascotAvatarIds,
   mascotAvatarSource,
-  type MascotAvatarId,
 } from '@/features/demo/mascot-avatars';
 
 // [출처 3] 화면 제목·설명 (루트 화면은 sr-only)
@@ -94,7 +96,7 @@ export function Badge({
   );
 }
 // [출처 2, 5] 모집 상태: 녹색·회색 면 + 상태 문구
-export function TeamStatusBadge({ team }: { team: Team }) {
+export function TeamStatusBadge({ team }: { team: TeamWithContest }) {
   return (
     <Badge tone={recruitmentIssue(team) ? 'closed' : 'recruiting'}>
       {teamStatusLabel(team)}
@@ -169,40 +171,20 @@ export function EmptyState({
     </div>
   );
 }
-const avatarByPersonId: Record<string, MascotAvatarId> = {
-  me: 'skon',
-  seoyeon: 'arti',
-  doyun: 'dmo',
-  sua: 'bart',
-  minjae: 'conver',
-  'app-seoyeon': 'arti',
-  'app-sua': 'bart',
-};
-
 // [출처 4] 선택형 마스코트 아바타, 기본 스콘
 export function Avatar({
   name,
-  personId = 'me',
-  avatarId,
+  imageCode,
   size = 'normal',
 }: {
   name: string;
-  personId?: string;
-  avatarId?: MascotAvatarId;
+  /** profileImageCode. null·생략이면 기본 스콘 */
+  imageCode?: string | null;
   size?: 'normal' | 'large';
 }) {
-  const state = useContext(DemoContext);
-  const profileAvatar =
-    personId === 'me'
-      ? state?.profile.avatarId
-      : state?.applicants.find((applicant) => applicant.personId === personId)
-          ?.profile?.avatarId;
-  const source = mascotAvatarSource(
-    avatarId ??
-      profileAvatar ??
-      avatarByPersonId[personId] ??
-      defaultMascotAvatarId,
-  );
+  // [출처 4] 프로필 이미지 코드 → 저장소의 마스코트 이미지(docs/design/assets.md), 미선택·모르는 코드는 기본 스콘
+  const code = mascotAvatarIds.find((id) => id === imageCode);
+  const source = mascotAvatarSource(code ?? defaultMascotAvatarId);
   const [failedSource, setFailedSource] = useState<string | null>(null);
   return (
     <span

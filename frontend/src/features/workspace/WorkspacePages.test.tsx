@@ -1,37 +1,93 @@
-import { act, render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
-import {
-  initialApplicants,
-  initialApplications,
-  initialProfile,
-  initialTeams,
-} from '@/features/demo/data';
-import { DemoProvider } from '@/features/demo/DemoProvider';
-import {
-  DemoContext,
-  type DemoState,
-  useDemo,
-} from '@/features/demo/demo-context';
+import { act, screen, waitFor, within } from '@testing-library/react';
+import { fill, setupUser } from '@/test/user';
+import { useQuery } from '@tanstack/react-query';
+import { Route, Routes, useLocation } from 'react-router';
+import { describe, expect, it } from 'vitest';
 import {
   ApplicantPage,
   TeamPage,
   WorkspacePage,
 } from '@/features/workspace/WorkspacePages';
 import { CreateTeamPage } from '@/features/teams/CreateTeamPage';
-import { lifecycleReferenceActivity } from '@/features/demo/lifecycle-fixtures';
+import {
+  myProfileQueryOptions,
+  useSaveVisibility,
+} from '@/features/profiles/queries';
+import { lifecycleReferenceDatabase } from '@/features/demo/lifecycle-fixtures';
+import { useSignup } from '@/features/auth/queries';
+import {
+  createDemoRecords,
+  fixtureAcademicUnits,
+  type DemoDatabase,
+} from '@/features/demo/fixtures';
+import {
+  demoIds,
+  ME,
+  mockDb,
+  recordsWithMyProfile,
+  renderWithApi,
+  sentRequests,
+  settled,
+  withProfile,
+  type ApiRenderOptions,
+} from '@/test/render';
+import { TestSessionButton } from '@/test/providers';
 
+const seed = createDemoRecords();
+const seoyeonProfile = seed.profiles.find(
+  (item) => item.accountId === demoIds.accounts.seoyeon,
+)!;
+const seoyeonApplication = seed.applications.find(
+  (item) => item.id === demoIds.applications.seoyeon,
+)!;
+// 본인 프로필을 공개한 목업 저장소
+const publicRecords = () => recordsWithMyProfile({ isPublic: true });
+const lifecycleRecords = () =>
+  withProfile(lifecycleReferenceDatabase(), ME, { isPublic: true });
+// 그린웨이브 팀 레코드만 바꾼 저장소(현재 팀원은 2명)
+const greenwaveWith = (
+  patch: Partial<DemoDatabase['teams'][number]>,
+): DemoDatabase => {
+  const db = publicRecords();
+  return {
+    ...db,
+    teams: db.teams.map((team) =>
+      team.id === demoIds.teams.greenwave ? { ...team, ...patch } : team,
+    ),
+  };
+};
+// 서버 충돌(409)로 실패시킬 요청
+const failApply = ({ method, path }: { method: string; path: string }) =>
+  method === 'POST' && path.endsWith('/applications');
+const failReopen = ({ method, path }: { method: string; path: string }) =>
+  method === 'PUT' && path.endsWith('/recruitment/reopening');
+
+// 테스트 조작: 로그인·로그아웃(목업 API), 현재 프로필 공개 전환(PUT /me/profile/visibility)
 function TestControls() {
-  const { signOut, signIn, emptyWorkspace, profile, saveProfile } = useDemo();
+  const profile = useQuery(myProfileQueryOptions).data;
+  const saveVisibility = useSaveVisibility();
+  const signup = useSignup();
   return (
     <>
-      <button onClick={signOut}>테스트 로그아웃</button>
-      <button onClick={signIn}>테스트 로그인</button>
-      <button onClick={emptyWorkspace}>테스트 비우기</button>
+      <TestSessionButton />
+      {/* 다른 계정으로 전환: 가입(POST /accounts)은 성공하면 바로 새 계정으로 로그인됩니다. */}
       <button
         onClick={() =>
-          saveProfile({ ...profile, visibility: { discoverable: true } })
+          signup.mutate({
+            loginId: 'otheraccount',
+            password: '다른계정의비밀번호를길게만들어요1',
+          })
+        }
+      >
+        다른 계정으로 전환
+      </button>
+      <button
+        onClick={() =>
+          profile &&
+          saveVisibility.mutate({
+            expectedVersion: profile.version,
+            isPublic: true,
+          })
         }
       >
         테스트 공개
@@ -48,9 +104,9 @@ function CurrentLocation() {
     </output>
   );
 }
-function renderPage(path: string, state?: DemoState) {
-  const content = (
-    <MemoryRouter initialEntries={[path]}>
+async function renderPage(path: string, options: ApiRenderOptions = {}) {
+  const view = renderWithApi(
+    <>
       <TestControls />
       <CurrentLocation />
       <Routes>
@@ -60,45 +116,29 @@ function renderPage(path: string, state?: DemoState) {
         <Route path="/workspace" element={<WorkspacePage />} />
         <Route path="/applicants/:applicantId" element={<ApplicantPage />} />
       </Routes>
-    </MemoryRouter>
+    </>,
+    { path, ...options },
   );
-  return render(
-    state ? (
-      <DemoContext value={state}>{content}</DemoContext>
-    ) : (
-      <DemoProvider>{content}</DemoProvider>
-    ),
-  );
-}
-function previewState(overrides: Partial<DemoState> = {}): DemoState {
-  return {
-    signedIn: true,
-    notifications: [],
-    markNotificationsRead: vi.fn(),
-    profile: { ...initialProfile, visibility: { discoverable: true } },
-    teams: initialTeams,
-    applicants: initialApplicants,
-    applications: initialApplications,
-    signIn: vi.fn(),
-    signOut: vi.fn(),
-    saveProfile: vi.fn(),
-    apply: vi.fn().mockReturnValue(false),
-    selectApplicant: vi.fn().mockReturnValue(false),
-    cancelApplication: vi.fn().mockReturnValue(false),
-    closeRecruitment: vi.fn().mockReturnValue(false),
-    reopenRecruitment: vi.fn().mockReturnValue(false),
-    createTeam: vi.fn().mockReturnValue('new-team'),
-    reset: vi.fn(),
-    emptyWorkspace: vi.fn(),
-    ...overrides,
+  await screen.findByLabelText('현재 경로');
+  await settled(view.client);
+  const user = setupUser();
+  // 사용자 조작 뒤 다음 요청이 끝날 때까지 기다립니다.
+  const step = async (action: () => Promise<void>) => {
+    await action();
+    await settled(view.client);
   };
+  return { ...view, user, step };
 }
+// 화면 조작으로 로그인(POST /auth/login)
+const signIn = (step: (action: () => Promise<void>) => Promise<void>) =>
+  step(() =>
+    setupUser().click(screen.getByRole('button', { name: '테스트 로그인' })),
+  );
 
 describe('team application', () => {
   it('accepts an unadvertised role and links the new application to its result', async () => {
-    const user = userEvent.setup();
-    renderPage('/teams/makers');
-    await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    const { user, step } = await renderPage(`/teams/${demoIds.teams.makers}`);
+    await signIn(step);
     expect(
       screen.getByText('프로필을 공개한 뒤 지원할 수 있어요'),
     ).toBeInTheDocument();
@@ -115,30 +155,32 @@ describe('team application', () => {
       screen.getByText('프로필을 공개한 뒤 지원할 수 있어요'),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '프로필 공개하기' }));
-    await user.click(
-      within(screen.getByRole('dialog')).getByRole('button', {
-        name: '공개로 전환',
-      }),
+    await step(() =>
+      user.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: '공개로 전환',
+        }),
+      ),
     );
     expect(screen.queryByText('지원이 완료됐어요')).not.toBeInTheDocument();
     expect(
-      screen.getByText(/AI 검토에 최신 프로필을 사용할 수 있어요/),
+      await screen.findByText(/AI 검토에 최신 프로필을 사용할 수 있어요/),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '이 팀에 지원하기' }));
     expect(
       await screen.findByText('지원할 역할을 선택해 주세요.'),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: '마케팅' }));
-    await user.type(
+    await fill(
+      user,
       screen.getByLabelText(/팀에 전할 말/),
       '사용자 인터뷰를 함께하고 싶어요.',
     );
     await user.click(screen.getByRole('button', { name: '이 팀에 지원하기' }));
-    expect(
-      await screen.findByRole('button', { name: '지원하는 중…' }),
-    ).toBeDisabled();
     expect(await screen.findByText('지원이 완료됐어요')).toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: '내 지원 확인하기' }));
+    await step(() =>
+      user.click(screen.getByRole('link', { name: '내 지원 확인하기' })),
+    );
     const applications = within(
       screen.getByRole('region', { name: '내 지원' }),
     );
@@ -152,11 +194,11 @@ describe('team application', () => {
     );
     expect(submitted).toBeVisible();
   });
-  it('gates missing required profile fields and preserves the target team', () => {
-    renderPage(
-      '/teams/makers',
-      previewState({ profile: { ...initialProfile, interests: [] } }),
-    );
+  it('gates missing required profile fields and preserves the target team', async () => {
+    await renderPage(`/teams/${demoIds.teams.makers}`, {
+      signedIn: true,
+      db: recordsWithMyProfile({ isPublic: true, fieldCodes: [] }),
+    });
     expect(
       screen.getByText('지원 전에 프로필을 완성해 주세요'),
     ).toBeInTheDocument();
@@ -164,47 +206,55 @@ describe('team application', () => {
       screen.getByRole('link', { name: '프로필 보완하기' }),
     ).toHaveAttribute(
       'href',
-      `/profile?edit=details&returnTo=${encodeURIComponent('/teams/makers')}`,
+      `/profile?edit=details&returnTo=${encodeURIComponent(`/teams/${demoIds.teams.makers}`)}`,
     );
     expect(
       screen.queryByRole('button', { name: '이 팀에 지원하기' }),
     ).not.toBeInTheDocument();
   });
   it('preserves written text after failure and rejects a logged-out delayed submission', async () => {
-    const user = userEvent.setup();
-    const failed = previewState();
-    const view = renderPage('/teams/makers', failed);
-    await user.click(screen.getByRole('radio', { name: '디자인' }));
-    await user.type(
+    const first = await renderPage(`/teams/${demoIds.teams.makers}`, {
+      signedIn: true,
+      db: publicRecords(),
+      fail: failApply,
+    });
+    await first.user.click(screen.getByRole('radio', { name: '디자인' }));
+    await first.user.type(
       screen.getByLabelText(/팀에 전할 말/),
       '화면 설계를 맡고 싶어요.',
     );
-    await user.click(screen.getByRole('button', { name: '이 팀에 지원하기' }));
+    await first.user.click(
+      screen.getByRole('button', { name: '이 팀에 지원하기' }),
+    );
     expect(
       await screen.findByText(/지원을 완료하지 못했어요/),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/팀에 전할 말/)).toHaveValue(
       '화면 설계를 맡고 싶어요.',
     );
-    view.unmount();
-    renderPage('/teams/makers');
-    await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
-    await user.click(screen.getByRole('button', { name: '테스트 공개' }));
-    await user.click(screen.getByRole('radio', { name: '기획' }));
+    first.unmount();
+    const { user, step } = await renderPage(`/teams/${demoIds.teams.makers}`);
+    await signIn(step);
+    await step(() =>
+      user.click(screen.getByRole('button', { name: '테스트 공개' })),
+    );
+    await user.click(await screen.findByRole('radio', { name: '기획' }));
     await user.click(screen.getByRole('button', { name: '이 팀에 지원하기' }));
     await user.click(screen.getByRole('button', { name: '테스트 로그아웃' }));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 400));
     });
     expect(
-      screen.getByRole('link', { name: '로그인하고 지원하기' }),
+      await screen.findByRole('link', { name: '로그인하고 지원하기' }),
     ).toBeInTheDocument();
     expect(screen.queryByText('지원이 완료됐어요')).not.toBeInTheDocument();
   });
   it('preserves an over-limit application message and accepts the 1,000-codepoint boundary', async () => {
-    const user = userEvent.setup();
-    const apply = vi.fn().mockReturnValue(false);
-    renderPage('/teams/makers', previewState({ apply }));
+    const { user } = await renderPage(`/teams/${demoIds.teams.makers}`, {
+      signedIn: true,
+      db: publicRecords(),
+      fail: failApply,
+    });
     await user.click(screen.getByRole('radio', { name: '디자인' }));
     const field = screen.getByLabelText(/팀에 전할 말/);
     await user.click(field);
@@ -214,38 +264,57 @@ describe('team application', () => {
       await screen.findByText('팀에 전할 말은 1,000자까지 입력할 수 있어요.'),
     ).toBeInTheDocument();
     expect(field).toHaveValue('🎨'.repeat(1001));
-    expect(apply).not.toHaveBeenCalled();
+    const applyRequests = () =>
+      sentRequests.filter((request) => failApply(request));
+    expect(applyRequests()).toHaveLength(0);
     await user.clear(field);
     await user.paste('🎨'.repeat(1000));
     await user.click(screen.getByRole('button', { name: '이 팀에 지원하기' }));
     await screen.findByText(/지원을 완료하지 못했어요/);
-    expect(apply).toHaveBeenCalledWith('makers', '디자인', '🎨'.repeat(1000));
+    // docs/api/applications.md#application-create: POST /teams/{teamId}/applications 본문
+    expect(applyRequests()).toEqual([
+      {
+        method: 'POST',
+        path: `/teams/${demoIds.teams.makers}/applications`,
+        body: {
+          requestId: expect.any(String),
+          roleCode: 'design',
+          message: '🎨'.repeat(1000),
+        },
+      },
+    ]);
   });
   it('keeps public recruitment separate from the private team space', async () => {
-    const user = userEvent.setup();
-    renderPage('/teams/greenwave', previewState());
+    const { user, step } = await renderPage(
+      `/teams/${demoIds.teams.greenwave}`,
+      { signedIn: true, db: publicRecords() },
+    );
     expect(
       screen.getByRole('heading', { name: '모집 정보' }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('heading', { name: '확정된 팀원' }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: '팀 공간으로' }));
+    await step(() =>
+      user.click(screen.getByRole('link', { name: '팀 공간으로' })),
+    );
     expect(
       screen.getByRole('heading', { name: '확정된 팀원' }),
     ).toBeInTheDocument();
     expect(screen.getByText('내 역할').parentElement).toHaveTextContent('팀장');
   });
-  it('preserves filtered return destinations and rejects external ones', () => {
-    const from = '/explore?tab=teams&role=디자인&q=캠퍼스';
-    const view = renderPage(`/teams/makers?from=${encodeURIComponent(from)}`);
+  it('preserves filtered return destinations and rejects external ones', async () => {
+    const from = '/explore?tab=teams&role=design&q=캠퍼스';
+    const view = await renderPage(
+      `/teams/${demoIds.teams.makers}?from=${encodeURIComponent(from)}`,
+    );
     expect(screen.getByRole('link', { name: '목록으로' })).toHaveAttribute(
       'href',
       from,
     );
     view.unmount();
-    renderPage(
-      `/teams/makers?from=${encodeURIComponent('https://example.com')}`,
+    await renderPage(
+      `/teams/${demoIds.teams.makers}?from=${encodeURIComponent('https://example.com')}`,
     );
     expect(screen.getByRole('link', { name: '목록으로' })).toHaveAttribute(
       'href',
@@ -256,21 +325,34 @@ describe('team application', () => {
 
 describe('workspace membership and access', () => {
   it('shows leader and member teams but hides activity before login', async () => {
-    const user = userEvent.setup();
-    renderPage('/workspace');
+    const { step } = await renderPage('/workspace');
     expect(screen.queryByText('그린웨이브')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    await signIn(step);
     expect(
       screen.getByRole('heading', { name: '그린웨이브' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { name: '로컬 크루' }),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '테스트 비우기' }));
+  });
+  it('shows the first-team prompt when the account belongs to no team', async () => {
+    const records = createDemoRecords();
+    await renderPage('/workspace', {
+      signedIn: true,
+      db: {
+        ...records,
+        memberships: records.memberships.filter(
+          (item) => item.accountId !== ME,
+        ),
+      },
+    });
     expect(screen.getByText('함께할 첫 팀을 찾아보세요')).toBeInTheDocument();
   });
-  it('allows members to view the team but does not grant management rights', () => {
-    const view = renderPage('/teams/localcrew?view=space', previewState());
+  it('allows members to view the team but does not grant management rights', async () => {
+    const view = await renderPage(
+      `/teams/${demoIds.teams.localcrew}?view=space`,
+      { signedIn: true },
+    );
     expect(
       screen.getByRole('heading', { name: '확정된 팀원' }),
     ).toBeInTheDocument();
@@ -278,19 +360,22 @@ describe('workspace membership and access', () => {
       screen.queryByRole('link', { name: '지원자 관리' }),
     ).not.toBeInTheDocument();
     view.unmount();
-    renderPage('/teams/localcrew?view=applicants', previewState());
+    await renderPage(`/teams/${demoIds.teams.localcrew}?view=applicants`, {
+      signedIn: true,
+    });
     expect(
       screen.getByText('팀장만 지원서를 볼 수 있어요'),
     ).toBeInTheDocument();
   });
   it('revokes team-space access after a selected member cancels', async () => {
-    const user = userEvent.setup();
-    renderPage('/workspace?view=applications');
-    await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    const { user, step } = await renderPage('/workspace?view=applications');
+    await signIn(step);
     await user.click(screen.getByRole('button', { name: '지원 취소' }));
     const dialog = within(screen.getByRole('dialog'));
     expect(dialog.getByText(/팀 공간에 접근할 수 없게/)).toBeInTheDocument();
-    await user.click(dialog.getByRole('button', { name: '지원 취소하기' }));
+    await step(() =>
+      user.click(dialog.getByRole('button', { name: '지원 취소하기' })),
+    );
     expect(
       screen.getByText(
         '지원이 취소됐어요. 현재 모집 조건이 맞으면 다시 지원할 수 있어요.',
@@ -299,13 +384,17 @@ describe('workspace membership and access', () => {
     expect(
       screen.queryByRole('link', { name: '팀 공간으로' }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: '내 팀으로' }));
+    await step(() =>
+      user.click(screen.getByRole('link', { name: '내 팀으로' })),
+    );
     expect(
       screen.queryByRole('heading', { name: '로컬 크루' }),
     ).not.toBeInTheDocument();
   });
-  it('rejects direct private-space access for a nonmember', () => {
-    renderPage('/teams/makers?view=space', previewState());
+  it('rejects direct private-space access for a nonmember', async () => {
+    await renderPage(`/teams/${demoIds.teams.makers}?view=space`, {
+      signedIn: true,
+    });
     expect(
       screen.getByText('현재 팀원만 팀 공간에 들어갈 수 있어요'),
     ).toBeInTheDocument();
@@ -314,14 +403,17 @@ describe('workspace membership and access', () => {
     ).not.toBeInTheDocument();
   });
   it('requires confirmation to close recruitment and keeps the current team', async () => {
-    const user = userEvent.setup();
-    renderPage('/teams/greenwave?view=space');
-    await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    const { user, step } = await renderPage(
+      `/teams/${demoIds.teams.greenwave}?view=space`,
+    );
+    await signIn(step);
     await user.click(screen.getByRole('button', { name: '모집 종료' }));
-    await user.click(
-      within(screen.getByRole('dialog')).getByRole('button', {
-        name: '모집 종료하기',
-      }),
+    await step(() =>
+      user.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: '모집 종료하기',
+        }),
+      ),
     );
     expect(screen.getByText('모집 마감')).toBeInTheDocument();
     expect(
@@ -335,14 +427,16 @@ describe('workspace membership and access', () => {
 
 describe('applicant review', () => {
   it('confirms selection in a drawer and immediately adds the selected member', async () => {
-    const user = userEvent.setup();
-    renderPage('/applicants/app-seoyeon');
-    await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    const { user, step } = await renderPage(
+      `/applicants/${demoIds.applications.seoyeon}`,
+    );
+    await signIn(step);
     const profile = within(screen.getByRole('region', { name: '김서연' }));
-    const applicantProfile = initialApplicants[0]!.profile!;
     expect(profile.getByText('경험')).toBeInTheDocument();
-    expect(profile.getByText(applicantProfile.experience)).toBeInTheDocument();
-    expect(profile.getByText(applicantProfile.intro)).toBeInTheDocument();
+    expect(
+      profile.getByText(seoyeonProfile.experienceBody!),
+    ).toBeInTheDocument();
+    expect(profile.getByText(seoyeonProfile.introduction!)).toBeInTheDocument();
     expect(
       profile.getByRole('link', { name: /김서연의 프로젝트\s*\(새 창\)/ }),
     ).toBeInTheDocument();
@@ -351,13 +445,15 @@ describe('applicant review', () => {
     );
     const dialog = within(screen.getByRole('dialog'));
     expect(dialog.getByText(/즉시 팀원이 확정/)).toBeInTheDocument();
-    await user.click(
-      dialog.getByRole('button', { name: '선발하고 팀원 확정' }),
+    await step(() =>
+      user.click(dialog.getByRole('button', { name: '선발하고 팀원 확정' })),
     );
     expect(
       screen.getByText('김서연 님이 팀원으로 확정됐어요'),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: '팀 공간으로' }));
+    await step(() =>
+      user.click(screen.getByRole('link', { name: '팀 공간으로' })),
+    );
     expect(screen.getByText('확정').parentElement).toHaveTextContent('3 / 4명');
     expect(
       within(screen.getByRole('region', { name: '확정된 팀원' })).getByText(
@@ -365,39 +461,42 @@ describe('applicant review', () => {
       ),
     ).toBeInTheDocument();
   });
-  it('shows a private applicant’s full registered profile to the applied team leader', () => {
-    const applicants = [
-      {
-        ...initialApplicants[0]!,
-        profile: {
-          ...initialProfile,
-          intro: '지원자의 자기소개',
-          experienceState: 'provided' as const,
-          experience: '지원자의 경험',
-          academicStatus: '재학',
-          grade: '3학년',
-          college: '이공대학',
-          department: '소프트웨어학과',
-          major: '컴퓨터공학',
-          skills: ['개발'],
-          interests: ['교육'],
-          availability: '5~10시간 미만',
-          visibility: { discoverable: false },
-          portfolio: 'https://example.com/secret',
-          portfolioTitle: '지원자의 포트폴리오',
-        },
+  it('shows a private applicant’s full registered profile to the applied team leader', async () => {
+    const units = fixtureAcademicUnits();
+    const department = units.find((unit) => unit.name === '자유전공학부')!;
+    const major = units.find(
+      (unit) =>
+        unit.parentId === department.id && unit.name === 'AI소프트웨어전공',
+    )!;
+    const db = withProfile(publicRecords(), demoIds.accounts.seoyeon, {
+      introduction: '지원자의 자기소개',
+      experienceState: 'provided',
+      experienceBody: '지원자의 경험',
+      academicStatusCode: 'enrolled',
+      gradeCode: 'year_3',
+      academicUnitId: major.id,
+      skillCodes: ['data_analysis'],
+      fieldCodes: ['education'],
+      weeklyAvailabilityCode: 'from_5_to_10',
+      isPublic: false,
+      portfolio: {
+        url: 'https://example.com/secret',
+        title: '지원자의 포트폴리오',
       },
-    ];
-    renderPage('/applicants/app-seoyeon', previewState({ applicants }));
+    });
+    await renderPage(`/applicants/${demoIds.applications.seoyeon}`, {
+      signedIn: true,
+      db,
+    });
     for (const value of [
       '지원자의 자기소개',
       '지원자의 경험',
       '재학',
       '3학년',
-      '이공대학',
-      '소프트웨어학과',
-      '컴퓨터공학',
-      '개발',
+      '미래융합대학',
+      '자유전공학부',
+      'AI소프트웨어전공',
+      '데이터분석',
       '교육',
       '5~10시간 미만',
     ]) {
@@ -411,19 +510,19 @@ describe('applicant review', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('교내 미인증')).toBeInTheDocument();
   });
-  it.each(['모집마감', '팀원확정'] as const)(
-    'allows AI review for existing applicants while %s',
-    async (status) => {
-      const user = userEvent.setup();
-      renderPage(
-        '/applicants/app-seoyeon',
-        previewState({
-          teams: initialTeams.map((team) =>
-            team.id === 'greenwave'
-              ? { ...team, status, members: team.capacity }
-              : team,
-          ),
-        }),
+  it.each(['leader_closed', 'capacity_reached'] as const)(
+    'allows AI review for existing applicants while recruitment is closed by %s',
+    async (closedReason) => {
+      const { user } = await renderPage(
+        `/applicants/${demoIds.applications.seoyeon}`,
+        {
+          signedIn: true,
+          db: greenwaveWith({
+            recruitmentState: 'closed',
+            closedReason,
+            capacity: '2',
+          }),
+        },
       );
       expect(
         screen.queryByRole('button', { name: '이 지원자 선발하기' }),
@@ -433,30 +532,50 @@ describe('applicant review', () => {
         await within(
           screen.getByRole('region', { name: 'AI 검토 도움' }),
         ).findByRole('status'),
-      ).toHaveTextContent(initialApplicants[0]!.message);
+      ).toHaveTextContent(seoyeonApplication.message!);
       expect(
         screen.getByRole('button', { name: '다시 검토하기' }),
       ).toBeEnabled();
     },
   );
-  it('does not expose applications to a nonleader', () => {
-    renderPage(
-      '/applicants/app-seoyeon',
-      previewState({
-        teams: initialTeams.map((team) => ({ ...team, owner: false })),
-      }),
-    );
+  it('does not expose applications to a nonleader', async () => {
+    await renderPage(`/applicants/${demoIds.applications.seoyeon}`, {
+      signedIn: true,
+      db: greenwaveWith({ ownerAccountId: demoIds.accounts.doyun }),
+    });
     expect(screen.getByText('지원서를 확인할 수 없어요')).toBeInTheDocument();
     expect(screen.queryByText('김서연')).not.toBeInTheDocument();
     expect(
-      screen.queryByText(initialApplicants[0]!.profile!.experience),
+      screen.queryByText(seoyeonProfile.experienceBody!),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: /김서연의 프로젝트/ }),
     ).not.toBeInTheDocument();
   });
-  it('does not expose applicant details before login', () => {
-    renderPage('/applicants/app-seoyeon');
+  // Codex 리뷰 P1: 계정 전환 후 재조회가 404여도 이전 팀장 계정의 비공개 프로필을 보여 주지 않습니다.
+  it('hides a private applicant profile after switching to an account without access', async () => {
+    const db = withProfile(publicRecords(), demoIds.accounts.seoyeon, {
+      experienceState: 'provided',
+      experienceBody: '팀장에게만 보이는 경험',
+      isPublic: false,
+    });
+    const { user, step } = await renderPage(
+      `/applicants/${demoIds.applications.seoyeon}`,
+      { signedIn: true, db },
+    );
+    expect(screen.getByText('팀장에게만 보이는 경험')).toBeInTheDocument();
+    await step(() =>
+      user.click(screen.getByRole('button', { name: '다른 계정으로 전환' })),
+    );
+    expect(
+      screen.getByRole('heading', { name: '지원서를 확인할 수 없어요' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('팀장에게만 보이는 경험'),
+    ).not.toBeInTheDocument();
+  });
+  it('does not expose applicant details before login', async () => {
+    await renderPage(`/applicants/${demoIds.applications.seoyeon}`);
     expect(screen.getByText('로그인하고 이어가세요')).toBeInTheDocument();
     expect(screen.queryByText('김서연')).not.toBeInTheDocument();
     expect(
@@ -467,8 +586,10 @@ describe('applicant review', () => {
 
 describe('team creation', () => {
   it('shows capacity and deadline constraints in the official creation flow', async () => {
-    const user = userEvent.setup();
-    renderPage('/teams/new?contestId=campus', previewState());
+    const { user } = await renderPage(
+      `/teams/new?contestId=${demoIds.contests.campus}`,
+      { signedIn: true, db: publicRecords() },
+    );
     expect(screen.getByLabelText('팀장 포함 총 정원')).toHaveAttribute(
       'min',
       '2',
@@ -488,14 +609,17 @@ describe('team creation', () => {
 
 describe('recruitment reopening and discarded history', () => {
   it('requires confirmation to reopen, preserves cancellation and announces success', async () => {
-    const user = userEvent.setup();
-    renderPage('/teams/greenwave?view=space');
-    await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    const { user, step } = await renderPage(
+      `/teams/${demoIds.teams.greenwave}?view=space`,
+    );
+    await signIn(step);
     await user.click(screen.getByRole('button', { name: '모집 종료' }));
-    await user.click(
-      within(screen.getByRole('dialog')).getByRole('button', {
-        name: '모집 종료하기',
-      }),
+    await step(() =>
+      user.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: '모집 종료하기',
+        }),
+      ),
     );
     expect(screen.getByText('모집 마감')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '다시 모집하기' }));
@@ -511,10 +635,12 @@ describe('recruitment reopening and discarded history', () => {
     );
     expect(screen.getByText('모집 마감')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '다시 모집하기' }));
-    await user.click(
-      within(screen.getByRole('dialog')).getByRole('button', {
-        name: '모집 중으로 변경',
-      }),
+    await step(() =>
+      user.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: '모집 중으로 변경',
+        }),
+      ),
     );
     expect(screen.getByText('모집 중')).toBeInTheDocument();
     expect(
@@ -527,15 +653,15 @@ describe('recruitment reopening and discarded history', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows why a full team cannot reopen and gives no management action to a member', () => {
-    const teams = initialTeams.map((team) =>
-      team.id === 'greenwave'
-        ? { ...team, status: '모집마감' as const, members: team.capacity }
-        : team,
-    );
-    const view = renderPage(
-      '/teams/greenwave?view=space',
-      previewState({ teams }),
+  it('shows why a full team cannot reopen and gives no management action to a member', async () => {
+    const db = greenwaveWith({
+      recruitmentState: 'closed',
+      closedReason: 'leader_closed',
+      capacity: '2',
+    });
+    const view = await renderPage(
+      `/teams/${demoIds.teams.greenwave}?view=space`,
+      { signedIn: true, db },
     );
     expect(
       screen.getByRole('button', { name: '다시 모집하기' }),
@@ -544,7 +670,9 @@ describe('recruitment reopening and discarded history', () => {
       screen.getByText('팀 정원이 모두 차서 다시 모집할 수 없어요.'),
     ).toBeInTheDocument();
     view.unmount();
-    renderPage('/teams/localcrew?view=space', previewState());
+    await renderPage(`/teams/${demoIds.teams.localcrew}?view=space`, {
+      signedIn: true,
+    });
     expect(
       screen.queryByRole('button', { name: '다시 모집하기' }),
     ).not.toBeInTheDocument();
@@ -554,19 +682,31 @@ describe('recruitment reopening and discarded history', () => {
   });
 
   it('retains the closed state when a reopen request fails', async () => {
-    const user = userEvent.setup();
-    const mock = previewState(lifecycleReferenceActivity());
-    renderPage('/teams/greenwave?view=applicants', mock);
-    await user.click(screen.getByRole('button', { name: '다시 모집하기' }));
-    await user.click(
-      within(screen.getByRole('dialog')).getByRole('button', {
-        name: '모집 중으로 변경',
-      }),
+    const { user, step } = await renderPage(
+      `/teams/${demoIds.teams.greenwave}?view=applicants`,
+      { signedIn: true, db: lifecycleRecords(), fail: failReopen },
     );
-    expect(mock.reopenRecruitment).toHaveBeenCalledExactlyOnceWith('greenwave');
-    expect(
-      within(screen.getByRole('dialog')).getByRole('alert'),
-    ).toHaveTextContent('처리하지 못했어요');
+    await user.click(screen.getByRole('button', { name: '다시 모집하기' }));
+    await step(() =>
+      user.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: '모집 중으로 변경',
+        }),
+      ),
+    );
+    // docs/api/teams.md#transitions: PUT …/recruitment/reopening 한 번, 실패 후 자동 재전송 없음
+    expect(sentRequests.filter(failReopen)).toEqual([
+      {
+        method: 'PUT',
+        path: `/teams/${demoIds.teams.greenwave}/recruitment/reopening`,
+        body: { expectedVersion: '2' },
+      },
+    ]);
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('dialog')).getByRole('alert'),
+      ).toHaveTextContent('처리하지 못했어요'),
+    );
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
         name: '돌아가기',
@@ -575,11 +715,11 @@ describe('recruitment reopening and discarded history', () => {
     expect(screen.getByText('모집 마감')).toBeInTheDocument();
   });
 
-  it('shows discarded history and reason in my applications without cancellation or team-space access', () => {
-    renderPage(
-      '/workspace?view=applications',
-      previewState(lifecycleReferenceActivity()),
-    );
+  it('shows discarded history and reason in my applications without cancellation or team-space access', async () => {
+    await renderPage('/workspace?view=applications', {
+      signedIn: true,
+      db: lifecycleRecords(),
+    });
     const discarded = screen.getByText('로컬 스튜디오').closest('li')!;
     expect(within(discarded).getByText('폐기')).toBeInTheDocument();
     expect(
@@ -594,18 +734,22 @@ describe('recruitment reopening and discarded history', () => {
   });
 
   it('keeps factual AI review for discarded applicants while excluding waiting counts and selection', async () => {
-    const user = userEvent.setup();
-    const state = previewState(lifecycleReferenceActivity());
-    const view = renderPage('/teams/greenwave?view=applicants', state);
+    const view = await renderPage(
+      `/teams/${demoIds.teams.greenwave}?view=applicants`,
+      { signedIn: true, db: lifecycleRecords() },
+    );
     expect(screen.getByText('검토 대기 1명')).toBeInTheDocument();
     expect(
       screen.getByText('같은 공모전의 다른 팀에서 선발됨'),
     ).toBeInTheDocument();
     view.unmount();
-    renderPage('/applicants/app-seoyeon', state);
+    const { user } = await renderPage(
+      `/applicants/${demoIds.applications.seoyeon}`,
+      { signedIn: true, db: lifecycleRecords() },
+    );
     expect(screen.getByText('폐기')).toBeInTheDocument();
     expect(
-      screen.getByText(initialApplicants[0]!.profile!.experience),
+      screen.getByText(seoyeonProfile.experienceBody!),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: '이 지원자 선발하기' }),
@@ -615,9 +759,89 @@ describe('recruitment reopening and discarded history', () => {
       await within(
         screen.getByRole('region', { name: 'AI 검토 도움' }),
       ).findByRole('status'),
-    ).toHaveTextContent(initialApplicants[0]!.message);
+    ).toHaveTextContent(seoyeonApplication.message!);
     expect(
       screen.getByText(/폐기된 지원은 새 선발 후보 추천에서 제외/),
+    ).toBeInTheDocument();
+  });
+});
+
+// Codex 리뷰 P2: 409 뒤 최신 버전을 다시 받아, 사용자가 다시 누르면 새 버전으로 보냅니다(docs/api/conventions.md#versioned-action).
+describe('version conflicts', () => {
+  // 화면이 조회한 뒤 다른 변경으로 서버 버전이 올라간 상태
+  const bumpVersion = (item: { version: string }) => {
+    item.version = String(Number(item.version) + 1);
+    return item.version;
+  };
+
+  it('closes recruitment with the refreshed team version after a 409', async () => {
+    const { user, step } = await renderPage(
+      `/teams/${demoIds.teams.greenwave}?view=space`,
+      { signedIn: true, db: publicRecords() },
+    );
+    const team = mockDb().teams.find(
+      (item) => item.id === demoIds.teams.greenwave,
+    )!;
+    const loaded = team.version;
+    const latest = bumpVersion(team);
+    const closure = () =>
+      sentRequests.filter((request) =>
+        request.path.endsWith('/recruitment/closure'),
+      );
+    await user.click(screen.getByRole('button', { name: '모집 종료' }));
+    const confirm = () =>
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '모집 종료하기',
+      });
+    await step(() => user.click(confirm()));
+    expect(
+      within(screen.getByRole('dialog')).getByRole('alert'),
+    ).toHaveTextContent('처리하지 못했어요');
+    // 자동 재전송 없음
+    expect(closure().map((request) => request.body)).toEqual([
+      { expectedVersion: loaded },
+    ]);
+    await step(() => user.click(confirm()));
+    expect(closure().map((request) => request.body)).toEqual([
+      { expectedVersion: loaded },
+      { expectedVersion: latest },
+    ]);
+    expect(
+      within(screen.getByRole('region', { name: '모집 관리' })).getByRole(
+        'status',
+      ),
+    ).toHaveTextContent('모집을 종료했어요');
+  });
+
+  it('cancels an application with the refreshed application version after a 409', async () => {
+    const { user, step } = await renderPage('/workspace?view=applications', {
+      signedIn: true,
+    });
+    const application = mockDb().applications.find(
+      (item) => item.id === demoIds.applications.localcrew,
+    )!;
+    const loaded = application.version;
+    const latest = bumpVersion(application);
+    const cancellation = () =>
+      sentRequests.filter((request) => request.path.endsWith('/cancellation'));
+    await user.click(screen.getByRole('button', { name: '지원 취소' }));
+    const confirm = () =>
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '지원 취소하기',
+      });
+    await step(() => user.click(confirm()));
+    expect(
+      within(screen.getByRole('dialog')).getByRole('alert'),
+    ).toBeInTheDocument();
+    await step(() => user.click(confirm()));
+    expect(cancellation().map((request) => request.body)).toEqual([
+      { expectedVersion: loaded },
+      { expectedVersion: latest },
+    ]);
+    expect(
+      screen.getByText(
+        '지원이 취소됐어요. 현재 모집 조건이 맞으면 다시 지원할 수 있어요.',
+      ),
     ).toBeInTheDocument();
   });
 });

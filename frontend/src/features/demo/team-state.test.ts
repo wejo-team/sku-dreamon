@@ -1,108 +1,153 @@
 import { describe, expect, it } from 'vitest';
+import type { Application } from '@/features/applications/api';
+import { getPublicProfile } from '@/features/demo/data';
 import {
-  contests,
-  initialApplicants,
-  initialApplications,
-  initialProfile,
-  initialTeams,
-  getPublicProfile,
-  type Applicant,
-} from '@/features/demo/data';
-import {
-  applicantVisibleProfile,
-  applyToTeam,
-  cancelTeamApplication,
-  createTeamIssue,
-  isTeamMember,
-  selectTeamApplicant,
-  recruitmentIssue,
-  recruitmentReopeningIssue,
-  reopenTeamRecruitment,
-  teamRecruitmentDeadline,
-  type TeamActivity,
-} from '@/features/demo/team-state';
-import { lifecycleReferenceActivity } from '@/features/demo/lifecycle-fixtures';
+  createDemoRecords,
+  demoIds,
+  type DemoDatabase,
+  type TeamRecord,
+} from '@/features/demo/fixtures';
+import { demoAcademicUnits } from '@/features/demo/labels';
+import { lifecycleReferenceDatabase } from '@/features/demo/lifecycle-fixtures';
 import {
   appendNotifications,
   transitionNotifications,
 } from '@/features/demo/notification-state';
-const publicProfile = { ...initialProfile, visibility: { discoverable: true } };
-const state = (): TeamActivity => ({
-  teams: structuredClone(initialTeams),
-  applications: structuredClone(initialApplications),
-  applicants: structuredClone(initialApplicants),
+import {
+  applicantVisibleProfile,
+  applyToTeam,
+  cancelTeamApplication,
+  contestOf,
+  createTeamIssue,
+  isTeamMember,
+  recruitmentIssue,
+  recruitmentReopeningIssue,
+  reopenTeamRecruitment,
+  selectTeamApplicant,
+  teamOf,
+  teamRecruitmentDeadline,
+  type NewTeamInput,
+  type Transition,
+} from '@/features/demo/team-state';
+import { withProfile } from '@/test/render';
+
+const { accounts: a, teams: t, applications: ap, contests: c } = demoIds;
+const ME = a.me;
+
+// 성공한 전이의 저장소. 실패하면 오류 코드를 보여 주며 테스트를 멈춥니다.
+const ok = (transition: Transition): DemoDatabase => {
+  if ('error' in transition) throw new Error(transition.error.code);
+  return transition.db;
+};
+const codeOf = (transition: Transition) =>
+  'error' in transition ? transition.error.code : null;
+const state = () => createDemoRecords();
+const publicState = () => withProfile(state(), ME, { isPublic: true });
+const team = (db: DemoDatabase, teamId: string) => teamOf(db, teamId)!;
+const applicationOf = (db: DemoDatabase, id: string) =>
+  db.applications.find((item) => item.id === id);
+const patchTeam = (
+  db: DemoDatabase,
+  teamId: string,
+  patch: Partial<TeamRecord>,
+): DemoDatabase => ({
+  ...db,
+  teams: db.teams.map((item) =>
+    item.id === teamId ? { ...item, ...patch } : item,
+  ),
+});
+// 같은 공모전에 팀장 한 명만 있는 다른 팀을 추가
+const withTeam = (
+  db: DemoDatabase,
+  from: string,
+  id: string,
+  ownerAccountId: string,
+): DemoDatabase => ({
+  ...db,
+  teams: [
+    ...db.teams,
+    { ...db.teams.find((item) => item.id === from)!, id, ownerAccountId },
+  ],
+  memberships: [
+    ...db.memberships,
+    {
+      membershipId: `${id}-leader`,
+      teamId: id,
+      accountId: ownerAccountId,
+      membershipRole: 'leader',
+      roleCode: null,
+      joinedAt: '2026-10-10T00:00:00Z',
+      endedAt: null,
+    },
+  ],
 });
 
 describe('explicit recruitment reopening and parallel applications', () => {
   it('allows parallel applications to different teams of the same contest without consuming seats', () => {
-    const before = state();
-    before.teams.push({ ...before.teams[0]!, id: 'other-campus-team' });
-    const first = applyToTeam(
-      before,
-      publicProfile,
-      'makers',
-      '기획',
-      '',
-      'first',
-    )!;
-    const second = applyToTeam(
-      first,
-      publicProfile,
+    const before = withTeam(
+      publicState(),
+      t.makers,
       'other-campus-team',
-      '기획',
-      '',
-      'second',
-    )!;
+      a.doyun,
+    );
+    const first = ok(
+      applyToTeam(before, ME, t.makers, 'planning', null, 'first'),
+    );
+    const second = ok(
+      applyToTeam(first, ME, 'other-campus-team', 'planning', null, 'second'),
+    );
     expect(second.applications.slice(-2).map((item) => item.status)).toEqual([
-      '지원완료',
-      '지원완료',
+      'submitted',
+      'submitted',
     ]);
     expect(second.teams).toEqual(before.teams);
+    expect(second.memberships).toEqual(before.memberships);
     expect(
-      applyToTeam(second, publicProfile, 'makers', '기획', '', 'duplicate'),
-    ).toBeNull();
+      codeOf(applyToTeam(second, ME, t.makers, 'planning', null, 'duplicate')),
+    ).toBe('DUPLICATE_APPLICATION');
   });
 
-  it('only discards the selected person’s other pending applications for the same contest, including mirrored records', () => {
-    const before = state();
-    const applicant = before.applicants[0]!;
-    before.teams.push({
-      ...before.teams[1]!,
-      id: 'other-green-team',
-      owner: false,
-    });
-    const other = {
+  it('only discards the selected person’s other pending applications for the same contest', () => {
+    const base = withTeam(state(), t.greenwave, 'other-green-team', a.doyun);
+    const applicant = applicationOf(base, ap.seoyeon)!;
+    const other: Application = {
       ...applicant,
       id: 'other-pending',
       teamId: 'other-green-team',
-      status: '지원완료' as const,
+      status: 'submitted',
     };
-    const records = [
+    const records: Application[] = [
       other,
-      { ...other, id: 'other-reviewing', status: '검토중' as const },
-      { ...other, id: 'other-contest', teamId: 'makers' },
-      ...(['지원취소', '미선발', '폐기'] as const).map((status) => ({
+      { ...other, id: 'other-reviewing', status: 'reviewing' },
+      {
+        ...other,
+        id: 'other-contest',
+        teamId: t.makers,
+        contestId: c.campus,
+      },
+      ...(['canceled', 'rejected', 'discarded'] as const).map((status) => ({
         ...other,
         id: `history-${status}`,
         status,
       })),
-      { ...other, id: 'another-person', personId: 'sua' },
+      { ...other, id: 'another-person', applicantAccountId: a.sua },
     ];
-    before.applicants.push(...records);
-    before.applications.push(...records);
-    const next = selectTeamApplicant(before, applicant.id, initialProfile)!;
-    for (const collection of [next.applicants, next.applications]) {
-      expect(
-        collection.find((item) => item.id === 'other-pending')?.status,
-      ).toBe('폐기');
-      expect(
-        collection.find((item) => item.id === 'other-reviewing')?.status,
-      ).toBe('폐기');
-      for (const old of records.slice(2)) {
-        expect(collection.find((item) => item.id === old.id)).toEqual(old);
-      }
-    }
-    expect(selectTeamApplicant(next, other.id, initialProfile)).toBeNull();
+    const before = {
+      ...base,
+      applications: [...base.applications, ...records],
+    };
+    const next = ok(selectTeamApplicant(before, applicant.id, ME, 'm-new'));
+    for (const id of ['other-pending', 'other-reviewing'])
+      expect(applicationOf(next, id)).toMatchObject({
+        status: 'discarded',
+        discardReason: 'selected_elsewhere',
+        discardedByApplicationId: applicant.id,
+      });
+    for (const old of records.slice(2))
+      expect(applicationOf(next, old.id)).toEqual(old);
+    expect(
+      codeOf(selectTeamApplicant(next, other.id, a.doyun, 'm-other')),
+    ).toBe('INVALID_APPLICATION_STATE');
     const notifications = transitionNotifications(
       before,
       next,
@@ -110,17 +155,15 @@ describe('explicit recruitment reopening and parallel applications', () => {
       '2026-10-19T00:00:00Z',
     );
     expect(
-      notifications.map((item) => [item.applicationId, item.status]),
+      notifications.map((item) => [item.applicationId, item.eventStatus]),
     ).toEqual([
-      ['other-pending', '폐기'],
-      ['other-reviewing', '폐기'],
-      [applicant.id, '선발'],
+      [applicant.id, 'selected'],
+      ['other-pending', 'discarded'],
+      ['other-reviewing', 'discarded'],
     ]);
     expect(
       notifications.every(
-        (item) =>
-          item.recipient.kind === 'person' &&
-          item.recipient.personId === applicant.personId,
+        (item) => item.recipientAccountId === applicant.applicantAccountId,
       ),
     ).toBe(true);
     expect(appendNotifications(notifications, notifications)).toEqual(
@@ -129,127 +172,100 @@ describe('explicit recruitment reopening and parallel applications', () => {
     expect(
       transitionNotifications(next, next, 'retry', '2026-10-19T00:00:01Z'),
     ).toEqual([]);
-    const full = {
-      ...before,
-      teams: before.teams.map((team) =>
-        team.id === 'greenwave' ? { ...team, members: team.capacity } : team,
-      ),
-    };
-    expect(selectTeamApplicant(full, applicant.id, initialProfile)).toBeNull();
-    expect(
-      before.applications.find((item) => item.id === other.id)?.status,
-    ).toBe('지원완료');
+    const full = patchTeam(before, t.greenwave, { capacity: '2' });
+    expect(codeOf(selectTeamApplicant(full, applicant.id, ME, 'm-full'))).toBe(
+      'TEAM_FULL',
+    );
+    expect(applicationOf(before, other.id)?.status).toBe('submitted');
   });
 
   it('closes on the last selected seat and keeps it closed when that seat is returned', () => {
-    const before = state();
-    before.teams = before.teams.map((team) =>
-      team.id === 'greenwave'
-        ? { ...team, capacity: 3, status: '지원자검토' }
-        : team,
+    const before = patchTeam(state(), t.greenwave, { capacity: '3' });
+    const selected = ok(
+      selectTeamApplicant(before, ap.seoyeon, ME, 'm-seoyeon'),
     );
-    const selected = selectTeamApplicant(
-      before,
-      'app-seoyeon',
-      initialProfile,
-    )!;
-    expect(selected.teams.find((team) => team.id === 'greenwave')?.status).toBe(
-      '모집마감',
-    );
-    const memberView = {
-      ...selected,
-      teams: selected.teams.map((team) =>
-        team.id === 'greenwave'
-          ? {
-              ...team,
-              owner: false,
-              memberProfiles: team.memberProfiles.map((member) => ({
-                ...member,
-                id:
-                  member.id === 'seoyeon'
-                    ? 'me'
-                    : member.id === 'me'
-                      ? 'leader'
-                      : member.id,
-              })),
-            }
-          : team,
-      ),
-      applications: [{ ...selected.applicants[0]!, personId: 'me' }],
-    };
-    const cancelled = cancelTeamApplication(memberView, 'app-seoyeon')!;
-    const team = cancelled.teams.find((item) => item.id === 'greenwave')!;
-    expect(team.members).toBe(2);
-    expect(team.status).toBe('모집마감');
-    expect(recruitmentIssue(team)).toMatch(/모집이 마감/);
-    expect(reopenTeamRecruitment(cancelled, team.id)).toBeNull();
-    const leaderView = {
-      ...cancelled,
-      teams: cancelled.teams.map((item) =>
-        item.id === team.id ? { ...item, owner: true } : item,
-      ),
-    };
-    const reopened = reopenTeamRecruitment(leaderView, team.id)!;
+    expect(team(selected, t.greenwave)).toMatchObject({
+      recruitmentState: 'closed',
+      closedReason: 'capacity_reached',
+    });
+    const canceled = ok(cancelTeamApplication(selected, ap.seoyeon, a.seoyeon));
+    const returned = team(canceled, t.greenwave);
+    expect(returned.memberCount).toBe(2);
+    expect(returned.recruitmentState).toBe('closed');
+    expect(recruitmentIssue(returned)).toMatch(/모집이 마감/);
     expect(
-      recruitmentIssue(reopened.teams.find((item) => item.id === team.id)!),
-    ).toBeNull();
-    expect(reopened.applications).toEqual(cancelled.applications);
+      codeOf(reopenTeamRecruitment(canceled, t.greenwave, a.seoyeon)),
+    ).toBe('FORBIDDEN');
+    const reopened = ok(reopenTeamRecruitment(canceled, t.greenwave, ME));
+    expect(recruitmentIssue(team(reopened, t.greenwave))).toBeNull();
+    expect(reopened.applications).toEqual(canceled.applications);
   });
 
   it('keeps discarded history unchanged after selected cancellation and explicit reopening', () => {
-    const before = lifecycleReferenceActivity();
-    const cancelled = cancelTeamApplication(before, 'application-localcrew')!;
-    expect(
-      cancelled.applications.find((item) => item.status === '폐기'),
-    ).toEqual(before.applications.find((item) => item.status === '폐기'));
-    const reopened = reopenTeamRecruitment(cancelled, 'greenwave')!;
-    expect(reopened.applicants).toEqual(cancelled.applicants);
-    expect(reopened.applications).toEqual(cancelled.applications);
-    expect(reopenTeamRecruitment(reopened, 'greenwave')).toBeNull();
+    const before = lifecycleReferenceDatabase();
+    const discarded = (db: DemoDatabase) =>
+      db.applications.filter((item) => item.status === 'discarded');
+    const canceled = ok(cancelTeamApplication(before, ap.localcrew, ME));
+    expect(discarded(canceled)).toEqual(discarded(before));
+    const reopened = ok(reopenTeamRecruitment(canceled, t.greenwave, ME));
+    expect(reopened.applications).toEqual(canceled.applications);
+    expect(codeOf(reopenTeamRecruitment(reopened, t.greenwave, ME))).toBe(
+      'INVALID_RECRUITMENT_STATE',
+    );
   });
 
-  it('does not reinterpret the unresolved team-finalized state when a member cancels', () => {
-    const before = state();
-    before.teams = before.teams.map((team) =>
-      team.id === 'localcrew' ? { ...team, status: '팀원확정' } : team,
-    );
-    const next = cancelTeamApplication(before, 'application-localcrew')!;
-    expect(next.teams.find((team) => team.id === 'localcrew')?.status).toBe(
-      '팀원확정',
-    );
+  // docs/api/teams.md#values: 모집 상태는 open|closed뿐이며, 정원 충족으로 마감된 팀은 팀원이 취소해도 마감 유지
+  it('keeps a capacity-closed team closed when a member cancels', () => {
+    const next = ok(cancelTeamApplication(state(), ap.localcrew, ME));
+    expect(team(next, t.localcrew)).toMatchObject({
+      recruitmentState: 'closed',
+      closedReason: 'capacity_reached',
+    });
   });
 
   it('checks authority, seats and exact time boundaries when reopening', () => {
-    const team = {
-      ...initialTeams[1]!,
-      status: '모집마감' as const,
-      recruitmentDeadline: '2026-10-18',
+    const db = state();
+    const closed = {
+      ...team(db, t.greenwave),
+      recruitmentState: 'closed' as const,
+      recruitmentEndsAt: '2026-10-18T15:00:00Z',
     };
     const cutoff = Date.parse('2026-10-18T15:00:00Z');
-    expect(recruitmentReopeningIssue(team, cutoff - 1)).toBeNull();
-    expect(recruitmentReopeningIssue(team, cutoff)).toMatch(/기한/);
+    expect(recruitmentReopeningIssue(closed, ME, cutoff - 1)).toBeNull();
+    expect(recruitmentReopeningIssue(closed, ME, cutoff)).toMatch(/기한/);
     expect(
-      recruitmentReopeningIssue({ ...team, owner: false }, cutoff - 1),
+      recruitmentReopeningIssue(
+        { ...closed, ownerAccountId: a.doyun },
+        ME,
+        cutoff - 1,
+      ),
     ).toMatch(/팀장만/);
     expect(
       recruitmentReopeningIssue(
-        { ...team, members: team.capacity },
+        { ...closed, memberCount: Number(closed.capacity) },
+        ME,
         cutoff - 1,
       ),
     ).toMatch(/정원/);
     expect(
-      recruitmentReopeningIssue({ ...team, contestId: 'upcoming' }),
+      recruitmentReopeningIssue(
+        { ...closed, contest: contestOf(db, c.upcoming)! },
+        ME,
+      ),
     ).toMatch(/접수가 시작/);
     expect(
-      recruitmentReopeningIssue({
-        ...team,
-        contestId: 'solo',
-        capacity: 1,
-        members: 1,
-      }),
+      recruitmentReopeningIssue(
+        {
+          ...closed,
+          contest: contestOf(db, c.solo)!,
+          capacity: '1',
+          memberCount: 1,
+        },
+        ME,
+      ),
     ).toMatch(/정원/);
     expect(
-      recruitmentReopeningIssue(team, Date.parse('2026-12-01T00:00:00Z')),
+      recruitmentReopeningIssue(closed, ME, Date.parse('2026-12-01T00:00:00Z')),
     ).toMatch(/공모전 접수가 마감/);
   });
 });
@@ -257,332 +273,269 @@ describe('explicit recruitment reopening and parallel applications', () => {
 describe('team reference transitions', () => {
   it('confirms selection and consumes a seat in the same transition', () => {
     const before = state();
-    const next = selectTeamApplicant(before, 'app-seoyeon', initialProfile)!;
-    const team = next.teams.find((item) => item.id === 'greenwave')!;
-    expect(team.members).toBe(3);
-    expect(isTeamMember(team, 'seoyeon')).toBe(true);
-    expect(
-      next.applicants.find((item) => item.id === 'app-seoyeon')?.status,
-    ).toBe('선발');
-    expect(selectTeamApplicant(next, 'app-seoyeon', initialProfile)).toBeNull();
-    expect(before.teams.find((item) => item.id === 'greenwave')?.members).toBe(
-      2,
+    const next = ok(selectTeamApplicant(before, ap.seoyeon, ME, 'm1'));
+    expect(team(next, t.greenwave).memberCount).toBe(3);
+    expect(isTeamMember(next, t.greenwave, a.seoyeon)).toBe(true);
+    expect(applicationOf(next, ap.seoyeon)?.status).toBe('selected');
+    expect(codeOf(selectTeamApplicant(next, ap.seoyeon, ME, 'm2'))).toBe(
+      'INVALID_APPLICATION_STATE',
     );
+    expect(team(before, t.greenwave).memberCount).toBe(2);
   });
   it('allows only one of two selections for the last seat', () => {
-    const before = state();
-    before.teams = before.teams.map((team) =>
-      team.id === 'greenwave' ? { ...team, capacity: 3 } : team,
+    const before = patchTeam(state(), t.greenwave, { capacity: '3' });
+    const first = ok(selectTeamApplicant(before, ap.seoyeon, ME, 'm1'));
+    expect(codeOf(selectTeamApplicant(first, ap.sua, ME, 'm2'))).toBe(
+      'TEAM_FULL',
     );
-    const first = selectTeamApplicant(before, 'app-seoyeon', initialProfile)!;
-    expect(selectTeamApplicant(first, 'app-sua', initialProfile)).toBeNull();
-    expect(first.teams.find((team) => team.id === 'greenwave')?.members).toBe(
-      3,
-    );
-    expect(first.applicants.find((item) => item.id === 'app-sua')?.status).toBe(
-      '검토중',
-    );
+    expect(team(first, t.greenwave).memberCount).toBe(3);
+    expect(applicationOf(first, ap.sua)?.status).toBe('reviewing');
   });
   it('rejects a second confirmed membership for the same contest', () => {
-    const before = state();
-    before.teams.push({
-      ...before.teams[0]!,
-      id: 'other-green-team',
-      contestId: 'green',
-      memberProfiles: [{ id: 'seoyeon', name: '김서연', role: '개발' }],
-    });
-    expect(
-      selectTeamApplicant(before, 'app-seoyeon', initialProfile),
-    ).toBeNull();
+    const before = withTeam(
+      state(),
+      t.greenwave,
+      'other-green-team',
+      a.seoyeon,
+    );
+    expect(codeOf(selectTeamApplicant(before, ap.seoyeon, ME, 'm1'))).toBe(
+      'MEMBERSHIP_CONFLICT',
+    );
   });
   it('cancels a selected application, revokes membership, and returns exactly one seat without reopening', () => {
     const before = state();
     const application = before.applications.find(
-      (item) => item.status === '선발',
+      (item) => item.status === 'selected',
     )!;
-    const next = cancelTeamApplication(before, application.id)!;
-    const oldTeam = before.teams.find(
-      (team) => team.id === application.teamId,
-    )!;
-    const team = next.teams.find((item) => item.id === application.teamId)!;
-    expect(isTeamMember(team)).toBe(false);
-    expect(team.members).toBe(oldTeam.members - 1);
-    expect(team.status).toBe(oldTeam.status);
-    expect(
-      next.applications.find((item) => item.id === application.id)?.status,
-    ).toBe('지원취소');
-    expect(cancelTeamApplication(next, application.id)).toBeNull();
+    const next = ok(cancelTeamApplication(before, application.id, ME));
+    const oldTeam = team(before, application.teamId);
+    const updated = team(next, application.teamId);
+    expect(isTeamMember(next, application.teamId, ME)).toBe(false);
+    expect(updated.memberCount).toBe(oldTeam.memberCount - 1);
+    expect(updated.recruitmentState).toBe(oldTeam.recruitmentState);
+    expect(applicationOf(next, application.id)?.status).toBe('canceled');
+    expect(codeOf(cancelTeamApplication(next, application.id, ME))).toBe(
+      'INVALID_APPLICATION_STATE',
+    );
   });
   it('allows an unadvertised role, and reapplication gets a fresh identity', () => {
-    const first = applyToTeam(
-      state(),
-      publicProfile,
-      'makers',
-      '마케팅',
-      '',
-      'new-1',
-    )!;
-    expect(first).not.toBeNull();
-    expect(first.teams.find((team) => team.id === 'makers')?.members).toBe(2);
-    const cancelled = cancelTeamApplication(first, 'new-1')!;
-    const second = applyToTeam(
-      cancelled,
-      publicProfile,
-      'makers',
-      '기획',
-      '다시 지원해요',
-      'new-2',
-    )!;
+    const before = publicState();
+    const first = ok(
+      applyToTeam(before, ME, t.makers, 'marketing', null, 'new-1'),
+    );
+    expect(team(first, t.makers).memberCount).toBe(
+      team(before, t.makers).memberCount,
+    );
+    const canceled = ok(cancelTeamApplication(first, 'new-1', ME));
+    const second = ok(
+      applyToTeam(canceled, ME, t.makers, 'planning', '다시 지원해요', 'new-2'),
+    );
+    expect(applicationOf(second, 'new-2')?.status).toBe('submitted');
+    expect(codeOf(cancelTeamApplication(second, 'new-1', ME))).toBe(
+      'INVALID_APPLICATION_STATE',
+    );
+    expect(codeOf(selectTeamApplicant(second, 'new-1', a.minjun, 'm1'))).toBe(
+      'INVALID_APPLICATION_STATE',
+    );
     expect(
-      second.applications.find((item) => item.id === 'new-2')?.status,
-    ).toBe('지원완료');
-    expect(cancelTeamApplication(second, 'new-1')).toBeNull();
-    expect(selectTeamApplicant(second, 'new-1', initialProfile)).toBeNull();
-    expect(
-      applyToTeam(second, publicProfile, 'makers', '기획', '', 'new-3'),
-    ).toBeNull();
+      codeOf(applyToTeam(second, ME, t.makers, 'planning', null, 'new-3')),
+    ).toBe('DUPLICATE_APPLICATION');
   });
-  it('accepts applications during review, but blocks deadline, full capacity, and missing profile', () => {
-    const before = state();
-    before.teams = before.teams.map((team) =>
-      team.id === 'makers' ? { ...team, status: '지원자검토' } : team,
-    );
+  it('accepts applications while others are under review, but blocks deadline, full capacity, missing profile and long messages', () => {
+    const base = publicState();
+    const before: DemoDatabase = {
+      ...base,
+      applications: [
+        ...base.applications,
+        {
+          ...applicationOf(base, ap.sua)!,
+          id: 'sua-reviewing',
+          teamId: t.makers,
+          contestId: c.campus,
+        },
+      ],
+    };
+    const apply = (db: DemoDatabase, message: string | null, id: string) =>
+      applyToTeam(db, ME, t.makers, 'planning', message, id);
+    expect(codeOf(apply(before, null, 'review-new'))).toBeNull();
     expect(
-      applyToTeam(before, publicProfile, 'makers', '기획', '', 'review-new'),
-    ).not.toBeNull();
-    expect(
-      applyToTeam(
-        before,
-        { ...initialProfile, interests: [] },
-        'makers',
-        '기획',
-        '',
-        'missing',
+      codeOf(
+        apply(withProfile(before, ME, { fieldCodes: [] }), null, 'missing'),
       ),
-    ).toBeNull();
+    ).toBe('PROFILE_REQUIRED');
+    expect(codeOf(apply(before, 'x'.repeat(1001), 'long'))).toBe(
+      'VALIDATION_ERROR',
+    );
+    const members = String(team(before, t.makers).memberCount);
     expect(
-      applyToTeam(
-        before,
-        publicProfile,
-        'makers',
-        '기획',
-        'x'.repeat(1001),
-        'long',
+      codeOf(
+        apply(patchTeam(before, t.makers, { capacity: members }), null, 'full'),
       ),
-    ).toBeNull();
-    before.teams = before.teams.map((team) =>
-      team.id === 'makers' ? { ...team, capacity: team.members } : team,
+    ).toBe('TEAM_FULL');
+    const expired = patchTeam(before, t.makers, {
+      capacity: '10',
+      recruitmentEndsAt: '2026-10-17T15:00:00Z',
+    });
+    expect(codeOf(apply(expired, null, 'expired'))).toBe(
+      'RECRUITMENT_DEADLINE_PASSED',
     );
-    expect(
-      applyToTeam(before, publicProfile, 'makers', '기획', '', 'full'),
-    ).toBeNull();
-    before.teams = before.teams.map((team) =>
-      team.id === 'makers'
-        ? { ...team, capacity: 10, recruitmentDeadline: '2026-10-17' }
-        : team,
-    );
-    expect(
-      applyToTeam(before, publicProfile, 'makers', '기획', '', 'expired'),
-    ).toBeNull();
   });
   it('validates the official target capacity without requiring all members at creation', () => {
-    const input = {
+    const db = state();
+    const input: NewTeamInput = {
       name: '새로운 팀',
-      summary: '공모전 아이디어를 함께 구체화해요',
-      contestId: 'campus',
-      roles: ['기획'],
-      interests: [],
+      introduction: '공모전 아이디어를 함께 구체화해요',
+      contestId: c.campus,
+      roleCodes: ['planning'],
       capacity: 4,
-      recruitmentDeadline: '2026-11-01',
+      recruitmentDeadline: { date: '2026-11-01' },
     };
-    expect(createTeamIssue(input, initialTeams)).toBeNull();
-    expect(createTeamIssue({ ...input, capacity: 1 }, initialTeams)).toMatch(
-      /공식 참가 인원/,
+    const message = (patch: Partial<NewTeamInput>) =>
+      createTeamIssue({ ...input, ...patch }, db, ME)?.message;
+    expect(createTeamIssue(input, db, ME)).toBeNull();
+    expect(message({ capacity: 1 })).toMatch(/공식 참가 인원/);
+    expect(message({ capacity: 100 })).toMatch(/공식 참가 인원/);
+    expect(message({ recruitmentDeadline: { date: '2026-12-01' } })).toMatch(
+      /마감/,
     );
-    expect(createTeamIssue({ ...input, capacity: 100 }, initialTeams)).toMatch(
-      /공식 참가 인원/,
-    );
-    expect(
-      createTeamIssue(
-        { ...input, recruitmentDeadline: '2026-12-01' },
-        initialTeams,
-      ),
-    ).toMatch(/마감/);
-    expect(
-      createTeamIssue({ ...input, contestId: 'green' }, initialTeams),
-    ).toMatch(/이미/);
+    expect(message({ contestId: c.green })).toMatch(/이미/);
   });
 });
 
 describe('applicant visibility', () => {
-  const fixture = (): Applicant => ({
-    ...initialApplicants[0]!,
-    profile: {
-      ...initialProfile,
-      name: '비공개 지원자',
-      intro: '지원자의 자기소개',
-      experienceState: 'provided',
-      experience: '지원자의 경험',
-      academicStatus: '재학',
-      grade: '3학년',
-      college: '이공대학',
-      department: '소프트웨어학과',
-      major: '컴퓨터공학',
-      skills: ['프로그래밍', 'UI/UX'],
-      interests: ['사회·문화'],
-      availability: '5~10시간 미만',
-      visibility: { discoverable: false },
-      portfolio: 'https://example.com/private',
-      portfolioTitle: '비공개 링크',
-    },
-  });
+  const department = demoAcademicUnits.find(
+    (unit) => unit.name === '소프트웨어학과',
+  )!;
+  const privateApplicant = {
+    realName: '비공개 지원자',
+    introduction: '지원자의 자기소개',
+    experienceState: 'provided' as const,
+    experienceBody: '지원자의 경험',
+    academicStatusCode: 'enrolled',
+    gradeCode: 'year_3',
+    academicUnitId: department.id,
+    skillCodes: ['programming', 'ui_ux'],
+    fieldCodes: ['society_culture'],
+    weeklyAvailabilityCode: 'from_5_to_10',
+    isPublic: false,
+    portfolio: { url: 'https://example.com/private', title: '비공개 링크' },
+  };
   it('shares the full private profile in applicant review while excluding it from discovery', () => {
-    const applicant = fixture();
-    expect(getPublicProfile(applicant.profile!)).toBeNull();
-    expect(applicantVisibleProfile(applicant, initialProfile)).toMatchObject({
-      name: '비공개 지원자',
-      intro: '지원자의 자기소개',
-      experience: '지원자의 경험',
-      experienceState: 'provided',
-      academicStatus: '재학',
-      grade: '3학년',
-      college: '이공대학',
-      department: '소프트웨어학과',
-      major: '컴퓨터공학',
-      skills: ['프로그래밍', 'UI/UX'],
-      interests: ['사회·문화'],
-      availability: '5~10시간 미만',
-      portfolio: 'https://example.com/private',
-      portfolioTitle: '비공개 링크',
-    });
+    const db = withProfile(state(), a.seoyeon, privateApplicant);
+    const application = applicationOf(db, ap.seoyeon)!;
+    const profile = applicantVisibleProfile(db, application)!;
+    expect(getPublicProfile(profile)).toBeNull();
+    expect(profile).toMatchObject(privateApplicant);
   });
   it('uses the current self profile instead of a stored application snapshot', () => {
-    const applicant = {
-      ...fixture(),
-      personId: 'me',
-      status: '지원취소' as const,
-    };
     const current = {
-      ...initialProfile,
-      name: '수정된 이름',
-      intro: '수정된 자기소개',
-      visibility: { discoverable: false },
-      availability: '10~20시간 미만',
-      portfolio: 'https://example.com/current',
-      portfolioTitle: '현재 포트폴리오',
+      realName: '수정된 이름',
+      introduction: '수정된 자기소개',
+      isPublic: false,
+      weeklyAvailabilityCode: 'from_10_to_20',
+      portfolio: {
+        url: 'https://example.com/current',
+        title: '현재 포트폴리오',
+      },
     };
-    expect(applicantVisibleProfile(applicant, current)).toMatchObject({
-      name: '수정된 이름',
-      intro: '수정된 자기소개',
-      availability: '10~20시간 미만',
-      portfolio: 'https://example.com/current',
-    });
+    const db = withProfile(state(), ME, current);
+    const application = {
+      ...applicationOf(db, ap.localcrew)!,
+      status: 'canceled' as const,
+    };
+    expect(applicantVisibleProfile(db, application)).toMatchObject(current);
     expect(
-      applicantVisibleProfile(applicant, {
-        ...current,
-        visibility: { discoverable: true },
-      }),
-    ).toEqual(applicantVisibleProfile(applicant, current));
+      applicantVisibleProfile(
+        withProfile(db, ME, { isPublic: true }),
+        application,
+      ),
+    ).toEqual({ ...applicantVisibleProfile(db, application), isPublic: true });
     expect(
-      applicantVisibleProfile(applicant, { ...current, portfolio: '' })
-        .portfolio,
-    ).toBe('');
+      applicantVisibleProfile(
+        withProfile(db, ME, { portfolio: null }),
+        application,
+      )?.portfolio,
+    ).toBeNull();
   });
 });
 
 describe('normalized team policies', () => {
-  const input = {
+  const input: NewTeamInput = {
     name: '새 도전',
-    summary: '공모전을 함께 준비하고 완성해요.',
-    contestId: 'campus',
-    roles: ['기획'],
-    interests: ['교육', 'IT·기술'],
+    introduction: '공모전을 함께 준비하고 완성해요.',
+    contestId: c.campus,
+    roleCodes: ['planning'],
     capacity: 3,
-    recruitmentDeadline: '2026-11-01',
+    recruitmentDeadline: { date: '2026-11-01' },
   };
+  const message = (patch: Partial<NewTeamInput>) =>
+    createTeamIssue({ ...input, ...patch }, state(), ME)?.message ?? null;
   it('requires a public profile only for a new application and allows unspecified academic fields', () => {
     expect(
-      applyToTeam(state(), initialProfile, 'makers', '기획', '', 'private'),
-    ).toBeNull();
-    const next = applyToTeam(
-      state(),
-      { ...publicProfile, academicStatus: '', grade: '' },
-      'makers',
-      '기획',
-      '',
-      'new',
+      codeOf(applyToTeam(state(), ME, t.makers, 'planning', null, 'private')),
+    ).toBe('PROFILE_PRIVATE');
+    const next = ok(
+      applyToTeam(
+        withProfile(publicState(), ME, {
+          academicStatusCode: null,
+          gradeCode: null,
+        }),
+        ME,
+        t.makers,
+        'planning',
+        null,
+        'new',
+      ),
     );
-    expect(next?.applications.at(-1)?.status).toBe('지원완료');
-    expect(
-      cancelTeamApplication(state(), initialApplications[0]!.id),
-    ).not.toBeNull();
+    expect(next.applications.at(-1)?.status).toBe('submitted');
+    expect(codeOf(cancelTeamApplication(state(), ap.localcrew, ME))).toBeNull();
   });
-  it('does not introduce the undecided cross-team application restriction', () => {
-    const before = state();
-    before.teams.push({
-      ...initialTeams[0]!,
-      id: 'same-contest-member',
-      owner: true,
-    });
+  // docs/api/applications.md#application-create: 같은 공모전의 팀에 이미 소속되어 있으면 MEMBERSHIP_CONFLICT
+  it('rejects a new application while the applicant already belongs to a team of the same contest', () => {
+    const before = withTeam(publicState(), t.makers, 'same-contest-member', ME);
     expect(
-      applyToTeam(before, publicProfile, 'makers', '기획', '', 'new'),
-    ).not.toBeNull();
+      codeOf(applyToTeam(before, ME, t.makers, 'planning', null, 'new')),
+    ).toBe('MEMBERSHIP_CONFLICT');
   });
-  it('enforces name, summary and role boundaries without treating whitespace as content', () => {
-    expect(createTeamIssue({ ...input, name: ' 가 ' }, [])).toMatch(/2~40/);
-    expect(createTeamIssue({ ...input, summary: ' '.repeat(12) }, [])).toMatch(
-      /10~/,
-    );
-    expect(createTeamIssue({ ...input, name: '가'.repeat(41) }, [])).toMatch(
-      /2~40/,
-    );
-    expect(createTeamIssue({ ...input, roles: [] }, [])).toMatch(/역할/);
-    expect(createTeamIssue({ ...input, roles: ['임의역할'] }, [])).toMatch(
-      /역할/,
-    );
-    expect(createTeamIssue({ ...input, roles: ['기획', '기획'] }, [])).toMatch(
-      /역할/,
-    );
+  it('enforces name, introduction and role boundaries without treating whitespace as content', () => {
+    expect(message({ name: ' 가 ' })).toMatch(/2~40/);
+    expect(message({ introduction: ' '.repeat(12) })).toMatch(/10~/);
+    expect(message({ name: '가'.repeat(41) })).toMatch(/2~40/);
+    expect(message({ roleCodes: [] })).toMatch(/역할/);
+    expect(message({ roleCodes: ['임의역할'] })).toMatch(/역할/);
+    expect(message({ roleCodes: ['planning', 'planning'] })).toMatch(/역할/);
   });
   it('uses fixed official one-person capacity, omits roles and applies no arbitrary unlimited ceiling', () => {
     expect(
-      createTeamIssue(
-        { ...input, contestId: 'solo', capacity: 1, roles: [] },
-        [],
-      ),
+      message({ contestId: c.solo, capacity: 1, roleCodes: [] }),
     ).toBeNull();
-    expect(
-      createTeamIssue({ ...input, contestId: 'solo', capacity: 2 }, []),
-    ).toMatch(/공식 참가 인원/);
-    expect(
-      createTeamIssue({ ...input, contestId: 'solo', capacity: 1 }, []),
-    ).toMatch(/1명/);
-    expect(
-      createTeamIssue({ ...input, contestId: 'open-lab', capacity: 1000 }, []),
-    ).toBeNull();
-    expect(createTeamIssue({ ...input, capacity: NaN }, [])).toMatch(/정원/);
-    expect(createTeamIssue({ ...input, contestId: 'upcoming' }, [])).toMatch(
-      /접수 중/,
+    expect(message({ contestId: c.solo, capacity: 2 })).toMatch(
+      /공식 참가 인원/,
     );
+    expect(message({ contestId: c.solo, capacity: 1 })).toMatch(/1명/);
+    expect(message({ contestId: c.openLab, capacity: 1000 })).toBeNull();
+    expect(message({ capacity: NaN })).toMatch(/정원/);
+    expect(message({ contestId: c.upcoming })).toMatch(/접수 중/);
   });
   it('closes at the exact team or contest boundary, whichever is earlier', () => {
-    const team = { ...initialTeams[0]!, recruitmentDeadline: '2026-10-18' };
+    const db = state();
+    const makers = {
+      ...team(db, t.makers),
+      recruitmentEndsAt: '2026-10-18T15:00:00Z',
+    };
     const cutoff = Date.parse('2026-10-18T15:00:00Z');
-    expect(recruitmentIssue(team, cutoff - 1)).toBeNull();
-    expect(recruitmentIssue(team, cutoff)).toMatch(/기한/);
+    expect(recruitmentIssue(makers, cutoff - 1)).toBeNull();
+    expect(recruitmentIssue(makers, cutoff)).toMatch(/기한/);
     const solo = {
-      ...team,
-      contestId: 'solo',
-      recruitmentDeadline: '2026-11-20',
+      ...makers,
+      contestId: c.solo,
+      contest: contestOf(db, c.solo)!,
+      recruitmentEndsAt: '2026-11-20T15:00:00Z',
     };
     expect(teamRecruitmentDeadline(solo)).toBe(
       Date.parse('2026-11-20T09:00:00Z'),
     );
-    expect(contests.find((contest) => contest.id === 'local')?.minMembers).toBe(
-      2,
-    );
-    expect(initialTeams.find((item) => item.id === 'localcrew')?.members).toBe(
-      3,
-    );
+    expect(contestOf(db, c.local)?.capacity.minimumMembers).toBe('2');
+    expect(team(db, t.localcrew).memberCount).toBe(3);
   });
 });

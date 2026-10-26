@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { setupUser } from '@/test/user';
 import { describe, expect, it } from 'vitest';
 import {
   Drawer,
@@ -29,7 +29,7 @@ function Example() {
 
 describe('Drawer', () => {
   it('열면 포커스를 안에 가두고, Escape로 닫으면 호출 버튼으로 돌려준다', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     render(<Example />);
     const trigger = screen.getByRole('button', { name: '알림 열기' });
 

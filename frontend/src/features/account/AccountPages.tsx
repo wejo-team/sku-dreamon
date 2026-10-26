@@ -6,6 +6,10 @@
  * 4. docs/design/tokens.md - 수정 아이콘·공개 스위치·미리보기 묶음, 교내 미인증 배지 안내 Drawer
  * 5. docs/design/screens.md - 「확인할 상태와 연결」 프로필 수정·공개·이미지 선택 흐름
  * 6. docs/design/assets/wordmark-login-320.png, profile-view-390.png, profile-320.png, profile-public-confirm-390.png, profile-private-confirm-390.png, profile-school-390.png - 실제 화면
+ * 7. docs/api/auth.md#account-endpoints - POST /auth/login(401 INVALID_CREDENTIALS), POST /accounts(성공 시 로그인,
+ *    GET /me로 같은 계정인지 확인 후 프로필 설정), GET /auth/login-id-availability, POST /auth/logout
+ * 8. docs/api/profiles.md#profile-endpoints - GET /me/profile(미저장 404), PUT /me/profile(최초 "0"), PUT /me/profile/visibility
+ * 9. docs/development/frontend.md - 「API와 query」 각 화면은 로딩·오류 상태 제공
  */
 
 import { useId, useRef, useState } from 'react';
@@ -18,12 +22,7 @@ import {
   SquarePen,
   UserRound,
 } from 'lucide-react';
-import {
-  Controller,
-  useForm,
-  useWatch,
-  type UseFormRegister,
-} from 'react-hook-form';
+import { Controller, useForm, type UseFormRegister } from 'react-hook-form';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { z } from 'zod';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -47,13 +46,29 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { CatalogItem } from '@/features/catalogs/api';
+import { useLabels } from '@/features/catalogs/queries';
+import { getLoginIdAvailability } from '@/features/auth/api';
 import {
-  getPublicProfile,
-  interestOptions,
-  roleOptions,
-  type Profile,
-} from '@/features/demo/data';
-import { useDemo } from '@/features/demo/demo-context';
+  meQueryOptions,
+  useLogin,
+  useLogout,
+  useSession,
+  useSignup,
+} from '@/features/auth/queries';
+import type { Profile } from '@/features/profiles/api';
+import {
+  myProfileQueryOptions,
+  useSaveProfile,
+  useSaveVisibility,
+} from '@/features/profiles/queries';
+import {
+  toFormValues,
+  toProfileWrite,
+  type ProfileFormValues,
+} from '@/features/account/profile-form';
+import { ApiError } from '@/lib/api';
 import {
   Avatar,
   BackLink,
@@ -63,23 +78,21 @@ import {
 } from '@/components/common/CommonUi';
 import { AvatarPicker } from '@/features/account/AvatarPicker';
 import { ProfileDetails } from '@/components/common/ProfileDetails';
-import { mascotAvatarIds } from '@/features/demo/mascot-avatars';
 import {
   AcademicFields,
+  CharacterCount,
   ExperienceFields,
   SkillFields,
 } from '@/features/account/ProfileFields';
 import {
-  demoId,
-  demoPassword,
   loginIdSchema,
+  normalizeLoginId,
   passwordSchema,
   signupPasswordSchema,
 } from '@/features/demo/auth-policy';
 import {
   normalizeWebUrl,
   profileTextLength,
-  weeklyAvailabilityOptions,
 } from '@/features/demo/profile-fields';
 
 // [출처 3] 저장·공개 변환과 같은 기준(normalizeWebUrl)으로 포트폴리오 주소를 판단합니다.
@@ -88,7 +101,7 @@ function isWebUrl(value: string) {
 }
 
 const requiredProfileSchema = z.object({
-  name: z
+  realName: z
     .string()
     .trim()
     .min(1, '이름을 입력해 주세요.')
@@ -96,74 +109,103 @@ const requiredProfileSchema = z.object({
       (value) => profileTextLength(value) <= 50,
       '이름은 50자 이내로 입력해 주세요.',
     ),
-  roles: z
+  roleCodes: z
     .array(z.string())
     .min(1, '희망 역할을 하나 이상 선택해 주세요.')
     .max(2, '희망 역할은 최대 2개까지 선택해 주세요.'),
-  interests: z
+  fieldCodes: z
     .array(z.string())
     .min(1, '관심 분야를 하나 이상 선택해 주세요.')
     .max(3, '관심 분야는 최대 3개까지 선택해 주세요.'),
 });
-const profileSchema = requiredProfileSchema.extend({
-  avatarId: z.enum(mascotAvatarIds).optional(),
-  intro: z
-    .string()
-    .trim()
-    .refine(
-      (value) => profileTextLength(value) <= 300,
-      '자기소개는 300자 이내로 입력해 주세요.',
-    ),
-  experience: z
-    .string()
-    .trim()
-    .refine(
-      (value) => profileTextLength(value) <= 500,
-      '관련 경험은 500자 이내로 입력해 주세요.',
-    ),
-  experienceState: z.enum(['unspecified', 'none', 'provided']),
-  academicStatus: z.string().optional(),
-  grade: z.string().optional(),
-  college: z.string().optional(),
-  department: z.string().optional(),
-  major: z.string().optional(),
-  skills: z.array(z.string()),
-  portfolioTitle: z
-    .string()
-    .trim()
-    .refine(
-      (value) => profileTextLength(value) <= 50,
-      '포트폴리오 제목은 50자 이내로 입력해 주세요.',
-    ),
-  visibility: z.object({
-    discoverable: z.boolean(),
-  }),
-  portfolio: z
-    .string()
-    .trim()
-    .refine(
-      (value) => !value || isWebUrl(value),
-      'http:// 또는 https://로 시작하는 링크를 입력해 주세요.',
-    ),
-  availability: z
-    .string()
-    .refine(
-      (value) => !value || weeklyAvailabilityOptions.includes(value),
-      '주당 참여 가능 시간을 다시 선택해 주세요.',
-    ),
-});
+// 주당 시간 선택지는 GET /catalogs 결과로 검증합니다.
+const makeProfileSchema = (weeklyCodes: string[]) =>
+  requiredProfileSchema.extend({
+    profileImageCode: z.string().nullable(),
+    introduction: z
+      .string()
+      .trim()
+      .refine(
+        (value) => profileTextLength(value) <= 300,
+        '자기소개는 300자 이내로 입력해 주세요.',
+      ),
+    experienceBody: z
+      .string()
+      .trim()
+      .refine(
+        (value) => profileTextLength(value) <= 500,
+        '관련 경험은 500자 이내로 입력해 주세요.',
+      ),
+    experienceState: z.enum(['unspecified', 'none', 'provided']),
+    academicStatusCode: z.string(),
+    gradeCode: z.string(),
+    collegeId: z.string(),
+    departmentId: z.string(),
+    majorId: z.string(),
+    skillCodes: z.array(z.string()),
+    portfolioTitle: z
+      .string()
+      .trim()
+      .refine(
+        (value) => profileTextLength(value) <= 50,
+        '포트폴리오 제목은 50자 이내로 입력해 주세요.',
+      ),
+    portfolioUrl: z
+      .string()
+      .trim()
+      .refine(
+        (value) => !value || isWebUrl(value),
+        'http:// 또는 https://로 시작하는 링크를 입력해 주세요.',
+      ),
+    weeklyAvailabilityCode: z
+      .string()
+      .refine(
+        (value) => !value || weeklyCodes.includes(value),
+        '주당 참여 가능 시간을 다시 선택해 주세요.',
+      ),
+  });
 const accountSchema = z.object({
   username: loginIdSchema,
   password: passwordSchema,
 });
+// [출처 7] 아이디 중복은 GET /auth/login-id-availability로 확인합니다(가입 예약은 아님).
 const signupSchema = requiredProfileSchema.merge(accountSchema).extend({
-  username: loginIdSchema.refine(
-    (value) => value !== demoId,
-    '이미 사용 중인 아이디예요.',
-  ),
+  username: loginIdSchema.refine(async (value) => {
+    try {
+      return (await getLoginIdAvailability(value)).available;
+    } catch {
+      // 확인 요청이 실패하면 가입 요청에서 서버가 다시 판단합니다(409 LOGIN_ID_TAKEN).
+      return true;
+    }
+  }, '이미 사용 중인 아이디예요.'),
   password: signupPasswordSchema,
 });
 type SignupValues = z.infer<typeof signupSchema>;
+
+// [출처 8] 아직 프로필이 없을 때의 편집 초깃값
+const emptyFormValues: ProfileFormValues = {
+  realName: '',
+  profileImageCode: null,
+  academicStatusCode: '',
+  gradeCode: '',
+  collegeId: '',
+  departmentId: '',
+  majorId: '',
+  weeklyAvailabilityCode: '',
+  experienceState: 'unspecified',
+  experienceBody: '',
+  introduction: '',
+  fieldCodes: [],
+  roleCodes: [],
+  skillCodes: [],
+  portfolioUrl: '',
+  portfolioTitle: '',
+};
+const loadingView = (
+  <p className="preview-muted" role="status">
+    불러오는 중…
+  </p>
+);
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? (
@@ -182,7 +224,7 @@ function ChoiceField({
   id,
 }: {
   label: string;
-  options: string[];
+  options: CatalogItem[];
   value: string[];
   onChange: (value: string[]) => void;
   error?: string;
@@ -202,23 +244,23 @@ function ChoiceField({
       <div className="preview-row">
         {options.map((option) => (
           <Label
-            key={option}
-            htmlFor={`${id}-${option}`}
+            key={option.code}
+            htmlFor={`${id}-${option.code}`}
             className="preview-choice"
           >
             <Checkbox
-              id={`${id}-${option}`}
-              checked={value.includes(option)}
+              id={`${id}-${option.code}`}
+              checked={value.includes(option.code)}
               aria-invalid={!!error}
               onCheckedChange={(checked) =>
                 onChange(
                   checked === true
-                    ? [...value, option]
-                    : value.filter((item) => item !== option),
+                    ? [...value, option.code]
+                    : value.filter((item) => item !== option.code),
                 )
               }
             />
-            {option}
+            {option.displayName}
           </Label>
         ))}
       </div>
@@ -234,6 +276,7 @@ function AvailabilityField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const { weeklyAvailabilityOptions } = useLabels();
   return (
     <div className="preview-field">
       <Label htmlFor="profile-weekly-availability">
@@ -247,8 +290,8 @@ function AvailabilityField({
       >
         <NativeSelectOption value="">미입력</NativeSelectOption>
         {weeklyAvailabilityOptions.map((option) => (
-          <NativeSelectOption value={option} key={option}>
-            {option}
+          <NativeSelectOption value={option.code} key={option.code}>
+            {option.displayName}
           </NativeSelectOption>
         ))}
       </NativeSelect>
@@ -414,53 +457,55 @@ export function ProfileVisibilityControl({
 }
 
 function ProfileEditor({
+  profile,
   onDone,
   onCancel,
 }: {
+  profile: Profile | null;
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const { profile, saveProfile } = useDemo();
+  const { academicPath, fieldOptions, roleOptions, weeklyAvailabilityOptions } =
+    useLabels();
+  const saveProfile = useSaveProfile();
   const {
     register,
     control,
     handleSubmit,
     setValue,
+    setError,
     formState: { errors, isSubmitting },
-  } = useForm<Profile>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: profile,
+  } = useForm<ProfileFormValues>({
+    resolver: zodResolver(
+      makeProfileSchema(weeklyAvailabilityOptions.map((item) => item.code)),
+    ),
+    defaultValues: profile
+      ? toFormValues(profile, academicPath)
+      : emptyFormValues,
     mode: 'onChange',
   });
-  const name = useWatch({ control, name: 'name' });
-  const intro = useWatch({ control, name: 'intro' });
-  const portfolioTitle = useWatch({ control, name: 'portfolioTitle' });
   return (
     <form
       className="preview-panel preview-form"
       noValidate
-      onSubmit={handleSubmit((values) => {
-        // [출처 3] 검증을 통과한 주소는 정규화된 형태로 저장해 공개 미리보기와 같은 링크를 사용합니다.
-        const portfolio = values.portfolio
-          ? normalizeWebUrl(values.portfolio)
-          : '';
-        saveProfile({
-          ...values,
-          portfolio,
-          experienceState:
-            values.experienceState === 'provided' && !values.experience
-              ? 'unspecified'
-              : values.experienceState,
-          experience:
-            values.experienceState === 'provided' ? values.experience : '',
-          portfolioTitle: portfolio ? values.portfolioTitle : '',
-        });
-        onDone();
+      onSubmit={handleSubmit(async (values) => {
+        // [출처 3, 8] 폼 값을 PUT /me/profile 본문으로 변환(빈 선택은 null, 포트폴리오 URL은 정규화)
+        try {
+          await saveProfile.mutateAsync(toProfileWrite(values, profile));
+          onDone();
+        } catch (error) {
+          setError('root', {
+            message:
+              error instanceof ApiError && error.code === 'VERSION_CONFLICT'
+                ? '다른 곳에서 프로필이 바뀌었어요. 최신 내용을 확인한 뒤 다시 저장해 주세요.'
+                : '프로필을 저장하지 못했어요. 입력한 내용을 확인한 뒤 다시 시도해 주세요.',
+          });
+        }
       })}
     >
       <Controller
         control={control}
-        name="avatarId"
+        name="profileImageCode"
         render={({ field }) => (
           <AvatarPicker value={field.value} onChange={field.onChange} />
         )}
@@ -481,40 +526,43 @@ function ProfileEditor({
           <Label htmlFor="profile-name">이름 (필수)</Label>
           <Input
             id="profile-name"
-            {...register('name')}
+            {...register('realName')}
             autoComplete="off"
-            aria-invalid={!!errors.name}
-            aria-describedby={errors.name ? 'profile-name-error' : undefined}
+            aria-invalid={!!errors.realName}
+            aria-describedby={
+              errors.realName ? 'profile-name-error' : undefined
+            }
           />
-          <p className="preview-field-count">
-            {profileTextLength(name)} / 50자
-          </p>
-          <FieldError id="profile-name-error" message={errors.name?.message} />
+          <CharacterCount control={control} name="realName" max={50} />
+          <FieldError
+            id="profile-name-error"
+            message={errors.realName?.message}
+          />
         </div>
         <Controller
           control={control}
-          name="interests"
+          name="fieldCodes"
           render={({ field }) => (
             <ChoiceField
               id="profile-interests"
               label="관심 분야"
-              options={interestOptions}
+              options={fieldOptions}
               {...field}
-              error={errors.interests?.message}
+              error={errors.fieldCodes?.message}
             />
           )}
         />
 
         <Controller
           control={control}
-          name="roles"
+          name="roleCodes"
           render={({ field }) => (
             <ChoiceField
               id="profile-roles"
               label="희망 역할"
               options={roleOptions}
               {...field}
-              error={errors.roles?.message}
+              error={errors.roleCodes?.message}
             />
           )}
         />
@@ -534,29 +582,32 @@ function ProfileEditor({
           control={control}
           register={register}
           setValue={setValue}
-          error={errors.experience?.message}
+          error={errors.experienceBody?.message}
         />
         <div className="preview-field">
           <Label htmlFor="profile-intro">자기소개 (선택)</Label>
           <Textarea
             id="profile-intro"
             rows={3}
-            {...register('intro')}
-            aria-invalid={!!errors.intro}
+            {...register('introduction')}
+            aria-invalid={!!errors.introduction}
             aria-describedby="profile-intro-count profile-intro-error"
             placeholder="함께하고 싶은 활동을 소개해 주세요."
           />
-          <p id="profile-intro-count" className="preview-field-count">
-            {profileTextLength(intro)} / 300자
-          </p>
+          <CharacterCount
+            control={control}
+            name="introduction"
+            max={300}
+            id="profile-intro-count"
+          />
           <FieldError
             id="profile-intro-error"
-            message={errors.intro?.message}
+            message={errors.introduction?.message}
           />
         </div>
         <Controller
           control={control}
-          name="availability"
+          name="weeklyAvailabilityCode"
           render={({ field }) => (
             <AvailabilityField value={field.value} onChange={field.onChange} />
           )}
@@ -575,18 +626,18 @@ function ProfileEditor({
           <Input
             id="profile-portfolio"
             type="url"
-            {...register('portfolio')}
+            {...register('portfolioUrl')}
             placeholder="https://example.com/portfolio"
             autoComplete="off"
-            aria-invalid={!!errors.portfolio}
-            aria-describedby={`portfolio-help${errors.portfolio ? ' portfolio-error' : ''}`}
+            aria-invalid={!!errors.portfolioUrl}
+            aria-describedby={`portfolio-help${errors.portfolioUrl ? ' portfolio-error' : ''}`}
           />
           <p id="portfolio-help" className="preview-muted">
             외부 페이지의 공유 권한을 확인해 주세요.
           </p>
           <FieldError
             id="portfolio-error"
-            message={errors.portfolio?.message}
+            message={errors.portfolioUrl?.message}
           />
         </div>
         <div className="preview-field">
@@ -600,9 +651,12 @@ function ProfileEditor({
             aria-describedby="profile-title-count profile-title-error"
             placeholder="작업 모음, 프로젝트 소개 등"
           />
-          <p id="profile-title-count" className="preview-field-count">
-            {profileTextLength(portfolioTitle)} / 50자
-          </p>
+          <CharacterCount
+            control={control}
+            name="portfolioTitle"
+            max={50}
+            id="profile-title-count"
+          />
           <FieldError
             id="profile-title-error"
             message={errors.portfolioTitle?.message}
@@ -610,6 +664,7 @@ function ProfileEditor({
         </div>
       </section>
       <Separator className="preview-form-separator" />
+      <FieldError id="profile-save-error" message={errors.root?.message} />
       <div className="preview-row">
         <Button
           type="submit"
@@ -633,7 +688,23 @@ function ProfileEditor({
 
 // [출처 3, 4, 5, 6] 프로필 보기·수정
 export function ProfilePage() {
-  const { signedIn, profile, signOut, saveProfile } = useDemo();
+  const session = useSession();
+  const labels = useLabels();
+  const {
+    academicPath,
+    academicStatusLabel,
+    fieldLabel,
+    gradeLabel,
+    roleLabel,
+    skillLabel,
+    weeklyAvailabilityLabel,
+  } = labels;
+  const profileQuery = useQuery({
+    ...myProfileQueryOptions,
+    enabled: session.signedIn,
+  });
+  const saveVisibility = useSaveVisibility();
+  const logout = useLogout();
   const [search] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -644,7 +715,8 @@ export function ProfilePage() {
   const [saved, setSaved] = useState(false);
   // [출처 5] 로그인 후에도 편집 의도(edit)와 팀 복귀 주소(returnTo)를 잃지 않도록 현재 경로 전체를 넘깁니다.
   // 복귀 주소의 안전성은 LoginPage의 safeReturnTo가 다시 검사합니다(PR #121 리뷰).
-  if (!signedIn)
+  if (session.isPending) return loadingView;
+  if (!session.signedIn)
     return (
       <LoginGate
         returnTo={`${location.pathname}${location.search}`}
@@ -652,12 +724,29 @@ export function ProfilePage() {
         rootPage
       />
     );
+  if (profileQuery.isPending) return loadingView;
+  if (profileQuery.isError)
+    return (
+      <div className="preview-detail preview-stack">
+        <p role="alert">프로필을 불러오지 못했어요.</p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void profileQuery.refetch()}
+        >
+          다시 시도
+        </Button>
+      </div>
+    );
+  // [출처 8] 아직 저장한 프로필이 없으면(404) 바로 작성 화면을 보여줍니다.
+  const profile = profileQuery.data;
+  const showEditor = editing || !profile;
   return (
     <div
-      className={`preview-detail preview-stack preview-own-profile${editing ? ' preview-account-page' : ''}`}
+      className={`preview-detail preview-stack preview-own-profile${showEditor ? ' preview-account-page' : ''}`}
     >
-      {editing ? (
-        <PageIntro title="프로필 수정" />
+      {showEditor ? (
+        <PageIntro title={profile ? '프로필 수정' : '프로필 작성'} />
       ) : (
         <h1 className="sr-only">내 프로필</h1>
       )}
@@ -667,8 +756,9 @@ export function ProfilePage() {
           <AlertDescription>프로필을 저장했어요.</AlertDescription>
         </Alert>
       )}
-      {editing ? (
+      {showEditor ? (
         <ProfileEditor
+          profile={profile}
           onDone={() => {
             setEditing(false);
             setSaved(true);
@@ -687,9 +777,12 @@ export function ProfilePage() {
           >
             <div className="preview-row preview-profile-heading">
               <div className="preview-profile-identity">
-                <Avatar name={profile.name} avatarId={profile.avatarId} />
+                <Avatar
+                  name={profile.realName}
+                  imageCode={profile.profileImageCode}
+                />
                 <div>
-                  <h2>{profile.name}</h2>
+                  <h2>{profile.realName}</h2>
                   <SchoolVerificationBadge interactive />
                 </div>
               </div>
@@ -712,10 +805,14 @@ export function ProfilePage() {
                   <SquarePen size={20} aria-hidden="true" />
                 </Button>
                 <ProfileVisibilityControl
-                  checked={profile.visibility.discoverable}
-                  onConfirm={(discoverable) => {
+                  checked={profile.isPublic}
+                  onConfirm={async (isPublic) => {
                     setSaved(false);
-                    saveProfile({ ...profile, visibility: { discoverable } });
+                    // [출처 8] 공개 전환은 별도 저장(PUT /me/profile/visibility, 현재 버전)
+                    await saveVisibility.mutateAsync({
+                      expectedVersion: profile.version,
+                      isPublic,
+                    });
                   }}
                 />
                 <Button
@@ -738,8 +835,8 @@ export function ProfilePage() {
                 희망 역할
               </h3>
               <div className="preview-row">
-                {profile.roles.map((role) => (
-                  <Badge key={role}>{role}</Badge>
+                {profile.roleCodes.map((code) => (
+                  <Badge key={code}>{roleLabel(code)}</Badge>
                 ))}
               </div>
             </div>
@@ -750,7 +847,7 @@ export function ProfilePage() {
                 </h3>
               </div>
               <p className="preview-info-value">
-                {profile.interests.join(' · ')}
+                {profile.fieldCodes.map(fieldLabel).join(' · ')}
               </p>
             </div>
             <div>
@@ -762,7 +859,7 @@ export function ProfilePage() {
               <p className="preview-info-copy">
                 {profile.experienceState === 'none'
                   ? '관련 경험 없음'
-                  : profile.experience || '아직 경험을 입력하지 않았어요.'}
+                  : profile.experienceBody || '아직 경험을 입력하지 않았어요.'}
               </p>
             </div>
             <div>
@@ -772,7 +869,7 @@ export function ProfilePage() {
                 </h3>
               </div>
               <p className="preview-info-copy">
-                {profile.intro || '아직 자기소개를 작성하지 않았어요.'}
+                {profile.introduction || '아직 자기소개를 작성하지 않았어요.'}
               </p>
             </div>
           </section>
@@ -780,11 +877,12 @@ export function ProfilePage() {
             <h2 className="preview-section-title">학사 정보와 보유 역량</h2>
             <p>
               {[
-                profile.academicStatus,
-                profile.grade,
-                profile.college,
-                profile.department,
-                profile.major,
+                profile.academicStatusCode &&
+                  academicStatusLabel(profile.academicStatusCode),
+                profile.gradeCode && gradeLabel(profile.gradeCode),
+                ...academicPath(profile.academicUnitId).map(
+                  (unit) => unit.name,
+                ),
               ]
                 .filter(Boolean)
                 .join(' · ') || '등록한 학사 정보가 없어요.'}
@@ -795,10 +893,13 @@ export function ProfilePage() {
               </h3>
               <p
                 className={
-                  profile.skills.length ? 'preview-info-value' : 'preview-muted'
+                  profile.skillCodes.length
+                    ? 'preview-info-value'
+                    : 'preview-muted'
                 }
               >
-                {profile.skills.join(' · ') || '아직 역량을 선택하지 않았어요.'}
+                {profile.skillCodes.map(skillLabel).join(' · ') ||
+                  '아직 역량을 선택하지 않았어요.'}
               </p>
             </div>
           </section>
@@ -807,10 +908,14 @@ export function ProfilePage() {
               <h2 className="preview-section-title">주당 참여 가능 시간</h2>
               <p
                 className={
-                  profile.availability ? 'preview-info-value' : 'preview-muted'
+                  profile.weeklyAvailabilityCode
+                    ? 'preview-info-value'
+                    : 'preview-muted'
                 }
               >
-                {profile.availability || '미입력'}
+                {profile.weeklyAvailabilityCode
+                  ? weeklyAvailabilityLabel(profile.weeklyAvailabilityCode)
+                  : '미입력'}
               </p>
               <p className="preview-muted">
                 모든 참여 프로젝트의 예상 시간이에요. 팀별 약속이나 남은 시간이
@@ -819,15 +924,15 @@ export function ProfilePage() {
             </section>
             <section className="preview-panel preview-stack">
               <h2 className="preview-section-title">포트폴리오</h2>
-              {profile.portfolio && isWebUrl(profile.portfolio) ? (
+              {profile.portfolio && isWebUrl(profile.portfolio.url) ? (
                 <>
                   <a
                     className="preview-text-link"
-                    href={profile.portfolio}
+                    href={profile.portfolio.url}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    {profile.portfolioTitle || '등록한 링크 열기'} (새 창)
+                    {profile.portfolio.title || '등록한 링크 열기'} (새 창)
                   </a>
                 </>
               ) : (
@@ -839,7 +944,8 @@ export function ProfilePage() {
             type="button"
             variant="outline"
             className="preview-button"
-            onClick={signOut}
+            disabled={logout.isPending}
+            onClick={() => logout.mutate()}
           >
             로그아웃
           </Button>
@@ -851,10 +957,18 @@ export function ProfilePage() {
 
 // [출처 3, 5] 본인 공개 결과 미리보기
 export function PublicProfilePage() {
-  const { signedIn, profile } = useDemo();
-  if (!signedIn)
+  const session = useSession();
+  const labels = useLabels();
+  const profileQuery = useQuery({
+    ...myProfileQueryOptions,
+    enabled: session.signedIn,
+  });
+  if (session.isPending) return loadingView;
+  if (!session.signedIn)
     return <LoginGate returnTo="/profile/public" title="공개 프로필" />;
-  const person = getPublicProfile(profile);
+  if (profileQuery.isPending) return loadingView;
+  // [출처 3, 5] 현재 공개 상태일 때만 등록한 전체 항목을 미리 보여줍니다.
+  const person = profileQuery.data?.isPublic ? profileQuery.data : null;
   return (
     <div className="preview-detail preview-stack preview-account-page">
       <BackLink to="/profile">내 프로필</BackLink>
@@ -873,17 +987,16 @@ export function PublicProfilePage() {
         >
           <div className="preview-row">
             <Avatar
-              name={person.name}
-              personId={person.id}
-              avatarId={person.avatarId}
+              name={person.realName}
+              imageCode={person.profileImageCode}
               size="large"
             />
             <div>
-              <h2>{person.name}</h2>
+              <h2>{person.realName}</h2>
               <SchoolVerificationBadge />
             </div>
           </div>
-          <ProfileDetails profile={person} />
+          <ProfileDetails profile={person} labels={labels} />
         </section>
       ) : (
         <div className="preview-panel">
@@ -981,7 +1094,7 @@ function safeReturnTo(value: string | null) {
 
 // [출처 2, 6] 로그인, 안전한 returnTo 복귀
 export function LoginPage() {
-  const { signIn } = useDemo();
+  const login = useLogin();
   const navigate = useNavigate();
   const [search] = useSearchParams();
   const {
@@ -1028,18 +1141,23 @@ export function LoginPage() {
         <form
           className="dreamon-login-form"
           noValidate
-          onSubmit={handleSubmit((values) => {
-            if (
-              values.username !== demoId ||
-              values.password !== demoPassword
-            ) {
+          onSubmit={handleSubmit(async (values) => {
+            // [출처 7] 실패는 아이디·비밀번호를 구분하지 않는 401 INVALID_CREDENTIALS
+            try {
+              await login.mutateAsync({
+                loginId: values.username,
+                password: values.password,
+              });
+            } catch (error) {
               setError('root', {
-                message: '아이디 또는 비밀번호를 확인해 주세요.',
+                message:
+                  error instanceof ApiError && error.status === 401
+                    ? '아이디 또는 비밀번호를 확인해 주세요.'
+                    : '로그인하지 못했어요. 잠시 후 다시 시도해 주세요.',
               });
               return;
             }
             resetField('password', { defaultValue: '' });
-            signIn();
             navigate(returnTo, { replace: true });
           })}
         >
@@ -1068,16 +1186,22 @@ export function LoginPage() {
 
 // [출처 2] 가입 입력 규칙 확인(실제 계정 발급 없음)
 export function SignupPage() {
-  const { saveProfile, signOut } = useDemo();
+  const { fieldOptions, roleOptions } = useLabels();
+  const signup = useSignup();
+  const saveProfile = useSaveProfile();
+  const client = useQueryClient();
   const [search] = useSearchParams();
   const returnTo = safeReturnTo(search.get('returnTo') ?? search.get('from'));
-  const [complete, setComplete] = useState(false);
+  const [complete, setComplete] = useState<'done' | 'other-session' | null>(
+    null,
+  );
   const [showPassword, setShowPassword] = useState(false);
   const {
     register,
     control,
     handleSubmit,
     resetField,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
@@ -1085,9 +1209,9 @@ export function SignupPage() {
     defaultValues: {
       username: '',
       password: '',
-      name: '',
-      roles: [],
-      interests: [],
+      realName: '',
+      roleCodes: [],
+      fieldCodes: [],
     },
   });
   if (complete)
@@ -1097,12 +1221,28 @@ export function SignupPage() {
         <div className="preview-panel preview-stack">
           <Check size={32} aria-hidden="true" />
           <p role="status">서경드림온에 오신 것을 환영해요.</p>
-          <p className="preview-muted">로그인하고 프로필을 완성해 보세요.</p>
-          <Button asChild className="preview-button">
-            <Link to={`/login?returnTo=${encodeURIComponent('/profile')}`}>
-              로그인
-            </Link>
-          </Button>
+          {complete === 'done' ? (
+            <>
+              <p className="preview-muted">
+                로그인됐어요. 프로필을 완성해 보세요.
+              </p>
+              <Button asChild className="preview-button">
+                <Link to="/profile?edit=details">프로필 완성하기</Link>
+              </Button>
+            </>
+          ) : (
+            <>
+              {/* [출처 7] 다른 계정의 쿠키가 남아 있으면 자동 로그인으로 보지 않습니다. */}
+              <p className="preview-muted">
+                가입한 계정으로 로그인하고 프로필을 완성해 보세요.
+              </p>
+              <Button asChild className="preview-button">
+                <Link to={`/login?returnTo=${encodeURIComponent('/profile')}`}>
+                  로그인
+                </Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -1115,31 +1255,53 @@ export function SignupPage() {
       <form
         className="preview-panel preview-form"
         noValidate
-        onSubmit={handleSubmit((values) => {
-          saveProfile({
-            name: values.name,
-            roles: values.roles,
-            interests: values.interests,
-            intro: '',
-            experience: '',
-            academicStatus: '',
-            grade: '',
-            college: '',
-            department: '',
-            major: '',
-            skills: [],
-            experienceState: 'unspecified',
-            portfolioTitle: '',
-            visibility: {
-              discoverable: false,
-            },
-            portfolio: '',
-
-            availability: '',
-          });
+        onSubmit={handleSubmit(async (values) => {
+          // [출처 7] 가입(POST /accounts) 성공 시 바로 로그인됩니다.
+          let accountId: string;
+          try {
+            accountId = (
+              await signup.mutateAsync({
+                loginId: values.username,
+                password: values.password,
+              })
+            ).account.id;
+          } catch (error) {
+            const code = error instanceof ApiError ? error.code : null;
+            if (code === 'LOGIN_ID_TAKEN')
+              setError('username', { message: '이미 사용 중인 아이디예요.' });
+            else
+              setError('root', {
+                message:
+                  code === 'PASSWORD_BLOCKED'
+                    ? '쉽게 추측할 수 있는 비밀번호예요. 다른 비밀번호를 선택해 주세요.'
+                    : '가입하지 못했어요. 잠시 후 다시 시도해 주세요.',
+              });
+            return;
+          }
           resetField('password', { defaultValue: '' });
-          signOut();
-          setComplete(true);
+          // [출처 7] GET /me가 가입한 계정인지 확인한 뒤 필수 항목으로 첫 프로필을 저장합니다(기본 비공개).
+          const me = await client.fetchQuery(meQueryOptions).catch(() => null);
+          if (
+            me?.id !== accountId ||
+            me.loginId !== normalizeLoginId(values.username)
+          ) {
+            setComplete('other-session');
+            return;
+          }
+          await saveProfile
+            .mutateAsync(
+              toProfileWrite(
+                {
+                  ...emptyFormValues,
+                  realName: values.realName,
+                  roleCodes: values.roleCodes,
+                  fieldCodes: values.fieldCodes,
+                },
+                null,
+              ),
+            )
+            .catch(() => undefined);
+          setComplete('done');
         })}
       >
         <div className="preview-field">
@@ -1207,40 +1369,44 @@ export function SignupPage() {
           <Label htmlFor="signup-name">이름 (필수)</Label>
           <Input
             id="signup-name"
-            {...register('name')}
+            {...register('realName')}
             autoComplete="off"
-            aria-invalid={!!errors.name}
-            aria-describedby={errors.name ? 'signup-name-error' : undefined}
+            aria-invalid={!!errors.realName}
+            aria-describedby={errors.realName ? 'signup-name-error' : undefined}
           />
-          <FieldError id="signup-name-error" message={errors.name?.message} />
+          <FieldError
+            id="signup-name-error"
+            message={errors.realName?.message}
+          />
         </div>
         <Controller
           control={control}
-          name="interests"
+          name="fieldCodes"
           render={({ field }) => (
             <ChoiceField
               id="signup-interests"
               label="관심 분야"
-              options={interestOptions}
+              options={fieldOptions}
               {...field}
-              error={errors.interests?.message}
+              error={errors.fieldCodes?.message}
             />
           )}
         />
         <Controller
           control={control}
-          name="roles"
+          name="roleCodes"
           render={({ field }) => (
             <ChoiceField
               id="signup-roles"
               label="희망 역할"
               options={roleOptions}
               {...field}
-              error={errors.roles?.message}
+              error={errors.roleCodes?.message}
             />
           )}
         />
         <SchoolVerificationBadge />
+        <FieldError id="signup-error" message={errors.root?.message} />
         <Button
           type="submit"
           className="preview-button"

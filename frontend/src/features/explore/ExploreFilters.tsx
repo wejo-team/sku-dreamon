@@ -22,7 +22,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { interestOptions, roleOptions } from '@/features/demo/data';
+import { useLabels } from '@/features/catalogs/queries';
 
 // [출처 2, 3, 4] 분야/역할 초안 선택과 적용
 export function ExploreFilters({
@@ -36,6 +36,7 @@ export function ExploreFilters({
   onlyOpen: boolean;
   onApply: (value: string, onlyOpen: boolean) => void;
 }) {
+  const { fieldLabel, fieldOptions, roleLabel, roleOptions } = useLabels();
   const id = useId();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value || 'all');
@@ -44,10 +45,10 @@ export function ExploreFilters({
   const name = category ? '분야' : '역할';
   const activeCount =
     Number(Boolean(value)) + Number(kind === 'teams' && onlyOpen);
-  const summary = [
-    value || `모든 ${name}`,
-    kind === 'teams' && onlyOpen ? '모집중만' : '',
-  ]
+  const valueLabel = value
+    ? (category ? fieldLabel : roleLabel)(value)
+    : `모든 ${name}`;
+  const summary = [valueLabel, kind === 'teams' && onlyOpen ? '모집중만' : '']
     .filter(Boolean)
     .join(' · ');
 
@@ -96,18 +97,20 @@ export function ExploreFilters({
             onValueChange={setDraft}
             className="preview-explore-filter-options"
           >
-            {['all', ...(category ? interestOptions : roleOptions)].map(
-              (option, index) => (
-                <Label
-                  key={option}
-                  htmlFor={`${id}-${index}`}
-                  className="preview-choice"
-                >
-                  <RadioGroupItem id={`${id}-${index}`} value={option} />
-                  {option === 'all' ? `모든 ${name}` : option}
-                </Label>
-              ),
-            )}
+            {/* [출처 3] 값은 카탈로그 코드, 표시는 displayName */}
+            {[
+              { code: 'all', displayName: `모든 ${name}` },
+              ...(category ? fieldOptions : roleOptions),
+            ].map((option, index) => (
+              <Label
+                key={option.code}
+                htmlFor={`${id}-${index}`}
+                className="preview-choice"
+              >
+                <RadioGroupItem id={`${id}-${index}`} value={option.code} />
+                {option.displayName}
+              </Label>
+            ))}
           </RadioGroup>
           {kind === 'teams' && (
             <Label className="preview-inline-check" htmlFor={`${id}-open`}>

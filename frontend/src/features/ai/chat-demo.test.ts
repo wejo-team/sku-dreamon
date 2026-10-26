@@ -3,21 +3,35 @@ import {
   createDemoReply,
   currentRecommendation,
 } from '@/features/ai/chat-demo';
+import type { Application } from '@/features/applications/api';
+import type { Profile } from '@/features/profiles/api';
 import {
   contests,
   getPublicProfile,
   initialProfile,
   initialTeams,
   people,
-  type Person,
 } from '@/features/demo/data';
+import {
+  demoIds,
+  fixtureAcademicUnits,
+  fixtureCatalogs,
+} from '@/features/demo/fixtures';
+import { createLabels } from '@/features/catalogs/labels';
 
-const availableTeams = initialTeams.map((team) => ({
-  ...team,
-  owner: false,
-  memberProfiles: team.memberProfiles.filter((member) => member.id !== 'me'),
-}));
-const data = { contests, teams: availableTeams, people };
+const ME = demoIds.accounts.me;
+// 기본 데이터에서는 본인이 어느 팀에도 소속되지 않은 것으로 봅니다(memberTeamIds 비움).
+const availableTeams = initialTeams;
+// 코드 표시명은 GET /catalogs 응답(목업)과 같은 선택지로 만듭니다.
+const labels = createLabels(fixtureCatalogs(), fixtureAcademicUnits());
+const data = {
+  contests,
+  teams: availableTeams,
+  people,
+  labels,
+  accountId: ME,
+  memberTeamIds: [] as string[],
+};
 
 describe('createDemoReply', () => {
   it('matches an actual recruiting role and excludes closed teams even when their role matches', () => {
@@ -25,14 +39,18 @@ describe('createDemoReply', () => {
       ...data,
       teams: [
         ...availableTeams,
-        { ...availableTeams[1]!, id: 'closed-dev', status: '모집마감' },
+        {
+          ...availableTeams[1]!,
+          id: 'closed-dev',
+          recruitmentState: 'closed' as const,
+        },
       ],
     });
-    expect(reply.search).toMatchObject({ kind: 'teams', role: '개발' });
+    expect(reply.search).toMatchObject({ kind: 'teams', role: 'development' });
     expect(reply.recommendations).toEqual([
       {
         kind: 'team',
-        id: 'greenwave',
+        id: demoIds.teams.greenwave,
         reason: '‘개발’ 역할을 모집하고 있어요.',
       },
     ]);
@@ -50,9 +68,9 @@ describe('createDemoReply', () => {
       deadlineFirst: true,
     });
     expect(reply.recommendations.map((result) => result.id)).toEqual([
-      'green',
-      'campus',
-      'local',
+      demoIds.contests.green,
+      demoIds.contests.campus,
+      demoIds.contests.local,
     ]);
     expect(reply.recommendations[0]?.reason).toContain('2026.10.25');
     expect(JSON.stringify(reply)).not.toMatch(/적합도|점수|%|참여할 수/);
@@ -60,28 +78,32 @@ describe('createDemoReply', () => {
   });
 
   it('uses registered interests rather than guessing an interest from a role and adds follow-up role constraints', () => {
-    const noInterest: Person = {
-      id: 'no-interest',
-      name: '관심 분야 미입력',
-      roles: ['디자인'],
-      intro: '디자인을 좋아합니다.',
+    const noInterest: Profile = {
+      ...people[0]!,
+      accountId: 'no-interest',
+      realName: '관심 분야 미입력',
+      roleCodes: ['design'],
+      fieldCodes: [],
+      introduction: '디자인을 좋아합니다.',
     };
     const first = createDemoReply('디자인에 관심 있는 사람 찾아줘', undefined, {
       ...data,
       people: [...people, noInterest],
     });
-    expect(first.search).toMatchObject({ kind: 'people', category: '디자인' });
+    expect(first.search).toMatchObject({ kind: 'people', category: 'design' });
     expect(first.recommendations.map((result) => result.id)).toEqual([
-      'doyun',
-      'sua',
+      demoIds.accounts.doyun,
+      demoIds.accounts.sua,
     ]);
     const next = createDemoReply('개발 역할만', first.search, data);
     expect(next.search).toMatchObject({
       kind: 'people',
-      category: '디자인',
-      role: '개발',
+      category: 'design',
+      role: 'development',
     });
-    expect(next.recommendations.map((result) => result.id)).toEqual(['doyun']);
+    expect(next.recommendations.map((result) => result.id)).toEqual([
+      demoIds.accounts.doyun,
+    ]);
     expect(next.recommendations[0]?.reason).toContain('희망 역할 ‘개발’');
     expect(first.search).not.toHaveProperty('role');
   });
@@ -89,7 +111,9 @@ describe('createDemoReply', () => {
   it('keeps a topic when sorting a follow-up and clears stale filters for another kind or explicit all', () => {
     const first = createDemoReply('환경 공모전 찾아줘', undefined, data);
     expect(first.search).toMatchObject({ kind: 'contests', keyword: '환경' });
-    expect(first.recommendations.map((result) => result.id)).toEqual(['green']);
+    expect(first.recommendations.map((result) => result.id)).toEqual([
+      demoIds.contests.green,
+    ]);
     const sorted = createDemoReply('마감 빠른 순으로', first.search, data);
     expect(sorted.search).toMatchObject({
       kind: 'contests',
@@ -103,16 +127,16 @@ describe('createDemoReply', () => {
     );
     expect(changed.search).toMatchObject({
       kind: 'people',
-      category: '디자인',
+      category: 'design',
     });
     const all = createDemoReply('공모전 전체 보기', sorted.search, data);
     expect(all.search).toMatchObject({ kind: 'contests' });
     expect(all.search).not.toHaveProperty('keyword');
     expect(all.search).not.toHaveProperty('deadlineFirst');
     expect(all.recommendations.map((result) => result.id)).toEqual([
-      'campus',
-      'green',
-      'local',
+      demoIds.contests.campus,
+      demoIds.contests.green,
+      demoIds.contests.local,
     ]);
   });
 
@@ -168,11 +192,11 @@ describe('createDemoReply', () => {
   it('matches any registered contest category, including a second category', () => {
     const reply = createDemoReply('기술 공모전 찾아줘', undefined, data);
     expect(reply.recommendations.map((item) => item.id)).toEqual(
-      expect.arrayContaining(['campus', 'green']),
+      expect.arrayContaining([demoIds.contests.campus, demoIds.contests.green]),
     );
-    expect(reply.recommendations.some((item) => item.id === 'local')).toBe(
-      false,
-    );
+    expect(
+      reply.recommendations.some((item) => item.id === demoIds.contests.local),
+    ).toBe(false);
   });
 
   it.each([
@@ -185,7 +209,7 @@ describe('createDemoReply', () => {
   ])(
     'clarifies unsupported requests instead of guessing matches: %s',
     (message) => {
-      const previous = { kind: 'teams' as const, role: '개발' };
+      const previous = { kind: 'teams' as const, role: 'development' };
       const reply = createDemoReply(message, previous, data);
       expect(reply.recommendations).toEqual([]);
       expect(reply.search).toMatchObject(previous);
@@ -205,14 +229,14 @@ describe('createDemoReply', () => {
       expect(reply.recommendations).toEqual([]);
       expect(reply.text).toContain('AI 탐색에서 제공하지 않아요');
       expect(JSON.stringify(reply)).not.toContain('김서연');
-      expect(JSON.stringify(reply)).not.toContain('greenwave');
+      expect(JSON.stringify(reply)).not.toContain(demoIds.teams.greenwave);
     },
   );
 
   it.each(['주말 가능한 사람 찾아줘', '포트폴리오가 좋은 사람 추천해줘'])(
     'distinguishes public profile details from unsupported analysis: %s',
     (message) => {
-      const previous = { kind: 'people' as const, role: '개발' };
+      const previous = { kind: 'people' as const, role: 'development' };
       const reply = createDemoReply(message, previous, data);
       expect(reply.recommendations).toEqual([]);
       expect(reply.search).toMatchObject(previous);
@@ -242,7 +266,7 @@ describe('createDemoReply', () => {
       undefined,
       data,
     );
-    expect(reply.search).toMatchObject({ kind: 'teams', role: '발표' });
+    expect(reply.search).toMatchObject({ kind: 'teams', role: 'presentation' });
     expect(reply.recommendations).toEqual([]);
     expect(reply.text).toContain('일치하는 모집 팀이 없어요');
     expect(reply.suggestions).toContain('팀 전체 보기');
@@ -251,9 +275,11 @@ describe('createDemoReply', () => {
 
 describe('current recommendation availability', () => {
   it('excludes expired recruiting teams and closed contest candidates', () => {
+    // 기한이 지난 팀은 서버가 isRecruiting=false로 응답합니다(docs/api/teams.md#values).
     const expired = {
       ...availableTeams[1]!,
-      recruitmentDeadline: '2026-10-17',
+      recruitmentEndsAt: '2026-10-17T15:00:00Z',
+      isRecruiting: false,
     };
     expect(
       createDemoReply('개발자를 모집하는 팀 찾아줘', undefined, {
@@ -269,7 +295,10 @@ describe('current recommendation availability', () => {
     ).toBeNull();
   });
   it('removes past team cards after capacity fills', () => {
-    const full = { ...availableTeams[1]!, members: initialTeams[1]!.capacity };
+    const full = {
+      ...availableTeams[1]!,
+      memberCount: Number(initialTeams[1]!.capacity),
+    };
     expect(
       currentRecommendation(
         { kind: 'team', id: full.id, reason: '모집 중' },
@@ -280,17 +309,12 @@ describe('current recommendation availability', () => {
   it('excludes owned, joined and already-applied teams from new and past cards but allows a different team in the same contest', () => {
     const candidate = availableTeams[1]!;
     const card = { kind: 'team' as const, id: candidate.id, reason: '모집 중' };
+    // 팀장으로 소유한 팀, 팀원으로 소속된 팀 모두 본인 소속 팀(memberTeamIds)으로 제외
     for (const team of [
-      { ...candidate, owner: true },
-      {
-        ...candidate,
-        memberProfiles: [
-          ...candidate.memberProfiles,
-          { id: 'me', name: '나', role: '개발' },
-        ],
-      },
+      { ...candidate, ownerAccountId: ME },
+      { ...candidate, memberCount: candidate.memberCount + 1 },
     ]) {
-      const ownData = { ...data, teams: [team] };
+      const ownData = { ...data, teams: [team], memberTeamIds: [team.id] };
       expect(
         createDemoReply('개발 팀 찾아줘', undefined, ownData).recommendations,
       ).toEqual([]);
@@ -301,13 +325,20 @@ describe('current recommendation availability', () => {
       applications: [
         {
           id: 'current',
-          personId: 'me',
+          version: '1',
           teamId: candidate.id,
-          role: '개발',
-          message: '',
-          status: '지원완료' as const,
+          contestId: candidate.contestId,
+          applicantAccountId: ME,
+          roleCode: 'development',
+          message: null,
+          status: 'submitted',
+          discardReason: null,
+          discardedByApplicationId: null,
+          discardedByTeamId: null,
+          submittedAt: '2026-10-18T00:00:00Z',
+          updatedAt: '2026-10-18T00:00:00Z',
         },
-      ],
+      ] as Application[],
     };
     expect(
       createDemoReply('개발 팀 찾아줘', undefined, appliedData).recommendations,
@@ -317,13 +348,14 @@ describe('current recommendation availability', () => {
       ...appliedData,
       applications: appliedData.applications.map((item) => ({
         ...item,
-        status: '지원취소' as const,
+        status: 'canceled' as const,
       })),
     };
     expect(currentRecommendation(card, cancelledData)).not.toBeNull();
     const sameContest = {
       ...data,
-      teams: [{ ...candidate, id: 'another-team', owner: true }, candidate],
+      teams: [{ ...candidate, id: 'another-team' }, candidate],
+      memberTeamIds: ['another-team'],
     };
     expect(
       createDemoReply(
@@ -337,22 +369,25 @@ describe('current recommendation availability', () => {
   it('excludes globally private profiles from new recommendations and previously generated cards', () => {
     const profile = {
       ...initialProfile,
-      experience: '공개 프로젝트 경험',
-      availability: '토 14:00~18:00',
-      portfolio: 'https://example.com/portfolio',
-      visibility: { discoverable: true },
+      experienceState: 'provided' as const,
+      experienceBody: '공개 프로젝트 경험',
+      weeklyAvailabilityCode: 'under_5',
+      portfolio: { url: 'https://example.com/portfolio', title: null },
+      isPublic: true,
     };
     const person = getPublicProfile(profile)!;
     const publicData = { ...data, people: [person] };
     const reply = createDemoReply('사람 전체 보기', undefined, publicData);
     expect(reply.recommendations).toHaveLength(1);
     const card = reply.recommendations[0]!;
-    expect(card.id).toBe('me');
-    expect(currentRecommendation(card, publicData)?.title).toBe(profile.name);
+    expect(card.id).toBe(demoIds.accounts.me);
+    expect(currentRecommendation(card, publicData)?.title).toBe(
+      profile.realName,
+    );
 
     const hidden = getPublicProfile({
       ...profile,
-      visibility: { discoverable: false },
+      isPublic: false,
     });
     const privateData = { ...data, people: hidden ? [hidden] : [] };
     expect(
