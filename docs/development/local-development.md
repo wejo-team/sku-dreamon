@@ -65,7 +65,24 @@ API는 `http://127.0.0.1:8000`, 대화형 API 문서는 `/docs`입니다. `GET /
 
 `upgrade head`는 계정·서버 세션, 학사, 공고, 프로필, 팀·지원·소속·발생 건·알림과 AI 실행 메타데이터·대화·메시지까지 migration 8개를 적용합니다. 현재 적용 대상은 [DB 인덱스](../database/README.md)와 [Alembic 모델 등록](../../backend/alembic/env.py)에서 확인합니다. 스키마 적용은 운영 학사 원장·공고·시연 데이터를 적재하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
 
-개발용 데이터는 `wejo_dev`에 넣고 실제 API로 변경하면서 검증합니다. 공고 등록은 [공고 CLI](../api/contests.md#contest-import-cli), 가입·프로필·팀 생성은 각 [API](../api/README.md)를 사용합니다. 전체 예시 데이터를 한 번에 넣는 개발용 seed 명령은 아직 없습니다. 자동 테스트 fixture는 `wejo_test`에서 생성·정리하며 개발 DB의 예시 데이터를 대신하지 않습니다.
+개발용 데이터는 `wejo_dev`에 넣고 실제 API로 변경하면서 검증합니다. 공고 등록은 [공고 CLI](../api/contests.md#contest-import-cli), 가입·프로필·팀 생성은 각 [API](../api/README.md)를 사용합니다. 자동 테스트 fixture는 `wejo_test`에서 생성·정리하며 개발 DB의 예시 데이터를 대신하지 않습니다.
+
+개발용 사용자·팀 예시 데이터는 백엔드 폴더에서 다음 명령으로 준비합니다. [시드 스크립트](../../backend/scripts/seed_dev_data.py)는 로컬 `wejo_dev`만 허용하고, 기본 실행은 전체 데이터를 생성·검증한 뒤 롤백합니다.
+
+```bash
+uv run python -m scripts.seed_dev_data
+uv run python -m scripts.seed_dev_data --apply
+# 공고 적재가 진행 중이면 사용자부터 준비할 수 있습니다.
+uv run python -m scripts.seed_dev_data --users-only --apply
+```
+
+계정은 `devuser001`~`devuser300`, 개발용 공통 비밀번호는 `WejoDev2026!Demo`입니다. 공개 프로필 240개와 비공개 60개, 관심 분야·역할·역량·경험·선택 포트폴리오를 생성합니다. 이름과 경력은 가상이며, 포트폴리오는 `example.com` 예시 URL입니다. 계정별 비밀번호는 서로 다른 salt의 Argon2id 해시로 저장합니다. 이 계정은 실제 백엔드 인증용이며 프론트 시연 화면의 고정 데모 로그인 계정과 다릅니다. 프론트에서 사용하려면 실제 인증 API 연결과 HTTPS·CSRF 설정이 필요합니다.
+
+공통 카탈로그 7종은 서버 enum을 사용하므로 별도 코드 테이블을 적재하지 않습니다. 학사 데이터는 [학사 명세의 31행 이관 목록](../specs/academic-structure.md#catalog)을 읽어 단과대학 6개·학부/학과 31개·전공 57개, 총 94개를 `academic_units`에 넣습니다. 이름과 부모 관계를 보존하고, 동명 학과를 합치거나 `전공 미배정` 항목을 만들지 않습니다. 이번 적재는 **문서 목록을 사용하는 로컬 개발·시연용**이며, 문서의 현행 학년도·공식 원장 검증이 완료되었다는 뜻은 아닙니다. 기존 경로가 한 개라면 ID를 재사용하고, 중복 경로나 비활성 항목을 만나면 임의 변경 없이 실패합니다.
+
+공고·분야·참가 대상 데이터는 생성·수정하지 않습니다. 기존 공고 중 현재 접수 중이며 마감이 1시간 이상 남고 2명 이상 팀의 참가 인원 조건이 확인된 공고에 최대 100개 팀과 지원·소속·상태 변경 사건·읽음/미읽음 알림을 연결합니다. 적합한 공고가 없으면 사용자만 넣고 안내를 출력합니다. 이후 공고 적재가 완료되면 같은 명령을 다시 실행하면 됩니다. 선발·취소·검토·미선발은 제품 서비스를 호출해 실제 상태 전이와 알림 규칙을 적용합니다. AI 호출·가상 AI 실행 결과는 생성하지 않습니다.
+
+고정 UUID는 [시연 데이터 목록](../../backend/app/core/demo_data.py)에서 관리하며 API의 `isDemo`에 반영합니다. 재실행은 기존 시드 계정·팀을 건너뛰고 사용자가 편집한 프로필이나 상태를 보존합니다. 일반 계정을 덮어쓰거나 기존 데이터를 지우지 않으며, 한 실행에서 발생한 오류는 해당 실행 전체를 롤백합니다. 동시 시드 실행은 PostgreSQL advisory lock으로 직렬화합니다.
 
 인증 HTTP는 가입·로그인·CSRF 조회·본인 계정 조회·로그아웃을 제공하며, 화면 연결은 별도 작업입니다. 전체 API 구현 범위는 [API 인덱스](../api/README.md)를 따릅니다. 인증 관련 요청을 검증할 환경에서는 `.env`의 `CSRF_SIGNING_KEY`에 32바이트 이상의 난수 키를 주입하고 `AUTH_ALLOWED_ORIGINS`에 정확한 HTTPS origin 목록을 설정합니다. 설정 형식은 [환경변수 예시](../../backend/.env.example), 검증은 [Settings](../../backend/app/core/config.py), 쿠키 속성은 [인증 쿠키 코드](../../backend/app/routers/auth_cookies.py)를 확인합니다.
 
