@@ -693,7 +693,8 @@ export function PersonPage() {
       </EmptyState>
     );
   // [출처 5] 공개 프로필만 상세 열람. 비공개·미존재는 서버가 같은 404로 응답
-  const person = personQuery.data;
+  // 404면 이전에 받은 프로필이 있어도 표시하지 않습니다(비공개 전환·계정 전환).
+  const person = isNotFound(personQuery.error) ? undefined : personQuery.data;
   if (!person)
     return (
       <EmptyState

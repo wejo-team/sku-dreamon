@@ -6,6 +6,8 @@
  * 4. docs/design/tokens.md - 상단 우측 알림과 하단 프로필의 역할 구분
  * 5. docs/api/notifications.md#notification-endpoints - GET /me/notifications(occurredAt DESC, id DESC),
  *    PUT /me/notifications/{id}/read·/me/notifications/read(전부 성공 또는 전부 실패)
+ * 6. docs/api/notifications.md - unreadOnly 필터, unreadCount는 필터·페이지와 무관한 전체 미읽음 수,
+ *    모두 읽음은 현재 사용자에게 이미 제공된 ID의 합집합
  */
 
 import { useRef, useState } from 'react';
@@ -31,7 +33,7 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import type { Notification } from '@/features/notifications/api';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { useSession } from '@/features/auth/queries';
 import {
   notificationsQueryOptions,
@@ -61,12 +63,26 @@ export function Notifications() {
 
 function NotificationInbox() {
   const { signedIn } = useSession();
-  const inbox = useQuery({
-    ...notificationsQueryOptions(),
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  // [출처 6] 전체 목록은 배지·개수용으로 항상 받고, 읽지 않음 필터는 서버의 unreadOnly 목록을 받습니다.
+  const all = useInfiniteQuery({
+    ...notificationsQueryOptions(false),
     enabled: signedIn,
   });
+  const unreadList = useInfiniteQuery({
+    ...notificationsQueryOptions(true),
+    enabled: signedIn && filter === 'unread',
+  });
+  const active = filter === 'unread' ? unreadList : all;
   const readNotifications = useReadNotifications();
-  const history: Notification[] = inbox.data?.data ?? [];
+  const history: Notification[] =
+    active.data?.pages.flatMap((page) => page.data) ?? [];
+  // 두 목록에서 화면에 제공된 알림(모두 읽음 대상과 읽음 여부 확인용)
+  const provided = [all, unreadList].flatMap(
+    (list) => list.data?.pages.flatMap((page) => page.data) ?? [],
+  );
+  const unreadCount = signedIn ? (all.data?.pages[0]?.unreadCount ?? 0) : 0;
+  const totalCount = all.data?.pages[0]?.pagination.total ?? 0;
   const location = useLocation();
   const navigate = useNavigate();
   const failedOnce = useRef(false);
@@ -93,7 +109,6 @@ function NotificationInbox() {
       });
     }
   };
-  const [filter, setFilter] = useState<'all' | 'unread'>('all');
   // [출처 2, 5] 본인 알림만, 서버 정렬(occurredAt DESC, id DESC) 그대로
   const notifications: InboxItem[] = signedIn
     ? history.map((item) => ({
@@ -109,11 +124,19 @@ function NotificationInbox() {
       }))
     : [];
 
-  const unread = notifications.filter((item) => !item.read);
-  const visible = filter === 'unread' ? unread : notifications;
+  // [출처 6] 제공된 알림 중 읽지 않은 ID(중복 제거)
+  const providedUnread = [
+    ...new Set(
+      provided.filter((item) => item.readAt === null).map((item) => item.id),
+    ),
+  ];
+  const visible =
+    filter === 'unread'
+      ? notifications.filter((item) => !item.read)
+      : notifications;
   // [출처 5] 읽지 않은 항목만 서버에 읽음으로 저장합니다. 실패하면 읽음·개수를 유지하고 재시도를 안내합니다.
   const markRead = async (ids: string[], to?: string) => {
-    const pending = ids.filter((id) => unread.some((item) => item.id === id));
+    const pending = ids.filter((id) => providedUnread.includes(id));
     if (!pending.length) return true;
     // A single failed write makes the recovery state reproducible in this reference.
     const injected =
@@ -147,11 +170,11 @@ function NotificationInbox() {
           variant="ghost"
           className="preview-notification-trigger"
           aria-label={
-            unread.length ? `알림, 읽지 않은 알림 ${unread.length}개` : '알림'
+            unreadCount ? `알림, 읽지 않은 알림 ${unreadCount}개` : '알림'
           }
         >
           <Bell size={21} strokeWidth={1.8} aria-hidden="true" />
-          {!!unread.length && (
+          {!!unreadCount && (
             <span className="preview-notification-dot" aria-hidden="true" />
           )}
         </Button>
@@ -195,14 +218,14 @@ function NotificationInbox() {
                   aria-pressed={filter === 'unread'}
                   onClick={() => setFilter('unread')}
                 >
-                  읽지 않음 <span>{unread.length}</span>
+                  읽지 않음 <span>{unreadCount}</span>
                 </Button>
               </div>
               <Button
                 variant="ghost"
                 className="preview-notifications-read-all"
-                disabled={!unread.length}
-                onClick={() => void markRead(unread.map((item) => item.id))}
+                disabled={!providedUnread.length}
+                onClick={() => void markRead(providedUnread)}
               >
                 <CheckCheck size={16} aria-hidden="true" />
                 모두 읽음
@@ -225,7 +248,7 @@ function NotificationInbox() {
               </Alert>
             )}
             <p className="sr-only" role="status">
-              읽지 않은 알림 {unread.length}개
+              읽지 않은 알림 {unreadCount}개
             </p>
             <div className="preview-notifications-body">
               {visible.length ? (
@@ -272,9 +295,11 @@ function NotificationInbox() {
                     );
                   })}
                 </ul>
+              ) : active.isPending ? (
+                <p className="preview-muted">불러오는 중…</p>
               ) : (
                 <div className="preview-notifications-empty">
-                  {filter === 'unread' && notifications.length ? (
+                  {filter === 'unread' && totalCount ? (
                     <CheckCheck
                       size={28}
                       strokeWidth={1.5}
@@ -284,12 +309,23 @@ function NotificationInbox() {
                     <Bell size={28} strokeWidth={1.5} aria-hidden="true" />
                   )}
                   <h3>
-                    {filter === 'unread' && notifications.length
+                    {filter === 'unread' && totalCount
                       ? '모든 알림을 확인했어요'
                       : '아직 알림이 없어요'}
                   </h3>
                   <p>새로운 지원 현황과 팀 소식이 오면 알려드릴게요.</p>
                 </div>
+              )}
+              {active.hasNextPage && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mx-5 mb-3"
+                  disabled={active.isFetchingNextPage}
+                  onClick={() => void active.fetchNextPage()}
+                >
+                  알림 더 보기
+                </Button>
               )}
             </div>
           </>

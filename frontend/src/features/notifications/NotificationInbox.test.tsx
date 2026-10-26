@@ -12,6 +12,7 @@ import {
 import type { DemoDatabase } from '@/features/demo/fixtures';
 import {
   demoIds,
+  ME,
   recordsWithMyProfile,
   renderWithApi,
   settled,
@@ -303,5 +304,71 @@ describe('official reference notifications', () => {
     expect(
       within(drawer).getByRole('button', { name: '모두 읽음' }),
     ).toBeDisabled();
+  });
+});
+
+// Codex 리뷰 P2: 첫 페이지 밖의 미읽음도 서버의 전체 미읽음 수(unreadCount)와 unreadOnly 목록으로 보여 줍니다.
+describe('notifications beyond the first page', () => {
+  it('counts, filters and reads an older unread notification after 100 newer read ones', async () => {
+    const records = recordsWithMyProfile({});
+    const mine = records.notifications.filter(
+      (item) => item.recipientAccountId === ME,
+    );
+    const base = mine[0]!;
+    const id = (index: number) =>
+      `00000000-0000-4000-8000-${index.toString(16).padStart(12, '0')}`;
+    // 최신 100건은 읽음, 그보다 오래된 1건만 미읽음
+    const newer = Array.from({ length: 100 }, (_, index) => ({
+      ...base,
+      id: id(index + 1),
+      title: `읽은 알림 ${index}`,
+      occurredAt: new Date(Date.UTC(2026, 9, 17) + index * 60_000)
+        .toISOString()
+        .replace('.000Z', 'Z'),
+      readAt: '2026-10-18T08:00:00Z',
+    }));
+    const older = {
+      ...base,
+      id: id(101),
+      title: '오래된 미읽음 알림',
+      occurredAt: '2026-10-01T00:00:00Z',
+      readAt: null,
+    };
+    const { user } = await renderInbox('/explore', {
+      db: {
+        ...records,
+        notifications: [
+          ...records.notifications.filter(
+            (item) => item.recipientAccountId !== ME,
+          ),
+          ...newer,
+          older,
+        ],
+      },
+    });
+    expect(
+      screen.getByRole('button', { name: '알림, 읽지 않은 알림 1개' }),
+    ).toBeInTheDocument();
+    const drawer = await openInbox(user);
+    expect(within(drawer).getByRole('status')).toHaveTextContent(
+      '읽지 않은 알림 1개',
+    );
+    await user.click(
+      within(drawer).getByRole('button', { name: /읽지 않음 1/ }),
+    );
+    expect(
+      await within(drawer).findByRole('link', { name: /오래된 미읽음 알림/ }),
+    ).toHaveAttribute('data-unread');
+    await user.click(within(drawer).getByRole('button', { name: '모두 읽음' }));
+    await waitFor(() =>
+      expect(within(drawer).getByRole('status')).toHaveTextContent(
+        '읽지 않은 알림 0개',
+      ),
+    );
+    expect(
+      await within(drawer).findByRole('heading', {
+        name: '모든 알림을 확인했어요',
+      }),
+    ).toBeInTheDocument();
   });
 });

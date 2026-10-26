@@ -41,6 +41,8 @@ export default defineConfig(({ mode }) => {
       unstubGlobals: true,
       // 테스트는 fetch를 직접 대신하므로 목업 어댑터 전환을 끕니다(화면 테스트는 fetch를 목업으로 연결).
       env: { VITE_API_MOCK: 'false' },
+      // 화면 테스트는 폼 입력과 목업 API 요청 흐름 전체를 거치므로 병렬 실행에서 5초 기본값을 넘을 수 있습니다.
+      testTimeout: 15_000,
     },
   };
 });

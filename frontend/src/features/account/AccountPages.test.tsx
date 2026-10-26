@@ -692,7 +692,7 @@ describe('design preview account flows', () => {
       '로컬',
     );
     await user.click(
-      within(drawer).getByRole('option', {
+      await within(drawer).findByRole('option', {
         name: /우리 동네를 새롭게, 로컬 브랜딩/,
       }),
     );
@@ -724,6 +724,47 @@ describe('design preview account flows', () => {
         },
       ]),
     );
+  });
+
+  // Codex 리뷰 P2: 접수 중 공모전 첫 100건 밖의 공모전도 URL로 미리 선택하고 선택창 검색으로 찾을 수 있습니다.
+  it('preselects and finds an open contest outside the first 100 results', async () => {
+    const records = withoutTeams();
+    const base = records.contests.find(
+      (item) => item.id === demoIds.contests.local,
+    )!;
+    // 등록 최신순에서 맨 뒤(101번째 이후)에 오는 접수 중 공모전
+    const extra = Array.from({ length: 101 }, (_, index) => ({
+      ...base,
+      id: `00000000-0000-4000-8000-${(index + 1).toString(16).padStart(12, '0')}`,
+      title: `추가 공모전 ${String(index).padStart(3, '0')}`,
+      createdAt: new Date(Date.parse(base.createdAt) + (index + 1) * 60_000)
+        .toISOString()
+        .replace('.000Z', 'Z'),
+    }));
+    await renderAccount(`/teams/new?contestId=${demoIds.contests.local}`, {
+      db: { ...records, contests: [...records.contests, ...extra] },
+    });
+    const user = userEvent.setup();
+    const trigger = screen.getByLabelText('참여 공모전');
+    expect(trigger).toHaveTextContent('우리 동네를 새롭게, 로컬 브랜딩');
+    await user.click(trigger);
+    const drawer = await screen.findByRole('dialog', { name: '공모전 선택' });
+    // 첫 페이지에는 최근 등록한 추가 공모전만 보입니다.
+    await waitFor(() =>
+      expect(within(drawer).getAllByRole('option')).toHaveLength(20),
+    );
+    expect(
+      within(drawer).queryByRole('option', { name: /로컬 브랜딩/ }),
+    ).not.toBeInTheDocument();
+    await user.type(
+      within(drawer).getByRole('combobox', { name: '공모전 검색' }),
+      '로컬 브랜딩',
+    );
+    expect(
+      await within(drawer).findByRole('option', {
+        name: /우리 동네를 새롭게, 로컬 브랜딩.*현재 선택됨/,
+      }),
+    ).toBeInTheDocument();
   });
 
   // PR #121 리뷰: 현재 공모전을 다시 고르면 입력한 정원·역할을 유지하고, 다른 공모전일 때만 초기화한다.

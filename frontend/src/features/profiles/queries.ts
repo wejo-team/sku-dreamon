@@ -3,6 +3,7 @@
  * 1. docs/api/profiles.md#profile-endpoints - GET/PUT /me/profile(미저장 404), PUT /me/profile/visibility
  * 2. docs/api/profiles.md#directory-endpoints - GET /people, GET /people/{accountId}(비공개·미존재 404)
  * 3. docs/development/frontend.md - 「API와 query」 mutation 성공 시 영향받은 query 갱신
+ * 4. docs/api/conventions.md#versioned-action - 프로필 수정·공개 전환 409 후 다시 조회
  */
 
 import {
@@ -22,7 +23,7 @@ import {
   type VisibilityWrite,
 } from '@/features/profiles/api';
 import { ApiError } from '@/lib/api';
-import { queryKeys } from '@/lib/query-keys';
+import { isConflict, queryKeys } from '@/lib/query-keys';
 
 // [출처 1] 아직 저장한 프로필이 없으면(404) null
 export const myProfileQueryOptions = queryOptions({
@@ -64,6 +65,11 @@ function useProfileMutation<Input>(
         ),
       );
     },
+    // [출처 4] 다른 변경이 먼저 저장됐다면 최신 프로필 버전을 다시 받습니다.
+    onError: (error) =>
+      isConflict(error)
+        ? client.invalidateQueries({ queryKey: queryKeys.myProfile })
+        : undefined,
   });
 }
 

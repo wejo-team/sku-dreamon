@@ -7,7 +7,8 @@
  * 5. docs/design/assets/create-team-320.png - 실제 화면
  * 6. docs/api/teams.md#team-create, #transitions - POST /teams(requestId 재전송), 409 CONTEST_NOT_OPEN·
  *    CAPACITY_OUT_OF_RANGE·MEMBERSHIP_CONFLICT·INVALID_CATALOG_SELECTION·PROFILE_REQUIRED
- * 7. docs/api/contests.md#endpoints - 접수 중 공고 목록(registrationStatus=open), 선택한 공고의 정원·마감 원문
+ * 7. docs/api/contests.md#endpoints - 접수 중 공고 검색(registrationStatus=open), 선택한 공고의 정원·마감 원문
+ * 8. docs/api/conventions.md#types - 경로 Id는 UUID 문자열(형식이 다르면 422)
  */
 
 import { useRef, useState } from 'react';
@@ -23,11 +24,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import type { ContestDetail, ContestSummary } from '@/features/contests/api';
-import {
-  contestQueryOptions,
-  contestsQueryOptions,
-} from '@/features/contests/queries';
+import type { ContestDetail } from '@/features/contests/api';
+import { contestQueryOptions } from '@/features/contests/queries';
 import { useLabels } from '@/features/catalogs/queries';
 import { koreanDate } from '@/features/catalogs/labels';
 import { useSession } from '@/features/auth/queries';
@@ -46,6 +44,7 @@ import {
 } from '@/components/common/CommonUi';
 import { profileTextLength } from '@/features/demo/profile-fields';
 import { ApiError } from '@/lib/api';
+import { Id } from '@/lib/api-contract';
 import { appNow } from '@/lib/clock';
 
 // [출처 3] 공식 인원이 고정(range의 최소=최대)이면 그 값을 정원으로 사용
@@ -137,17 +136,15 @@ export function CreateTeamPage() {
   const session = useSession();
   const [search] = useSearchParams();
   const contestId = search.get('contestId') ?? search.get('contest') ?? '';
-  const contests = useQuery({
-    ...contestsQueryOptions({ registrationStatus: 'open', pageSize: 100 }),
-    enabled: session.signedIn,
-  });
-  const initialId = contests.data?.data.some((item) => item.id === contestId)
-    ? contestId
-    : '';
+  // [출처 7, 8] URL로 지정한 공모전은 목록 페이지와 무관하게 상세로 확인하고, 접수 중일 때만 미리 선택합니다.
+  const initialId = Id.safeParse(contestId).success ? contestId : '';
   const initialContest = useQuery({
     ...contestQueryOptions(initialId),
-    enabled: !!initialId,
+    enabled: session.signedIn && !!initialId,
   });
+  const initialMissing =
+    initialContest.error instanceof ApiError &&
+    initialContest.error.status === 404;
   const returnTo = `/teams/new${search.size ? `?${search.toString()}` : ''}`;
   if (session.isPending) return <LoadingState />;
   if (!session.signedIn)
@@ -162,7 +159,7 @@ export function CreateTeamPage() {
         </ActionLink>
       </div>
     );
-  if (contests.isError || initialContest.isError)
+  if (initialContest.isError && !initialMissing)
     return (
       <div className="preview-detail preview-stack">
         <EmptyState
@@ -173,7 +170,6 @@ export function CreateTeamPage() {
             type="button"
             variant="outline"
             onClick={() => {
-              void contests.refetch();
               void initialContest.refetch();
             }}
           >
@@ -182,12 +178,15 @@ export function CreateTeamPage() {
         </EmptyState>
       </div>
     );
-  if (!contests.data || (initialId && !initialContest.data))
-    return <LoadingState />;
+  if (initialId && initialContest.isPending) return <LoadingState />;
+  const initial = initialContest.data;
   return (
     <CreateTeamForm
-      contests={contests.data.data}
-      initialContest={initialContest.data}
+      initialContest={
+        initial?.registrationStatus === 'open' && !initialMissing
+          ? initial
+          : undefined
+      }
     />
   );
 }
@@ -201,10 +200,8 @@ function LoadingState() {
 }
 
 function CreateTeamForm({
-  contests,
   initialContest,
 }: {
-  contests: ContestSummary[];
   initialContest: ContestDetail | undefined;
 }) {
   const { fieldLabel, roleOptions } = useLabels();
@@ -296,7 +293,7 @@ function CreateTeamForm({
             render={({ field }) => (
               <ContestPicker
                 id="team-contest"
-                contests={contests}
+                selected={selected}
                 value={field.value}
                 onChange={(id) => {
                   // [출처 2] 정원·역할은 공모전의 공식 인원에 따라 달라지므로 공모전이 실제로 바뀔 때만 초기화합니다.

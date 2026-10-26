@@ -6,7 +6,7 @@
  */
 
 import {
-  queryOptions,
+  infiniteQueryOptions,
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query';
@@ -14,17 +14,21 @@ import {
   listMyNotifications,
   readNotification,
   readNotifications,
-  type NotificationListQuery,
 } from '@/features/notifications/api';
 import { queryKeys } from '@/lib/query-keys';
 
-// [출처 1] 알림함은 최근 알림을 최대 페이지 크기로 받습니다.
-export const notificationsQueryOptions = (
-  query: NotificationListQuery = { pageSize: 100 },
-) =>
-  queryOptions({
-    queryKey: queryKeys.notifications(query),
-    queryFn: ({ signal }) => listMyNotifications(query, signal),
+// [출처 1] 알림함 목록(전체 또는 미읽음만)을 페이지 단위로 받습니다. 응답의 unreadCount는 필터와 무관한 전체 미읽음 수입니다.
+export const notificationsQueryOptions = (unreadOnly: boolean) =>
+  infiniteQueryOptions({
+    queryKey: queryKeys.notifications({ unreadOnly }),
+    queryFn: ({ pageParam, signal }) =>
+      listMyNotifications(
+        { page: pageParam, pageSize: 20, unreadOnly: unreadOnly || undefined },
+        signal,
+      ),
+    initialPageParam: 1,
+    getNextPageParam: ({ pagination }) =>
+      pagination.page < pagination.totalPages ? pagination.page + 1 : undefined,
   });
 
 // [출처 1, 2] 단건·여러 건 읽음. 성공하면 알림 목록과 미읽음 수를 다시 받습니다.

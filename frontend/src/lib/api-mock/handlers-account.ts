@@ -181,13 +181,15 @@ export function registerAccountRoutes(router: MockRouter) {
       const items = contestSummaries()
         .filter((item) => !fieldCode || item.fieldCodes.includes(fieldCode))
         .filter((item) => !status || item.registrationStatus === status)
+        // 서버(backend/app/repositories/contest_list.py)처럼 각 대상 필드에 검색어 전체가 포함되는지 봅니다.
         .filter(
           (item) =>
             !q ||
-            [item.title, item.organizer, ...item.fieldCodes.map(fieldName)]
-              .join(' ')
-              .toLowerCase()
-              .includes(q),
+            [
+              item.title,
+              item.organizer,
+              ...item.fieldCodes.map(fieldName),
+            ].some((text) => text.toLowerCase().includes(q)),
         )
         .sort((left, right) =>
           sort === 'deadline_asc'

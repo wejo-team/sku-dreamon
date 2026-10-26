@@ -904,9 +904,11 @@ export function TeamPage() {
     enabled: privateView && session.signedIn && !!teamQuery.data,
   });
   if (teamQuery.isPending || session.isPending) return <Loading />;
-  if (teamQuery.isError && statusOf(teamQuery.error) !== 404)
+  const teamMissing = statusOf(teamQuery.error) === 404;
+  if (teamQuery.isError && !teamMissing)
     return <LoadError onRetry={() => void teamQuery.refetch()} />;
-  const team = teamQuery.data;
+  // 404면 이전에 받은 값이 있어도 표시하지 않습니다.
+  const team = teamMissing ? undefined : teamQuery.data;
   if (!team)
     return (
       <div className="preview-detail preview-stack">
@@ -1276,10 +1278,13 @@ export function ApplicantPage() {
       </div>
     );
   const status = statusOf(applicant.error);
-  if (applicant.isError && status !== 403 && status !== 404)
+  // 403·404는 권한 밖이므로 이전에 받은 지원서가 캐시에 남아 있어도 보여 주지 않습니다.
+  const denied = status === 403 || status === 404;
+  if (applicant.isError && !denied)
     return <LoadError onRetry={() => void applicant.refetch()} />;
-  if (applicant.isPending || (teamId && team.isPending)) return <Loading />;
-  if (!applicant.data || !team.data)
+  if (!denied && (applicant.isPending || (teamId && team.isPending)))
+    return <Loading />;
+  if (denied || !applicant.data || !team.data)
     return (
       <div className="preview-detail preview-stack">
         <BackLink to={workspacePath}>워크스페이스로</BackLink>

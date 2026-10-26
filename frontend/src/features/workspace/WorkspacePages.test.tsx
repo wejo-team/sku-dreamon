@@ -14,6 +14,7 @@ import {
   useSaveVisibility,
 } from '@/features/profiles/queries';
 import { lifecycleReferenceDatabase } from '@/features/demo/lifecycle-fixtures';
+import { useSignup } from '@/features/auth/queries';
 import {
   createDemoRecords,
   fixtureAcademicUnits,
@@ -22,6 +23,7 @@ import {
 import {
   demoIds,
   ME,
+  mockDb,
   recordsWithMyProfile,
   renderWithApi,
   sentRequests,
@@ -64,9 +66,21 @@ const failReopen = ({ method, path }: { method: string; path: string }) =>
 function TestControls() {
   const profile = useQuery(myProfileQueryOptions).data;
   const saveVisibility = useSaveVisibility();
+  const signup = useSignup();
   return (
     <>
       <TestSessionButton />
+      {/* 다른 계정으로 전환: 가입(POST /accounts)은 성공하면 바로 새 계정으로 로그인됩니다. */}
+      <button
+        onClick={() =>
+          signup.mutate({
+            loginId: 'otheraccount',
+            password: '다른계정의비밀번호를길게만들어요1',
+          })
+        }
+      >
+        다른 계정으로 전환
+      </button>
       <button
         onClick={() =>
           profile &&
@@ -537,6 +551,28 @@ describe('applicant review', () => {
       screen.queryByRole('link', { name: /김서연의 프로젝트/ }),
     ).not.toBeInTheDocument();
   });
+  // Codex 리뷰 P1: 계정 전환 후 재조회가 404여도 이전 팀장 계정의 비공개 프로필을 보여 주지 않습니다.
+  it('hides a private applicant profile after switching to an account without access', async () => {
+    const db = withProfile(publicRecords(), demoIds.accounts.seoyeon, {
+      experienceState: 'provided',
+      experienceBody: '팀장에게만 보이는 경험',
+      isPublic: false,
+    });
+    const { user, step } = await renderPage(
+      `/applicants/${demoIds.applications.seoyeon}`,
+      { signedIn: true, db },
+    );
+    expect(screen.getByText('팀장에게만 보이는 경험')).toBeInTheDocument();
+    await step(() =>
+      user.click(screen.getByRole('button', { name: '다른 계정으로 전환' })),
+    );
+    expect(
+      screen.getByRole('heading', { name: '지원서를 확인할 수 없어요' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('팀장에게만 보이는 경험'),
+    ).not.toBeInTheDocument();
+  });
   it('does not expose applicant details before login', async () => {
     await renderPage(`/applicants/${demoIds.applications.seoyeon}`);
     expect(screen.getByText('로그인하고 이어가세요')).toBeInTheDocument();
@@ -725,6 +761,86 @@ describe('recruitment reopening and discarded history', () => {
     ).toHaveTextContent(seoyeonApplication.message!);
     expect(
       screen.getByText(/폐기된 지원은 새 선발 후보 추천에서 제외/),
+    ).toBeInTheDocument();
+  });
+});
+
+// Codex 리뷰 P2: 409 뒤 최신 버전을 다시 받아, 사용자가 다시 누르면 새 버전으로 보냅니다(docs/api/conventions.md#versioned-action).
+describe('version conflicts', () => {
+  // 화면이 조회한 뒤 다른 변경으로 서버 버전이 올라간 상태
+  const bumpVersion = (item: { version: string }) => {
+    item.version = String(Number(item.version) + 1);
+    return item.version;
+  };
+
+  it('closes recruitment with the refreshed team version after a 409', async () => {
+    const { user, step } = await renderPage(
+      `/teams/${demoIds.teams.greenwave}?view=space`,
+      { signedIn: true, db: publicRecords() },
+    );
+    const team = mockDb().teams.find(
+      (item) => item.id === demoIds.teams.greenwave,
+    )!;
+    const loaded = team.version;
+    const latest = bumpVersion(team);
+    const closure = () =>
+      sentRequests.filter((request) =>
+        request.path.endsWith('/recruitment/closure'),
+      );
+    await user.click(screen.getByRole('button', { name: '모집 종료' }));
+    const confirm = () =>
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '모집 종료하기',
+      });
+    await step(() => user.click(confirm()));
+    expect(
+      within(screen.getByRole('dialog')).getByRole('alert'),
+    ).toHaveTextContent('처리하지 못했어요');
+    // 자동 재전송 없음
+    expect(closure().map((request) => request.body)).toEqual([
+      { expectedVersion: loaded },
+    ]);
+    await step(() => user.click(confirm()));
+    expect(closure().map((request) => request.body)).toEqual([
+      { expectedVersion: loaded },
+      { expectedVersion: latest },
+    ]);
+    expect(
+      within(screen.getByRole('region', { name: '모집 관리' })).getByRole(
+        'status',
+      ),
+    ).toHaveTextContent('모집을 종료했어요');
+  });
+
+  it('cancels an application with the refreshed application version after a 409', async () => {
+    const { user, step } = await renderPage('/workspace?view=applications', {
+      signedIn: true,
+    });
+    const application = mockDb().applications.find(
+      (item) => item.id === demoIds.applications.localcrew,
+    )!;
+    const loaded = application.version;
+    const latest = bumpVersion(application);
+    const cancellation = () =>
+      sentRequests.filter((request) => request.path.endsWith('/cancellation'));
+    await user.click(screen.getByRole('button', { name: '지원 취소' }));
+    const confirm = () =>
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '지원 취소하기',
+      });
+    await step(() => user.click(confirm()));
+    expect(
+      within(screen.getByRole('dialog')).getByRole('alert'),
+    ).toBeInTheDocument();
+    await step(() => user.click(confirm()));
+    expect(cancellation().map((request) => request.body)).toEqual([
+      { expectedVersion: loaded },
+      { expectedVersion: latest },
+    ]);
+    expect(
+      screen.getByText(
+        '지원이 취소됐어요. 현재 모집 조건이 맞으면 다시 지원할 수 있어요.',
+      ),
     ).toBeInTheDocument();
   });
 });

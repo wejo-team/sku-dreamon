@@ -4,6 +4,7 @@
  * 2. docs/api/teams.md#queries - q·roleCode·recruitingOnly·contestId·page·pageSize
  * 3. docs/api/teams.md#transitions - expectedVersion, 생성 requestId 재전송
  * 4. docs/development/frontend.md - 「API와 query」 query key에 조회 조건, mutation 성공 시 무효화
+ * 5. docs/api/conventions.md#versioned-action - 409 후 다시 조회, 자동 재전송 없음
  */
 
 import {
@@ -23,7 +24,11 @@ import {
   type TeamCreate,
   type TeamListQuery,
 } from '@/features/teams/api';
-import { invalidateParticipation, queryKeys } from '@/lib/query-keys';
+import {
+  invalidateParticipation,
+  isConflict,
+  queryKeys,
+} from '@/lib/query-keys';
 
 // [출처 1, 2]
 export const teamsQueryOptions = (
@@ -74,6 +79,7 @@ export function useCreateTeam() {
   });
 }
 
+// [출처 3, 5] 모집 종료·재개. 409면 최신 팀 버전을 다시 받습니다.
 export function useRecruitmentAction() {
   const client = useQueryClient();
   return useMutation({
@@ -90,5 +96,7 @@ export function useRecruitmentAction() {
         expectedVersion,
       }),
     onSuccess: () => invalidateParticipation(client),
+    onError: (error) =>
+      isConflict(error) ? invalidateParticipation(client) : undefined,
   });
 }

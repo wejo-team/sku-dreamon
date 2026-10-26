@@ -2,11 +2,13 @@
  * [참조 출처]
  * 1. docs/development/frontend.md - 「API와 query」 query key에 리소스와 조회 조건 포함, mutation 성공 시 영향받은 query 무효화
  * 2. docs/api/conventions.md#session-auth - 로그인 세션이 바뀌면 본인 데이터를 다시 조회
+ * 3. docs/api/conventions.md#versioned-action - 다른 변경이 먼저 저장됐다면 409 후 다시 조회(자동 재전송 없음)
  *
  * 화면이 쓰는 TanStack Query key의 단일 원본입니다. 첫 요소는 리소스 범위이며 무효화 단위로 씁니다.
  */
 
 import type { QueryClient } from '@tanstack/react-query';
+import { ApiError } from '@/lib/api';
 
 // [출처 1] 리소스별 key. 조회 조건 객체를 마지막 요소로 둡니다.
 export const queryKeys = {
@@ -15,6 +17,7 @@ export const queryKeys = {
   academicUnits: ['catalogs', 'academic-units'] as const,
   contests: (query: object) => ['contests', 'list', query] as const,
   contest: (id: string) => ['contests', 'detail', id] as const,
+  openContestSearch: (q: string) => ['contests', 'open-search', q] as const,
   people: (query: object) => ['people', 'list', query] as const,
   person: (id: string) => ['people', 'detail', id] as const,
   myProfile: ['my', 'profile'] as const,
@@ -40,13 +43,13 @@ export const invalidateParticipation = (client: QueryClient) =>
     ),
   );
 
-// [출처 2] 세션 전환 뒤 선택지(catalogs)를 제외한 모든 데이터를 새 세션 기준으로 다시 받습니다.
-// 본인 데이터(my)는 이전 계정 값을 보여 주지 않도록 비운 뒤 다시 받습니다(화면에 걸린 query도 새로 조회).
+// [출처 3] 버전 충돌(409)이면 화면이 최신 version으로 다시 시도할 수 있게 관련 query를 다시 받습니다.
+export const isConflict = (error: unknown) =>
+  error instanceof ApiError && error.status === 409;
+
+// [출처 2] 세션 전환 뒤 선택지(catalogs)를 제외한 모든 데이터를 비우고 새 세션 기준으로 다시 받습니다.
+// 팀·지원자·사람 응답은 보는 계정의 권한에 따라 달라지므로, 재조회가 403·404여도 이전 계정의 값이 남지 않게 합니다.
 export const resetSessionData = (client: QueryClient) =>
-  Promise.all([
-    client.resetQueries({ queryKey: ['my'] }),
-    client.invalidateQueries({
-      predicate: (query) =>
-        query.queryKey[0] !== 'catalogs' && query.queryKey[0] !== 'my',
-    }),
-  ]);
+  client.resetQueries({
+    predicate: (query) => query.queryKey[0] !== 'catalogs',
+  });

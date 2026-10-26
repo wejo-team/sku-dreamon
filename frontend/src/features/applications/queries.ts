@@ -4,6 +4,7 @@
  * 2. docs/api/applications.md#queries - status·page·pageSize
  * 3. docs/api/applications.md#transitions - expectedVersion, 신규 지원 requestId 재전송
  * 4. docs/development/frontend.md - 「API와 query」 mutation 성공 시 영향받은 query 무효화
+ * 5. docs/api/conventions.md#versioned-action - 409 후 다시 조회, 자동 재전송 없음
  */
 
 import {
@@ -24,7 +25,11 @@ import {
   type ApplicationCreate,
   type ApplicationListQuery,
 } from '@/features/applications/api';
-import { invalidateParticipation, queryKeys } from '@/lib/query-keys';
+import {
+  invalidateParticipation,
+  isConflict,
+  queryKeys,
+} from '@/lib/query-keys';
 
 // [출처 1, 2] 내 지원은 최대 페이지 크기로 한 번에 받습니다.
 export const myApplicationsQueryOptions = (
@@ -57,6 +62,7 @@ export const applicantQueryOptions = (applicationId: string) =>
   });
 
 // [출처 3, 4] 지원·취소·검토·선발은 팀 인원·모집 상태·알림을 함께 바꿉니다.
+// [출처 5] 409면 최신 지원·팀 버전을 다시 받아, 사용자가 확인 후 다시 누를 때 새 버전으로 보냅니다.
 function useParticipationMutation<Input, Output>(
   request: (input: Input) => Promise<Output>,
 ) {
@@ -64,6 +70,8 @@ function useParticipationMutation<Input, Output>(
   return useMutation({
     mutationFn: request,
     onSuccess: () => invalidateParticipation(client),
+    onError: (error) =>
+      isConflict(error) ? invalidateParticipation(client) : undefined,
   });
 }
 
