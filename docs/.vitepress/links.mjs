@@ -17,7 +17,9 @@ export function siteLink(href, sourcePath, repositoryUrl, revision) {
         ),
       );
 
-  if (target !== "docs" && !target.startsWith("docs/")) {
+  // Diagram sources and generators are repository files, not site pages.
+  const sourceArtifact = /\.(?:mmd|py|json)$/i.test(target);
+  if (sourceArtifact || (target !== "docs" && !target.startsWith("docs/"))) {
     if (target === ".." || target.startsWith("../")) {
       throw new Error(`Link escapes the repository: ${sourcePath} -> ${href}`);
     }
