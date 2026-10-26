@@ -29,7 +29,7 @@ export type {
 export type { Notification } from '@/features/notifications/api';
 export { demoIds };
 
-// [출처 1] 초기 목업 스냅샷(DemoProvider·테스트의 출발점)
+// [출처 1] 초기 목업 스냅샷(목업 서버·테스트의 출발점)
 const initial = createDemoRecords();
 const archiveId = demoIds.contests.archive;
 

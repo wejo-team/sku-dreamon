@@ -22,14 +22,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import type { CatalogItem } from '@/features/catalogs/api';
 import type { ProfileFormValues } from '@/features/account/profile-form';
-import {
-  academicChildren,
-  academicStatusOptions,
-  academicUnitById,
-  demoCatalogs,
-  gradeOptions,
-  skillOptions,
-} from '@/features/demo/labels';
+import { useLabels } from '@/features/catalogs/queries';
 import { profileTextLength } from '@/features/demo/profile-fields';
 
 type Option = { value: string; label: string };
@@ -65,12 +58,6 @@ function SelectOptions({
 const catalogOptions = (items: CatalogItem[]): Option[] =>
   items.map((item) => ({ value: item.code, label: item.displayName }));
 
-// [출처 4] 부모 아래의 새로 선택 가능한 학사 항목
-const unitOptions = (parentId: string | null): Option[] =>
-  academicChildren(parentId)
-    .filter((unit) => unit.isSelectable)
-    .map((unit) => ({ value: unit.id, label: unit.name }));
-
 // [출처 2, 4] 학사 종속 선택, 다른 소속 관계로 이동하면 무효 하위값만 비움
 export function AcademicFields({
   control,
@@ -79,6 +66,18 @@ export function AcademicFields({
   control: Control<ProfileFormValues>;
   setValue: UseFormSetValue<ProfileFormValues>;
 }) {
+  const {
+    academicChildren,
+    academicStatusOptions,
+    academicUnitById,
+    catalogs,
+    gradeOptions,
+  } = useLabels();
+  // [출처 4] 부모 아래의 새로 선택 가능한 학사 항목
+  const unitOptions = (parentId: string | null): Option[] =>
+    academicChildren(parentId)
+      .filter((unit) => unit.isSelectable)
+      .map((unit) => ({ value: unit.id, label: unit.name }));
   const college = useWatch({ control, name: 'collegeId' }) ?? '';
   const department = useWatch({ control, name: 'departmentId' }) ?? '';
   const major = useWatch({ control, name: 'majorId' }) ?? '';
@@ -107,13 +106,13 @@ export function AcademicFields({
               'academicStatusCode',
               '학적 상태',
               catalogOptions(academicStatusOptions),
-              demoCatalogs.academicStatuses,
+              catalogs.academicStatuses,
             ],
             [
               'gradeCode',
               '학년',
               catalogOptions(gradeOptions),
-              demoCatalogs.grades,
+              catalogs.grades,
             ],
           ] as const
         ).map(([name, label, choices, all]) => (
@@ -236,6 +235,7 @@ export function SkillFields({
 }: {
   control: Control<ProfileFormValues>;
 }) {
+  const { skillOptions } = useLabels();
   return (
     <fieldset className="preview-field">
       <legend>

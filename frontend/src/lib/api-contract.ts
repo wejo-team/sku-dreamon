@@ -156,9 +156,9 @@ export const uniqueCodes = (schema: z.ZodArray<z.ZodString>) =>
     '중복 없이 선택해야 합니다.',
   );
 
-// [출처 9] 앞뒤 공백 제거 후 길이를 검사하는 텍스트(코드포인트 기준). 원문은 그대로 둡니다.
+// [출처 9] NFC·앞뒤 공백 제거 후 길이를 검사하는 텍스트(코드 포인트 기준). 원문은 그대로 둡니다.
 export const trimmedText = (min: number, max: number) =>
   z.string().refine((value) => {
-    const length = [...value.trim()].length;
+    const length = [...value.normalize('NFC').trim()].length;
     return length >= min && length <= max;
   }, `앞뒤 공백 제거 후 ${min}~${max}자여야 합니다.`);

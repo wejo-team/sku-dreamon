@@ -12,15 +12,23 @@ import {
   initialTeams,
   people,
 } from '@/features/demo/data';
-import { demoIds } from '@/features/demo/fixtures';
+import {
+  demoIds,
+  fixtureAcademicUnits,
+  fixtureCatalogs,
+} from '@/features/demo/fixtures';
+import { createLabels } from '@/features/catalogs/labels';
 
 const ME = demoIds.accounts.me;
 // 기본 데이터에서는 본인이 어느 팀에도 소속되지 않은 것으로 봅니다(memberTeamIds 비움).
 const availableTeams = initialTeams;
+// 코드 표시명은 GET /catalogs 응답(목업)과 같은 선택지로 만듭니다.
+const labels = createLabels(fixtureCatalogs(), fixtureAcademicUnits());
 const data = {
   contests,
   teams: availableTeams,
   people,
+  labels,
   accountId: ME,
   memberTeamIds: [] as string[],
 };
@@ -267,9 +275,11 @@ describe('createDemoReply', () => {
 
 describe('current recommendation availability', () => {
   it('excludes expired recruiting teams and closed contest candidates', () => {
+    // 기한이 지난 팀은 서버가 isRecruiting=false로 응답합니다(docs/api/teams.md#values).
     const expired = {
       ...availableTeams[1]!,
       recruitmentEndsAt: '2026-10-17T15:00:00Z',
+      isRecruiting: false,
     };
     expect(
       createDemoReply('개발자를 모집하는 팀 찾아줘', undefined, {

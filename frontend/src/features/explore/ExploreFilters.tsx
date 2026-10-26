@@ -22,12 +22,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import {
-  fieldLabel,
-  fieldOptions,
-  roleLabel,
-  roleOptions,
-} from '@/features/demo/labels';
+import { useLabels } from '@/features/catalogs/queries';
 
 // [출처 2, 3, 4] 분야/역할 초안 선택과 적용
 export function ExploreFilters({
@@ -41,6 +36,7 @@ export function ExploreFilters({
   onlyOpen: boolean;
   onApply: (value: string, onlyOpen: boolean) => void;
 }) {
+  const { fieldLabel, fieldOptions, roleLabel, roleOptions } = useLabels();
   const id = useId();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value || 'all');

@@ -8,18 +8,20 @@
 
 import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
-import type { TeamDetail } from '@/features/teams/api';
-import { roleLabel } from '@/features/demo/labels';
+import type { TeamWithContest } from '@/features/teams/status';
 import { Badge, TeamStatusBadge } from '@/components/common/CommonUi';
 
 // [출처 2, 3, 4] 카드 전체 링크, 모집 상태·역할·인원 요약
 export function TeamCard({
   team,
   to,
+  roleLabel,
   showContest = true,
 }: {
-  team: TeamDetail;
+  team: TeamWithContest;
   to: string;
+  /** 역할 코드 → 표시명(GET /catalogs). 공통 UI는 API를 직접 조회하지 않습니다. */
+  roleLabel: (code: string) => string;
   showContest?: boolean;
 }) {
   return (

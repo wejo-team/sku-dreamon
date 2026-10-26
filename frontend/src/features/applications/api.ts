@@ -19,6 +19,7 @@ import {
   VersionedAction,
   page,
   success,
+  trimmedText,
 } from '@/lib/api-contract';
 import { Profile } from '@/features/profiles/api';
 import { TeamSummary } from '@/features/teams/api';
@@ -39,7 +40,8 @@ export const ApplicationCreate = z
   .object({
     requestId: Id,
     roleCode: CatalogCode,
-    message: z.string().max(1000).nullable().optional(),
+    // NFC·trim 후 최대 1000 코드 포인트(docs/api/applications.md)
+    message: trimmedText(0, 1000).nullable().optional(),
   })
   .strict();
 export type ApplicationCreate = z.infer<typeof ApplicationCreate>;
@@ -53,7 +55,7 @@ export const Application = z
     contestId: Id,
     applicantAccountId: Id,
     roleCode: CatalogCode,
-    message: z.string().max(1000).nullable(),
+    message: trimmedText(0, 1000).nullable(),
     status: ApplicationStatus,
     discardReason: z
       .enum(['selected_elsewhere', 'team_created_elsewhere'])

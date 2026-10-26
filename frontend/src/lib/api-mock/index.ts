@@ -17,10 +17,12 @@ import {
 } from '@/lib/api-mock/handlers-teams';
 import { registerNotificationRoutes } from '@/lib/api-mock/handlers-notifications';
 import { resetCsrfToken } from '@/lib/api';
-import { errorResponse } from '@/lib/api-mock/http';
+import { errorResponse, json } from '@/lib/api-mock/http';
 import { resetMockDatabase, state } from '@/lib/api-mock/state';
 
 const router = new MockRouter();
+// 서버 프로세스 연결 확인(backend/app/routers/health.py). 목업 모드의 /health 화면도 같은 응답을 받습니다.
+router.on('GET', '/health', () => json(200, { status: 'ok' }));
 registerAccountRoutes(router);
 registerTeamRoutes(router);
 registerApplicationRoutes(router);
@@ -74,7 +76,9 @@ export async function mockFetch(
 }
 
 /** 목업 저장소·세션·CSRF 토큰을 초기화합니다. 화면 메모리의 토큰도 함께 버립니다(새로고침과 같음). */
-export function resetMockApi(options: { signedIn?: boolean } = {}) {
+export function resetMockApi(
+  options: Parameters<typeof resetMockDatabase>[0] = {},
+) {
   resetCsrfToken();
   return resetMockDatabase(options);
 }

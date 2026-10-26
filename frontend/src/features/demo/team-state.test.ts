@@ -29,7 +29,7 @@ import {
   type NewTeamInput,
   type Transition,
 } from '@/features/demo/team-state';
-import { withProfile } from '@/test/demo-state';
+import { withProfile } from '@/test/render';
 
 const { accounts: a, teams: t, applications: ap, contests: c } = demoIds;
 const ME = a.me;

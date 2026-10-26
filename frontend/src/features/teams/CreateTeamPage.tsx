@@ -3,12 +3,16 @@
  * 1. design-reference/src/features/design-preview/CreateTeamPage.tsx - 팀 만들기 원본
  * 2. docs/design/screens.md - 팀명 2~40자·소개 10~1,000자·역할 1~6개, 공식 인원 범위, 정원 1명은 역할 생략
  * 3. docs/specs/team-recruitment.md#official-capacity - 팀장 포함 정원과 공식 인원
- * 4. docs/development/frontend.md - 「화면과 상태」 작성 폼은 React Hook Form + Zod
+ * 4. docs/development/frontend.md - 「화면과 상태」 작성 폼은 React Hook Form + Zod, 로딩·오류 상태 제공
  * 5. docs/design/assets/create-team-320.png - 실제 화면
+ * 6. docs/api/teams.md#team-create, #transitions - POST /teams(requestId 재전송), 409 CONTEST_NOT_OPEN·
+ *    CAPACITY_OUT_OF_RANGE·MEMBERSHIP_CONFLICT·INVALID_CATALOG_SELECTION·PROFILE_REQUIRED
+ * 7. docs/api/contests.md#endpoints - 접수 중 공고 목록(registrationStatus=open), 선택한 공고의 정원·마감 원문
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Plus } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
@@ -19,19 +23,30 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import type { ContestDetail } from '@/features/contests/api';
-import { fieldLabel, roleOptions } from '@/features/demo/labels';
+import type { ContestDetail, ContestSummary } from '@/features/contests/api';
+import {
+  contestQueryOptions,
+  contestsQueryOptions,
+} from '@/features/contests/queries';
+import { useLabels } from '@/features/catalogs/queries';
+import { koreanDate } from '@/features/catalogs/labels';
+import { useSession } from '@/features/auth/queries';
+import { useCreateTeam } from '@/features/teams/queries';
 import {
   capacityBounds,
-  isContestOpen,
   memberLimitLabel,
   deadlineLabel,
 } from '@/features/demo/contest-state';
 import { ContestPicker } from '@/features/teams/ContestPicker';
-import { ActionLink, BackLink, PageIntro } from '@/components/common/CommonUi';
-import { useDemo } from '@/features/demo/demo-context';
+import {
+  ActionLink,
+  BackLink,
+  EmptyState,
+  PageIntro,
+} from '@/components/common/CommonUi';
 import { profileTextLength } from '@/features/demo/profile-fields';
-import { createTeamIssue, referenceDate } from '@/features/demo/team-state';
+import { ApiError } from '@/lib/api';
+import { appNow } from '@/lib/clock';
 
 // [출처 3] 공식 인원이 고정(range의 최소=최대)이면 그 값을 정원으로 사용
 const fixedCapacityOf = (contest: ContestDetail | undefined) => {
@@ -93,40 +108,49 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   ) : null;
 }
 
-// [출처 2, 3, 4, 5] 공모전 선택·정원·역할 검증 폼
+// [출처 6] 서버 오류 코드 → 화면 문구
+function createErrorMessage(
+  error: unknown,
+  contest: ContestDetail | undefined,
+) {
+  const code = error instanceof ApiError ? error.code : null;
+  switch (code) {
+    case 'MEMBERSHIP_CONFLICT':
+      return '이미 이 공모전의 팀에 소속되어 있어요. 내 팀에서 확인해 주세요.';
+    case 'CONTEST_NOT_OPEN':
+      return '접수 중인 공모전을 선택해 주세요.';
+    case 'CAPACITY_OUT_OF_RANGE':
+      return contest
+        ? `공식 참가 인원 ${memberLimitLabel(contest.capacity)}에 맞춰 총 정원을 입력해 주세요.`
+        : '공식 참가 인원을 확인한 뒤 팀을 만들 수 있어요.';
+    case 'PROFILE_REQUIRED':
+      return '필수 프로필을 먼저 작성해 주세요.';
+    case 'INVALID_CATALOG_SELECTION':
+      return '모집할 역할을 목록에서 다시 선택해 주세요.';
+    default:
+      return '팀을 만들지 못했어요. 현재 소속과 모집 조건을 확인해 주세요.';
+  }
+}
+
+// [출처 2, 3, 4, 5, 7] 로그인 확인 → 접수 중 공고 목록·URL로 지정한 공고 상세를 받은 뒤 폼 표시
 export function CreateTeamPage() {
-  const { signedIn, createTeam, contests, db, account } = useDemo();
-  const navigate = useNavigate();
+  const session = useSession();
   const [search] = useSearchParams();
-  const [submitError, setSubmitError] = useState('');
   const contestId = search.get('contestId') ?? search.get('contest') ?? '';
-  const initialContest = contests.find((item) => item.id === contestId);
-  const {
-    register,
-    setValue,
-    control,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<Fields>({
-    resolver: zodResolver(teamSchema),
-    defaultValues: {
-      contestId: contests.some((contest) => contest.id === contestId)
-        ? contestId
-        : '',
-      name: '',
-      introduction: '',
-      roleCodes: [],
-      capacity: fixedCapacityOf(initialContest),
-      recruitmentDeadline: '',
-    },
+  const contests = useQuery({
+    ...contestsQueryOptions({ registrationStatus: 'open', pageSize: 100 }),
+    enabled: session.signedIn,
   });
-  const selectedId = useWatch({ control, name: 'contestId' });
-  const selected = contests.find((contest) => contest.id === selectedId);
-  const capacity = useWatch({ control, name: 'capacity' });
-  const fixedCapacity = fixedCapacityOf(selected) !== undefined;
-  const bounds = selected ? capacityBounds(selected.capacity) : null;
+  const initialId = contests.data?.data.some((item) => item.id === contestId)
+    ? contestId
+    : '';
+  const initialContest = useQuery({
+    ...contestQueryOptions(initialId),
+    enabled: !!initialId,
+  });
   const returnTo = `/teams/new${search.size ? `?${search.toString()}` : ''}`;
-  if (!signedIn)
+  if (session.isPending) return <LoadingState />;
+  if (!session.signedIn)
     return (
       <div className="preview-detail preview-stack">
         <PageIntro
@@ -138,6 +162,85 @@ export function CreateTeamPage() {
         </ActionLink>
       </div>
     );
+  if (contests.isError || initialContest.isError)
+    return (
+      <div className="preview-detail preview-stack">
+        <EmptyState
+          title="공모전 정보를 불러오지 못했어요"
+          description="잠시 후 다시 시도해 주세요."
+        >
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              void contests.refetch();
+              void initialContest.refetch();
+            }}
+          >
+            다시 시도
+          </Button>
+        </EmptyState>
+      </div>
+    );
+  if (!contests.data || (initialId && !initialContest.data))
+    return <LoadingState />;
+  return (
+    <CreateTeamForm
+      contests={contests.data.data}
+      initialContest={initialContest.data}
+    />
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="preview-detail preview-stack" role="status">
+      <p className="preview-muted">불러오는 중…</p>
+    </div>
+  );
+}
+
+function CreateTeamForm({
+  contests,
+  initialContest,
+}: {
+  contests: ContestSummary[];
+  initialContest: ContestDetail | undefined;
+}) {
+  const { fieldLabel, roleOptions } = useLabels();
+  const navigate = useNavigate();
+  const client = useQueryClient();
+  const createTeam = useCreateTeam();
+  const [submitError, setSubmitError] = useState('');
+  // [출처 6] 같은 생성 시도의 재전송은 같은 requestId를 씁니다. 성공하면 새 시도로 바꿉니다.
+  const requestId = useRef(crypto.randomUUID());
+  const {
+    register,
+    setValue,
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<Fields>({
+    resolver: zodResolver(teamSchema),
+    defaultValues: {
+      contestId: initialContest?.id ?? '',
+      name: '',
+      introduction: '',
+      roleCodes: [],
+      capacity: fixedCapacityOf(initialContest),
+      recruitmentDeadline: '',
+    },
+  });
+  const selectedId = useWatch({ control, name: 'contestId' });
+  // [출처 7] 선택한 공고의 정원·마감 원문(상세)
+  const selectedQuery = useQuery({
+    ...contestQueryOptions(selectedId),
+    enabled: !!selectedId,
+  });
+  const selected = selectedQuery.data;
+  const capacity = useWatch({ control, name: 'capacity' });
+  const fixedCapacity = fixedCapacityOf(selected) !== undefined;
+  const bounds = selected ? capacityBounds(selected.capacity) : null;
   return (
     <div className="preview-detail preview-stack preview-account-page">
       <BackLink to="/explore?tab=teams">팀 탐색으로</BackLink>
@@ -148,28 +251,42 @@ export function CreateTeamPage() {
       <form
         className="preview-panel preview-form"
         noValidate
-        onSubmit={handleSubmit((values) => {
-          // [출처 3] 분야는 공모전에서 상속하므로 입력하지 않음. 정원 1명은 역할 없음
-          const team = {
-            ...values,
-            roleCodes: values.capacity === 1 ? [] : values.roleCodes,
-            // 화면은 날짜만 입력. 시각·시간대가 없으면 한국시간 날짜 끝으로 해석(docs/api/teams.md#deadline-input)
-            recruitmentDeadline: { date: values.recruitmentDeadline },
-          };
-          const issue = createTeamIssue(team, db, account.id);
-          if (issue) {
-            setSubmitError(issue.message);
-            return;
-          }
-          const id = createTeam(team);
-          if (!id) {
-            setSubmitError(
-              '팀을 만들지 못했어요. 현재 소속과 모집 조건을 확인해 주세요.',
-            );
-            return;
-          }
-          navigate(`/teams/${id}?view=space`);
-        })}
+        // requestId ref는 제출 이벤트 안에서만 읽습니다.
+        onSubmit={(event) =>
+          void handleSubmit(async (values) => {
+            setSubmitError('');
+            // [출처 3] 분야는 공모전에서 상속하므로 입력하지 않음. 정원 1명은 역할 없음
+            const roleCodes = values.capacity === 1 ? [] : values.roleCodes;
+            // 서버도 같은 조건을 검사하지만(409 CAPACITY_OUT_OF_RANGE) 요청 전에 먼저 안내합니다.
+            if (
+              selected &&
+              bounds &&
+              ((bounds.min !== null && values.capacity < bounds.min) ||
+                (bounds.max !== null && values.capacity > bounds.max))
+            ) {
+              setSubmitError(
+                `공식 참가 인원 ${memberLimitLabel(selected.capacity)}에 맞춰 총 정원을 입력해 주세요.`,
+              );
+              return;
+            }
+            try {
+              const { team } = await createTeam.mutateAsync({
+                requestId: requestId.current,
+                contestId: values.contestId,
+                name: values.name,
+                introduction: values.introduction,
+                capacity: String(values.capacity),
+                roleCodes,
+                // 화면은 날짜만 입력. 시각·시간대가 없으면 한국시간 날짜 끝으로 해석(docs/api/teams.md#deadline-input)
+                recruitmentDeadline: { date: values.recruitmentDeadline },
+              });
+              requestId.current = crypto.randomUUID();
+              navigate(`/teams/${team.id}?view=space`);
+            } catch (error) {
+              setSubmitError(createErrorMessage(error, selected));
+            }
+          })(event)
+        }
       >
         <div className="preview-field">
           <Label htmlFor="team-contest">참여 공모전</Label>
@@ -179,7 +296,7 @@ export function CreateTeamPage() {
             render={({ field }) => (
               <ContestPicker
                 id="team-contest"
-                contests={contests.filter((contest) => isContestOpen(contest))}
+                contests={contests}
                 value={field.value}
                 onChange={(id) => {
                   // [출처 2] 정원·역할은 공모전의 공식 인원에 따라 달라지므로 공모전이 실제로 바뀔 때만 초기화합니다.
@@ -187,9 +304,16 @@ export function CreateTeamPage() {
                   const changed = id !== field.value;
                   field.onChange(id);
                   if (!changed) return;
-                  const contest = contests.find((item) => item.id === id);
-                  setValue('capacity', fixedCapacityOf(contest) ?? Number.NaN);
+                  setValue('capacity', Number.NaN);
                   setValue('roleCodes', []);
+                  // [출처 7] 고정 정원 공모전이면 상세를 받아 정원을 채웁니다.
+                  void client
+                    .fetchQuery(contestQueryOptions(id))
+                    .then((contest) => {
+                      const fixed = fixedCapacityOf(contest);
+                      if (fixed !== undefined) setValue('capacity', fixed);
+                    })
+                    .catch(() => undefined);
                 }}
                 onBlur={field.onBlur}
                 ref={field.ref}
@@ -300,7 +424,7 @@ export function CreateTeamPage() {
           <Input
             id="team-deadline"
             type="date"
-            min={referenceDate}
+            min={koreanDate(new Date(appNow()).toISOString())}
             max={selected?.timing.closing.sourceDate}
             {...register('recruitmentDeadline')}
             aria-invalid={!!errors.recruitmentDeadline}

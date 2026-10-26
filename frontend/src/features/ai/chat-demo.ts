@@ -4,20 +4,24 @@
  * 2. docs/design/handoff.md - 실제 모델 호출 없이 대화·추천 카드 동작 확인
  * 3. docs/specs/matching.md#acceptance-criteria - 본인·소속 팀 제외, 공개 범위·모집 조건 재검사
  *
- * 화면 확인용 메모리 상태·예시 데이터입니다. 서버 계약이 아니며 API 연동 시 기능별 TanStack Query로 교체합니다(handoff.md 「제품 구현에 옮기는 순서」 3단계).
+ * 4. docs/api/ai.md - AI API는 미구현·SSE 검토안이라 응답 문장은 화면 데모로 만들고,
+ *    추천 대상 데이터(공모전·팀·사람·내 지원)는 실제 API 조회 결과를 받습니다(AiChatPage).
+ *
+ * 화면 확인용 모의 대화 응답입니다. 실제 모델 호출이나 서버 계약이 아닙니다.
  */
 
 import type { Application } from '@/features/applications/api';
-import type { ContestDetail } from '@/features/contests/api';
-import type { Profile } from '@/features/profiles/api';
-import type { TeamDetail } from '@/features/teams/api';
+import type { Labels } from '@/features/catalogs/labels';
+import type { ContestSummary } from '@/features/contests/api';
+import type { PersonSummary } from '@/features/profiles/api';
+import { contestDeadline, endsAtLabel } from '@/features/demo/contest-state';
 import {
-  contestDeadline,
-  deadlineLabel,
-  isContestOpen,
-} from '@/features/demo/contest-state';
-import { recruitmentIssue } from '@/features/demo/team-state';
-import { fieldLabel, roleLabel } from '@/features/demo/labels';
+  recruitmentIssue,
+  type TeamWithContest,
+} from '@/features/teams/status';
+
+const isContestOpen = (contest: ContestSummary) =>
+  contest.registrationStatus === 'open';
 
 export type ChatSearchState = {
   kind: 'contests' | 'teams' | 'people';
@@ -41,11 +45,15 @@ export type ChatReply = {
   search: ChatSearchState;
 };
 
-type SearchData = {
-  contests: ContestDetail[];
-  teams: TeamDetail[];
-  /** 현재 공개된 사람 프로필 */
-  people: Profile[];
+export type SearchData = {
+  /** GET /contests 목록 요약 */
+  contests: (ContestSummary & { description?: string | null })[];
+  /** GET /teams 목록 요약 */
+  teams: TeamWithContest[];
+  /** GET /people 공개 사람 요약 */
+  people: PersonSummary[];
+  /** 코드 → 표시명(GET /catalogs) */
+  labels: Pick<Labels, 'fieldLabel' | 'roleLabel'>;
   applications?: Application[];
   /** 추천을 받는 본인 계정 */
   accountId?: string;
@@ -54,7 +62,7 @@ type SearchData = {
 };
 
 // [출처 3] 본인·소속 팀과 유효한 지원이 있는 팀은 신규 지원 대상에서 제외
-function availableTeam(team: TeamDetail, data: SearchData) {
+function availableTeam(team: TeamWithContest, data: SearchData) {
   const contest = data.contests.find((item) => item.id === team.contestId);
   return Boolean(
     contest &&
@@ -148,13 +156,16 @@ function hasUnknownWords(message: string) {
   );
 }
 
-function contestText(contest: ContestDetail) {
+function contestText(
+  contest: SearchData['contests'][number],
+  fieldLabel: Labels['fieldLabel'],
+) {
   return normalize(
     `${contest.title} ${contest.organizer} ${contest.description ?? ''} ${contest.fieldCodes.map(fieldLabel).join(' · ')}`,
   );
 }
 
-function deadlineKey(contest: ContestDetail | undefined) {
+function deadlineKey(contest: ContestSummary | undefined) {
   return contest ? contestDeadline(contest) : Infinity;
 }
 
@@ -164,6 +175,7 @@ export function createDemoReply(
   previous: ChatSearchState | undefined,
   data: SearchData,
 ): ChatReply {
+  const { fieldLabel, roleLabel } = data.labels;
   const query = normalize(message);
   const more =
     /^(?:다른추천도|다른결과도|더|추가로|계속)(?:보여줘|추천해줘|찾아줘)?$/.test(
@@ -290,7 +302,7 @@ export function createDemoReply(
         isContestOpen(contest) &&
         (!search.category || contest.fieldCodes.includes(search.category)) &&
         (!search.keyword ||
-          contestText(contest).includes(normalize(search.keyword))),
+          contestText(contest, fieldLabel).includes(normalize(search.keyword))),
     );
     if (search.deadlineFirst)
       matches.sort((a, b) => deadlineKey(a) - deadlineKey(b));
@@ -302,9 +314,7 @@ export function createDemoReply(
         reasons.push(
           `공개된 공모전 정보에 ‘${search.keyword}’이 포함되어 있어요.`,
         );
-      reasons.push(
-        `등록된 마감일은 ${deadlineLabel(contest.timing.closing)}이에요.`,
-      );
+      reasons.push(`등록된 마감일은 ${endsAtLabel(contest.endsAt)}이에요.`);
       recommendations.push({
         kind: 'contest',
         id: contest.id,
@@ -319,7 +329,7 @@ export function createDemoReply(
       const contest = contestById.get(team.contestId);
       const searchable =
         normalize(`${team.name} ${team.introduction}`) +
-        (contest ? contestText(contest) : '');
+        (contest ? contestText(contest, fieldLabel) : '');
       return (
         availableTeam(team, data) &&
         (!search.role || team.roleCodes.includes(search.role)) &&
@@ -348,7 +358,7 @@ export function createDemoReply(
       const contest = contestById.get(team.contestId);
       if (search.deadlineFirst && contest)
         reasons.push(
-          `참여 공모전 마감일은 ${deadlineLabel(contest.timing.closing)}이에요.`,
+          `참여 공모전 마감일은 ${endsAtLabel(contest.endsAt)}이에요.`,
         );
       recommendations.push({
         kind: 'team',
@@ -428,6 +438,7 @@ export function currentRecommendation(
   item: ChatRecommendation,
   data: SearchData,
 ) {
+  const { fieldLabel, roleLabel } = data.labels;
   if (item.kind === 'person') {
     const person = data.people.find((value) => value.accountId === item.id);
     return person

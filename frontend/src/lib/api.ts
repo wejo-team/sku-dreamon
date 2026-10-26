@@ -10,6 +10,7 @@
  */
 
 import { z } from 'zod';
+import { isMockApi } from '@/lib/clock';
 import {
   errorSchema,
   success,
@@ -22,8 +23,8 @@ const baseUrl = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(
   '',
 );
 
-// 백엔드가 없을 때 같은 요청을 목업 어댑터로 보냅니다(lib/api-mock). 운영 빌드에서는 켜지 않습니다.
-const useMock = import.meta.env.VITE_API_MOCK === 'true';
+// 같은 요청을 목업 어댑터(lib/api-mock)로 보낼지 정합니다(lib/clock.ts isMockApi).
+const useMock = isMockApi;
 
 // 목업이 꺼져 있으면 fetch를 바로 호출해 요청 시작 시점을 늦추지 않습니다.
 function send(input: string, init: RequestInit): Promise<Response> {

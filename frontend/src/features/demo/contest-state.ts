@@ -13,15 +13,16 @@
 
 import type {
   ContestDetail,
+  ContestSummary,
   DeadlineInterpretation,
   ParticipationCapacity,
   RegistrationStatus,
 } from '@/features/contests/api';
 import type { DeadlineInput } from '@/features/teams/api';
-import { mockNow } from '@/features/demo/fixtures';
+import { MOCK_NOW, appNow } from '@/lib/clock';
 
-// [출처 6] 재현용 고정 현재 시각(운영 시계 아님)
-export const referenceNow = mockNow;
+// [출처 6] 목업 서버가 쓰는 재현용 고정 현재 시각(운영 시계 아님)
+export const referenceNow = MOCK_NOW;
 const koreanTimeZone = 'Asia/Seoul';
 const dayMs = 86_400_000;
 
@@ -117,14 +118,14 @@ export const contestStartsAt = (contest: Pick<ContestDetail, 'startsAt'>) =>
 // [출처 2] 접수 예정/중/마감. startsAt 포함, endsAt 제외
 export function contestStatus(
   contest: Pick<ContestDetail, 'startsAt' | 'endsAt'>,
-  now = referenceNow,
+  now = appNow(),
 ): RegistrationStatus {
   if (now >= contestDeadline(contest)) return 'closed';
   return now < contestStartsAt(contest) ? 'scheduled' : 'open';
 }
 export const isContestOpen = (
   contest: Pick<ContestDetail, 'startsAt' | 'endsAt'>,
-  now = referenceNow,
+  now = appNow(),
 ) => contestStatus(contest, now) === 'open';
 
 // 시간대 기준 오늘 날짜(YYYY-MM-DD)
@@ -143,7 +144,7 @@ function dateIn(timeZone: string, now: number) {
 // [출처 3] D-day: 마감 원문 날짜와 적용 시간대의 오늘 날짜 차이
 export function contestDaysLeft(
   contest: Pick<ContestDetail, 'timing'>,
-  now = referenceNow,
+  now = appNow(),
 ): number {
   const { sourceDate, effectiveTimeZone } = contest.timing.closing;
   const today = dateIn(effectiveTimeZone, now);
@@ -152,7 +153,7 @@ export function contestDaysLeft(
 
 export function contestBadgeLabel(
   contest: Pick<ContestDetail, 'startsAt' | 'endsAt' | 'timing'>,
-  now = referenceNow,
+  now = appNow(),
 ): string {
   const status = contestStatus(contest, now);
   if (status === 'scheduled') return '접수 예정';
@@ -173,6 +174,32 @@ export function deadlineLabel(closing: DeadlineInterpretation): string {
   const date = closing.sourceDate.replaceAll('-', '.');
   if (!closing.sourceTime) return date;
   return `${date} ${closing.sourceTime.slice(0, 5)} (${zoneLabel(closing.effectiveTimeZone)})`;
+}
+
+// ─── 목록 요약(ContestSummary) 기준 표시 ────────────────────────
+// 접수 상태는 서버가 계산한 registrationStatus를 그대로 쓰고, 날짜만 endsAt(제외 경계)에서 읽습니다.
+
+/** 마지막 접수일(한국시간 YYYY.MM.DD). endsAt은 제외 경계라 직전 순간의 날짜입니다. */
+export const endsAtLabel = (endsAt: string) =>
+  dateIn(koreanTimeZone, Date.parse(endsAt) - 1).replaceAll('-', '.');
+
+export function summaryDaysLeft(
+  contest: Pick<ContestSummary, 'endsAt'>,
+  now = appNow(),
+): number {
+  const lastDay = dateIn(koreanTimeZone, Date.parse(contest.endsAt) - 1);
+  const today = dateIn(koreanTimeZone, now);
+  return Math.round((Date.parse(lastDay) - Date.parse(today)) / dayMs);
+}
+
+export function summaryBadgeLabel(
+  contest: Pick<ContestSummary, 'registrationStatus' | 'endsAt'>,
+  now = appNow(),
+): string {
+  if (contest.registrationStatus === 'scheduled') return '접수 예정';
+  if (contest.registrationStatus === 'closed') return '접수 마감';
+  const days = summaryDaysLeft(contest, now);
+  return days <= 0 ? 'D-day' : `D−${days}`;
 }
 
 // [출처 2, 3] 서비스가 보완한 사실 안내

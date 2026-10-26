@@ -9,22 +9,30 @@
 import { ExternalLink } from 'lucide-react';
 import type { Profile } from '@/features/profiles/api';
 import { Badge } from '@/components/common/CommonUi';
-import {
-  academicPath,
-  academicStatusLabel,
-  fieldLabel,
-  gradeLabel,
-  roleLabel,
-  skillLabel,
-  weeklyAvailabilityLabel,
-} from '@/features/demo/labels';
+import type { Labels } from '@/features/catalogs/labels';
 import { normalizeWebUrl } from '@/features/demo/profile-fields';
 
 // 학사 경로 계층별 표시 이름(단과대학 → 학부·학과 → 전공)
 const academicLevels = ['단과대학', '학과', '전공'];
 
 // [출처 2, 3, 4] 등록 항목만 표시하고 인증 정보·미수집 연락처는 추가하지 않음
-export function ProfileDetails({ profile }: { profile: Profile }) {
+export function ProfileDetails({
+  profile,
+  labels,
+}: {
+  profile: Profile;
+  /** 코드 → 표시명(GET /catalogs). 공통 UI는 API를 직접 조회하지 않습니다. */
+  labels: Labels;
+}) {
+  const {
+    academicPath,
+    academicStatusLabel,
+    fieldLabel,
+    gradeLabel,
+    roleLabel,
+    skillLabel,
+    weeklyAvailabilityLabel,
+  } = labels;
   const academics = [
     [
       '학적 상태',

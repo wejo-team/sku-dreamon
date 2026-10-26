@@ -8,8 +8,8 @@
  * 6. docs/specs/team-recruitment.md#recruitment-reopening - 정원 충족 후 자동 재개 없음, 팀장 확인 후 재개
  * 7. docs/specs/team-recruitment.md#membership-capacity - 팀장 포함 정원, 선발 즉시 확정·자리 차감, 취소 시 반환
  *
- * API DTO 형태의 목업 저장소(DemoDatabase)에 대한 순수 상태 전이입니다. 화면(DemoProvider)과 목업 서버가
- * 같은 규칙을 씁니다. 실패는 API와 같은 409 코드와 화면 문구를 함께 돌려줍니다.
+ * API DTO 형태의 목업 저장소(DemoDatabase)에 대한 순수 상태 전이입니다. 목업 서버(lib/api-mock)가
+ * 이 규칙으로 응답합니다. 실패는 API와 같은 409 코드와 화면 문구를 함께 돌려줍니다.
  */
 
 import type { Application } from '@/features/applications/api';

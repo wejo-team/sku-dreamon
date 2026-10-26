@@ -131,11 +131,15 @@ describe('team creation follows the deadline and catalog contract', () => {
     expect(deadline({ timeZone: 'Asia/Seoul' })).toBe(true);
   });
 
-  it('A5: names the request field in a business-rule 422', async () => {
+  it('A5: names the request field in a server 422', async () => {
     await signIn();
-    expect(
-      await failure(teams.createTeam(teamBody({ name: ' 가 ' }))),
-    ).toMatchObject({ status: 422, loc: ['body', 'name'] });
+    // 클라이언트 검증을 거치지 않은 요청으로 서버의 422 위치 정보를 확인합니다.
+    const { status, body } = await raw('/teams', {
+      method: 'POST',
+      body: JSON.stringify(teamBody({ name: ' 가 ' })),
+    });
+    expect(status).toBe(422);
+    expect(body.detail[0].loc).toEqual(['body', 'name']);
   });
 
   it('A7: treats a resend with the same normalized input as the same attempt', async () => {

@@ -6,6 +6,10 @@
  * 4. docs/design/tokens.md - 수정 아이콘·공개 스위치·미리보기 묶음, 교내 미인증 배지 안내 Drawer
  * 5. docs/design/screens.md - 「확인할 상태와 연결」 프로필 수정·공개·이미지 선택 흐름
  * 6. docs/design/assets/wordmark-login-320.png, profile-view-390.png, profile-320.png, profile-public-confirm-390.png, profile-private-confirm-390.png, profile-school-390.png - 실제 화면
+ * 7. docs/api/auth.md#account-endpoints - POST /auth/login(401 INVALID_CREDENTIALS), POST /accounts(성공 시 로그인,
+ *    GET /me로 같은 계정인지 확인 후 프로필 설정), GET /auth/login-id-availability, POST /auth/logout
+ * 8. docs/api/profiles.md#profile-endpoints - GET /me/profile(미저장 404), PUT /me/profile(최초 "0"), PUT /me/profile/visibility
+ * 9. docs/development/frontend.md - 「API와 query」 각 화면은 로딩·오류 상태 제공
  */
 
 import { useId, useRef, useState } from 'react';
@@ -47,26 +51,29 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CatalogItem } from '@/features/catalogs/api';
-import { getPublicProfile } from '@/features/demo/data';
+import { useLabels } from '@/features/catalogs/queries';
+import { getLoginIdAvailability } from '@/features/auth/api';
 import {
-  academicPath,
-  academicStatusLabel,
-  fieldLabel,
-  fieldOptions,
-  gradeLabel,
-  roleLabel,
-  roleOptions,
-  skillLabel,
-  weeklyAvailabilityLabel,
-  weeklyAvailabilityOptions,
-} from '@/features/demo/labels';
+  meQueryOptions,
+  useLogin,
+  useLogout,
+  useSession,
+  useSignup,
+} from '@/features/auth/queries';
+import type { Profile } from '@/features/profiles/api';
 import {
-  fromFormValues,
+  myProfileQueryOptions,
+  useSaveProfile,
+  useSaveVisibility,
+} from '@/features/profiles/queries';
+import {
   toFormValues,
+  toProfileWrite,
   type ProfileFormValues,
 } from '@/features/account/profile-form';
-import { useDemo } from '@/features/demo/demo-context';
+import { ApiError } from '@/lib/api';
 import {
   Avatar,
   BackLink,
@@ -82,9 +89,8 @@ import {
   SkillFields,
 } from '@/features/account/ProfileFields';
 import {
-  demoId,
-  demoPassword,
   loginIdSchema,
+  normalizeLoginId,
   passwordSchema,
   signupPasswordSchema,
 } from '@/features/demo/auth-policy';
@@ -116,63 +122,94 @@ const requiredProfileSchema = z.object({
     .min(1, '관심 분야를 하나 이상 선택해 주세요.')
     .max(3, '관심 분야는 최대 3개까지 선택해 주세요.'),
 });
-const profileSchema = requiredProfileSchema.extend({
-  profileImageCode: z.string().nullable(),
-  introduction: z
-    .string()
-    .trim()
-    .refine(
-      (value) => profileTextLength(value) <= 300,
-      '자기소개는 300자 이내로 입력해 주세요.',
-    ),
-  experienceBody: z
-    .string()
-    .trim()
-    .refine(
-      (value) => profileTextLength(value) <= 500,
-      '관련 경험은 500자 이내로 입력해 주세요.',
-    ),
-  experienceState: z.enum(['unspecified', 'none', 'provided']),
-  academicStatusCode: z.string(),
-  gradeCode: z.string(),
-  collegeId: z.string(),
-  departmentId: z.string(),
-  majorId: z.string(),
-  skillCodes: z.array(z.string()),
-  portfolioTitle: z
-    .string()
-    .trim()
-    .refine(
-      (value) => profileTextLength(value) <= 50,
-      '포트폴리오 제목은 50자 이내로 입력해 주세요.',
-    ),
-  portfolioUrl: z
-    .string()
-    .trim()
-    .refine(
-      (value) => !value || isWebUrl(value),
-      'http:// 또는 https://로 시작하는 링크를 입력해 주세요.',
-    ),
-  weeklyAvailabilityCode: z
-    .string()
-    .refine(
-      (value) =>
-        !value || weeklyAvailabilityOptions.some((item) => item.code === value),
-      '주당 참여 가능 시간을 다시 선택해 주세요.',
-    ),
-});
+// 주당 시간 선택지는 GET /catalogs 결과로 검증합니다.
+const makeProfileSchema = (weeklyCodes: string[]) =>
+  requiredProfileSchema.extend({
+    profileImageCode: z.string().nullable(),
+    introduction: z
+      .string()
+      .trim()
+      .refine(
+        (value) => profileTextLength(value) <= 300,
+        '자기소개는 300자 이내로 입력해 주세요.',
+      ),
+    experienceBody: z
+      .string()
+      .trim()
+      .refine(
+        (value) => profileTextLength(value) <= 500,
+        '관련 경험은 500자 이내로 입력해 주세요.',
+      ),
+    experienceState: z.enum(['unspecified', 'none', 'provided']),
+    academicStatusCode: z.string(),
+    gradeCode: z.string(),
+    collegeId: z.string(),
+    departmentId: z.string(),
+    majorId: z.string(),
+    skillCodes: z.array(z.string()),
+    portfolioTitle: z
+      .string()
+      .trim()
+      .refine(
+        (value) => profileTextLength(value) <= 50,
+        '포트폴리오 제목은 50자 이내로 입력해 주세요.',
+      ),
+    portfolioUrl: z
+      .string()
+      .trim()
+      .refine(
+        (value) => !value || isWebUrl(value),
+        'http:// 또는 https://로 시작하는 링크를 입력해 주세요.',
+      ),
+    weeklyAvailabilityCode: z
+      .string()
+      .refine(
+        (value) => !value || weeklyCodes.includes(value),
+        '주당 참여 가능 시간을 다시 선택해 주세요.',
+      ),
+  });
 const accountSchema = z.object({
   username: loginIdSchema,
   password: passwordSchema,
 });
+// [출처 7] 아이디 중복은 GET /auth/login-id-availability로 확인합니다(가입 예약은 아님).
 const signupSchema = requiredProfileSchema.merge(accountSchema).extend({
-  username: loginIdSchema.refine(
-    (value) => value !== demoId,
-    '이미 사용 중인 아이디예요.',
-  ),
+  username: loginIdSchema.refine(async (value) => {
+    try {
+      return (await getLoginIdAvailability(value)).available;
+    } catch {
+      // 확인 요청이 실패하면 가입 요청에서 서버가 다시 판단합니다(409 LOGIN_ID_TAKEN).
+      return true;
+    }
+  }, '이미 사용 중인 아이디예요.'),
   password: signupPasswordSchema,
 });
 type SignupValues = z.infer<typeof signupSchema>;
+
+// [출처 8] 아직 프로필이 없을 때의 편집 초깃값
+const emptyFormValues: ProfileFormValues = {
+  realName: '',
+  profileImageCode: null,
+  academicStatusCode: '',
+  gradeCode: '',
+  collegeId: '',
+  departmentId: '',
+  majorId: '',
+  weeklyAvailabilityCode: '',
+  experienceState: 'unspecified',
+  experienceBody: '',
+  introduction: '',
+  fieldCodes: [],
+  roleCodes: [],
+  skillCodes: [],
+  portfolioUrl: '',
+  portfolioTitle: '',
+};
+const loadingView = (
+  <p className="preview-muted" role="status">
+    불러오는 중…
+  </p>
+);
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? (
@@ -243,6 +280,7 @@ function AvailabilityField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const { weeklyAvailabilityOptions } = useLabels();
   return (
     <div className="preview-field">
       <Label htmlFor="profile-weekly-availability">
@@ -423,22 +461,31 @@ export function ProfileVisibilityControl({
 }
 
 function ProfileEditor({
+  profile,
   onDone,
   onCancel,
 }: {
+  profile: Profile | null;
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const { profile, saveProfile } = useDemo();
+  const { academicPath, fieldOptions, roleOptions, weeklyAvailabilityOptions } =
+    useLabels();
+  const saveProfile = useSaveProfile();
   const {
     register,
     control,
     handleSubmit,
     setValue,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: toFormValues(profile),
+    resolver: zodResolver(
+      makeProfileSchema(weeklyAvailabilityOptions.map((item) => item.code)),
+    ),
+    defaultValues: profile
+      ? toFormValues(profile, academicPath)
+      : emptyFormValues,
     mode: 'onChange',
   });
   const name = useWatch({ control, name: 'realName' });
@@ -448,10 +495,19 @@ function ProfileEditor({
     <form
       className="preview-panel preview-form"
       noValidate
-      onSubmit={handleSubmit((values) => {
-        // [출처 3] 폼 값을 Profile DTO로 변환(빈 선택은 null, 포트폴리오 URL은 정규화해 저장)
-        saveProfile(fromFormValues(values, profile));
-        onDone();
+      onSubmit={handleSubmit(async (values) => {
+        // [출처 3, 8] 폼 값을 PUT /me/profile 본문으로 변환(빈 선택은 null, 포트폴리오 URL은 정규화)
+        try {
+          await saveProfile.mutateAsync(toProfileWrite(values, profile));
+          onDone();
+        } catch (error) {
+          setError('root', {
+            message:
+              error instanceof ApiError && error.code === 'VERSION_CONFLICT'
+                ? '다른 곳에서 프로필이 바뀌었어요. 최신 내용을 확인한 뒤 다시 저장해 주세요.'
+                : '프로필을 저장하지 못했어요. 입력한 내용을 확인한 뒤 다시 시도해 주세요.',
+          });
+        }
       })}
     >
       <Controller
@@ -611,6 +667,7 @@ function ProfileEditor({
         </div>
       </section>
       <Separator className="preview-form-separator" />
+      <FieldError id="profile-save-error" message={errors.root?.message} />
       <div className="preview-row">
         <Button
           type="submit"
@@ -634,7 +691,23 @@ function ProfileEditor({
 
 // [출처 3, 4, 5, 6] 프로필 보기·수정
 export function ProfilePage() {
-  const { signedIn, profile, signOut, saveProfile } = useDemo();
+  const session = useSession();
+  const labels = useLabels();
+  const {
+    academicPath,
+    academicStatusLabel,
+    fieldLabel,
+    gradeLabel,
+    roleLabel,
+    skillLabel,
+    weeklyAvailabilityLabel,
+  } = labels;
+  const profileQuery = useQuery({
+    ...myProfileQueryOptions,
+    enabled: session.signedIn,
+  });
+  const saveVisibility = useSaveVisibility();
+  const logout = useLogout();
   const [search] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -645,7 +718,8 @@ export function ProfilePage() {
   const [saved, setSaved] = useState(false);
   // [출처 5] 로그인 후에도 편집 의도(edit)와 팀 복귀 주소(returnTo)를 잃지 않도록 현재 경로 전체를 넘깁니다.
   // 복귀 주소의 안전성은 LoginPage의 safeReturnTo가 다시 검사합니다(PR #121 리뷰).
-  if (!signedIn)
+  if (session.isPending) return loadingView;
+  if (!session.signedIn)
     return (
       <LoginGate
         returnTo={`${location.pathname}${location.search}`}
@@ -653,12 +727,29 @@ export function ProfilePage() {
         rootPage
       />
     );
+  if (profileQuery.isPending) return loadingView;
+  if (profileQuery.isError)
+    return (
+      <div className="preview-detail preview-stack">
+        <p role="alert">프로필을 불러오지 못했어요.</p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void profileQuery.refetch()}
+        >
+          다시 시도
+        </Button>
+      </div>
+    );
+  // [출처 8] 아직 저장한 프로필이 없으면(404) 바로 작성 화면을 보여줍니다.
+  const profile = profileQuery.data;
+  const showEditor = editing || !profile;
   return (
     <div
-      className={`preview-detail preview-stack preview-own-profile${editing ? ' preview-account-page' : ''}`}
+      className={`preview-detail preview-stack preview-own-profile${showEditor ? ' preview-account-page' : ''}`}
     >
-      {editing ? (
-        <PageIntro title="프로필 수정" />
+      {showEditor ? (
+        <PageIntro title={profile ? '프로필 수정' : '프로필 작성'} />
       ) : (
         <h1 className="sr-only">내 프로필</h1>
       )}
@@ -668,8 +759,9 @@ export function ProfilePage() {
           <AlertDescription>프로필을 저장했어요.</AlertDescription>
         </Alert>
       )}
-      {editing ? (
+      {showEditor ? (
         <ProfileEditor
+          profile={profile}
           onDone={() => {
             setEditing(false);
             setSaved(true);
@@ -690,7 +782,6 @@ export function ProfilePage() {
               <div className="preview-profile-identity">
                 <Avatar
                   name={profile.realName}
-                  accountId={profile.accountId}
                   imageCode={profile.profileImageCode}
                 />
                 <div>
@@ -718,13 +809,12 @@ export function ProfilePage() {
                 </Button>
                 <ProfileVisibilityControl
                   checked={profile.isPublic}
-                  onConfirm={(isPublic) => {
+                  onConfirm={async (isPublic) => {
                     setSaved(false);
-                    // docs/api/profiles.md#visibility-write: 공개 전환은 별도 저장, 버전 증가
-                    saveProfile({
-                      ...profile,
+                    // [출처 8] 공개 전환은 별도 저장(PUT /me/profile/visibility, 현재 버전)
+                    await saveVisibility.mutateAsync({
+                      expectedVersion: profile.version,
                       isPublic,
-                      version: (BigInt(profile.version) + 1n).toString(),
                     });
                   }}
                 />
@@ -857,7 +947,8 @@ export function ProfilePage() {
             type="button"
             variant="outline"
             className="preview-button"
-            onClick={signOut}
+            disabled={logout.isPending}
+            onClick={() => logout.mutate()}
           >
             로그아웃
           </Button>
@@ -869,10 +960,18 @@ export function ProfilePage() {
 
 // [출처 3, 5] 본인 공개 결과 미리보기
 export function PublicProfilePage() {
-  const { signedIn, profile } = useDemo();
-  if (!signedIn)
+  const session = useSession();
+  const labels = useLabels();
+  const profileQuery = useQuery({
+    ...myProfileQueryOptions,
+    enabled: session.signedIn,
+  });
+  if (session.isPending) return loadingView;
+  if (!session.signedIn)
     return <LoginGate returnTo="/profile/public" title="공개 프로필" />;
-  const person = getPublicProfile(profile);
+  if (profileQuery.isPending) return loadingView;
+  // [출처 3, 5] 현재 공개 상태일 때만 등록한 전체 항목을 미리 보여줍니다.
+  const person = profileQuery.data?.isPublic ? profileQuery.data : null;
   return (
     <div className="preview-detail preview-stack preview-account-page">
       <BackLink to="/profile">내 프로필</BackLink>
@@ -892,7 +991,6 @@ export function PublicProfilePage() {
           <div className="preview-row">
             <Avatar
               name={person.realName}
-              accountId={person.accountId}
               imageCode={person.profileImageCode}
               size="large"
             />
@@ -901,7 +999,7 @@ export function PublicProfilePage() {
               <SchoolVerificationBadge />
             </div>
           </div>
-          <ProfileDetails profile={person} />
+          <ProfileDetails profile={person} labels={labels} />
         </section>
       ) : (
         <div className="preview-panel">
@@ -999,7 +1097,7 @@ function safeReturnTo(value: string | null) {
 
 // [출처 2, 6] 로그인, 안전한 returnTo 복귀
 export function LoginPage() {
-  const { signIn } = useDemo();
+  const login = useLogin();
   const navigate = useNavigate();
   const [search] = useSearchParams();
   const {
@@ -1046,18 +1144,23 @@ export function LoginPage() {
         <form
           className="dreamon-login-form"
           noValidate
-          onSubmit={handleSubmit((values) => {
-            if (
-              values.username !== demoId ||
-              values.password !== demoPassword
-            ) {
+          onSubmit={handleSubmit(async (values) => {
+            // [출처 7] 실패는 아이디·비밀번호를 구분하지 않는 401 INVALID_CREDENTIALS
+            try {
+              await login.mutateAsync({
+                loginId: values.username,
+                password: values.password,
+              });
+            } catch (error) {
               setError('root', {
-                message: '아이디 또는 비밀번호를 확인해 주세요.',
+                message:
+                  error instanceof ApiError && error.status === 401
+                    ? '아이디 또는 비밀번호를 확인해 주세요.'
+                    : '로그인하지 못했어요. 잠시 후 다시 시도해 주세요.',
               });
               return;
             }
             resetField('password', { defaultValue: '' });
-            signIn();
             navigate(returnTo, { replace: true });
           })}
         >
@@ -1086,16 +1189,22 @@ export function LoginPage() {
 
 // [출처 2] 가입 입력 규칙 확인(실제 계정 발급 없음)
 export function SignupPage() {
-  const { saveProfile, signOut, profile } = useDemo();
+  const { fieldOptions, roleOptions } = useLabels();
+  const signup = useSignup();
+  const saveProfile = useSaveProfile();
+  const client = useQueryClient();
   const [search] = useSearchParams();
   const returnTo = safeReturnTo(search.get('returnTo') ?? search.get('from'));
-  const [complete, setComplete] = useState(false);
+  const [complete, setComplete] = useState<'done' | 'other-session' | null>(
+    null,
+  );
   const [showPassword, setShowPassword] = useState(false);
   const {
     register,
     control,
     handleSubmit,
     resetField,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
@@ -1115,12 +1224,28 @@ export function SignupPage() {
         <div className="preview-panel preview-stack">
           <Check size={32} aria-hidden="true" />
           <p role="status">서경드림온에 오신 것을 환영해요.</p>
-          <p className="preview-muted">로그인하고 프로필을 완성해 보세요.</p>
-          <Button asChild className="preview-button">
-            <Link to={`/login?returnTo=${encodeURIComponent('/profile')}`}>
-              로그인
-            </Link>
-          </Button>
+          {complete === 'done' ? (
+            <>
+              <p className="preview-muted">
+                로그인됐어요. 프로필을 완성해 보세요.
+              </p>
+              <Button asChild className="preview-button">
+                <Link to="/profile?edit=details">프로필 완성하기</Link>
+              </Button>
+            </>
+          ) : (
+            <>
+              {/* [출처 7] 다른 계정의 쿠키가 남아 있으면 자동 로그인으로 보지 않습니다. */}
+              <p className="preview-muted">
+                가입한 계정으로 로그인하고 프로필을 완성해 보세요.
+              </p>
+              <Button asChild className="preview-button">
+                <Link to={`/login?returnTo=${encodeURIComponent('/profile')}`}>
+                  로그인
+                </Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -1133,28 +1258,53 @@ export function SignupPage() {
       <form
         className="preview-panel preview-form"
         noValidate
-        onSubmit={handleSubmit((values) => {
-          // 가입 화면 확인용: 필수 항목만 담은 새 프로필(기본 비공개). 계정 정보는 프로필에 넣지 않음
-          saveProfile({
-            ...profile,
-            realName: values.realName.trim(),
-            roleCodes: values.roleCodes,
-            fieldCodes: values.fieldCodes,
-            profileImageCode: null,
-            academicStatusCode: null,
-            gradeCode: null,
-            weeklyAvailabilityCode: null,
-            academicUnitId: null,
-            experienceState: 'unspecified',
-            experienceBody: null,
-            introduction: null,
-            skillCodes: [],
-            portfolio: null,
-            isPublic: false,
-          });
+        onSubmit={handleSubmit(async (values) => {
+          // [출처 7] 가입(POST /accounts) 성공 시 바로 로그인됩니다.
+          let accountId: string;
+          try {
+            accountId = (
+              await signup.mutateAsync({
+                loginId: values.username,
+                password: values.password,
+              })
+            ).account.id;
+          } catch (error) {
+            const code = error instanceof ApiError ? error.code : null;
+            if (code === 'LOGIN_ID_TAKEN')
+              setError('username', { message: '이미 사용 중인 아이디예요.' });
+            else
+              setError('root', {
+                message:
+                  code === 'PASSWORD_BLOCKED'
+                    ? '쉽게 추측할 수 있는 비밀번호예요. 다른 비밀번호를 선택해 주세요.'
+                    : '가입하지 못했어요. 잠시 후 다시 시도해 주세요.',
+              });
+            return;
+          }
           resetField('password', { defaultValue: '' });
-          signOut();
-          setComplete(true);
+          // [출처 7] GET /me가 가입한 계정인지 확인한 뒤 필수 항목으로 첫 프로필을 저장합니다(기본 비공개).
+          const me = await client.fetchQuery(meQueryOptions).catch(() => null);
+          if (
+            me?.id !== accountId ||
+            me.loginId !== normalizeLoginId(values.username)
+          ) {
+            setComplete('other-session');
+            return;
+          }
+          await saveProfile
+            .mutateAsync(
+              toProfileWrite(
+                {
+                  ...emptyFormValues,
+                  realName: values.realName,
+                  roleCodes: values.roleCodes,
+                  fieldCodes: values.fieldCodes,
+                },
+                null,
+              ),
+            )
+            .catch(() => undefined);
+          setComplete('done');
         })}
       >
         <div className="preview-field">
@@ -1259,6 +1409,7 @@ export function SignupPage() {
           )}
         />
         <SchoolVerificationBadge />
+        <FieldError id="signup-error" message={errors.root?.message} />
         <Button
           type="submit"
           className="preview-button"

@@ -1,63 +1,122 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
+import type { QueryClient } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
-import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import { Link, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AiChatPage, AiChatProvider } from '@/features/ai/AiChatPage';
+import { AiChatPage } from '@/features/ai/AiChatPage';
 import { LoginPage } from '@/features/account/AccountPages';
-import { DemoProvider } from '@/features/demo/DemoProvider';
-import { useDemo } from '@/features/demo/demo-context';
-import { demoIds } from '@/features/demo/fixtures';
+import { useApply } from '@/features/applications/queries';
+import { useLogin, useLogout } from '@/features/auth/queries';
+import { demoId, demoPassword } from '@/features/demo/auth-policy';
+import { createDemoRecords, type DemoDatabase } from '@/features/demo/fixtures';
+import { useSaveVisibility } from '@/features/profiles/queries';
+import { demoIds, ME, myProfile, renderWithApi, settled } from '@/test/render';
 
+// 화면 밖 조작(로그인·로그아웃·지원·공개 전환)은 실제 API 함수로 목업 서버에 보냅니다.
 function TestNavigation() {
-  const { signIn, signOut, emptyWorkspace, saveProfile, profile, apply } =
-    useDemo();
+  const login = useLogin();
+  const logout = useLogout();
+  const apply = useApply();
+  const visibility = useSaveVisibility();
   const location = useLocation();
+  const setPublic = (isPublic: boolean) =>
+    visibility.mutate({ expectedVersion: myProfile().version, isPublic });
   return (
     <nav aria-label="테스트 탐색">
-      <button onClick={emptyWorkspace}>참여 초기화</button>
-      <button onClick={() => apply(demoIds.teams.greenwave, 'development', '')}>
+      <button
+        onClick={() =>
+          apply.mutate({
+            teamId: demoIds.teams.greenwave,
+            body: {
+              requestId: crypto.randomUUID(),
+              roleCode: 'development',
+              message: null,
+            },
+          })
+        }
+      >
         추천 팀에 지원
       </button>
-      <button onClick={() => saveProfile({ ...profile, isPublic: false })}>
-        프로필 비공개
+      <button onClick={() => setPublic(false)}>프로필 비공개</button>
+      <button onClick={() => setPublic(true)}>프로필 공개</button>
+      <button
+        onClick={() =>
+          login.mutate({ loginId: demoId, password: demoPassword })
+        }
+      >
+        테스트 로그인
       </button>
-      <button onClick={() => saveProfile({ ...profile, isPublic: true })}>
-        프로필 공개
-      </button>
-      <button onClick={signIn}>테스트 로그인</button>
       <span aria-label="현재 경로">
         {location.pathname}
         {location.search}
       </span>
       <Link to="/ai">대화로 돌아가기</Link>
       <Link to="/elsewhere">다른 화면 열기</Link>
-      <button type="button" onClick={signOut}>
+      <button type="button" onClick={() => logout.mutate()}>
         로그아웃
       </button>
     </nav>
   );
 }
 
-function renderChat(path = '/ai', signedIn = true, ownWorkspace = false) {
-  render(
-    <MemoryRouter initialEntries={[path]}>
-      <DemoProvider>
-        <AiChatProvider>
-          <TestNavigation />
-          <Routes>
-            <Route path="/ai" element={<AiChatPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/elsewhere" element={<p>다른 화면입니다.</p>} />
-          </Routes>
-        </AiChatProvider>
-      </DemoProvider>
-    </MemoryRouter>,
-  );
-  if (signedIn) {
-    if (!ownWorkspace)
-      fireEvent.click(screen.getByRole('button', { name: '참여 초기화' }));
-    fireEvent.click(screen.getByRole('button', { name: '테스트 로그인' }));
+// 팀은 그대로 두고 본인의 소속·지원·알림만 비운 목업 저장소.
+// 본인이 팀장인 팀은 남은 첫 팀원이 팀장을 맡습니다.
+function emptyWorkspace(records: DemoDatabase): DemoDatabase {
+  const ended = '2026-10-18T08:00:00Z';
+  const successor = new Map<string, string>();
+  for (const team of records.teams) {
+    if (team.ownerAccountId !== ME) continue;
+    const next = records.memberships.find(
+      (item) =>
+        item.teamId === team.id && !item.endedAt && item.accountId !== ME,
+    );
+    if (next) successor.set(team.id, next.accountId);
   }
+  return {
+    ...records,
+    teams: records.teams.map((team) =>
+      successor.has(team.id)
+        ? { ...team, ownerAccountId: successor.get(team.id)! }
+        : team,
+    ),
+    memberships: records.memberships.map((item) =>
+      item.accountId === ME && !item.endedAt
+        ? { ...item, endedAt: ended }
+        : successor.get(item.teamId) === item.accountId
+          ? { ...item, membershipRole: 'leader' as const, roleCode: null }
+          : item,
+    ),
+    applications: records.applications.filter(
+      (item) => item.applicantAccountId !== ME,
+    ),
+    notifications: records.notifications.filter(
+      (item) => item.recipientAccountId !== ME,
+    ),
+  };
+}
+
+let client: QueryClient;
+// 진행 중인 목업 요청이 끝날 때까지 기다립니다.
+const idle = () => settled(client);
+
+async function renderChat(path = '/ai', signedIn = true, ownWorkspace = false) {
+  const records = createDemoRecords();
+  ({ client } = renderWithApi(
+    <>
+      <TestNavigation />
+      <Routes>
+        <Route path="/ai" element={<AiChatPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/elsewhere" element={<p>다른 화면입니다.</p>} />
+      </Routes>
+    </>,
+    {
+      path,
+      signedIn,
+      db: signedIn && !ownWorkspace ? emptyWorkspace(records) : records,
+    },
+  ));
+  await idle();
   return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 }
 
@@ -78,7 +137,7 @@ afterEach(() => {
 
 describe('design preview AI chat', () => {
   it('rejects blank messages and sends typed requests with Enter before showing recommendations', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
     expect(
       screen.getByRole('button', { name: '메시지 보내기' }),
@@ -105,7 +164,7 @@ describe('design preview AI chat', () => {
   });
 
   it('preserves oversized pasted input, explains the limit and permits editing before sending', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
     const oversized = '가'.repeat(1001);
     await user.click(input);
@@ -129,8 +188,9 @@ describe('design preview AI chat', () => {
   });
 
   it('allows a private user to search while excluding owned teams and their private profile', async () => {
-    const user = renderChat('/ai', true, true);
+    const user = await renderChat('/ai', true, true);
     await user.click(screen.getByRole('button', { name: '프로필 비공개' }));
+    await idle();
     await user.click(
       screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
     );
@@ -156,7 +216,7 @@ describe('design preview AI chat', () => {
   });
 
   it('uses a quick question to recommend matching teams and offers follow-up questions', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     await user.click(
       screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
     );
@@ -182,7 +242,7 @@ describe('design preview AI chat', () => {
   });
 
   it('keeps IME confirmation and Shift+Enter in the draft until an ordinary Enter submits', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
     await user.click(input);
     fireEvent.compositionStart(input);
@@ -211,7 +271,7 @@ describe('design preview AI chat', () => {
   });
 
   it('stops a pending response without late recommendations and can send another request', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     await user.click(
       screen.getByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
     );
@@ -234,7 +294,7 @@ describe('design preview AI chat', () => {
   });
 
   it('starts a new conversation by clearing the draft and cancelling a pending response', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     await user.click(
       screen.getByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
     );
@@ -255,7 +315,7 @@ describe('design preview AI chat', () => {
   });
 
   it('retains the conversation and draft across screen navigation while a response completes', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     await user.click(
       screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
     );
@@ -282,7 +342,7 @@ describe('design preview AI chat', () => {
   });
 
   it('clears account-specific conversation state and pending replies when signing out', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     await user.click(
       screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
     );
@@ -291,6 +351,7 @@ describe('design preview AI chat', () => {
       '이 계정의 미완성 질문',
     );
     await user.click(screen.getByRole('button', { name: '로그아웃' }));
+    await idle();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '로그인' })).toBeInTheDocument();
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
@@ -298,6 +359,7 @@ describe('design preview AI chat', () => {
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '테스트 로그인' }));
+    await idle();
     expect(
       screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
     ).toHaveValue('');
@@ -306,7 +368,7 @@ describe('design preview AI chat', () => {
   });
 
   it('copies the answer and recommendation details and confirms success without changing the draft', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     const writeText = vi
       .spyOn(navigator.clipboard, 'writeText')
       .mockResolvedValue(undefined);
@@ -337,8 +399,9 @@ describe('design preview AI chat', () => {
   });
 
   it('removes an already-applied team from old cards and copied answers', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     await user.click(screen.getByRole('button', { name: '프로필 공개' }));
+    await idle();
     const writeText = vi
       .spyOn(navigator.clipboard, 'writeText')
       .mockResolvedValue(undefined);
@@ -350,6 +413,7 @@ describe('design preview AI chat', () => {
       within(screen.getByRole('log')).getByRole('link', { name: /그린웨이브/ }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '추천 팀에 지원' }));
+    await idle();
     expect(
       within(screen.getByRole('log')).queryByRole('link', {
         name: /그린웨이브/,
@@ -364,8 +428,9 @@ describe('design preview AI chat', () => {
   });
 
   it('removes a newly private profile from old cards and copied answers', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     await user.click(screen.getByRole('button', { name: '프로필 공개' }));
+    await idle();
     const writeText = vi
       .spyOn(navigator.clipboard, 'writeText')
       .mockResolvedValue(undefined);
@@ -379,6 +444,7 @@ describe('design preview AI chat', () => {
       within(screen.getByRole('log')).getByRole('link', { name: /김지우/ }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '프로필 비공개' }));
+    await idle();
     expect(
       within(screen.getByRole('log')).queryByRole('link', { name: /김지우/ }),
     ).not.toBeInTheDocument();
@@ -388,7 +454,7 @@ describe('design preview AI chat', () => {
   });
 
   it('announces a clipboard failure and allows copying the same answer again', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     const writeText = vi
       .spyOn(navigator.clipboard, 'writeText')
       .mockRejectedValueOnce(new Error('Clipboard access denied'))
@@ -419,7 +485,7 @@ describe('design preview AI chat', () => {
 
   it('requires login before mounting chat and returns to the original AI URL after login', async () => {
     const path = '/ai?scenario=error';
-    const user = renderChat(path, false);
+    const user = await renderChat(path, false);
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
     expect(
@@ -451,7 +517,7 @@ describe('design preview AI chat', () => {
   });
 
   it('recommends visible people for a signed-in user', async () => {
-    const user = renderChat();
+    const user = await renderChat();
     await user.type(
       screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
       '디자인 역할 사람 찾아줘',
@@ -464,7 +530,7 @@ describe('design preview AI chat', () => {
   });
 
   it('retains an unsent oversized draft when retrying a previously failed request', async () => {
-    const user = renderChat('/ai?scenario=error');
+    const user = await renderChat('/ai?scenario=error');
     await user.click(
       screen.getByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
     );
@@ -487,7 +553,7 @@ describe('design preview AI chat', () => {
   });
 
   it('retries a failed reply without duplicating the user message and replaces the error with results', async () => {
-    const user = renderChat('/ai?scenario=error');
+    const user = await renderChat('/ai?scenario=error');
     await user.click(
       screen.getByRole('button', { name: '개발자를 모집하는 팀 찾아줘' }),
     );

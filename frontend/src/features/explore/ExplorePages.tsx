@@ -6,6 +6,9 @@
  * 4. docs/specs/contests.md - 공고 공개·참가·마감 정책
  * 5. docs/specs/profile.md#people-directory - 로그인 후 공개 프로필만 검색·열람
  * 6. docs/design/assets/explore-390.png, contest-teams-390.png, contest-teams-empty-390.png, people-pagination-390.png, search-ai-320.png - 실제 화면
+ * 7. docs/api/contests.md#queries, docs/api/teams.md#queries, docs/api/profiles.md#directory-endpoints -
+ *    검색·필터·정렬·페이지는 서버 query(q·fieldCode·roleCode·recruitingOnly·contestId·sort·page·pageSize)로 위임
+ * 8. docs/development/frontend.md - 「API와 query」 각 화면은 로딩·빈 결과·오류 상태 제공
  */
 
 import {
@@ -19,40 +22,44 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
-import { demoIds } from '@/features/demo/data';
+import { audienceLabels, koreanDate } from '@/features/catalogs/labels';
+import { useLabels } from '@/features/catalogs/queries';
+import { useSession } from '@/features/auth/queries';
 import {
-  academicPath,
-  academicStatusLabel,
-  fieldLabel,
-  gradeLabel,
-  roleLabel,
-  skillLabel,
-  weeklyAvailabilityLabel,
-  audienceLabels,
-  koreanDate,
-} from '@/features/demo/labels';
-import { useDemo } from '@/features/demo/demo-context';
+  contestQueryOptions,
+  contestsQueryOptions,
+} from '@/features/contests/queries';
 import {
-  contestBadgeLabel,
-  contestDaysLeft,
-  contestDeadline,
-  contestStatus,
+  peopleQueryOptions,
+  personQueryOptions,
+} from '@/features/profiles/queries';
+import {
+  contestTeamsQueryOptions,
+  teamsQueryOptions,
+} from '@/features/teams/queries';
+import {
   deadlineLabel,
   deadlineNotice,
-  isContestOpen,
   memberLimitLabel,
+  summaryBadgeLabel,
+  summaryDaysLeft,
 } from '@/features/demo/contest-state';
-import { recruitmentIssue } from '@/features/demo/team-state';
+import { ApiError } from '@/lib/api';
 import { ContestCover } from '@/components/common/ContestCover';
 import { ExploreFilters } from '@/features/explore/ExploreFilters';
 import { ProfileDetails } from '@/components/common/ProfileDetails';
 import { ListPagination } from '@/components/common/ListPagination';
-import { useListPage } from '@/components/common/use-list-page';
+import {
+  REFERENCE_PAGE_SIZE,
+  requestedPage,
+  useListPage,
+} from '@/components/common/use-list-page';
 import { TeamCard } from '@/components/common/TeamCard';
 import {
   ActionLink,
@@ -68,14 +75,8 @@ import {
 // [출처 2, 3, 6] 탭·검색·필터·정렬·페이지를 URL에 유지하는 탐색
 export function ExplorePage() {
   const [params, setParams] = useSearchParams();
-  const { teams, contests: allContests, db, signedIn } = useDemo();
-  const contests = allContests.filter(
-    (item) => item.id !== demoIds.contests.archive,
-  );
-  // [출처 5] 로그인 후 현재 공개 프로필만(본인 포함)
-  const visiblePeople = signedIn
-    ? db.profiles.filter((item) => item.isPublic)
-    : [];
+  const { signedIn } = useSession();
+  const { fieldLabel, roleLabel } = useLabels();
   const location = useLocation();
   const tab =
     params.get('tab') === 'teams'
@@ -95,62 +96,68 @@ export function ExplorePage() {
     setParams(next, { replace: key === 'q' });
   };
   const from = encodeURIComponent(location.pathname + location.search);
-  const includes = (text: string) =>
-    text.toLocaleLowerCase().includes(q.trim().toLocaleLowerCase());
-  const matchedContests = contests.filter(
-    (item) =>
-      includes(
-        `${item.title} ${item.organizer} ${item.fieldCodes.map(fieldLabel).join(' ')}`,
-      ) &&
-      (!category || item.fieldCodes.includes(category)),
-  );
-  if (sort === 'deadline')
-    matchedContests.sort((a, b) => contestDeadline(a) - contestDeadline(b));
-  const matchedTeams = teams.filter(
-    (item) =>
-      includes(
-        `${item.name} ${item.introduction} ${item.roleCodes.map(roleLabel).join(' ')} ${item.contestTitle}`,
-      ) &&
-      (!role || item.roleCodes.includes(role)) &&
-      (params.get('open') !== 'true' || !recruitmentIssue(item)) &&
-      (!params.get('contest') || item.contestId === params.get('contest')),
-  );
-  const matchedPeople = visiblePeople.filter(
-    (item) =>
-      includes(
-        [
-          item.realName,
-          ...item.roleCodes.map(roleLabel),
-          ...item.fieldCodes.map(fieldLabel),
-          ...item.skillCodes.map(skillLabel),
-          item.academicStatusCode &&
-            academicStatusLabel(item.academicStatusCode),
-          item.gradeCode && gradeLabel(item.gradeCode),
-          ...academicPath(item.academicUnitId).map((unit) => unit.name),
-          item.introduction,
-          item.experienceBody,
-          item.weeklyAvailabilityCode &&
-            weeklyAvailabilityLabel(item.weeklyAvailabilityCode),
-          item.portfolio?.title,
-          item.portfolio?.url,
-        ]
-          .filter(Boolean)
-          .join(' '),
-      ) &&
-      (!role || item.roleCodes.includes(role)),
-  );
-  const count =
+  // [출처 7] 검색·필터·정렬·페이지는 서버가 처리합니다. 빈 값은 보내지 않습니다.
+  const page = requestedPage(params);
+  const search = q.trim() || undefined;
+  const contestParam = params.get('contest') ?? '';
+  const contestsQuery = useQuery({
+    ...contestsQueryOptions({
+      q: search,
+      fieldCode: category || undefined,
+      sort: sort === 'deadline' ? 'deadline_asc' : 'created_desc',
+      page,
+      pageSize: REFERENCE_PAGE_SIZE,
+    }),
+    enabled: tab === 'contests',
+  });
+  const teamsQuery = useQuery({
+    ...teamsQueryOptions({
+      q: search,
+      roleCode: role || undefined,
+      recruitingOnly: params.get('open') === 'true' || undefined,
+      contestId: contestParam || undefined,
+      page,
+      pageSize: REFERENCE_PAGE_SIZE,
+    }),
+    enabled: tab === 'teams',
+  });
+  // [출처 5] 로그인 후 현재 공개 프로필만
+  const peopleQuery = useQuery({
+    ...peopleQueryOptions({
+      q: search,
+      roleCode: role || undefined,
+      page,
+      pageSize: REFERENCE_PAGE_SIZE,
+    }),
+    enabled: tab === 'people' && signedIn,
+  });
+  const active =
     tab === 'contests'
-      ? matchedContests.length
+      ? contestsQuery
       : tab === 'teams'
-        ? matchedTeams.length
-        : matchedPeople.length;
-  const { page, totalPages, start, end, hrefForPage, headingRef } =
-    useListPage(count);
-  const reset = () => setParams(tab === 'contests' ? {} : { tab });
-  const contestContext = contests.find(
-    (item) => item.id === params.get('contest'),
+        ? teamsQuery
+        : peopleQuery;
+  const count = active.data?.pagination.total ?? 0;
+  const ready = !!active.data && !active.isPlaceholderData;
+  const { totalPages, hrefForPage, headingRef } = useListPage(
+    count,
+    'page',
+    ready,
   );
+  const reset = () => setParams(tab === 'contests' ? {} : { tab });
+  const contextQuery = useQuery({
+    ...contestQueryOptions(contestParam),
+    enabled: !!contestParam,
+  });
+  const contestContext = contextQuery.data;
+  const listState =
+    tab === 'people' && !signedIn
+      ? 'guest'
+      : active.isError
+        ? 'error'
+        : !active.data
+          ? 'loading'
+          : 'ready';
   return (
     <section className="preview-explore" aria-label="탐색">
       <h1 className="sr-only">탐색</h1>
@@ -262,7 +269,7 @@ export function ExplorePage() {
               ? '함께 도전하는 팀'
               : '함께할 사람'}
         </h2>
-        {(tab !== 'people' || signedIn) && (
+        {listState === 'ready' && (
           <span className="preview-result-count" role="status">
             <span className="sr-only">검색 결과 </span>
             {count}
@@ -276,7 +283,7 @@ export function ExplorePage() {
           </Link>
         )}
       </div>
-      {tab === 'people' && !signedIn ? (
+      {listState === 'guest' ? (
         <EmptyState
           title="로그인하고 함께할 사람을 찾아보세요"
           description="공개에 동의한 사람들의 프로필을 확인할 수 있어요."
@@ -287,6 +294,19 @@ export function ExplorePage() {
             로그인하기
           </ActionLink>
         </EmptyState>
+      ) : listState === 'error' ? (
+        <EmptyState
+          title="목록을 불러오지 못했어요"
+          description="잠시 후 다시 시도해 주세요."
+        >
+          <Button onClick={() => void active.refetch()} variant="outline">
+            다시 시도
+          </Button>
+        </EmptyState>
+      ) : listState === 'loading' ? (
+        <p className="preview-muted" role="status">
+          불러오는 중…
+        </p>
       ) : !count ? (
         <EmptyState
           title="검색 결과가 없어요"
@@ -301,7 +321,7 @@ export function ExplorePage() {
           className={`preview-grid preview-explore-grid preview-explore-grid--${tab}`}
         >
           {tab === 'contests' &&
-            matchedContests.slice(start, end).map((item, index) => (
+            contestsQuery.data?.data.map((item, index) => (
               <Link
                 className="preview-card preview-contest-card"
                 key={item.id}
@@ -313,9 +333,9 @@ export function ExplorePage() {
                     loading={index === 0 ? 'eager' : 'lazy'}
                   />
                   <span
-                    className={`preview-deadline ${isContestOpen(item) && contestDaysLeft(item) <= 7 ? 'preview-deadline--soon' : ''}`}
+                    className={`preview-deadline ${item.registrationStatus === 'open' && summaryDaysLeft(item) <= 7 ? 'preview-deadline--soon' : ''}`}
                   >
-                    {contestBadgeLabel(item)}
+                    {summaryBadgeLabel(item)}
                   </span>
                 </div>
                 <div className="preview-contest-copy">
@@ -337,17 +357,16 @@ export function ExplorePage() {
               </Link>
             ))}
           {tab === 'teams' &&
-            matchedTeams
-              .slice(start, end)
-              .map((item) => (
-                <TeamCard
-                  key={item.id}
-                  team={item}
-                  to={`/teams/${item.id}?from=${from}`}
-                />
-              ))}
+            teamsQuery.data?.data.map((item) => (
+              <TeamCard
+                key={item.id}
+                team={item}
+                roleLabel={roleLabel}
+                to={`/teams/${item.id}?from=${from}`}
+              />
+            ))}
           {tab === 'people' &&
-            matchedPeople.slice(start, end).map((item) => (
+            peopleQuery.data?.data.map((item) => (
               <Link
                 className="preview-card preview-person-card"
                 key={item.accountId}
@@ -356,7 +375,6 @@ export function ExplorePage() {
                 <div className="preview-row">
                   <Avatar
                     name={item.realName}
-                    accountId={item.accountId}
                     imageCode={item.profileImageCode}
                   />
                   <div>
@@ -380,9 +398,9 @@ export function ExplorePage() {
             ))}
         </div>
       )}
-      {count > 0 && (
+      {listState === 'ready' && count > 0 && (
         <ListPagination
-          page={page}
+          page={active.data?.pagination.page ?? page}
           totalPages={totalPages}
           hrefForPage={hrefForPage}
           label="탐색 결과 페이지"
@@ -394,18 +412,45 @@ export function ExplorePage() {
 
 // [출처 2, 4, 6] 공고 정보와 연결 팀, 마감 시 생성·AI 숨김
 export function ContestPage() {
-  const { contestId } = useParams();
+  const { contestId = '' } = useParams();
   const [params] = useSearchParams();
-  const { teams, contests } = useDemo();
+  const { fieldLabel, roleLabel } = useLabels();
   const location = useLocation();
-  const relatedTeams = teams.filter((team) => team.contestId === contestId);
-  const { page, totalPages, start, end, hrefForPage, headingRef } = useListPage(
-    relatedTeams.length,
+  const contestQuery = useQuery(contestQueryOptions(contestId));
+  // [출처 7] 이 공고의 팀(모집 상태와 관계없이 전체)을 서버 페이지로 받습니다.
+  const teamPage = requestedPage(params, 'teamPage');
+  const teamsQuery = useQuery({
+    ...contestTeamsQueryOptions(contestId, {
+      page: teamPage,
+      pageSize: REFERENCE_PAGE_SIZE,
+    }),
+    enabled: !!contestQuery.data,
+  });
+  const teamTotal = teamsQuery.data?.pagination.total ?? 0;
+  const { totalPages, hrefForPage, headingRef } = useListPage(
+    teamTotal,
     'teamPage',
+    !!teamsQuery.data && !teamsQuery.isPlaceholderData,
   );
   const teamFrom = encodeURIComponent(location.pathname + location.search);
-  // 마감 공고 예시(archivedContest)도 같은 목록에 있어 상세로 열람할 수 있음
-  const contest = contests.find((item) => item.id === contestId);
+  const contest = contestQuery.data;
+  if (contestQuery.isPending)
+    return (
+      <p className="preview-muted" role="status">
+        불러오는 중…
+      </p>
+    );
+  if (contestQuery.isError && !isNotFound(contestQuery.error))
+    return (
+      <EmptyState
+        title="공모전 정보를 불러오지 못했어요"
+        description="잠시 후 다시 시도해 주세요."
+      >
+        <Button variant="outline" onClick={() => void contestQuery.refetch()}>
+          다시 시도
+        </Button>
+      </EmptyState>
+    );
   if (!contest)
     return (
       <EmptyState
@@ -443,7 +488,7 @@ export function ContestPage() {
             {contest.fieldCodes.map((code) => (
               <Badge key={code}>{fieldLabel(code)}</Badge>
             ))}
-            <Badge tone="warm">{contestBadgeLabel(contest)}</Badge>
+            <Badge tone="warm">{summaryBadgeLabel(contest)}</Badge>
           </div>
           <PageIntro title={contest.title} description={contest.organizer} />
           <div className="preview-panel">
@@ -516,11 +561,11 @@ export function ContestPage() {
               </h2>
               <span className="preview-result-count">
                 <span className="sr-only">팀 </span>
-                {relatedTeams.length}
+                {teamTotal}
                 <span className="sr-only">개</span>
               </span>
             </div>
-            {isContestOpen(contest) && (
+            {contest.registrationStatus === 'open' && (
               <div className="preview-contest-team-actions">
                 <Button
                   asChild
@@ -547,22 +592,29 @@ export function ContestPage() {
               </div>
             )}
           </div>
-          {contestStatus(contest) === 'scheduled' && (
+          {contest.registrationStatus === 'scheduled' && (
             <Notice>접수가 시작되면 팀을 만들거나 지원할 수 있어요.</Notice>
           )}
-          {contestStatus(contest) === 'closed' && (
+          {contest.registrationStatus === 'closed' && (
             <Notice>
               접수가 마감되어 새 팀을 만들거나 지원할 수 없어요. 공고는 계속
               확인할 수 있어요.
             </Notice>
           )}
-          {relatedTeams.length ? (
+          {!teamsQuery.data ? (
+            <p className="preview-muted" role="status">
+              {teamsQuery.isError
+                ? '팀 목록을 불러오지 못했어요.'
+                : '불러오는 중…'}
+            </p>
+          ) : teamTotal ? (
             <>
               <div className="preview-grid preview-contest-team-list">
-                {relatedTeams.slice(start, end).map((team) => (
+                {teamsQuery.data.data.map((team) => (
                   <TeamCard
                     key={team.id}
-                    team={team}
+                    team={{ ...team, contest }}
+                    roleLabel={roleLabel}
                     to={`/teams/${team.id}?from=${teamFrom}`}
                     showContest={false}
                   />
@@ -570,7 +622,7 @@ export function ContestPage() {
               </div>
               {totalPages > 1 && (
                 <ListPagination
-                  page={page}
+                  page={teamsQuery.data.pagination.page}
                   totalPages={totalPages}
                   hrefForPage={hrefForPage}
                   label="공모전 팀 목록 페이지"
@@ -580,14 +632,14 @@ export function ContestPage() {
           ) : (
             <EmptyState
               title={
-                contestStatus(contest) === 'closed'
+                contest.registrationStatus === 'closed'
                   ? '등록된 팀이 없어요'
                   : '아직 함께할 팀이 없어요'
               }
               description={
-                contestStatus(contest) === 'closed'
+                contest.registrationStatus === 'closed'
                   ? '공모전 상세 정보는 계속 확인할 수 있어요.'
-                  : contestStatus(contest) === 'scheduled'
+                  : contest.registrationStatus === 'scheduled'
                     ? '접수가 시작되면 첫 팀을 만들어 보세요.'
                     : '첫 팀을 만들어 함께 도전해 보세요.'
               }
@@ -601,10 +653,22 @@ export function ContestPage() {
 
 // [출처 2, 5] 비공개 프로필 직접 접근 제외, 로그인 안내
 export function PersonPage() {
-  const { personId } = useParams();
+  const { personId = '' } = useParams();
   const [params] = useSearchParams();
-  const { db, signedIn } = useDemo();
-  if (!signedIn)
+  const session = useSession();
+  const labels = useLabels();
+  const { roleLabel } = labels;
+  const personQuery = useQuery({
+    ...personQueryOptions(personId),
+    enabled: session.signedIn,
+  });
+  if (session.isPending || (session.signedIn && personQuery.isPending))
+    return (
+      <p className="preview-muted" role="status">
+        불러오는 중…
+      </p>
+    );
+  if (!session.signedIn)
     return (
       <EmptyState
         title="로그인이 필요해요"
@@ -617,10 +681,19 @@ export function PersonPage() {
         </ActionLink>
       </EmptyState>
     );
-  // [출처 5] 공개 프로필만 상세 열람. 비공개·미존재는 같은 안내
-  const person = db.profiles.find(
-    (item) => item.accountId === personId && item.isPublic,
-  );
+  if (personQuery.isError && !isNotFound(personQuery.error))
+    return (
+      <EmptyState
+        title="프로필을 불러오지 못했어요"
+        description="잠시 후 다시 시도해 주세요."
+      >
+        <Button variant="outline" onClick={() => void personQuery.refetch()}>
+          다시 시도
+        </Button>
+      </EmptyState>
+    );
+  // [출처 5] 공개 프로필만 상세 열람. 비공개·미존재는 서버가 같은 404로 응답
+  const person = personQuery.data;
   if (!person)
     return (
       <EmptyState
@@ -653,7 +726,6 @@ export function PersonPage() {
         <div className="preview-row">
           <Avatar
             name={person.realName}
-            accountId={person.accountId}
             imageCode={person.profileImageCode}
             size="large"
           />
@@ -665,8 +737,12 @@ export function PersonPage() {
           </div>
         </div>
         <SchoolVerificationBadge />
-        <ProfileDetails profile={person} />
+        <ProfileDetails profile={person} labels={labels} />
       </div>
     </div>
   );
 }
+
+// 존재를 숨기는 관계·없는 리소스는 404(코드는 리소스별로 다를 수 있어 status로 판단)
+const isNotFound = (error: unknown) =>
+  error instanceof ApiError && error.status === 404;

@@ -3,6 +3,7 @@
  * 1. design-reference/src/features/design-preview/use-list-page.ts - 목록 페이지 계산 원본
  * 2. docs/design/screens.md - 「확인할 상태와 연결」 페이지당 6개, 조건 변경 시 1페이지, 잘못된 페이지 보정
  * 3. docs/development/frontend.md - 「화면과 상태」 공유 가능한 검색·필터·페이지 값은 URL 우선
+ * 4. docs/api/conventions.md#pagination - page는 1 이상 정수, 범위 밖은 422, 마지막 페이지를 넘으면 서버가 마지막 페이지로 보정
  */
 
 import { useEffect, useRef } from 'react';
@@ -11,24 +12,29 @@ import { useLocation, useSearchParams } from 'react-router';
 // [출처 2] 페이지당 6개(운영 페이지 크기는 미정)
 export const REFERENCE_PAGE_SIZE = 6;
 
-// [출처 2, 3] URL의 page를 읽고 범위를 보정
-export function useListPage(total: number, parameter = 'page') {
+// [출처 3, 4] URL의 page 값을 API에 보낼 수 있는 값으로 읽습니다(잘못된 값은 1).
+export function requestedPage(params: URLSearchParams, parameter = 'page') {
+  const raw = params.get(parameter);
+  const value = raw && /^[1-9]\d*$/.test(raw) ? Number(raw) : 1;
+  return Number.isSafeInteger(value) ? value : 1;
+}
+
+// [출처 2, 3] URL의 page를 읽고 범위를 보정. 전체 수를 아직 모르면(ready=false) URL을 고치지 않습니다.
+export function useListPage(total: number, parameter = 'page', ready = true) {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const raw = params.get(parameter);
-  const requested = raw && /^[1-9]\d*$/.test(raw) ? Number(raw) : 1;
+  const requested = requestedPage(params, parameter);
   const totalPages = Math.ceil(total / REFERENCE_PAGE_SIZE);
-  const page = Math.min(
-    Number.isSafeInteger(requested) ? requested : 1,
-    Math.max(1, totalPages),
-  );
+  const page = ready ? Math.min(requested, Math.max(1, totalPages)) : requested;
   const conditions = new URLSearchParams(params);
   conditions.delete(parameter);
   const scope = location.pathname + '?' + conditions.toString();
   const previous = useRef({ page, scope });
 
   useEffect(() => {
+    if (!ready) return;
     const canonical = page === 1 ? null : String(page);
     if (raw !== canonical) {
       const next = new URLSearchParams(params);
@@ -36,7 +42,7 @@ export function useListPage(total: number, parameter = 'page') {
       else next.delete(parameter);
       setParams(next, { replace: true });
     }
-  }, [page, parameter, params, raw, setParams]);
+  }, [page, parameter, params, raw, ready, setParams]);
 
   useEffect(() => {
     if (previous.current.page !== page && previous.current.scope === scope) {

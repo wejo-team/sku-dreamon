@@ -18,6 +18,7 @@ import {
   type DemoDatabase,
 } from '@/features/demo/fixtures';
 import type { Profile } from '@/features/profiles/api';
+import { lifecycleReferenceDatabase } from '@/features/demo/lifecycle-fixtures';
 import { conflict, fail, notFound } from '@/lib/api-mock/http';
 
 type IdempotentRecord = {
@@ -38,8 +39,15 @@ type MockState = {
   sequence: number;
 };
 
-const fresh = (): MockState => ({
-  db: createDemoRecords(),
+// docs/design/screens.md 「재현 경로」: ?scenario=team-lifecycle로 처음 열면 수명주기 예시 저장소로 시작
+const initialDatabase = (): DemoDatabase =>
+  new URLSearchParams(globalThis.location?.search).get('scenario') ===
+  'team-lifecycle'
+    ? lifecycleReferenceDatabase()
+    : createDemoRecords();
+
+const fresh = (db = initialDatabase()): MockState => ({
+  db,
   sessionAccountId: null,
   idempotency: new Map(),
   csrfToken: null,
@@ -51,9 +59,9 @@ export let state: MockState = fresh();
 
 /** 목업 저장소를 초기 상태로 되돌립니다(테스트·개발용). */
 export function resetMockDatabase(
-  options: { signedIn?: boolean } = {},
+  options: { signedIn?: boolean; db?: DemoDatabase } = {},
 ): MockState {
-  state = fresh();
+  state = fresh(options.db ?? createDemoRecords());
   if (options.signedIn) state.sessionAccountId = state.db.account.id;
   return state;
 }

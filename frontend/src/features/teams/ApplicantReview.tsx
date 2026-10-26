@@ -12,13 +12,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import type { Application } from '@/features/applications/api';
 import type { Profile } from '@/features/profiles/api';
-import {
-  fieldLabel,
-  roleLabel,
-  skillLabel,
-  weeklyAvailabilityLabel,
-} from '@/features/demo/labels';
-import { isPending } from '@/features/demo/team-state';
+import type { Labels } from '@/features/catalogs/labels';
+import { useLabels } from '@/features/catalogs/queries';
 import {
   ApplicantReviewContext,
   type ApplicantReviewFacts,
@@ -28,7 +23,11 @@ type Review = ApplicantReviewFacts;
 
 // Local reference output deliberately quotes current registered information;
 // it is not a scoring model or a decision about a production LLM architecture.
-function reviewFacts(application: Application, profile: Profile): Review {
+function reviewFacts(
+  application: Application,
+  profile: Profile,
+  { fieldLabel, roleLabel, skillLabel, weeklyAvailabilityLabel }: Labels,
+): Review {
   const list = (codes: string[], label: (code: string) => string) =>
     codes.map(label).join(' · ') || '미입력';
   return [
@@ -64,22 +63,36 @@ export function ApplicantReview({
   mayReviewExistingApplication: boolean;
 }) {
   const [params] = useSearchParams();
+  const labels = useLabels();
   const session = useContext(ApplicantReviewContext);
   const [localResult, setLocalResult] = useState<Review | null>(null);
   const result = session?.results[applicant.id] ?? localResult;
   const profileChanged =
     result !== null &&
-    JSON.stringify(result) !== JSON.stringify(reviewFacts(applicant, profile));
+    JSON.stringify(result) !==
+      JSON.stringify(reviewFacts(applicant, profile, labels));
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const failedOnce = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latest = useRef({ applicant, profile, mayReviewExistingApplication });
-  const isSelectionCandidate = isPending(applicant);
+  const latest = useRef({
+    applicant,
+    profile,
+    labels,
+    mayReviewExistingApplication,
+  });
+  const isSelectionCandidate = ['submitted', 'reviewing'].includes(
+    applicant.status,
+  );
 
   useEffect(() => {
-    latest.current = { applicant, profile, mayReviewExistingApplication };
-  }, [applicant, profile, mayReviewExistingApplication]);
+    latest.current = {
+      applicant,
+      profile,
+      labels,
+      mayReviewExistingApplication,
+    };
+  }, [applicant, profile, labels, mayReviewExistingApplication]);
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
@@ -101,7 +114,11 @@ export function ApplicantReview({
         setFailed(true);
         return;
       }
-      const next = reviewFacts(current.applicant, current.profile);
+      const next = reviewFacts(
+        current.applicant,
+        current.profile,
+        current.labels,
+      );
       if (session) session.save(current.applicant.id, next);
       else setLocalResult(next);
     }, 350);

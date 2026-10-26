@@ -22,12 +22,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Avatar } from '@/components/common/CommonUi';
 import { defaultMascotAvatarId } from '@/features/demo/mascot-avatars';
-import { demoCatalogs } from '@/features/demo/labels';
-
-// docs/api/catalogs.md#catalog-item: 프로필 이미지 선택지는 Catalogs.avatarPresets(새 선택은 isSelectable만)
-const presets = demoCatalogs.avatarPresets.filter((item) => item.isSelectable);
-const presetOf = (code: string) =>
-  presets.find((item) => item.code === code) ?? presets[0]!;
+import { useLabels } from '@/features/catalogs/queries';
 
 // [출처 2, 3] 선택·적용·취소와 포커스 복귀. 값은 profileImageCode, 미선택(null)은 기본 스콘으로 표시
 export function AvatarPicker({
@@ -37,6 +32,10 @@ export function AvatarPicker({
   value?: string | null;
   onChange: (value: string) => void;
 }) {
+  // docs/api/catalogs.md#catalog-item: 프로필 이미지 선택지는 Catalogs.avatarPresets(새 선택은 isSelectable만)
+  const presets = useLabels().avatarPresets.filter((item) => item.isSelectable);
+  const presetOf = (code: string) =>
+    presets.find((item) => item.code === code) ?? presets[0]!;
   const current = value ?? defaultMascotAvatarId;
   const id = useId();
   const [open, setOpen] = useState(false);

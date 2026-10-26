@@ -4,6 +4,8 @@
  * 2. docs/specs/notifications.md - 읽음·모두 읽음·관련 화면 이동, 실패 시 읽음·개수 유지 후 재시도
  * 3. docs/design/screens.md - 「확인할 상태와 연결」 열기만으로 읽음 처리하지 않음, 뒤로 가기·닫기는 알림함만 닫기
  * 4. docs/design/tokens.md - 상단 우측 알림과 하단 프로필의 역할 구분
+ * 5. docs/api/notifications.md#notification-endpoints - GET /me/notifications(occurredAt DESC, id DESC),
+ *    PUT /me/notifications/{id}/read·/me/notifications/read(전부 성공 또는 전부 실패)
  */
 
 import { useRef, useState } from 'react';
@@ -29,7 +31,12 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import type { Notification } from '@/features/notifications/api';
-import { useDemo } from '@/features/demo/demo-context';
+import { useQuery } from '@tanstack/react-query';
+import { useSession } from '@/features/auth/queries';
+import {
+  notificationsQueryOptions,
+  useReadNotifications,
+} from '@/features/notifications/queries';
 
 // 화면 표시용 항목. 제목·본문은 API의 Notification.title·body를 그대로 사용합니다.
 type InboxItem = {
@@ -48,12 +55,18 @@ const icons = {
 
 // [출처 2, 3, 4] 로그인 여부별 알림함, history로 열림 상태 관리
 export function Notifications() {
-  const { signedIn } = useDemo();
+  const { signedIn } = useSession();
   return <NotificationInbox key={signedIn ? 'member' : 'guest'} />;
 }
 
 function NotificationInbox() {
-  const { signedIn, notifications: history, markNotificationsRead } = useDemo();
+  const { signedIn } = useSession();
+  const inbox = useQuery({
+    ...notificationsQueryOptions(),
+    enabled: signedIn,
+  });
+  const readNotifications = useReadNotifications();
+  const history: Notification[] = inbox.data?.data ?? [];
   const location = useLocation();
   const navigate = useNavigate();
   const failedOnce = useRef(false);
@@ -81,47 +94,46 @@ function NotificationInbox() {
     }
   };
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  // [출처 2] 본인 알림만(상태에서 수신자 관계를 이미 확인), 정렬 occurredAt DESC, id DESC
+  // [출처 2, 5] 본인 알림만, 서버 정렬(occurredAt DESC, id DESC) 그대로
   const notifications: InboxItem[] = signedIn
-    ? [...history]
-        .sort(
-          (left, right) =>
-            right.occurredAt.localeCompare(left.occurredAt) ||
-            right.id.localeCompare(left.id),
-        )
-        .map((item) => ({
-          id: item.id,
-          kind: item.kind,
-          title: item.title,
-          description: item.body,
-          to:
-            item.kind === 'application_status_changed'
-              ? '/workspace?view=applications'
-              : `/applicants/${item.applicationId}`,
-          read: item.readAt !== null,
-        }))
+    ? history.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        title: item.title,
+        description: item.body,
+        to:
+          item.kind === 'application_status_changed'
+            ? '/workspace?view=applications'
+            : `/applicants/${item.applicationId}`,
+        read: item.readAt !== null,
+      }))
     : [];
 
   const unread = notifications.filter((item) => !item.read);
   const visible = filter === 'unread' ? unread : notifications;
-  const markRead = (ids: string[], to?: string) => {
+  // [출처 5] 읽지 않은 항목만 서버에 읽음으로 저장합니다. 실패하면 읽음·개수를 유지하고 재시도를 안내합니다.
+  const markRead = async (ids: string[], to?: string) => {
+    const pending = ids.filter((id) => unread.some((item) => item.id === id));
+    if (!pending.length) return true;
     // A single failed write makes the recovery state reproducible in this reference.
-    if (
-      ids.some((id) => unread.some((item) => item.id === id)) &&
+    const injected =
       new URLSearchParams(location.search).get('scenario') ===
-        'notification-error' &&
-      !failedOnce.current
-    ) {
-      failedOnce.current = true;
+        'notification-error' && !failedOnce.current;
+    try {
+      if (injected) {
+        failedOnce.current = true;
+        throw new Error('Reference read failure');
+      }
+      await readNotifications.mutateAsync(pending);
+    } catch {
       setFailedRead({ ids, to });
       return false;
     }
-    markNotificationsRead(ids);
     setFailedRead(null);
     return true;
   };
-  const retryRead = () => {
-    if (!failedRead || !markRead(failedRead.ids, failedRead.to)) return;
+  const retryRead = async () => {
+    if (!failedRead || !(await markRead(failedRead.ids, failedRead.to))) return;
     if (failedRead.to) {
       navigate(failedRead.to, { replace: true });
     }
@@ -190,7 +202,7 @@ function NotificationInbox() {
                 variant="ghost"
                 className="preview-notifications-read-all"
                 disabled={!unread.length}
-                onClick={() => markRead(unread.map((item) => item.id))}
+                onClick={() => void markRead(unread.map((item) => item.id))}
               >
                 <CheckCheck size={16} aria-hidden="true" />
                 모두 읽음
@@ -204,7 +216,7 @@ function NotificationInbox() {
                     type="button"
                     variant="outline"
                     className="mt-2 justify-self-start"
-                    onClick={retryRead}
+                    onClick={() => void retryRead()}
                   >
                     <RotateCcw size={16} aria-hidden="true" />
                     다시 시도
@@ -230,9 +242,9 @@ function NotificationInbox() {
                           to={item.to}
                           className="preview-notification-item"
                           data-unread={isUnread || undefined}
-                          onClick={(event) => {
+                          onClick={async (event) => {
                             event.preventDefault();
-                            if (!markRead([item.id], item.to)) return;
+                            if (!(await markRead([item.id], item.to))) return;
                             navigate(item.to, { replace: true });
                           }}
                         >

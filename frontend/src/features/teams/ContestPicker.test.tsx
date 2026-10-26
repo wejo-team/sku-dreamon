@@ -1,16 +1,11 @@
 import { createRef, useState } from 'react';
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ContestPicker } from '@/features/teams/ContestPicker';
 import type { ContestDetail } from '@/features/contests/api';
 import { createDemoRecords, deriveContest } from '@/features/demo/fixtures';
+import { renderWithApi } from '@/test/render';
 
 // Contest DTO 예시: 첫 목업 공모전을 바탕으로 식별자·제목·분야 코드만 바꿉니다.
 const records = createDemoRecords();
@@ -47,7 +42,8 @@ const fixtures = [
   }),
 ];
 
-function renderPicker({
+// 선택지 표시명(GET /catalogs)을 목업 API에서 받은 뒤 선택기를 확인합니다.
+async function renderPicker({
   contests = fixtures,
   initialValue = '',
   invalid = false,
@@ -89,7 +85,8 @@ function renderPicker({
       </form>
     );
   }
-  render(<Form />);
+  renderWithApi(<Form />);
+  await screen.findByRole('button', { name: '참여 공모전' });
   return { onChange, onSubmit, onBlur, triggerRef };
 }
 
@@ -103,7 +100,7 @@ async function openPicker(user: ReturnType<typeof userEvent.setup>) {
 
 describe('ContestPicker', () => {
   it('connects the form label, error description and ref to its trigger and searches titles and organizers', async () => {
-    const state = renderPicker({ invalid: true });
+    const state = await renderPicker({ invalid: true });
     const user = userEvent.setup();
     const trigger = screen.getByRole('button', { name: '참여 공모전' });
     expect(state.triggerRef.current).toBe(trigger);
@@ -145,7 +142,7 @@ describe('ContestPicker', () => {
   });
 
   it('shows an empty result and clears its search without changing the existing selection', async () => {
-    const state = renderPicker({ initialValue: 'campus' });
+    const state = await renderPicker({ initialValue: 'campus' });
     const user = userEvent.setup();
     const { drawer, search } = await openPicker(user);
     await user.type(search, '없는 공모전 719');
@@ -172,7 +169,7 @@ describe('ContestPicker', () => {
   it.each(['닫기', 'Escape', 'outside'])(
     'keeps the chosen contest when dismissed with %s and clears the next search',
     async (dismissMethod) => {
-      const state = renderPicker({ initialValue: 'campus' });
+      const state = await renderPicker({ initialValue: 'campus' });
       const user = userEvent.setup();
       const trigger = screen.getByRole('button', { name: '참여 공모전' });
       const { drawer, search } = await openPicker(user);
@@ -207,7 +204,7 @@ describe('ContestPicker', () => {
   );
 
   it('distinguishes contests with the same title by their IDs and organizer metadata', async () => {
-    const state = renderPicker({
+    const state = await renderPicker({
       initialValue: 'first',
       contests: [
         contest('first', { title: '같은 이름 공모전', organizer: '서울 센터' }),
@@ -240,7 +237,7 @@ describe('ContestPicker', () => {
         organizer: index >= 120 ? '마지막 주최자' : '전국 창의 센터',
       }),
     );
-    const state = renderPicker({ contests });
+    const state = await renderPicker({ contests });
     const user = userEvent.setup();
     const { drawer, search } = await openPicker(user);
     expect(within(drawer).getAllByRole('option')).toHaveLength(20);
@@ -269,7 +266,7 @@ describe('ContestPicker', () => {
   });
 
   it('respects IME composition and selects a keyboard-highlighted result without submitting the form', async () => {
-    const state = renderPicker();
+    const state = await renderPicker();
     const user = userEvent.setup();
     const { drawer, search } = await openPicker(user);
     await user.type(search, 'local');

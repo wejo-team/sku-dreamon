@@ -7,6 +7,8 @@
  * 5. docs/design/assets/ai-390.png, ai-welcome-390.png, ai-login-390.png, ai-overflow-320.png, people-ai-390.png - 실제 화면
  *
  * 실제 LLM을 호출하지 않는 로컬 응답 UI입니다. 로컬 응답 코드를 제품 추천 알고리즘으로 사용하지 않습니다.
+ * 7. docs/api/ai.md - AI API는 미구현·SSE 검토안: 응답 문장은 화면 데모, 추천 대상은 실제 API 조회 결과
+ *    (GET /contests·/teams·/people·/me/applications·/me/teams)
  */
 
 import {
@@ -58,31 +60,46 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar } from '@/components/common/CommonUi';
 import { LoginGate } from '@/features/account/AccountPages';
 import { ContestCover } from '@/components/common/ContestCover';
-import { demoIds } from '@/features/demo/data';
-import type { DemoState } from '@/features/demo/demo-context';
-import { isTeamMember } from '@/features/demo/team-state';
-import { fieldLabel, roleLabel } from '@/features/demo/labels';
+import { useQuery } from '@tanstack/react-query';
+import { useSession } from '@/features/auth/queries';
+import { useLabels } from '@/features/catalogs/queries';
+import { contestsQueryOptions } from '@/features/contests/queries';
+import { peopleQueryOptions } from '@/features/profiles/queries';
+import {
+  myTeamsQueryOptions,
+  teamsQueryOptions,
+} from '@/features/teams/queries';
+import { myApplicationsQueryOptions } from '@/features/applications/queries';
+import { summaryBadgeLabel } from '@/features/demo/contest-state';
 
-// [출처 2, 4] 추천 대상: 탐색 공모전, 팀, 로그인 후 현재 공개된 프로필. 본인 소속·지원 팀은 신규 지원 대상에서 제외
-function searchData(state: DemoState) {
-  const accountId = state.account.id;
+// [출처 2, 4, 7] 추천 대상: 공모전, 팀, 로그인 후 현재 공개된 프로필. 본인 소속·지원 팀은 신규 지원 대상에서 제외
+function useSearchData(enabled = true): SearchData {
+  const { account, signedIn: session } = useSession();
+  const signedIn = session && enabled;
+  const { fieldLabel, roleLabel } = useLabels();
+  const all = { pageSize: 100 };
+  const contests =
+    useQuery({ ...contestsQueryOptions(all), enabled }).data?.data ?? [];
+  const teams =
+    useQuery({ ...teamsQueryOptions(all), enabled }).data?.data ?? [];
+  const people =
+    useQuery({ ...peopleQueryOptions(all), enabled: signedIn }).data?.data ??
+    [];
+  const applications =
+    useQuery({ ...myApplicationsQueryOptions(), enabled: signedIn }).data
+      ?.data ?? [];
+  const myTeams =
+    useQuery({ ...myTeamsQueryOptions(), enabled: signedIn }).data?.data ?? [];
   return {
-    contests: state.contests.filter(
-      (contest) => contest.id !== demoIds.contests.archive,
-    ),
-    teams: state.teams,
-    applications: state.applications,
-    people: state.signedIn
-      ? state.db.profiles.filter((profile) => profile.isPublic)
-      : [],
-    accountId,
-    memberTeamIds: state.teams
-      .filter((team) => isTeamMember(state.db, team.id, accountId))
-      .map((team) => team.id),
+    contests,
+    teams,
+    people: signedIn ? people : [],
+    labels: { fieldLabel, roleLabel },
+    applications: applications.map((item) => item.application),
+    accountId: account?.id,
+    memberTeamIds: myTeams.map((item) => item.team.id),
   };
 }
-import { useDemo } from '@/features/demo/demo-context';
-import { contestBadgeLabel } from '@/features/demo/contest-state';
 import { profileTextLength } from '@/features/demo/profile-fields';
 import {
   createDemoReply,
@@ -90,6 +107,7 @@ import {
   type ChatRecommendation,
   type ChatReply,
   type ChatSearchState,
+  type SearchData,
 } from '@/features/ai/chat-demo';
 
 type Message =
@@ -108,13 +126,24 @@ type ChatState = {
 const ChatContext = createContext<ChatState | null>(null);
 
 // [출처 4] 현재 세션의 대화·초안 보관
+// 계정이 바뀌면 대화만 비우고 화면은 다시 마운트하지 않습니다(가입 직후 자동 로그인에서 완료 화면 유지).
 export function AiChatProvider({ children }: { children: ReactNode }) {
-  const { signedIn } = useDemo();
-  return signedIn ? <ChatSession>{children}</ChatSession> : children;
+  const { account } = useSession();
+  return <ChatSession owner={account?.id ?? null}>{children}</ChatSession>;
 }
 
-function ChatSession({ children }: { children: ReactNode }) {
-  const state = useDemo();
+function ChatSession({
+  owner,
+  children,
+}: {
+  owner: string | null;
+  children: ReactNode;
+}) {
+  const data = useSearchData(owner !== null);
+  const latestData = useRef(data);
+  useEffect(() => {
+    latestData.current = data;
+  }, [data]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(false);
@@ -124,11 +153,22 @@ function ChatSession({ children }: { children: ReactNode }) {
   const search = useRef<ChatSearchState | undefined>(undefined);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextId = useRef(0);
+  const [sessionOwner, setSessionOwner] = useState(owner);
+  if (sessionOwner !== owner) {
+    setSessionOwner(owner);
+    setMessages([]);
+    setDraft('');
+    setFailedRequest(null);
+    setPending(false);
+  }
+  // 세션이 바뀌거나 화면을 떠나면 진행 중인 데모 응답과 검색 맥락을 버립니다.
   useEffect(
     () => () => {
       if (timer.current !== null) clearTimeout(timer.current);
+      timer.current = null;
+      search.current = undefined;
     },
-    [],
+    [owner],
   );
 
   const stop = () => {
@@ -168,7 +208,7 @@ function ChatSession({ children }: { children: ReactNode }) {
           failedOnce.current = true;
           throw new Error('Reference response failure');
         }
-        const reply = createDemoReply(text, search.current, searchData(state));
+        const reply = createDemoReply(text, search.current, latestData.current);
         search.current = reply.search;
         const message: Message = {
           id: nextId.current++,
@@ -193,16 +233,20 @@ function ChatSession({ children }: { children: ReactNode }) {
   };
   return (
     <ChatContext
-      value={{
-        messages,
-        draft,
-        setDraft,
-        pending,
-        failedRequest,
-        send,
-        stop,
-        clear,
-      }}
+      value={
+        owner === null
+          ? null
+          : {
+              messages,
+              draft,
+              setDraft,
+              pending,
+              failedRequest,
+              send,
+              stop,
+              clear,
+            }
+      }
     >
       {children}
     </ChatContext>
@@ -210,9 +254,10 @@ function ChatSession({ children }: { children: ReactNode }) {
 }
 
 function RecommendationCard({ item }: { item: ChatRecommendation }) {
-  const state = useDemo();
-  const { teams, signedIn } = state;
-  const data = searchData(state);
+  const { signedIn } = useSession();
+  const data = useSearchData();
+  const { fieldLabel, roleLabel } = data.labels;
+  const { teams } = data;
   const person =
     item.kind === 'person' && signedIn
       ? data.people.find((value) => value.accountId === item.id)
@@ -236,7 +281,7 @@ function RecommendationCard({ item }: { item: ChatRecommendation }) {
   const metadata = person
     ? person.roleCodes.map(roleLabel).join(' · ')
     : contest
-      ? `${contest.fieldCodes.map(fieldLabel).join(' · ')} · ${contestBadgeLabel(contest)}`
+      ? `${contest.fieldCodes.map(fieldLabel).join(' · ')} · ${summaryBadgeLabel(contest)}`
       : `${team!.roleCodes.map(roleLabel).join(' · ')} 모집 · ${team!.memberCount}/${team!.capacity}명 · ${team!.recruitmentDeadline.sourceDate} 마감`;
   const path = person ? 'people' : contest ? 'contests' : 'teams';
   return (
@@ -246,11 +291,7 @@ function RecommendationCard({ item }: { item: ChatRecommendation }) {
     >
       <div className="preview-ai-result-heading">
         {person ? (
-          <Avatar
-            name={person.realName}
-            accountId={person.accountId}
-            imageCode={person.profileImageCode}
-          />
+          <Avatar name={person.realName} imageCode={person.profileImageCode} />
         ) : contest ? (
           <ContestCover
             className="preview-ai-result-cover"
@@ -273,7 +314,7 @@ function RecommendationCard({ item }: { item: ChatRecommendation }) {
 }
 
 function ReplyActions({ reply }: { reply: ChatReply }) {
-  const state = useDemo();
+  const data = useSearchData();
   const [status, setStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   useEffect(() => {
     if (status !== 'copied') return;
@@ -281,7 +322,6 @@ function ReplyActions({ reply }: { reply: ChatReply }) {
     return () => clearTimeout(timer);
   }, [status]);
   const copy = async () => {
-    const data = searchData(state);
     const items = reply.recommendations.flatMap((item) => {
       const current = currentRecommendation(item, data);
       return current ? [`${current.title}\n${current.reason}`] : [];
@@ -333,7 +373,7 @@ const starters = [
 
 // [출처 2, 3, 4, 5] 로그인 전용 대화·추천 카드
 export function AiChatPage() {
-  const { signedIn } = useDemo();
+  const { signedIn } = useSession();
   const location = useLocation();
   if (!signedIn) {
     return (

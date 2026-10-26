@@ -27,9 +27,9 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import type { ContestDetail } from '@/features/contests/api';
-import { fieldLabel } from '@/features/demo/labels';
-import { deadlineLabel } from '@/features/demo/contest-state';
+import type { ContestSummary } from '@/features/contests/api';
+import { useLabels } from '@/features/catalogs/queries';
+import { endsAtLabel } from '@/features/demo/contest-state';
 import { ContestCover } from '@/components/common/ContestCover';
 
 const pageSize = 20;
@@ -39,7 +39,8 @@ function normalizeSearch(value: string) {
 }
 
 type ContestPickerProps = {
-  contests: readonly ContestDetail[];
+  /** GET /contests 목록 요약(docs/api/contests.md#contest-summary) */
+  contests: readonly ContestSummary[];
   value: string;
   onChange: (value: string) => void;
   id: string;
@@ -60,6 +61,7 @@ export function ContestPicker({
   onBlur,
   ref,
 }: ContestPickerProps) {
+  const { fieldLabel } = useLabels();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [visibleLimit, setVisibleLimit] = useState(pageSize);
@@ -78,7 +80,7 @@ export function ContestPicker({
       );
       return terms.every((term) => source.includes(term));
     });
-  }, [contests, query]);
+  }, [contests, query, fieldLabel]);
   const visible = matched.slice(0, visibleLimit);
   const remaining = matched.length - visible.length;
 
@@ -112,7 +114,7 @@ export function ContestPicker({
               <span>
                 {selected.organizer} ·{' '}
                 {selected.fieldCodes.map(fieldLabel).join(' · ')} · 마감{' '}
-                {deadlineLabel(selected.timing.closing)}
+                {endsAtLabel(selected.endsAt)}
               </span>
             )}
           </span>
@@ -162,7 +164,7 @@ export function ContestPicker({
                     value={contest.id}
                     className="preview-contest-option"
                     data-current={contest.id === value}
-                    aria-label={`${contest.title}, ${contest.organizer}, ${contest.fieldCodes.map(fieldLabel).join(' ')}, 마감 ${deadlineLabel(contest.timing.closing)}${contest.id === value ? ', 현재 선택됨' : ''}`}
+                    aria-label={`${contest.title}, ${contest.organizer}, ${contest.fieldCodes.map(fieldLabel).join(' ')}, 마감 ${endsAtLabel(contest.endsAt)}${contest.id === value ? ', 현재 선택됨' : ''}`}
                     onSelect={() => {
                       onChange(contest.id);
                       setOpen(false);
@@ -179,7 +181,7 @@ export function ContestPicker({
                       </span>
                       <span className="preview-contest-option-meta">
                         {contest.fieldCodes.map(fieldLabel).join(' · ')} · 마감{' '}
-                        {deadlineLabel(contest.timing.closing)}
+                        {endsAtLabel(contest.endsAt)}
                       </span>
                     </span>
                     {contest.id === value && (

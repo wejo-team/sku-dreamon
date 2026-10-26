@@ -5,13 +5,18 @@
  * 3. docs/api/profiles.md#portfolio - URL 제거는 portfolio: null, 제목은 선택
  * 4. docs/api/catalogs.md#academic-unit - 가장 깊게 선택한 항목 ID를 academicUnitId로 저장
  * 5. docs/specs/profile.md#input-validation - 앞뒤 공백 제거 후 검증·저장
+ * 6. docs/api/profiles.md#profile-write - PUT /me/profile 본문: 13개 + expectedVersion(최초 저장 "0")
  *
- * 프로필 편집 폼의 입력값과 Profile DTO 사이의 변환입니다. 폼은 선택 안 함을 빈 문자열로 다루고,
+ * 프로필 편집 폼의 입력값과 Profile DTO·ProfileWrite 사이의 변환입니다. 폼은 선택 안 함을 빈 문자열로 다루고,
  * 저장할 때 계약에 맞게 null·[]로 바꿉니다.
  */
 
-import type { ExperienceState, Profile } from '@/features/profiles/api';
-import { academicPath } from '@/features/demo/labels';
+import type {
+  ExperienceState,
+  Profile,
+  ProfileWrite,
+} from '@/features/profiles/api';
+import type { Labels } from '@/features/catalogs/labels';
 import { normalizeWebUrl } from '@/features/demo/profile-fields';
 
 export type ProfileFormValues = {
@@ -34,7 +39,10 @@ export type ProfileFormValues = {
   portfolioTitle: string;
 };
 
-export function toFormValues(profile: Profile): ProfileFormValues {
+export function toFormValues(
+  profile: Profile,
+  academicPath: Labels['academicPath'],
+): ProfileFormValues {
   const [college, department, major] = academicPath(profile.academicUnitId);
   return {
     realName: profile.realName,
@@ -58,12 +66,11 @@ export function toFormValues(profile: Profile): ProfileFormValues {
 
 const orNull = (value: string) => value.trim() || null;
 
-// [출처 1~5] 폼 값 → 저장할 Profile. 공개 상태·소유 계정은 기존 값을 유지하고 버전을 올립니다.
-export function fromFormValues(
+// [출처 1~6] 폼 값 → PUT /me/profile 본문. 아직 프로필이 없으면 expectedVersion "0"
+export function toProfileWrite(
   values: ProfileFormValues,
-  current: Profile,
-  now = new Date(),
-): Profile {
+  current: Pick<Profile, 'version'> | null,
+): ProfileWrite {
   const experienceBody = values.experienceBody.trim();
   const experienceState: ExperienceState =
     values.experienceState === 'provided' && !experienceBody
@@ -74,7 +81,7 @@ export function fromFormValues(
     ? normalizeWebUrl(values.portfolioUrl.trim())
     : '';
   return {
-    ...current,
+    expectedVersion: current?.version ?? '0',
     realName: values.realName.trim(),
     profileImageCode: values.profileImageCode,
     academicStatusCode: orNull(values.academicStatusCode),
@@ -91,7 +98,5 @@ export function fromFormValues(
     roleCodes: [...values.roleCodes],
     skillCodes: [...values.skillCodes],
     portfolio: url ? { url, title: orNull(values.portfolioTitle) } : null,
-    version: (BigInt(current.version) + 1n).toString(),
-    updatedAt: now.toISOString().replace(/\.\d{3}Z$/, 'Z'),
   };
 }

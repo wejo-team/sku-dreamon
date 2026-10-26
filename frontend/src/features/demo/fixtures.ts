@@ -37,9 +37,10 @@ import type {
 } from '@/features/applications/api';
 import type { Notification } from '@/features/notifications/api';
 import { academicCatalog } from '@/features/demo/profile-fields';
+import { MOCK_NOW } from '@/lib/clock';
 
 // [출처 1] 재현용 고정 현재 시각(2026-10-18 KST). 운영 시계가 아닙니다.
-export const mockNow = Date.parse('2026-10-18T09:00:00Z');
+export const mockNow = MOCK_NOW;
 
 const uuid = (prefix: string, n: number) =>
   `${prefix}-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -927,7 +928,7 @@ export function toTeamMember(
   };
 }
 
-// 전체 목업 레코드의 새 복사본. 목업 서버와 DemoProvider가 같은 원본을 사용합니다.
+// 전체 목업 레코드의 새 복사본. 목업 서버와 테스트가 같은 원본을 사용합니다.
 export function createDemoRecords() {
   return {
     account: fixtureAccount(),

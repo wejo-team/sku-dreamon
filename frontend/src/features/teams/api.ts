@@ -24,6 +24,7 @@ import {
   VersionedAction,
   page,
   success,
+  trimmedText,
   uniqueCodes,
 } from '@/lib/api-contract';
 import {
@@ -59,8 +60,9 @@ export const TeamCreate = z
   .object({
     requestId: Id,
     contestId: Id,
-    name: z.string().min(2).max(40),
-    introduction: z.string().min(10).max(1000),
+    // NFC·trim 후 코드 포인트 기준(docs/api/teams.md#team-create)
+    name: trimmedText(2, 40),
+    introduction: trimmedText(10, 1000),
     capacity: PositiveBigInt,
     roleCodes: z.array(CatalogCode).max(6).refine(unique),
     recruitmentDeadline: DeadlineInput,
