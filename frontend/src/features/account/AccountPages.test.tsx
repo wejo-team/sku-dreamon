@@ -5,7 +5,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { fill, setupUser } from '@/test/user';
 import { Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -119,9 +119,10 @@ async function renderAccount(
   return client;
 }
 
-async function enterLogin(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText('아이디', { exact: true }), demoId);
-  await user.type(
+async function enterLogin(user: ReturnType<typeof setupUser>) {
+  await fill(user, screen.getByLabelText('아이디', { exact: true }), demoId);
+  await fill(
+    user,
     screen.getByLabelText('비밀번호', { exact: true }),
     demoPassword,
   );
@@ -137,7 +138,7 @@ async function renderProfileFlow() {
     { path: '/login?returnTo=%2Fprofile' },
   );
   await screen.findByRole('button', { name: '로그인' });
-  const user = userEvent.setup();
+  const user = setupUser();
   await enterLogin(user);
   await user.click(screen.getByRole('button', { name: '로그인' }));
   await screen.findByRole('button', { name: '프로필 수정' });
@@ -160,7 +161,7 @@ describe('design preview account flows', () => {
 
   it('keeps character choices in the edit draft until saved and discards cancelled choices', async () => {
     await renderProfileFlow();
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
     await user.click(
       screen.getByRole('button', { name: '프로필 이미지 변경, 현재 스콘' }),
@@ -235,7 +236,7 @@ describe('design preview account flows', () => {
     'requires confirmation for a visibility change from %s and preserves cancelled changes',
     async (discoverable) => {
       await renderAccount('/profile', { profile: { isPublic: discoverable } });
-      const user = userEvent.setup();
+      const user = setupUser();
       const toggle = screen.getByRole('switch', { name: '프로필 공개' });
       await user.click(toggle);
       expect(toggle).toHaveAttribute('aria-checked', String(discoverable));
@@ -276,14 +277,16 @@ describe('design preview account flows', () => {
 
   it('shows all saved fields after public confirmation and hides the entire preview after private confirmation', async () => {
     await renderProfileFlow();
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
-    await user.type(
+    await fill(
+      user,
       screen.getByLabelText('포트폴리오 링크 (선택)'),
       'https://example.com/work',
     );
-    await user.type(
+    await fill(
+      user,
       screen.getByLabelText('포트폴리오 제목 (선택)'),
       '나의 작업',
     );
@@ -312,7 +315,7 @@ describe('design preview account flows', () => {
 
   it('explains unavailable school verification in a dismissible popup without changing the profile', async () => {
     await renderAccount('/profile');
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(
       screen.getByRole('button', { name: '교내 미인증, 학교 인증 안내' }),
     );
@@ -330,7 +333,7 @@ describe('design preview account flows', () => {
 
   it('starts with empty fields and reveals a password without submitting or changing it', async () => {
     await renderAccount('/login');
-    const user = userEvent.setup();
+    const user = setupUser();
     const input = screen.getByLabelText('비밀번호', { exact: true });
     expect(input).toHaveAttribute('type', 'password');
     expect(input).toHaveValue('');
@@ -348,16 +351,16 @@ describe('design preview account flows', () => {
 
   it('reports invalid demo credentials and restores a working demo login', async () => {
     await renderAccount(`/login?from=%2Fteams%2F${demoIds.teams.makers}`);
-    const user = userEvent.setup();
-    await user.type(screen.getByLabelText('아이디'), '  DREAMONDEMO  ');
-    await user.type(screen.getByLabelText('비밀번호'), 'incorrect-password');
+    const user = setupUser();
+    await fill(user, screen.getByLabelText('아이디'), '  DREAMONDEMO  ');
+    await fill(user, screen.getByLabelText('비밀번호'), 'incorrect-password');
     await user.click(screen.getByRole('button', { name: '로그인' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '아이디 또는 비밀번호를 확인',
     );
     expect(mockSession()).toBeNull();
     await user.clear(screen.getByLabelText('비밀번호'));
-    await user.type(screen.getByLabelText('비밀번호'), demoPassword);
+    await fill(user, screen.getByLabelText('비밀번호'), demoPassword);
     await user.click(screen.getByRole('button', { name: '로그인' }));
     expect(
       await screen.findByText(`이동한 경로: /teams/${demoIds.teams.makers}`),
@@ -372,7 +375,7 @@ describe('design preview account flows', () => {
     '/\\example.com',
   ])('keeps login return path inside the app for %s', async (target) => {
     await renderAccount(`/login?returnTo=${encodeURIComponent(target)}`);
-    const user = userEvent.setup();
+    const user = setupUser();
     await enterLogin(user);
     await user.click(screen.getByRole('button', { name: '로그인' }));
     expect(
@@ -382,7 +385,7 @@ describe('design preview account flows', () => {
 
   it('preserves the original team destination when visiting signup and returning to login', async () => {
     await renderAccount(`/login?returnTo=%2Fteams%2F${demoIds.teams.makers}`);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByRole('link', { name: '회원가입' }));
     await user.click(screen.getByRole('link', { name: '로그인으로' }));
     await enterLogin(user);
@@ -397,7 +400,7 @@ describe('design preview account flows', () => {
     await renderAccount('/profile', {
       profile: { weeklyAvailabilityCode: null },
     });
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
     await user.clear(screen.getByLabelText('이름 (필수)'));
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
@@ -409,8 +412,9 @@ describe('design preview account flows', () => {
       'true',
     );
     expect(profileSaves()).toEqual([]);
-    await user.type(screen.getByLabelText('이름 (필수)'), '김예시');
-    await user.type(
+    await fill(user, screen.getByLabelText('이름 (필수)'), '김예시');
+    await fill(
+      user,
       screen.getByLabelText('포트폴리오 링크 (선택)'),
       'javascript:alert(1)',
     );
@@ -421,7 +425,8 @@ describe('design preview account flows', () => {
       ),
     ).toBeInTheDocument();
     await user.clear(screen.getByLabelText('포트폴리오 링크 (선택)'));
-    await user.type(
+    await fill(
+      user,
       screen.getByLabelText('포트폴리오 링크 (선택)'),
       'https://example.com/portfolio',
     );
@@ -447,7 +452,7 @@ describe('design preview account flows', () => {
     await renderAccount('/profile', {
       profile: { weeklyAvailabilityCode: 'from_10_to_20' },
     });
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
     const field = screen.getByLabelText('주당 참여 가능 시간 (선택)');
     expect(
@@ -478,16 +483,18 @@ describe('design preview account flows', () => {
 
   it('retains portfolio edits only after saving and preserves the global privacy state', async () => {
     await renderProfileFlow();
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
-    await user.type(
+    await fill(
+      user,
       screen.getByLabelText('포트폴리오 링크 (선택)'),
       'https://example.com/draft',
     );
     await user.click(screen.getByRole('button', { name: '취소' }));
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
     expect(screen.getByLabelText('포트폴리오 링크 (선택)')).toHaveValue('');
-    await user.type(
+    await fill(
+      user,
       screen.getByLabelText('포트폴리오 링크 (선택)'),
       'https://example.com/saved',
     );
@@ -502,8 +509,9 @@ describe('design preview account flows', () => {
 
   it('rejects unsafe portfolio URLs without saving profile changes', async () => {
     await renderAccount('/profile?edit=details');
-    const user = userEvent.setup();
-    await user.type(
+    const user = setupUser();
+    await fill(
+      user,
       screen.getByLabelText('포트폴리오 링크 (선택)'),
       'javascript:alert(1)',
     );
@@ -522,7 +530,7 @@ describe('design preview account flows', () => {
         portfolio: { url: 'https://example.com/previous', title: '이전 제목' },
       },
     });
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
     await user.clear(screen.getByLabelText('포트폴리오 링크 (선택)'));
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
@@ -533,7 +541,7 @@ describe('design preview account flows', () => {
 
   it('requires at least one profile role and permits cancellation without saving', async () => {
     await renderAccount('/profile');
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
     const roles = screen.getByRole('group', { name: /희망 역할/ });
     for (const selected of within(roles).getAllByRole('checkbox', {
@@ -554,13 +562,14 @@ describe('design preview account flows', () => {
   // docs/api/auth.md#account-endpoints: 가입 성공 시 바로 로그인, GET /me로 같은 계정을 확인한 뒤 프로필 설정
   it('signs up with automatic sign-in, verifies the account and saves the first profile without credentials', async () => {
     await renderAccount('/signup');
-    const user = userEvent.setup();
-    await user.type(screen.getByLabelText('아이디 (필수)'), '  NewAccount  ');
-    await user.type(
+    const user = setupUser();
+    await fill(user, screen.getByLabelText('아이디 (필수)'), '  NewAccount  ');
+    await fill(
+      user,
       screen.getByLabelText('비밀번호 (필수)'),
       '새로운비밀번호를길게만들어요123',
     );
-    await user.type(screen.getByLabelText('이름 (필수)'), '김지우');
+    await fill(user, screen.getByLabelText('이름 (필수)'), '김지우');
     await user.click(
       within(screen.getByRole('group', { name: /관심 분야/ })).getByLabelText(
         '교육',
@@ -620,7 +629,7 @@ describe('design preview account flows', () => {
     await renderAccount(`/teams/new?contest=${demoIds.contests.green}`, {
       db: withoutTeams(),
     });
-    const user = userEvent.setup();
+    const user = setupUser();
     expect(screen.getByLabelText('참여 공모전')).toHaveTextContent(
       '일상 속 그린테크 챌린지',
     );
@@ -629,8 +638,9 @@ describe('design preview account flows', () => {
       await screen.findByText('팀 이름을 2자 이상 입력해 주세요.'),
     ).toBeInTheDocument();
     expect(teamCreates()).toEqual([]);
-    await user.type(screen.getByLabelText('팀 이름'), '새로운 예시 팀');
-    await user.type(
+    await fill(user, screen.getByLabelText('팀 이름'), '새로운 예시 팀');
+    await fill(
+      user,
       screen.getByLabelText('팀 소개와 목표'),
       '환경 문제를 함께 해결해요.',
     );
@@ -670,10 +680,11 @@ describe('design preview account flows', () => {
     await renderAccount('/teams/new?contest=unknown', {
       db: withoutTeams(),
     });
-    const user = userEvent.setup();
+    const user = setupUser();
     const trigger = screen.getByLabelText('참여 공모전');
-    await user.type(screen.getByLabelText('팀 이름'), '검색해서 만든 팀');
-    await user.type(
+    await fill(user, screen.getByLabelText('팀 이름'), '검색해서 만든 팀');
+    await fill(
+      user,
       screen.getByLabelText('팀 소개와 목표'),
       '함께 자료를 조사하고 정리해요.',
     );
@@ -744,7 +755,7 @@ describe('design preview account flows', () => {
     await renderAccount(`/teams/new?contestId=${demoIds.contests.local}`, {
       db: { ...records, contests: [...records.contests, ...extra] },
     });
-    const user = userEvent.setup();
+    const user = setupUser();
     const trigger = screen.getByLabelText('참여 공모전');
     expect(trigger).toHaveTextContent('우리 동네를 새롭게, 로컬 브랜딩');
     await user.click(trigger);
@@ -772,7 +783,7 @@ describe('design preview account flows', () => {
     await renderAccount(`/teams/new?contestId=${demoIds.contests.campus}`, {
       db: withoutTeams(),
     });
-    const user = userEvent.setup();
+    const user = setupUser();
     const capacity = screen.getByLabelText('팀장 포함 총 정원');
     await user.type(capacity, '4');
     const planning = () =>
@@ -803,13 +814,15 @@ describe('design preview account flows', () => {
   // PR #121 리뷰: 폼이 허용한 주소는 저장 시 정규화해 내 프로필과 공개 미리보기에 같은 링크를 보여준다.
   it('normalizes an accepted portfolio URL so the saved and public links match', async () => {
     await renderProfileFlow();
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByRole('button', { name: '프로필 수정' }));
-    await user.type(
+    await fill(
+      user,
       screen.getByLabelText('포트폴리오 링크 (선택)'),
       'https:/example.com/portfolio',
     );
-    await user.type(
+    await fill(
+      user,
       screen.getByLabelText('포트폴리오 제목 (선택)'),
       '나의 작업',
     );
@@ -839,7 +852,7 @@ describe('design preview account flows', () => {
         path: `/profile?edit=details&returnTo=%2Fteams%2F${demoIds.teams.makers}`,
       },
     );
-    const user = userEvent.setup();
+    const user = setupUser();
     const login = await screen.findByRole('link', { name: '로그인' });
     expect(login).toHaveAttribute(
       'href',
@@ -859,7 +872,7 @@ describe('design preview account flows', () => {
 
   it('keeps the global privacy state when saving profile details without field-level toggles', async () => {
     await renderAccount('/profile?edit=details');
-    const user = userEvent.setup();
+    const user = setupUser();
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     // docs/api/profiles.md: 공개 상태는 별도 요청(PUT /me/profile/visibility)으로만 바뀝니다.
@@ -871,7 +884,7 @@ describe('design preview account flows', () => {
 
   it('clears dependent selections when the college changes, and skips majors for an independent department', async () => {
     await renderAccount('/profile?edit=details');
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.selectOptions(
       screen.getByLabelText('단과대학 (선택)'),
       '미래융합대학',
@@ -919,11 +932,11 @@ describe('design preview account flows', () => {
       db: { ...records, academicUnits: [...records.academicUnits, ...legacy] },
       profile: { academicUnitId: '9003' },
     });
-    const user = userEvent.setup();
+    const user = setupUser();
     expect(
       screen.getByRole('option', { name: '과거 대학 (기존 소속)' }),
     ).toBeDisabled();
-    await user.type(screen.getByLabelText('자기소개 (선택)'), ' 새로운 소개');
+    await fill(user, screen.getByLabelText('자기소개 (선택)'), ' 새로운 소개');
     await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
     await waitFor(() =>
       expect(lastProfileSave()).toMatchObject({ academicUnitId: '9003' }),
@@ -932,7 +945,7 @@ describe('design preview account flows', () => {
 
   it('distinguishes no experience, removes other choices and saves optional skills and portfolio title', async () => {
     await renderAccount('/profile?edit=details');
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.selectOptions(
       screen.getByLabelText('경험 등록 상태 (선택)'),
       'none',
@@ -951,11 +964,13 @@ describe('design preview account flows', () => {
         name: '기타',
       }),
     ).not.toBeInTheDocument();
-    await user.type(
+    await fill(
+      user,
       screen.getByLabelText('포트폴리오 링크 (선택)'),
       'https://example.com/work',
     );
-    await user.type(
+    await fill(
+      user,
       screen.getByLabelText('포트폴리오 제목 (선택)'),
       '나의 작업',
     );
@@ -976,8 +991,8 @@ describe('design preview account flows', () => {
       // 필수 프로필이 아직 없는 계정(GET /me/profile 404)
       { db: withoutMyProfile() },
     );
-    const user = userEvent.setup();
-    await user.type(screen.getByLabelText('이름 (필수)'), '김지우');
+    const user = setupUser();
+    await fill(user, screen.getByLabelText('이름 (필수)'), '김지우');
     await user.click(
       within(screen.getByRole('group', { name: /관심 분야/ })).getByLabelText(
         '교육',
@@ -1007,7 +1022,7 @@ describe('design preview account flows', () => {
     'preserves over-limit %s text and explains the error instead of truncating',
     async (label, max, message) => {
       await renderAccount('/profile?edit=details');
-      const user = userEvent.setup();
+      const user = setupUser();
       const field = screen.getByLabelText(label);
       const oversized = '가'.repeat(max + 1);
       fireEvent.change(field, { target: { value: oversized } });
@@ -1021,7 +1036,7 @@ describe('design preview account flows', () => {
 
   it('validates profile selection maximums and keeps all invalid choices for correction', async () => {
     await renderAccount('/profile?edit=details');
-    const user = userEvent.setup();
+    const user = setupUser();
     const roles = screen.getByRole('group', { name: /희망 역할/ });
     await user.click(within(roles).getByLabelText('개발'));
     await user.click(within(roles).getByLabelText('발표'));
@@ -1052,7 +1067,7 @@ describe('design preview account flows', () => {
     await renderAccount('/profile?edit=details', {
       profile: { experienceState: 'provided', experienceBody: '이전 경험' },
     });
-    const user = userEvent.setup();
+    const user = setupUser();
     fireEvent.change(screen.getByLabelText('이름 (필수)'), {
       target: { value: '  김지우  ' },
     });
@@ -1075,7 +1090,7 @@ describe('design preview account flows', () => {
     await renderAccount('/profile?edit=details', {
       profile: { academicUnitId: unitId('경영학전공', '경영학부') },
     });
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.selectOptions(
       screen.getByLabelText('단과대학 (선택)'),
       '인문사회과학대학',
@@ -1108,7 +1123,7 @@ describe('design preview account flows', () => {
         triggerLabel="프로필 공개하기"
       />,
     );
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByRole('button', { name: '프로필 공개하기' }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAccessibleDescription(
@@ -1130,7 +1145,7 @@ describe('design preview account flows', () => {
   });
   it('normalizes duplicate signup IDs and preserves pasted over-limit passwords for correction', async () => {
     await renderAccount('/signup');
-    const user = userEvent.setup();
+    const user = setupUser();
     const username = screen.getByLabelText('아이디 (필수)');
     await user.click(username);
     await user.paste('  DREAMONDEMO  ');

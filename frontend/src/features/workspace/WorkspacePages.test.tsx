@@ -1,5 +1,5 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { fill, setupUser } from '@/test/user';
 import { useQuery } from '@tanstack/react-query';
 import { Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -121,7 +121,7 @@ async function renderPage(path: string, options: ApiRenderOptions = {}) {
   );
   await screen.findByLabelText('현재 경로');
   await settled(view.client);
-  const user = userEvent.setup();
+  const user = setupUser();
   // 사용자 조작 뒤 다음 요청이 끝날 때까지 기다립니다.
   const step = async (action: () => Promise<void>) => {
     await action();
@@ -132,7 +132,7 @@ async function renderPage(path: string, options: ApiRenderOptions = {}) {
 // 화면 조작으로 로그인(POST /auth/login)
 const signIn = (step: (action: () => Promise<void>) => Promise<void>) =>
   step(() =>
-    userEvent.click(screen.getByRole('button', { name: '테스트 로그인' })),
+    setupUser().click(screen.getByRole('button', { name: '테스트 로그인' })),
   );
 
 describe('team application', () => {
@@ -171,7 +171,8 @@ describe('team application', () => {
       await screen.findByText('지원할 역할을 선택해 주세요.'),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: '마케팅' }));
-    await user.type(
+    await fill(
+      user,
       screen.getByLabelText(/팀에 전할 말/),
       '사용자 인터뷰를 함께하고 싶어요.',
     );

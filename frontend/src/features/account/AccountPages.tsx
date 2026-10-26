@@ -22,12 +22,7 @@ import {
   SquarePen,
   UserRound,
 } from 'lucide-react';
-import {
-  Controller,
-  useForm,
-  useWatch,
-  type UseFormRegister,
-} from 'react-hook-form';
+import { Controller, useForm, type UseFormRegister } from 'react-hook-form';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { z } from 'zod';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -85,6 +80,7 @@ import { AvatarPicker } from '@/features/account/AvatarPicker';
 import { ProfileDetails } from '@/components/common/ProfileDetails';
 import {
   AcademicFields,
+  CharacterCount,
   ExperienceFields,
   SkillFields,
 } from '@/features/account/ProfileFields';
@@ -488,9 +484,6 @@ function ProfileEditor({
       : emptyFormValues,
     mode: 'onChange',
   });
-  const name = useWatch({ control, name: 'realName' });
-  const intro = useWatch({ control, name: 'introduction' });
-  const portfolioTitle = useWatch({ control, name: 'portfolioTitle' });
   return (
     <form
       className="preview-panel preview-form"
@@ -540,9 +533,7 @@ function ProfileEditor({
               errors.realName ? 'profile-name-error' : undefined
             }
           />
-          <p className="preview-field-count">
-            {profileTextLength(name)} / 50자
-          </p>
+          <CharacterCount control={control} name="realName" max={50} />
           <FieldError
             id="profile-name-error"
             message={errors.realName?.message}
@@ -603,9 +594,12 @@ function ProfileEditor({
             aria-describedby="profile-intro-count profile-intro-error"
             placeholder="함께하고 싶은 활동을 소개해 주세요."
           />
-          <p id="profile-intro-count" className="preview-field-count">
-            {profileTextLength(intro)} / 300자
-          </p>
+          <CharacterCount
+            control={control}
+            name="introduction"
+            max={300}
+            id="profile-intro-count"
+          />
           <FieldError
             id="profile-intro-error"
             message={errors.introduction?.message}
@@ -657,9 +651,12 @@ function ProfileEditor({
             aria-describedby="profile-title-count profile-title-error"
             placeholder="작업 모음, 프로젝트 소개 등"
           />
-          <p id="profile-title-count" className="preview-field-count">
-            {profileTextLength(portfolioTitle)} / 50자
-          </p>
+          <CharacterCount
+            control={control}
+            name="portfolioTitle"
+            max={50}
+            id="profile-title-count"
+          />
           <FieldError
             id="profile-title-error"
             message={errors.portfolioTitle?.message}

@@ -1,6 +1,6 @@
 import { createRef, useState } from 'react';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { setupUser } from '@/test/user';
 import { describe, expect, it, vi } from 'vitest';
 import { ContestPicker } from '@/features/teams/ContestPicker';
 import { createDemoRecords, type ContestSeed } from '@/features/demo/fixtures';
@@ -94,7 +94,7 @@ async function renderPicker({
   return { onChange, onSubmit, onBlur, triggerRef };
 }
 
-async function openPicker(user: ReturnType<typeof userEvent.setup>) {
+async function openPicker(user: ReturnType<typeof setupUser>) {
   await user.click(screen.getByRole('button', { name: '참여 공모전' }));
   const drawer = await screen.findByRole('dialog', { name: '공모전 선택' });
   const search = within(drawer).getByRole('combobox', { name: '공모전 검색' });
@@ -111,7 +111,7 @@ const expectOptions = (drawer: HTMLElement, count: number) =>
 describe('ContestPicker', () => {
   it('connects the form label, error description and ref to its trigger and searches titles and organizers', async () => {
     const state = await renderPicker({ invalid: true });
-    const user = userEvent.setup();
+    const user = setupUser();
     const trigger = screen.getByRole('button', { name: '참여 공모전' });
     expect(state.triggerRef.current).toBe(trigger);
     expect(trigger).toHaveAttribute('aria-invalid', 'true');
@@ -154,7 +154,7 @@ describe('ContestPicker', () => {
 
   it('shows an empty result and clears its search without changing the existing selection', async () => {
     const state = await renderPicker({ initialValue: ids.campus });
-    const user = userEvent.setup();
+    const user = setupUser();
     const { drawer, search } = await openPicker(user);
     await expectOptions(drawer, fixtures.length);
     await user.type(search, '없는 공모전 719');
@@ -184,7 +184,7 @@ describe('ContestPicker', () => {
     'keeps the chosen contest when dismissed with %s and clears the next search',
     async (dismissMethod) => {
       const state = await renderPicker({ initialValue: ids.campus });
-      const user = userEvent.setup();
+      const user = setupUser();
       const trigger = screen.getByRole('button', { name: '참여 공모전' });
       const { drawer, search } = await openPicker(user);
       await user.type(search, '지역 문화');
@@ -223,7 +223,7 @@ describe('ContestPicker', () => {
         contest(1, { title: '같은 이름 공모전', organizer: '부산 센터' }),
       ],
     });
-    const user = userEvent.setup();
+    const user = setupUser();
     const { drawer } = await openPicker(user);
     await expectOptions(drawer, 2);
     await user.click(within(drawer).getByRole('option', { name: /부산 센터/ }));
@@ -248,7 +248,7 @@ describe('ContestPicker', () => {
       }),
     );
     const state = await renderPicker({ contests });
-    const user = userEvent.setup();
+    const user = setupUser();
     const { drawer, search } = await openPicker(user);
     await expectOptions(drawer, 20);
     expect(within(drawer).getByRole('status')).toHaveTextContent(
@@ -277,7 +277,7 @@ describe('ContestPicker', () => {
 
   it('respects IME composition and selects a keyboard-highlighted result without submitting the form', async () => {
     const state = await renderPicker();
-    const user = userEvent.setup();
+    const user = setupUser();
     const { drawer, search } = await openPicker(user);
     await user.type(search, 'local');
     await expectOptions(drawer, 2);

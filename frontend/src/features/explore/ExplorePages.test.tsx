@@ -1,5 +1,5 @@
 import { screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { setupUser } from '@/test/user';
 import { Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import {
@@ -57,7 +57,7 @@ async function renderExplore(
   await screen.findByLabelText('현재 경로');
   await settled(client);
   // 사용자 조작 뒤 다음 요청이 끝날 때까지 기다립니다.
-  const user = userEvent.setup();
+  const user = setupUser();
   const step = async (action: () => Promise<void>) => {
     await action();
     await settled(client);

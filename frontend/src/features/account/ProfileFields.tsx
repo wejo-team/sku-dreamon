@@ -4,6 +4,7 @@
  * 2. docs/specs/profile-options.md - 학적·학년·역량·주당 시간 선택지
  * 3. docs/specs/profile.md#experience - 경험 미입력/경험 없음/서술 3상태
  * 4. docs/design/assets/profile-320.png - 실제 수정 화면
+ * 5. docs/specs/profile.md - 글자 수는 앞뒤 공백 제거 후 표시(profileTextLength)
  */
 
 import {
@@ -59,6 +60,26 @@ const catalogOptions = (items: CatalogItem[]): Option[] =>
   items.map((item) => ({ value: item.code, label: item.displayName }));
 
 // [출처 2, 4] 학사 종속 선택, 다른 소속 관계로 이동하면 무효 하위값만 비움
+// [출처 5] 글자 수 표시. 해당 필드만 구독해 입력할 때 폼 전체가 아니라 이 숫자만 다시 그립니다.
+export function CharacterCount({
+  control,
+  name,
+  max,
+  id,
+}: {
+  control: Control<ProfileFormValues>;
+  name: 'realName' | 'introduction' | 'portfolioTitle' | 'experienceBody';
+  max: number;
+  id?: string;
+}) {
+  const value = useWatch({ control, name }) ?? '';
+  return (
+    <p id={id} className="preview-field-count">
+      {profileTextLength(value)} / {max}자
+    </p>
+  );
+}
+
 export function AcademicFields({
   control,
   setValue,
@@ -285,7 +306,6 @@ export function ExperienceFields({
   setValue: UseFormSetValue<ProfileFormValues>;
   error?: string;
 }) {
-  const experience = useWatch({ control, name: 'experienceBody' });
   const experienceState = useWatch({ control, name: 'experienceState' });
   return (
     <div className="preview-field">
@@ -331,9 +351,12 @@ export function ExperienceFields({
         })}
         placeholder="프로젝트나 공모전에서 맡았던 역할"
       />
-      <p id="profile-experience-count" className="preview-field-count">
-        {profileTextLength(experience)} / 500자
-      </p>
+      <CharacterCount
+        control={control}
+        name="experienceBody"
+        max={500}
+        id="profile-experience-count"
+      />
       {error && (
         <p id="profile-experience-error" className="preview-error" role="alert">
           {error}

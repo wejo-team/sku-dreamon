@@ -1,5 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { setupUser } from '@/test/user';
 import { MemoryRouter, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { ListPagination } from '@/components/common/ListPagination';
@@ -71,7 +71,7 @@ describe('ListPagination', () => {
 
   it('navigates to a page URL while retaining filters and reports navigation', async () => {
     const { onNavigate } = renderPagination(2, 3);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByRole('link', { name: '다음 페이지' }));
     expect(screen.getByLabelText('현재 주소')).toHaveTextContent(
       '?tab=people&page=3',

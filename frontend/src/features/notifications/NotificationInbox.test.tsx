@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { setupUser } from '@/test/user';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -89,10 +89,10 @@ async function renderInbox(
   );
   await screen.findByRole('button', { name: /^알림(?:,|$)/ });
   await settled(client);
-  return { user: userEvent.setup(), client };
+  return { user: setupUser(), client };
 }
 
-async function openInbox(user: ReturnType<typeof userEvent.setup>) {
+async function openInbox(user: ReturnType<typeof setupUser>) {
   await user.click(screen.getByRole('button', { name: /^알림(?:,|$)/ }));
   return screen.findByRole('dialog', { name: '알림' });
 }
@@ -139,7 +139,9 @@ describe('official reference notifications', () => {
       within(drawer).getByRole('button', { name: /읽지 않음 0/ }),
     );
     expect(
-      within(drawer).getByRole('heading', { name: '모든 알림을 확인했어요' }),
+      await within(drawer).findByRole('heading', {
+        name: '모든 알림을 확인했어요',
+      }),
     ).toBeInTheDocument();
     await user.click(within(drawer).getByRole('button', { name: '알림 닫기' }));
     await waitFor(() => expect(drawer).not.toBeInTheDocument());
@@ -243,7 +245,7 @@ describe('official reference notifications', () => {
         db: recordsWithMyProfile({ isPublic: true }),
       },
     );
-    const user = userEvent.setup();
+    const user = setupUser();
     await screen.findByRole('button', { name: /^알림(?:,|$)/ });
     await settled(client);
     const initial = await openInbox(user);

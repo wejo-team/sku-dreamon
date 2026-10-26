@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { setupUser } from '@/test/user';
 import { describe, expect, it } from 'vitest';
 import { ApplicantReview } from '@/features/teams/ApplicantReview';
 import { useSession } from '@/features/auth/queries';
@@ -19,7 +19,7 @@ const seoyeonProfile = records.profiles.find(
 
 describe('applicant AI review reference', () => {
   it('uses the latest private applicant profile on each explicit request', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const applicant = seoyeonApplication;
     const profile = {
       ...seoyeonProfile,
@@ -66,7 +66,7 @@ describe('applicant AI review reference', () => {
   it.each(['selected', 'rejected', 'canceled', 'discarded'] as const)(
     'allows factual review but excludes %s from new selection candidates',
     async (status) => {
-      const user = userEvent.setup();
+      const user = setupUser();
       const applicant = { ...seoyeonApplication, status };
       render(
         <CatalogProviders>
@@ -88,7 +88,7 @@ describe('applicant AI review reference', () => {
   );
 
   it('preserves factual review after a selection decision and allows a latest-profile refresh without restoring candidacy', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const applicant = seoyeonApplication;
     const profile = seoyeonProfile;
     const view = render(
@@ -135,7 +135,7 @@ describe('applicant AI review reference', () => {
   });
 
   it('shows a failed request distinctly and supports retry', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const applicant = seoyeonApplication;
     render(
       <CatalogProviders initialEntries={['/?scenario=review-error']}>
@@ -158,7 +158,7 @@ describe('applicant AI review reference', () => {
   });
 
   it('hides existing review results and requests when the current leader relationship is unavailable', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const applicant = { ...seoyeonApplication, status: 'discarded' as const };
     const view = render(
       <CatalogProviders>
@@ -214,7 +214,7 @@ function ReviewSessionHarness() {
 }
 
 it('retains review results across navigation in the current session and clears them after logout', async () => {
-  const user = userEvent.setup();
+  const user = setupUser();
   renderWithApi(<ReviewSessionHarness />);
   await user.click(
     await screen.findByRole('button', { name: '테스트 로그인' }),
