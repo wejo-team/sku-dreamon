@@ -9,6 +9,7 @@ import pytest
 APP = Path(__file__).resolve().parents[2] / "app"
 ALLOWED = {
     "cli": {"core", "schemas", "services"},
+    "agents": {"agents", "core", "schemas", "services"},
     "core": {"core"},
     "models": {"core", "models", "rules"},
     "schemas": {"core", "schemas", "rules"},
@@ -16,6 +17,7 @@ ALLOWED = {
     "security": {"core", "security", "rules"},
     "repositories": {"core", "models", "rules", "repositories"},
     "services": {
+        "agents",
         "core",
         "models",
         "schemas",
@@ -74,6 +76,16 @@ def import_violations(tree: ast.AST, relative: Path) -> list[str]:
             layer in {"routers", "dependencies"} or relative.as_posix() in HTTP_ADAPTERS
         ):
             violations.append(f"{relative}: HTTP framework {target}")
+        if layer == "agents" and (
+            target.startswith("sqlalchemy")
+            or target == "app.services.ai"
+            or target.startswith("app.services.ai.")
+            or target == "app.services.ai_runs"
+            or target.startswith("app.services.ai_runs.")
+        ):
+            violations.append(
+                f"{relative}: agent orchestration/SQL dependency {target}"
+            )
         if layer in {"services", "routers"} and target.startswith("sqlalchemy"):
             if target != "sqlalchemy.ext.asyncio.AsyncSession" and not (
                 target.startswith("sqlalchemy.exc.")
@@ -130,7 +142,7 @@ def session_violations(tree: ast.AST, relative: Path) -> list[str]:
                 "connection",
             }:
                 violations.append(f"{relative}:{node.lineno} session.{method}")
-            if layer == "routers" or (
+            if layer in {"routers", "agents"} or (
                 layer == "repositories"
                 and method
                 in {
@@ -170,6 +182,12 @@ def test_imports_and_db_calls_follow_global_layer_boundaries() -> None:
     "layer, source",
     [
         ("routers", "from app.repositories import teams"),
+        ("agents", "from app.repositories import profiles"),
+        ("agents", "from app.services.ai import AiService"),
+        ("agents", "from app.services import ai_runs"),
+        ("agents", "from sqlalchemy import select"),
+        ("agents", "from starlette.responses import Response"),
+        ("agents", "async def read(db: AsyncSession):\n    await db.scalar(query)"),
         ("routers", "from app.queries.teams import get_team_detail"),
         ("services", "from sqlalchemy import select as query"),
         ("services", "async def read(db: AsyncSession):\n    await db.scalar(query)"),

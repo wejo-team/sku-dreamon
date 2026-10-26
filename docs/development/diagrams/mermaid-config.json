@@ -1,0 +1,48 @@
+{
+  "theme": "base",
+  "securityLevel": "strict",
+  "deterministicIds": true,
+  "deterministicIDSeed": "wejo-ai-architecture",
+  "fontFamily": "Malgun Gothic, Noto Sans CJK KR, sans-serif",
+  "themeVariables": {
+    "fontSize": "18px",
+    "primaryColor": "#f0fdfa",
+    "primaryTextColor": "#14342f",
+    "primaryBorderColor": "#0f766e",
+    "lineColor": "#64748b",
+    "secondaryColor": "#eef2ff",
+    "tertiaryColor": "#f8fafc",
+    "clusterBkg": "#f8fafc",
+    "clusterBorder": "#cbd5e1",
+    "edgeLabelBackground": "#ffffff",
+    "actorBkg": "#f0fdfa",
+    "actorBorder": "#0f766e",
+    "actorTextColor": "#14342f",
+    "actorLineColor": "#94a3b8",
+    "signalColor": "#334155",
+    "signalTextColor": "#1e293b",
+    "labelBoxBkgColor": "#eff6ff",
+    "labelBoxBorderColor": "#94a3b8",
+    "labelTextColor": "#1e293b",
+    "loopTextColor": "#1e293b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 30,
+    "rankSpacing": 44,
+    "padding": 18,
+    "useMaxWidth": true
+  },
+  "sequence": {
+    "useMaxWidth": true,
+    "mirrorActors": false,
+    "actorMargin": 70,
+    "width": 150,
+    "height": 56,
+    "messageMargin": 38,
+    "boxMargin": 16,
+    "diagramMarginX": 24,
+    "diagramMarginY": 24
+  }
+}

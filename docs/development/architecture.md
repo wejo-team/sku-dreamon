@@ -29,6 +29,7 @@ backend/
       health.py          # health API
     dependencies/        # HTTP 인증·CSRF 등 요청 의존성
     services/            # 업무 규칙·권한·DTO 구성·요청 트랜잭션
+    agents/              # Luna 모델·조회 도구·구조화 계획·텍스트 스트림
     repositories/        # SQL 읽기·쓰기·행 잠금·flush
     models/              # SQLAlchemy ORM 저장 모델
     schemas/             # Pydantic 요청·응답 DTO
@@ -64,6 +65,7 @@ compose.yaml             # 개발용 PostgreSQL
 - DB를 사용하는 업무는 `routers → services → repositories → models` 방향을 따릅니다. 요청 의존성은 인증 서비스를 호출하고, 서비스는 필요한 ORM 객체·스키마·순수 규칙을 사용할 수 있습니다. 레포지토리는 서비스·API DTO·HTTP 계층을 import하지 않으며, 서비스·모델·스키마·규칙·보안 계산도 기능별 `routers`·`dependencies`에 의존하지 않습니다. `core`는 기능별 상위 계층을 import하지 않으며, `core/db`는 FastAPI·Starlette나 `core/http`에도 의존하지 않습니다. 기존 `core/http`의 공통 DTO와 HTTP 어댑터는 유지합니다. 엔진·세션의 생성과 정리는 `core/db/session.py`, 요청 DB 연결은 `core/http/dependencies.py`, 앱 수명과 라우터 조립은 `main.py`가 맡습니다.
 - 읽기·쓰기 DB 접근은 [함수형 레포지토리 모듈](backend.md#repository-boundary)에 둡니다. 서비스에서 ORM 필드의 업무 상태를 바꿀 수 있지만 SQL 실행·행 잠금·flush는 레포지토리를 호출합니다. API DTO는 레포지토리 결과를 받아 서비스에서 구성합니다. 별도 generic base class·interface·Unit of Work를 추가하지 않습니다. 기존 [RepositoryFactory](backend.md#repository-factory)는 생성자 주입과 독립 작업 세션에 필요할 때 사용하는 도구이며 모든 기능에 강제하지 않습니다.
 - 서비스끼리 호출할 수 있습니다. 한 업무에 속한 팀·지원·알림 변경은 같은 세션을 전달하고, 가장 바깥 쓰기 서비스가 commit·rollback을 소유합니다. 하위 서비스와 레포지토리는 commit·rollback하지 않으며, 필요한 DB 반영은 레포지토리의 flush로 처리합니다. [트랜잭션 책임](backend.md#transaction-ownership)을 유지하면서 DB 접근과 업무 판단을 분리합니다.
+- AI의 `agents`는 모델·프롬프트·읽기 도구 어댑터를 담당합니다. `services/ai → agents → services/ai_sources → 기존 도메인 services`로 연결하며 에이전트가 실행 조합/실행 제어 서비스로 역참조하거나 SQL·HTTP 프레임워크에 의존하지 않습니다. 기존 repositories·models·core의 의존 경계는 유지합니다. 실제 실행·저장·장애 흐름은 [AI 아키텍처](ai-architecture.md), 설계 결정·후속 범위는 [AI SDD](../development-plans/ai-agent.md)를 따릅니다.
 - 프론트와 백엔드는 HTTP API를 통해 연결합니다. 백엔드 DB 구조를 그대로 프론트의 내부 상태 구조로 강제하지 않습니다.
 
 ## 개발 환경

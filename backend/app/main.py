@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.agents.factory import OpenAiAgentDriver
 from app.core.config import Settings
 from app.core.db.session import create_database
 from app.core.http.handlers import register_error_handlers
+from app.routers.ai import router as ai_router
 from app.routers.application_review import router as application_review_router
 from app.routers.applications import router as applications_router
 from app.routers.auth import router as auth_router
@@ -29,6 +31,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         database = create_database(str(config.database_url))
         app.state.database = database
+        app.state.ai_driver = (
+            OpenAiAgentDriver(config)
+            if config.openai_api_key is not None
+            and config.openai_api_key.get_secret_value()
+            else None
+        )
         try:
             app.state.password_blocklist = (
                 None
@@ -41,12 +49,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
             yield
         finally:
+            if app.state.ai_driver is not None:
+                await app.state.ai_driver.model.root_async_client.close()
             await database.engine.dispose()
 
     app = FastAPI(title="서경드림온 API", lifespan=lifespan)
     app.state.settings = config
     register_error_handlers(app)
     app.include_router(health_router, prefix="/api/v1")
+    app.include_router(ai_router, prefix="/api/v1")
     app.include_router(catalogs_router, prefix="/api/v1")
     app.include_router(profiles_router, prefix="/api/v1")
     app.include_router(notifications_router, prefix="/api/v1")

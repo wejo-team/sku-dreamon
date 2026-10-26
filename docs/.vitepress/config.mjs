@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitepress";
 import { siteLink } from "./links.mjs";
@@ -29,6 +31,19 @@ export default defineConfig({
   base,
   cleanUrls: false,
   lastUpdated: true,
+  buildEnd(siteConfig) {
+    // Keep standalone SVG links at the same paths as in source Markdown.
+    const source = fileURLToPath(
+      new URL("../development/diagrams/", import.meta.url),
+    );
+    const target = path.join(siteConfig.outDir, "development/diagrams");
+    mkdirSync(target, { recursive: true });
+    for (const name of readdirSync(source)) {
+      if (name.endsWith(".svg")) {
+        copyFileSync(path.join(source, name), path.join(target, name));
+      }
+    }
+  },
   head: [
     ["meta", { name: "theme-color", content: "#087f72" }],
   ],

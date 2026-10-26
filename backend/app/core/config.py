@@ -1,6 +1,7 @@
 """환경설정을 읽고 비동기 PostgreSQL 연결에 필요한 값을 검증한다."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, HttpUrl, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,8 +16,19 @@ class Settings(BaseSettings):
     )
 
     database_url: PostgresDsn = PostgresDsn(
-        "postgresql+asyncpg://wejo:wejo@127.0.0.1:5432/wejo"
+        "postgresql+asyncpg://wejo:wejo@127.0.0.1:5432/wejo_dev"
     )
+    openai_api_key: SecretStr | None = Field(default=None, repr=False)
+    ai_model: Literal["gpt-6-luna"] = "gpt-6-luna"
+    ai_reasoning_effort: Literal["low", "medium", "high"] = "low"
+    ai_timeout_seconds: int = Field(default=90, ge=10, le=300)
+    ai_retention_seconds: int = Field(default=86400, ge=3600, le=604800)
+    ai_max_output_tokens: int = Field(default=4096, ge=256, le=8192)
+    ai_max_input_tokens: int = Field(default=18000, ge=1000, le=50000)
+    ai_max_tool_calls: int = Field(default=8, ge=1, le=20)
+    ai_max_sources: int = Field(default=30, ge=3, le=100)
+    ai_requests_per_hour: int = Field(default=30, ge=1, le=300)
+    ai_concurrent_requests: int = Field(default=2, ge=1, le=10)
     csrf_signing_key: SecretStr | None = None
     auth_allowed_origins: tuple[str, ...] = ()
     password_blocklist_path: Path | None = None

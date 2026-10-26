@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.core.config import Settings
 from app.core.db.base import Base
 from app.models import academic_units as catalog_models  # noqa: F401 -- 학사 모델 등록
+from app.models import ai_chat as ai_chat_models  # noqa: F401 -- AI 대화 저장
+from app.models import ai_runs as ai_models  # noqa: F401 -- AI 실행 메타데이터
 from app.models import applications as application_models  # noqa: F401 -- 지원 모델 등록
 from app.models import auth as auth_models  # noqa: F401 -- metadata 모델 등록
 from app.models import auth_attempts as auth_attempt_models  # noqa: F401 -- 시도 제한 등록
