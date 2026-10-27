@@ -120,11 +120,27 @@ test('취소 후 새 지원·명시적 검토·미선발·재지원 제한과 �
       'INVALID_APPLICATION_STATE',
     );
 
-    const reviewing = await changeReview(
-      leader.request,
-      application,
-      'review-start',
-    );
+    const ownerPage = await leader.newPage();
+    await ownerPage.goto(`/applicants/${application.id}`);
+    await ownerPage
+      .getByRole('button', { name: '검토 시작', exact: true })
+      .click();
+    await expect(
+      ownerPage.getByText('검토를 시작했어요.', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      ownerPage.getByRole('button', { name: '검토 시작', exact: true }),
+    ).toHaveCount(0);
+    await testInfo.attach('review-started', {
+      body: await ownerPage.screenshot({ fullPage: true }),
+      contentType: 'image/png',
+    });
+    const reviewing = (
+      await get<Data<Application>>(
+        leader.request,
+        `/applications/${application.id}`,
+      )
+    ).data;
     expect(reviewing.status).toBe('reviewing');
     const reviewedNotifications = await get<NotificationPage>(
       applicant.request,
@@ -149,14 +165,39 @@ test('취소 후 새 지원·명시적 검토·미선발·재지원 제한과 �
       applicantPage.getByText('검토 중', { exact: true }),
     ).toBeVisible();
 
-    const rejected = await changeReview(leader.request, reviewing, 'rejection');
+    await ownerPage
+      .getByRole('button', { name: '미선발 처리', exact: true })
+      .click();
+    const rejectionDialog = ownerPage.getByRole('dialog');
+    await expect(
+      rejectionDialog.getByText(
+        '미선발로 처리하면 이 지원자는 이 팀에 다시 지원할 수 없어요. 기존 지원 기록은 남아요.',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(rejectionDialog.locator(':focus')).toHaveCount(1);
+    await testInfo.attach('rejection-confirmation', {
+      body: await ownerPage.screenshot(),
+      contentType: 'image/png',
+    });
+    await rejectionDialog
+      .getByRole('button', { name: '미선발로 확정', exact: true })
+      .click();
+    await expect(
+      ownerPage.getByText('미선발된 지원서예요.', { exact: true }),
+    ).toBeVisible();
+    const rejected = (
+      await get<Data<Application>>(
+        leader.request,
+        `/applications/${application.id}`,
+      )
+    ).data;
     expect(rejected.status).toBe('rejected');
     await applicantPage.reload();
     await expect(
       applicantPage.getByText('미선발', { exact: true }),
     ).toBeVisible();
-    const ownerPage = await leader.newPage();
-    await ownerPage.goto(`/applicants/${application.id}`);
+    await ownerPage.reload();
     await expect(
       ownerPage.getByText('미선발된 지원서예요.', { exact: true }),
     ).toBeVisible();
