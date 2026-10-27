@@ -5,10 +5,10 @@ import { expect, it, vi } from 'vitest';
 import { useSaveVisibility } from '@/features/profiles/queries';
 import { createDemoRecords } from '@/features/demo/fixtures';
 import { createQueryClient } from '@/lib/query-client';
-import { queryKeys } from '@/lib/query-keys';
+import { queryKeys, resetSessionData } from '@/lib/query-keys';
 import { resetCsrfToken } from '@/lib/api';
 
-it.each(['expired', 'switched'])(
+it.each(['expired', 'switched', 'relogged'])(
   'ignores a late profile write after the session is %s',
   async (state) => {
     const db = createDemoRecords();
@@ -44,7 +44,13 @@ it.each(['expired', 'switched'])(
       });
     });
     await waitFor(() => expect(complete).toBeDefined());
-    const current = state === 'expired' ? null : nextProfile;
+    const current =
+      state === 'expired'
+        ? null
+        : state === 'relogged'
+          ? oldProfile
+          : nextProfile;
+    await resetSessionData(client);
     client.setQueryData(
       queryKeys.me,
       current ? { ...db.account, id: current.accountId } : null,

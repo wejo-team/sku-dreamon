@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@/lib/api';
 import { createQueryClient } from '@/lib/query-client';
-import { queryKeys } from '@/lib/query-keys';
+import { queryKeys, resetSessionData } from '@/lib/query-keys';
 
 const apiError = (status: number, code: string) =>
   new ApiError(status, {
@@ -98,3 +98,41 @@ describe('session expiry cache handling', () => {
     client.clear();
   });
 });
+
+it.each(['account-B', 'account-A'])(
+  'ignores a previous session mutation error after login as %s',
+  async (accountId) => {
+    const client = createQueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    client.setQueryData(queryKeys.me, { id: 'account-A' });
+    let reject!: (error: unknown) => void;
+    let started!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const oldMutation = client.getMutationCache().build(client, {
+      mutationFn: () =>
+        new Promise((_resolve, failure) => {
+          reject = failure;
+          started();
+        }),
+    });
+    const pending = oldMutation.execute(undefined).catch((error) => error);
+    await ready;
+    client.setQueryData(queryKeys.me, null);
+    await resetSessionData(client);
+    client.setQueryData(queryKeys.me, { id: accountId });
+    await resetSessionData(client);
+    client.setQueryData(queryKeys.me, { id: accountId });
+    client.setQueryData(queryKeys.myProfile, { accountId });
+    reject(apiError(401, 'UNAUTHENTICATED'));
+    await pending;
+    expect(client.getQueryData(queryKeys.me)).toEqual({ id: accountId });
+    expect(client.getQueryData(queryKeys.myProfile)).toEqual({ accountId });
+    client.clear();
+  },
+);

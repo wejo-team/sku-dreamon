@@ -24,7 +24,7 @@ import {
 } from '@/features/profiles/api';
 import type { Account } from '@/features/auth/api';
 import { ApiError } from '@/lib/api';
-import { isConflict, queryKeys } from '@/lib/query-keys';
+import { isConflict, queryKeys, sessionGeneration } from '@/lib/query-keys';
 
 // [출처 1] 아직 저장한 프로필이 없으면(404) null
 export const myProfileQueryOptions = queryOptions({
@@ -58,11 +58,13 @@ function useProfileMutation<Input>(
   const client = useQueryClient();
   return useMutation({
     mutationFn: request,
-    onSuccess: async (profile) => {
+    onMutate: () => sessionGeneration(client),
+    onSuccess: async (profile, _input, generation) => {
       // 요청 뒤 세션이 만료되거나 계정이 바뀌면 이전 사용자의 응답을 현재 캐시에 저장하지 않습니다.
       if (
+        generation !== sessionGeneration(client) ||
         client.getQueryData<Account | null>(queryKeys.me)?.id !==
-        profile.accountId
+          profile.accountId
       )
         return;
       client.setQueryData(queryKeys.myProfile, profile);

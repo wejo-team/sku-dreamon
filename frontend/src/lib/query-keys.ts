@@ -49,7 +49,17 @@ export const isConflict = (error: unknown) =>
 
 // [출처 2] 세션 전환 뒤 선택지(catalogs)를 제외한 모든 데이터를 비우고 새 세션 기준으로 다시 받습니다.
 // 팀·지원자·사람 응답은 보는 계정의 권한에 따라 달라지므로, 재조회가 403·404여도 이전 계정의 값이 남지 않게 합니다.
-export const resetSessionData = (client: QueryClient) =>
-  client.resetQueries({
+// 같은 계정의 재로그인도 별개의 인증 세션입니다. 이전 요청의 오류·응답을 구분합니다.
+const sessionGenerations = new WeakMap<QueryClient, number>();
+export const sessionGeneration = (client: QueryClient) =>
+  sessionGenerations.get(client) ?? 0;
+export const advanceSessionGeneration = (client: QueryClient) => {
+  sessionGenerations.set(client, sessionGeneration(client) + 1);
+};
+
+export const resetSessionData = (client: QueryClient) => {
+  advanceSessionGeneration(client);
+  return client.resetQueries({
     predicate: (query) => query.queryKey[0] !== 'catalogs',
   });
+};

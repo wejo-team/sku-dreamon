@@ -6,10 +6,15 @@ import {
   type QueryClientConfig,
 } from '@tanstack/react-query';
 import { ApiError, resetCsrfToken } from '@/lib/api';
-import { queryKeys } from '@/lib/query-keys';
+import {
+  advanceSessionGeneration,
+  queryKeys,
+  sessionGeneration,
+} from '@/lib/query-keys';
 
 export function createQueryClient(config: QueryClientConfig = {}) {
   let expiring = false;
+  const mutationGenerations = new WeakMap<object, number>();
   const expireSession = (error: unknown) => {
     if (
       !(error instanceof ApiError) ||
@@ -20,6 +25,7 @@ export function createQueryClient(config: QueryClientConfig = {}) {
     )
       return;
     expiring = true;
+    advanceSessionGeneration(client);
     resetCsrfToken();
     const sessionData = {
       predicate: (query: { queryKey: readonly unknown[] }) =>
@@ -45,7 +51,15 @@ export function createQueryClient(config: QueryClientConfig = {}) {
   const client = new QueryClient({
     ...config,
     queryCache: new QueryCache({ onError: expireSession }),
-    mutationCache: new MutationCache({ onError: expireSession }),
+    mutationCache: new MutationCache({
+      onMutate: (_variables, mutation) => {
+        mutationGenerations.set(mutation, sessionGeneration(client));
+      },
+      onError: (error, _variables, _context, mutation) => {
+        if (mutationGenerations.get(mutation) === sessionGeneration(client))
+          expireSession(error);
+      },
+    }),
   });
   return client;
 }
