@@ -50,6 +50,9 @@ jobs:
       - name: Check rendered links, anchors and assets
         if: steps.scope.outputs.docs == 'true'
         run: python scripts/check_docs_site.py
+      - name: Test development search refresh
+        if: steps.scope.outputs.docs == 'true'
+        run: npm run docs:test-search
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
