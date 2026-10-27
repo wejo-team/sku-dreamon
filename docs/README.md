@@ -25,6 +25,7 @@
 - 서비스명을 쓰거나 소개 문구를 작성할 때: [이름과 표기](branding.md)
 - 기획 팀원 등 GitHub가 처음인 팀원이 참여할 때: [문서 협업 시작하기](collaboration/README.md)
 - 처음 실행할 때: [로컬 실행](development/local-development.md)
+- 실제 프론트·서버·DB를 함께 검증할 때: [통합테스트와 bug bash](development/bug-bash.md)
 - 제품 화면을 구현할 때: [공식 디자인 레퍼런스](design/README.md)
 - DB와 서버 인터페이스를 검토할 때: [DB 설계](database/README.md) → [API 명세](api/README.md)
 - 명세·계획·PR을 검토할 때: [팀 작업 흐름](development/workflow.md)

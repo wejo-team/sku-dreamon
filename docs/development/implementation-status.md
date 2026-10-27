@@ -1,5 +1,22 @@
 # 구현 현황과 다음 작업
 
+## 2026-10-26 main 기준
+
+제품 기준은 [main `53c0003`](https://github.com/wejo-team/sku-dreamon/commit/53c00039427efe14c4017372b1ab77a316a3bd9a)입니다. 아래의 2026-10-25 수치·리뷰는 당시 비AI 병합 기록으로 보존합니다.
+
+| 영역 | 현재 구현 | 남은 작업 |
+| --- | --- | --- |
+| 인증·프로필·탐색·팀·지원·알림 | 비AI 서버와 화면 API 호출 연결 [#160](https://github.com/wejo-team/sku-dreamon/pull/160) | 실서버 E2E·실기기·운영 검증 [#162](https://github.com/wejo-team/sku-dreamon/issues/162) |
+| AI | 스트림·실행 제어·권한/결과 재검증·대화 저장 서버 [#157](https://github.com/wejo-team/sku-dreamon/pull/157) | 화면은 모의 응답. 프론트 연결 [#163](https://github.com/wejo-team/sku-dreamon/issues/163), 비용·품질·보존 [#164](https://github.com/wejo-team/sku-dreamon/issues/164) |
+| 개발 데이터 | 사용자 300명·학사 94개·조건부 팀/지원 시드 [#161](https://github.com/wejo-team/sku-dreamon/pull/161) | 현행 운영 학사 원장 검증 [#101](https://github.com/wejo-team/sku-dreamon/issues/101) |
+| 공고 | 공개 탐색·상세와 확인된 JSON 신규 입력 CLI | 최종 수동 탑재 방식 [#104](https://github.com/wejo-team/sku-dreamon/issues/104)·운영 경로 [#106](https://github.com/wejo-team/sku-dreamon/issues/106), 변경 정책 #50·#51 |
+| 운영 | 로컬 실행·CI·문서 게시 | 인증 운영 [#98](https://github.com/wejo-team/sku-dreamon/issues/98), 공동 HTTPS 환경·제품 배포 [#165](https://github.com/wejo-team/sku-dreamon/issues/165) |
+| 보류 정책 | 프로필 수정·모집 종료/재개·지원 상태 변경은 구현 | 모집글/지원 메시지 편집 [#166](https://github.com/wejo-team/sku-dreamon/issues/166), 탈퇴·보존 #25, 공고 요약 #38·#52 |
+
+이 커밋의 서버는 **21개 테이블·8개 migration·42개 API 경로·44개 HTTP 작업**입니다. main의 [CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40291616590)는 프론트 345개·백엔드 681개 검사를 통과했습니다. 프론트의 Vitest는 목업 검사이며 제품 E2E와 구분합니다. 실제 로컬 통합 검증의 명령·결과·한계는 [통합테스트와 bug bash](bug-bash.md)에 기록합니다. 배포환경·실제 LLM을 이번 로컬 검증으로 완료 처리하지 않습니다.
+
+## 2026-10-25 비AI 병합 기록
+
 **기준: 2026-10-25, 구현 계획 [#147](https://github.com/wejo-team/sku-dreamon/issues/147)과 PR #148~#154 검증 결과.** 기능 PR #148~#154는 독립 리뷰와 추가 직접 재검토를 거쳐 모두 `main`에 Squash merge했습니다. 서버 구현과 남은 화면 연결·운영 작업을 구분하며, 운영 배포는 수행하지 않았습니다.
 
 ## 병합한 서버 기능
@@ -56,13 +73,8 @@ AI를 제외하고 설계가 정해진 서버의 진입 기능을 구현했습�
 
 설치·명령은 [로컬 실행](local-development.md), 범위는 [테스트·CI](testing.md)를 따릅니다. 이 결과는 실제 프론트의 브라우저 통합 검증이나 운영 배포 결과가 아닙니다.
 
-## 다음 작업과 남은 경계
+## 현재 후속 작업의 원본
 
-- **제품 화면 연결:** 현재 시연 데이터 기반 화면을 실제 인증·프로필·팀·지원·알림 API에 연결하고 브라우저 흐름을 검증합니다.
-- **운영 데이터:** 실제 학사 원장과 공고 자료를 확인·적재합니다. 임의 자료를 공식 원장으로 만들지 않았습니다.
-- **인증 운영:** 실제 비밀번호 차단 목록·버전, origin·서명 키, HTTPS/reverse proxy 또는 같은 site CORS, 세션·시도 키 정리와 보존을 준비합니다. 차단 목록이 없으면 가입을 허용하지 않습니다.
-- **배포:** 마이그레이션 적용·운영 설정·관측·복구 절차와 배포 환경을 준비합니다. 이번 작업은 운영 배포를 수행하지 않았습니다.
-- **기존 보류 정책:** 모집글/지원 메시지 편집, 공고 조건 변경 영향, 계정 탈퇴·보존 등은 기존 미정 또는 MVP 제외 범위를 유지합니다.
-- **AI:** [SDD](../development-plans/ai-agent.md)에 따라 백엔드 스트림·조회 도구·실행 제어·권한/결과 재검증·메타데이터와 일반 채팅 입력·완성 답변 저장을 구현했습니다. 실제 구조는 [AI 아키텍처](ai-architecture.md)에 정리했으며 대화 조회·복원 API는 추가하지 않았습니다. 실제 Luna 도구 호출·구조화 출력·답변 스트리밍을 가상 자료로 확인했습니다. 사용자가 백엔드만 요청했으므로 프론트는 미연결이며, 구현 변경은 작업 브랜치에 반영하며 미배포 상태입니다. 운영 DB에는 새 migration을 적용하지 않았습니다.
+현재 상태는 문서 상단의 2026-10-26 표와 연결된 이슈를 따릅니다. AI 구조는 [SDD](../development-plans/ai-agent.md)·[아키텍처](ai-architecture.md), 실행 결과는 [bug bash 기록](bug-bash.md)에서 구분합니다. 미정 정책을 구현 완료나 운영 배포로 표시하지 않습니다.
 
 이전 PR #123~#146의 모델·조회·지원 상태 변경 기반은 유지합니다. 기존 기록은 [이전 구현 현황 문서](https://github.com/wejo-team/sku-dreamon/blob/ad423ca8d56118d5d95c75bbe4e8081a5f950707/docs/development/implementation-status.md)와 각 PR에서 확인할 수 있습니다.

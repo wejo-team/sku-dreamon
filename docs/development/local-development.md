@@ -76,7 +76,7 @@ uv run python -m scripts.seed_dev_data --apply
 uv run python -m scripts.seed_dev_data --users-only --apply
 ```
 
-계정은 `devuser001`~`devuser300`, 개발용 공통 비밀번호는 `WejoDev2026!Demo`입니다. 공개 프로필 240개와 비공개 60개, 관심 분야·역할·역량·경험·선택 포트폴리오를 생성합니다. 이름과 경력은 가상이며, 포트폴리오는 `example.com` 예시 URL입니다. 계정별 비밀번호는 서로 다른 salt의 Argon2id 해시로 저장합니다. 이 계정은 실제 백엔드 인증용이며 프론트 시연 화면의 고정 데모 로그인 계정과 다릅니다. 프론트에서 사용하려면 실제 인증 API 연결과 HTTPS·CSRF 설정이 필요합니다.
+계정은 `devuser001`~`devuser300`, 개발용 공통 비밀번호는 `WejoDev2026!Demo`입니다. 공개 프로필 240개와 비공개 60개, 관심 분야·역할·역량·경험·선택 포트폴리오를 생성합니다. 이름과 경력은 가상이며, 포트폴리오는 `example.com` 예시 URL입니다. 계정별 비밀번호는 서로 다른 salt의 Argon2id 해시로 저장합니다. 이 계정은 실제 백엔드 인증용이며 프론트 시연 화면의 고정 데모 로그인 계정과 다릅니다. 프론트에서 사용하려면 실제 서버 모드 전환과 HTTPS·CSRF 설정이 필요합니다.
 
 공통 카탈로그 7종은 서버 enum을 사용하므로 별도 코드 테이블을 적재하지 않습니다. 학사 데이터는 [학사 명세의 31행 이관 목록](../specs/academic-structure.md#catalog)을 읽어 단과대학 6개·학부/학과 31개·전공 57개, 총 94개를 `academic_units`에 넣습니다. 이름과 부모 관계를 보존하고, 동명 학과를 합치거나 `전공 미배정` 항목을 만들지 않습니다. 이번 적재는 **문서 목록을 사용하는 로컬 개발·시연용**이며, 문서의 현행 학년도·공식 원장 검증이 완료되었다는 뜻은 아닙니다. 기존 경로가 한 개라면 ID를 재사용하고, 중복 경로나 비활성 항목을 만나면 임의 변경 없이 실패합니다.
 
@@ -84,20 +84,20 @@ uv run python -m scripts.seed_dev_data --users-only --apply
 
 고정 UUID는 [시연 데이터 목록](../../backend/app/core/demo_data.py)에서 관리하며 API의 `isDemo`에 반영합니다. 재실행은 기존 시드 계정·팀을 건너뛰고 사용자가 편집한 프로필이나 상태를 보존합니다. 일반 계정을 덮어쓰거나 기존 데이터를 지우지 않으며, 한 실행에서 발생한 오류는 해당 실행 전체를 롤백합니다. 동시 시드 실행은 PostgreSQL advisory lock으로 직렬화합니다.
 
-인증 HTTP는 가입·로그인·CSRF 조회·본인 계정 조회·로그아웃을 제공하며, 화면 연결은 별도 작업입니다. 전체 API 구현 범위는 [API 인덱스](../api/README.md)를 따릅니다. 인증 관련 요청을 검증할 환경에서는 `.env`의 `CSRF_SIGNING_KEY`에 32바이트 이상의 난수 키를 주입하고 `AUTH_ALLOWED_ORIGINS`에 정확한 HTTPS origin 목록을 설정합니다. 설정 형식은 [환경변수 예시](../../backend/.env.example), 검증은 [Settings](../../backend/app/core/config.py), 쿠키 속성은 [인증 쿠키 코드](../../backend/app/routers/auth_cookies.py)를 확인합니다.
+인증 HTTP는 가입·로그인·CSRF 조회·본인 계정 조회·로그아웃을 제공하며, 비AI 화면은 API 호출에 연결되어 있습니다. 전체 API 구현 범위는 [API 인덱스](../api/README.md)를 따릅니다. 인증 검증에는 `.env`의 `CSRF_SIGNING_KEY`에 32바이트 이상의 난수 키를 주입하고 `AUTH_ALLOWED_ORIGINS`에 정확한 HTTPS origin 목록을 설정합니다. 신규 가입에는 `PASSWORD_BLOCKLIST_PATH`·`PASSWORD_BLOCKLIST_VERSION`도 필요합니다. 설정 형식은 [환경변수 예시](../../backend/.env.example), 검증은 [Settings](../../backend/app/core/config.py), 쿠키 속성은 [인증 쿠키 코드](../../backend/app/routers/auth_cookies.py)를 확인합니다. 별도 DB·HTTPS·가상 자료를 함께 준비하는 명령은 [통합테스트와 bug bash](bug-bash.md)에 있습니다.
 
 ## 프론트엔드 — 별도 터미널
 
 ```bash
 cd frontend
-cp .env.example .env
+cp -n .env.example .env
 npm ci
 npm run dev
 ```
 
-`http://localhost:5173`에서 화면 시연 앱을 엽니다. 현재 로그인·프로필·팀·지원 등은 `DemoProvider`의 메모리 예시 데이터를 사용합니다. 실제 백엔드 연결 확인 화면은 `http://localhost:5173/health`이며, Vite 개발 서버가 `/api` 요청을 백엔드 8000 포트로 전달합니다. 연결 실패 시 오류를 표시하고 다시 확인할 수 있습니다. 화면별 API 연결은 후속 작업이며 [구현 현황](implementation-status.md)에서 구분합니다.
+`http://localhost:5173`에서 화면을 엽니다. `.env.example`의 기본값 `VITE_API_MOCK=true`는 메모리 목업 API를 사용합니다. 인증·프로필·탐색·팀·지원·알림의 화면 API 계층은 연결됐으며, 실제 서버 검증에는 `VITE_API_MOCK=false`와 HTTPS 설정 후 개발 서버를 재시작합니다. AI 화면은 아직 모의 응답입니다. [구현 현황](implementation-status.md)에서 구분합니다.
 
-`VITE_API_BASE_URL`은 브라우저에 노출되는 API 경로입니다. `API_PROXY_TARGET`은 Vite 개발 서버만 사용합니다. 위 HTTP 주소는 화면 시연·연결 확인용이며 현재 프론트에 가입·로그인 흐름이 연결된 것은 아닙니다. 서버의 인증 쿠키는 `Secure`를 유지하므로 브라우저 인증 검증에는 HTTPS 구성이 필요합니다. 운영 API 연결 방식·도메인·CORS와 로컬 HTTPS 구성은 후속 범위이며, 인증 전송 설계는 별도 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)에서 확인합니다.
+`VITE_API_BASE_URL`은 브라우저에 노출되는 API 경로입니다. `API_PROXY_TARGET`은 Vite 개발 서버만 사용하며 기본값은 백엔드 8000 포트입니다. `DEV_HTTPS_CERT`·`DEV_HTTPS_KEY`를 모두 지정하면 HTTPS로 실행합니다. 서버의 Secure 쿠키·CSRF 검사는 유지하므로 HTTP 화면 시연을 실제 인증 검증으로 취급하지 않습니다. `/health`는 연결 확인 화면이며 DB 준비·인증 성공을 보장하지 않습니다. 실제 HTTPS 프록시 실행은 [bug bash 안내](bug-bash.md), 전송 계약은 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)를 따릅니다.
 
 ## 검사
 
@@ -151,7 +151,7 @@ uv run pytest
 
 AI 백엔드는 `backend/.env`의 `OPENAI_API_KEY`를 읽습니다. 키는 Python 파일·프론트 환경변수에 넣지 않으며 `.env`는 Git에서 제외합니다. `uv sync --locked` 후 `uv run alembic upgrade head`로 AI 실행 메타데이터 migration까지 적용하고 서버를 실행합니다. 실제 서버에는 이전과 같은 HTTPS Origin·CSRF·세션 쿠키가 필요합니다.
 
-모델은 `gpt-6-luna`, Responses API, `store=False`로 연결합니다. 키가 없으면 일반 서버는 시작하지만 AI 생성 요청은 503을 반환합니다. 프론트 로그인·AI 화면은 이번 백엔드 작업에 연결하지 않았습니다. 정확한 경로·본문·SSE 이벤트는 [AI API](../api/ai.md)와 실행 앱의 `/docs`·`/openapi.json`에서 확인합니다.
+모델은 `gpt-6-luna`, Responses API, `store=False`로 연결합니다. 키가 없으면 일반 서버는 시작하지만 AI 생성 요청은 503을 반환합니다. 로그인 등 비AI 화면은 API에 연결됐으며, AI 화면의 실제 SSE 연결은 [#163](https://github.com/wejo-team/sku-dreamon/issues/163)의 후속 작업입니다. 정확한 경로·본문·SSE 이벤트는 [AI API](../api/ai.md)와 실행 앱의 `/docs`·`/openapi.json`에서 확인합니다.
 
 | 설정 | 기본값 | 의미 |
 | --- | --- | --- |
