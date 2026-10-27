@@ -28,7 +28,7 @@ import {
   Plus,
   RotateCcw,
 } from 'lucide-react';
-import { Link, useLocation, useParams } from 'react-router';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { z } from 'zod';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -61,6 +61,7 @@ import {
 } from '@/features/profiles/queries';
 import {
   myTeamsQueryOptions,
+  allMyTeamsQueryOptions,
   teamQueryOptions,
   teamSpaceQueryOptions,
   useRecruitmentAction,
@@ -69,6 +70,7 @@ import {
   applicantQueryOptions,
   applicantsQueryOptions,
   myApplicationsQueryOptions,
+  allMyApplicationsQueryOptions,
   useApply,
   useCancelApplication,
   useRejectApplication,
@@ -90,6 +92,12 @@ import {
   SchoolVerificationBadge,
   TeamStatusBadge,
 } from '@/components/common/CommonUi';
+import { ListPagination } from '@/components/common/ListPagination';
+import {
+  requestedPage,
+  REFERENCE_PAGE_SIZE,
+  useListPage,
+} from '@/components/common/use-list-page';
 import { ProfileDetails } from '@/components/common/ProfileDetails';
 import { ProfileVisibilityControl } from '@/features/account/AccountPages';
 import { ApplicantReview } from '@/features/teams/ApplicantReview';
@@ -290,18 +298,26 @@ export function WorkspacePage() {
   const session = useSession();
   const { roleLabel } = useLabels();
   const location = useLocation();
+  const [params] = useSearchParams();
+  const page = requestedPage(params);
   const showApplications =
     new URLSearchParams(location.search).get('view') === 'applications';
   const myTeams = useQuery({
-    ...myTeamsQueryOptions(),
+    ...myTeamsQueryOptions({ page, pageSize: REFERENCE_PAGE_SIZE }),
     enabled: session.signedIn,
   });
   // [출처 8] 내 지원은 서버의 최신 접수순(submittedAt DESC, id DESC)
   const myApplications = useQuery({
-    ...myApplicationsQueryOptions(),
+    ...myApplicationsQueryOptions({ page, pageSize: REFERENCE_PAGE_SIZE }),
     enabled: session.signedIn,
   });
   const cancel = useCancelApplication();
+  const list = showApplications ? myApplications : myTeams;
+  const { totalPages, hrefForPage, headingRef } = useListPage(
+    list.data?.pagination.total ?? 0,
+    'page',
+    !!list.data,
+  );
   if (session.isPending) return <Loading />;
   if (!session.signedIn)
     return (
@@ -312,7 +328,6 @@ export function WorkspacePage() {
         />
       </div>
     );
-  const list = showApplications ? myApplications : myTeams;
   const applications = myApplications.data?.data ?? [];
   const teams = myTeams.data?.data ?? [];
   return (
@@ -321,6 +336,8 @@ export function WorkspacePage() {
       <header className="workspace-heading">
         <div className="workspace-section-summary">
           <h2
+            ref={headingRef}
+            tabIndex={-1}
             id={
               showApplications
                 ? 'workspace-applications-title'
@@ -548,6 +565,14 @@ export function WorkspacePage() {
             </div>
           )}
         </section>
+      )}
+      {!list.isError && list.data && totalPages > 1 && (
+        <ListPagination
+          page={list.data.pagination.page}
+          totalPages={totalPages}
+          hrefForPage={hrefForPage}
+          label={showApplications ? '내 지원 페이지' : '내 팀 페이지'}
+        />
       )}
     </div>
   );
@@ -779,13 +804,20 @@ function TeamSpaceView({
   currentPath: string;
   management: boolean;
 }) {
+  const [params] = useSearchParams();
+  const page = requestedPage(params);
   const { roleLabel } = useLabels();
   const { account } = useSession();
   // [출처 8] 팀장이 받은 지원(서버의 최신 접수순)
   const applicants = useQuery({
-    ...applicantsQueryOptions(team.id),
+    ...applicantsQueryOptions(team.id, { page, pageSize: REFERENCE_PAGE_SIZE }),
     enabled: management && isLeader,
   });
+  const { totalPages, hrefForPage, headingRef } = useListPage(
+    applicants.data?.pagination.total ?? 0,
+    'page',
+    management && !!applicants.data,
+  );
   return (
     <div className="preview-detail preview-stack workspace-team-space">
       <BackLink to={from}>{returnLabel(from)}</BackLink>
@@ -816,7 +848,9 @@ function TeamSpaceView({
           aria-labelledby="team-applicants-title"
         >
           <div className="preview-section-title">
-            <h2 id="team-applicants-title">지원자 관리</h2>
+            <h2 id="team-applicants-title" ref={headingRef} tabIndex={-1}>
+              지원자 관리
+            </h2>
             <span className="preview-muted">검토 대기 {pendingCount}명</span>
           </div>
           {applicants.isError ? (
@@ -863,6 +897,14 @@ function TeamSpaceView({
                 </li>
               ))}
             </ul>
+          )}
+          {!applicants.isError && applicants.data && totalPages > 1 && (
+            <ListPagination
+              page={applicants.data.pagination.page}
+              totalPages={totalPages}
+              hrefForPage={hrefForPage}
+              label="지원자 목록 페이지"
+            />
           )}
           <p className="preview-muted">
             선발하면 즉시 팀원이 확정되고 남은 자리가 줄어요.
@@ -959,7 +1001,7 @@ export function TeamPage() {
       );
     if (space.isPending) return <Loading />;
     const forbidden =
-      statusOf(space.error) === 403 ||
+      [403, 404].includes(statusOf(space.error) ?? 0) ||
       (space.data &&
         view === 'applicants' &&
         space.data.viewerRole !== 'leader');
@@ -977,7 +1019,8 @@ export function TeamPage() {
           />
         </div>
       );
-    if (!space.data) return <LoadError onRetry={() => void space.refetch()} />;
+    if (space.isError || !space.data)
+      return <LoadError onRetry={() => void space.refetch()} />;
     return (
       <TeamSpaceView
         team={space.data.team}
@@ -1012,11 +1055,11 @@ function TeamRecruitmentDetail({
   const { roleOptions, roleLabel } = useLabels();
   const session = useSession();
   const myApplications = useQuery({
-    ...myApplicationsQueryOptions(),
+    ...allMyApplicationsQueryOptions(),
     enabled: session.signedIn,
   });
   const myTeams = useQuery({
-    ...myTeamsQueryOptions(),
+    ...allMyTeamsQueryOptions(),
     enabled: session.signedIn,
   });
   const myProfile = useQuery({
@@ -1029,12 +1072,13 @@ function TeamRecruitmentDetail({
   const requestId = useRef(crypto.randomUUID());
   const [completed, setCompleted] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  // 이 팀에 대한 본인의 최신 유효 기록(취소 제외)
-  const existingApplication = myApplications.data?.data.find(
+  // 이 팀에 대한 본인의 최신 유효 기록(취소·폐기 제외)
+  const existingApplication = myApplications.data?.find(
     ({ application }) =>
-      application.teamId === team.id && application.status !== 'canceled',
+      application.teamId === team.id &&
+      !['canceled', 'discarded'].includes(application.status),
   )?.application;
-  const member = !!myTeams.data?.data.some((item) => item.team.id === team.id);
+  const member = !!myTeams.data?.some((item) => item.team.id === team.id);
   const profile = myProfile.data ?? null;
   const missing = profile
     ? missingProfileFields(profile)
@@ -1095,6 +1139,14 @@ function TeamRecruitmentDetail({
           </>
         ) : loading ? (
           <Loading />
+        ) : myApplications.isError || myTeams.isError ? (
+          <LoadError
+            onRetry={() => {
+              void myApplications.refetch();
+              void myTeams.refetch();
+              void myProfile.refetch();
+            }}
+          />
         ) : member ? (
           <>
             <p>이미 함께하고 있는 팀이에요.</p>

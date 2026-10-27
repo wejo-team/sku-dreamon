@@ -22,6 +22,7 @@ import {
   type ProfileWrite,
   type VisibilityWrite,
 } from '@/features/profiles/api';
+import type { Account } from '@/features/auth/api';
 import { ApiError } from '@/lib/api';
 import { isConflict, queryKeys } from '@/lib/query-keys';
 
@@ -58,6 +59,12 @@ function useProfileMutation<Input>(
   return useMutation({
     mutationFn: request,
     onSuccess: async (profile) => {
+      // 요청 뒤 세션이 만료되거나 계정이 바뀌면 이전 사용자의 응답을 현재 캐시에 저장하지 않습니다.
+      if (
+        client.getQueryData<Account | null>(queryKeys.me)?.id !==
+        profile.accountId
+      )
+        return;
       client.setQueryData(queryKeys.myProfile, profile);
       await Promise.all(
         [['auth'], ['people'], ['teams'], ['applications']].map((queryKey) =>
