@@ -108,7 +108,7 @@ describe('workspace boundary regressions', () => {
       await settled(view.client);
     }
     expect(
-      screen.getByRole('link', { name: '검토후보0 지원서 검토' }),
+      screen.getByRole('link', { name: '검토후보0 지원서 검토, 시연 계정' }),
     ).toBeInTheDocument();
   });
 
@@ -228,7 +228,7 @@ it('shows membership beyond the first 100 teams and pages through my teams', asy
     screen.getByRole('navigation', { name: '내 팀 페이지' }),
   ).toHaveTextContent('17페이지');
   expect(
-    screen.getByRole('link', { name: `${team.name} 팀 공간으로` }),
+    screen.getByRole('link', { name: `${team.name} 팀 공간으로, 시연 팀` }),
   ).toBeInTheDocument();
 });
 
