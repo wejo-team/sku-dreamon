@@ -198,6 +198,13 @@ async def get_public_profile(
 ) -> ProfileResponse:
     """일반 상세에서는 본인·팀장 여부와 관계없이 공개된 프로필만 반환한다."""
     await _start_snapshot(session)
+    return await read_public_profile(session, account_id)
+
+
+async def read_public_profile(
+    session: AsyncSession, account_id: UUID
+) -> ProfileResponse:
+    """호출자의 스냅샷·잠금 안에서 공개 권한과 상세를 읽고 트랜잭션을 유지한다."""
     profile = await repository.get_profile(session, account_id, public_only=True)
     if profile is None:
         raise AppError(404, "RESOURCE_NOT_FOUND", "요청한 정보를 찾을 수 없습니다.")

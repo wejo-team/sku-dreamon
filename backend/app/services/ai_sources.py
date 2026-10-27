@@ -1,8 +1,12 @@
 """목적별 현재 권한으로 자료를 조회하고 모델 전송 필드를 제한한다."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.types import AgentContext, Reference, Resource, fingerprint
 from app.core.db.session import Database
@@ -56,12 +60,28 @@ def profile_facts(profile: ProfileResponse) -> dict[str, object]:
 
 
 class SourceReader:
-    def __init__(self, database: Database, context: AgentContext) -> None:
+    def __init__(
+        self,
+        database: Database,
+        context: AgentContext,
+        *,
+        session: AsyncSession | None = None,
+    ) -> None:
         self.database = database
         self.context = context
+        self._provided_session = session
+
+    @asynccontextmanager
+    async def _session(self) -> AsyncIterator[AsyncSession]:
+        """전송 검사는 잠금을 보유한 연결을 재사용하고 도구 조회만 세션을 연다."""
+        if self._provided_session is not None:
+            yield self._provided_session
+        else:
+            async with self.database.session() as session:
+                yield session
 
     async def require_session(self) -> None:
-        async with self.database.session() as session:
+        async with self._session() as session:
             row = await run_repository.session_record(
                 session, self.context.principal.auth_session_id
             )
@@ -96,7 +116,7 @@ class SourceReader:
         raise AppError(404, "RESOURCE_NOT_FOUND", "요청한 정보를 찾을 수 없습니다.")
 
     async def _contest(self, resource_id: UUID) -> Resource:
-        async with self.database.session() as session:
+        async with self._session() as session:
             value = await contests.get_contest_detail(session, resource_id)
         facts = value.model_dump(mode="json", include=_CONTEST_FIELDS)
         return Resource(
@@ -113,7 +133,7 @@ class SourceReader:
         )
 
     async def _team(self, resource_id: UUID) -> Resource:
-        async with self.database.session() as session:
+        async with self._session() as session:
             value = await teams.get_team_detail(session, resource_id)
             eligible = value.is_recruiting and await run_repository.can_recommend_team(
                 session, value.id, value.contest_id, self.context.principal.account_id
@@ -137,8 +157,12 @@ class SourceReader:
         )
 
     async def _person(self, resource_id: UUID) -> Resource:
-        async with self.database.session() as session:
-            value = await profiles.get_public_profile(session, resource_id)
+        async with self._session() as session:
+            value = (
+                await profiles.get_public_profile(session, resource_id)
+                if self._provided_session is None
+                else await profiles.read_public_profile(session, resource_id)
+            )
         facts = profile_facts(value)
         return Resource(
             reference=Reference(
@@ -156,17 +180,20 @@ class SourceReader:
         )
 
     async def _applicant(self, resource_id: UUID) -> Resource:
-        async with self.database.session() as session:
-            value = await application_review.get_applicant(
-                session, resource_id, self.context.principal.account_id
+        async with self._session() as session:
+            read = (
+                application_review.get_applicant
+                if self._provided_session is None
+                else application_review.read_applicant
             )
+            value = await read(session, resource_id, self.context.principal.account_id)
         application = value.application
         if (
             self.context.team_id is not None
             and application.team_id != self.context.team_id
         ):
             raise AppError(404, "RESOURCE_NOT_FOUND", "요청한 정보를 찾을 수 없습니다.")
-        async with self.database.session() as session:
+        async with self._session() as session:
             team = await teams.get_team_detail(session, application.team_id)
         facts: dict[str, object] = {
             "profile": profile_facts(value.profile),
