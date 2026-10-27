@@ -165,7 +165,7 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 
 - [최초 공개 조건](contests.md#publication-policy), 마감·정원·공모전별 소속 제한과 기존 추천·접수·선발 조건을 동일하게 적용합니다. 참가 자격은 원문 확인 안내를 제공하고 비즈니스 로직으로 차단하지 않는 최신 정책을 적용합니다. 혼합 허용으로 LLM 내부 아키텍처를 확정하지 않습니다.
 - [자체 로그인·시연 계정 안내](authentication.md#demo-auth), 프로필 공개 범위와 팀 공간 접근 권한을 유지합니다. 시연 계정이라는 이유로 인증이나 관계별 권한을 우회하지 않습니다.
-- 사용자에게 계정·공고·팀을 보여 주고 추천·지원·선발하는 흐름에서 시연용임을 구분해 안내합니다. 시연 데이터를 실제 모집이나 교내 인증 완료로 오해하게 표시하지 않습니다. 표시 연결은 [#171](https://github.com/wejo-team/sku-dreamon/issues/171) 작업 브랜치에서 서버 `isDemo`에 따른 `시연 계정`·`시연 공고`·`시연 팀` 배지로 구현·검증했습니다. 목록·상세·본인 프로필·팀 공간·지원자/팀원과 결정 안내에 적용하며, 아직 후속 PR 병합 전입니다. 해당 DTO에 시연 필드가 없으면 이름·ID로 추정하지 않습니다.
+- 사용자에게 계정·공고·팀을 보여 주고 추천·지원·선발하는 흐름에서 시연용임을 구분해 안내합니다. 시연 데이터를 실제 모집이나 교내 인증 완료로 오해하게 표시하지 않습니다. 표시 연결은 [PR #177](https://github.com/wejo-team/sku-dreamon/pull/177)에서 서버 `isDemo`에 따른 `시연 계정`·`시연 공고`·`시연 팀` 배지로 구현·검증해 병합했습니다. 목록·상세·본인 프로필·팀 공간·지원자/팀원과 결정 안내에 적용합니다. 해당 DTO에 시연 필드가 없으면 이름·ID로 추정하지 않습니다.
 
 2026-10-21 사용자 결정으로 시연 데이터는 시드 정의의 **대상 종류·고정 UUID 목록**으로 식별하며, 계정·공고·팀 테이블에 `is_demo` 컬럼을 두지 않습니다. 서버는 같은 목록에서 API의 `isDemo`를 계산하고, 이름·로그인 아이디의 네이밍 규칙은 사람이 알아보는 보조 수단으로만 사용합니다. 시드 적재와 표시 판정이 같은 UUID 목록을 참조하도록 하며, 이름을 바꾸어도 시연 여부는 바뀌지 않습니다.
 
@@ -218,7 +218,7 @@ PDF에는 일정의 연도가 명시되어 있지 않습니다. 이 표는 원�
 | 공고 등록·관리 및 AI 요약 | [최초 공개 조건](contests.md#publication-policy)은 정의됨. [요약 사용처·필요성·MVP 포함 여부](contests.md#summary-scope)는 TBD이며 AI 연동은 이후 결정. 관리자 등록·수정·확인 책임은 확정하고 등록자·수정자 이력은 [MVP 제외](contests.md#operation-flow). 확인된 JSON 신규 적재 CLI는 구현. 운영 수집·갱신·관리자 계정/인증/권한 저장·권한 부여/회수·관리자 페이지·재확인 방식은 [공고 미정 사항](contests.md#open-questions) |
 | 매칭 기준 | [LLM 추천 전환](matching.md#policy-decisions)으로 기존 규칙·산식 제외. 백엔드 모델·실행·조회 도구·API·저장·검증은 구현. 실제 AI 화면 연결·자료 품질·운영 보존/배포는 [후속 범위](matching.md#open-questions) |
 | 프로필 공개 범위 | 기본 비공개인 전체 프로필 상태를 [설명·확인 후 전환](profile.md#visibility-changes). 지원 팀장은 비공개여도 전체 현재 프로필을 열람하며 [취소·미선발 후 관계도 유지](profile.md#former-applicant-visibility). 기록 보존·탈퇴 등은 [프로필 미정 사항](profile.md#open-questions) |
-| 로그인·지원 진입·AI·시연 데이터 | [공개 탐색과 로그인 필요 행동](authentication.md#access-policy), [지원 직전 필수 정보 점검](profile.md#before-application), [실제·시연 데이터 상호작용](#demo-data-scope)은 정의됨. 참가 자격을 비즈니스 로직으로 제한하지 않고 원문 확인을 안내하며, 공개 프로필·마감·정원 등 나머지 제한은 유지. [기본 로그인 유지·가입 후 자동 로그인](authentication.md#session-policy)과 [실패·만료 단순 안내](authentication.md#auth-failures)는 확정, 계정 복구는 [MVP 제외](authentication.md#account-recovery). 인증의 구현된 시도 제한과 운영 세션 정리 등 [남은 결정](authentication.md#open-questions)을 구분. AI 실제 화면 연결·공고 요약·시연 데이터 선정/준비/정리는 후속이며 시연 표시 연결은 [#171의 병합 전 검증 범위](#demo-data-scope)로 구분 |
+| 로그인·지원 진입·AI·시연 데이터 | [공개 탐색과 로그인 필요 행동](authentication.md#access-policy), [지원 직전 필수 정보 점검](profile.md#before-application), [실제·시연 데이터 상호작용](#demo-data-scope)은 정의됨. 참가 자격을 비즈니스 로직으로 제한하지 않고 원문 확인을 안내하며, 공개 프로필·마감·정원 등 나머지 제한은 유지. [기본 로그인 유지·가입 후 자동 로그인](authentication.md#session-policy)과 [실패·만료 단순 안내](authentication.md#auth-failures)는 확정, 계정 복구는 [MVP 제외](authentication.md#account-recovery). 인증의 구현된 시도 제한과 운영 세션 정리 등 [남은 결정](authentication.md#open-questions)을 구분. AI 실제 화면 연결·공고 요약·시연 데이터 선정/준비/정리는 후속이며 시연 표시 연결은 [병합·검증한 표시 범위](#demo-data-scope)로 구분 |
 | 웹 구현 범위 | 위 주요 화면과 모바일 웹 기준을 적용. 시연 URL·대상 브라우저 버전·기기 목록은 미정 |
 
 <a id="source-coverage"></a>
