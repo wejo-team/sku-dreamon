@@ -11,6 +11,7 @@ import {
   createAccount,
   createTeam,
   selectContest,
+  captureLayout,
   type Application,
   type Data,
   type ResourceTracker,
@@ -338,14 +339,27 @@ test('같은 공고의 다른 대기 지원 폐기·소속 제한·취소 후 �
     await expect(
       page.getByText('선발 · 팀원 확정', { exact: true }),
     ).toBeVisible();
-    const cancellation = await write(
-      applicant.request,
-      'PUT',
-      `/applications/${selected.id}/cancellation`,
-      { expectedVersion: selected.version },
+    const selectedCard = page
+      .locator('.workspace-application-list > li')
+      .filter({
+        has: page.getByRole('heading', { name: teamA.name, exact: true }),
+      });
+    await selectedCard
+      .getByRole('button', { name: '지원 취소', exact: true })
+      .click();
+    const cancellationResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/applications/${selected.id}/cancellation`) &&
+        response.request().method() === 'PUT',
     );
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: '지원 취소하기', exact: true })
+      .click();
+    const cancellation = await cancellationResponse;
     expect(cancellation.status()).toBe(200);
     expect((await cancellation.json()).data.membershipEnded).toBe(true);
+    await expect(page.getByText('지원 취소', { exact: true })).toBeVisible();
     expect(
       (
         await get<Data<Application>>(
@@ -354,7 +368,46 @@ test('같은 공고의 다른 대기 지원 폐기·소속 제한·취소 후 �
         )
       ).data,
     ).toEqual(discarded);
-    const reapplication = await submit(applicant.request, teamB.id, resources);
+    await page.goto(`/teams/${teamB.id}`);
+    await page.getByRole('radio', { name: '디자인', exact: true }).click();
+    await page
+      .getByLabel(/팀에 전할 말/)
+      .fill(`폐기 후 화면 재지원 ${resources.runId}`);
+    const newApplicationResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/teams/${teamB.id}/applications`) &&
+        response.request().method() === 'POST',
+    );
+    await page
+      .getByRole('button', { name: '이 팀에 지원하기', exact: true })
+      .click();
+    const created = await newApplicationResponse;
+    expect(created.status()).toBe(201);
+    const reapplication: Application = (await created.json()).data;
+    await resources.created('application', reapplication.id, {
+      teamId: teamB.id,
+      accountId: reapplication.applicantAccountId,
+    });
+    await expect(
+      page.getByText('지원이 완료됐어요', { exact: true }),
+    ).toBeVisible();
+    await captureLayout(page, testInfo, 'discarded-reapplication-complete');
+    expect(
+      (
+        await get<Data<Application>>(
+          applicant.request,
+          `/applications/${discarded.id}`,
+        )
+      ).data,
+    ).toEqual(discarded);
+    expect(
+      (
+        await get<Data<Application>>(
+          applicant.request,
+          `/applications/${reapplication.id}`,
+        )
+      ).data,
+    ).toEqual(reapplication);
     expect(reapplication.id).not.toBe(discarded.id);
     expect(reapplication.status).toBe('submitted');
     expect(
@@ -376,5 +429,161 @@ test('같은 공고의 다른 대기 지원 폐기·소속 제한·취소 후 �
     ).toHaveLength(1);
   } finally {
     await Promise.all(contexts.map((context) => context.close()));
+  }
+});
+
+// 서버 로그아웃으로 실제 세션을 회수한 뒤, 화면에 남은 캐시가 인증 실패로 제거되는지 확인합니다.
+test('세션 회수 후 401은 캐시된 팀 공간을 숨기고 재로그인을 안내한다', async ({
+  browser,
+  resources,
+}, testInfo) => {
+  const owner = await browser.newContext({
+    ...testInfo.project.use,
+    baseURL,
+    ignoreHTTPSErrors: true,
+  });
+  try {
+    const contest = await selectContest(owner.request, resources);
+    await createAccount(owner.request, resources);
+    const team = await createTeam(owner.request, contest, resources);
+    const page = await owner.newPage();
+    await page.goto(`/teams/${team.id}?view=space`);
+    await expect(
+      page.getByRole('region', { name: '확정된 팀원' }),
+    ).toBeVisible();
+    expect((await write(owner.request, 'POST', '/auth/logout')).status()).toBe(
+      204,
+    );
+    const deniedSpace = await owner.request.get(
+      `/api/v1/teams/${team.id}/space`,
+    );
+    expect(deniedSpace.status()).toBe(401);
+    expect((await deniedSpace.json()).error.code).toBe('UNAUTHENTICATED');
+    // 화면 새로고침 없이 기존 팀 공간의 조작을 사용해 인증 실패를 전달합니다.
+    await page.getByRole('button', { name: '모집 종료', exact: true }).click();
+    const failure = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/teams/${team.id}/recruitment/closure`) &&
+        response.request().method() === 'PUT',
+    );
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: '모집 종료하기', exact: true })
+      .click();
+    expect((await failure).status()).toBe(401);
+    await expect(page.getByRole('region', { name: '확정된 팀원' })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByRole('link', { name: '로그인하기', exact: true }),
+    ).toBeVisible();
+    expect(
+      (
+        await get<Data<{ recruitmentState: string }>>(
+          owner.request,
+          `/teams/${team.id}`,
+        )
+      ).data.recruitmentState,
+    ).toBe('open');
+    await captureLayout(page, testInfo, 'session-revoked-team-space');
+  } finally {
+    await owner.close();
+  }
+});
+
+// 오류 응답만 브라우저에서 주입하고 재시도는 동일한 실제 API·DB로 복구합니다.
+test('알림 503 조회 실패는 빈 목록과 구분하고 필터를 유지하며 실제 API로 복구한다', async ({
+  browser,
+  resources,
+}, testInfo) => {
+  const owner = await browser.newContext({
+    ...testInfo.project.use,
+    baseURL,
+    ignoreHTTPSErrors: true,
+  });
+  const applicant = await browser.newContext({
+    ...testInfo.project.use,
+    baseURL,
+    ignoreHTTPSErrors: true,
+  });
+  try {
+    const contest = await selectContest(owner.request, resources);
+    await createAccount(owner.request, resources);
+    await createAccount(applicant.request, resources, true);
+    const team = await createTeam(owner.request, contest, resources);
+    const application = await submit(applicant.request, team.id, resources);
+    const before = await get<NotificationPage>(
+      owner.request,
+      '/me/notifications',
+    );
+    expect(
+      before.data.some((notice) => notice.applicationId === application.id),
+    ).toBe(true);
+    const page = await owner.newPage();
+    let failing = true;
+    await page.route('**/api/v1/me/notifications*', (route) =>
+      failing &&
+      route.request().method() === 'GET' &&
+      !route.request().url().includes('unreadOnly=true')
+        ? route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              error: { code: 'UNAVAILABLE', message: 'E2E 일시 조회 오류' },
+              requestId: `e2e-${resources.runId}`,
+            }),
+          })
+        : route.continue(),
+    );
+    await page.goto('/workspace');
+    await page.getByRole('button', { name: /^알림/ }).click();
+    const inbox = page.getByRole('dialog', { name: '알림', exact: true });
+    await expect(inbox.getByRole('alert')).toContainText(
+      '알림을 불러오지 못했어요',
+    );
+    await expect(
+      inbox.getByText('아직 알림이 없어요', { exact: true }),
+    ).toHaveCount(0);
+    const unreadResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/me/notifications?') &&
+        response.url().includes('unreadOnly=true') &&
+        response.status() === 200,
+    );
+    await inbox.getByRole('button', { name: /읽지 않음/ }).click();
+    expect(
+      ((await (await unreadResponse).json()) as NotificationPage).unreadCount,
+    ).toBe(before.unreadCount);
+    await expect(inbox.getByRole('list', { name: '알림 목록' })).toBeVisible();
+    await expect(inbox.getByRole('status')).toHaveText(
+      `읽지 않은 알림 ${before.unreadCount}개`,
+    );
+    await expect(inbox.getByRole('alert')).toContainText(
+      '알림을 불러오지 못했어요',
+    );
+    await captureLayout(page, testInfo, 'notifications-query-error');
+    failing = false;
+    const recovered = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/me/notifications?') &&
+        !response.url().includes('unreadOnly=true') &&
+        response.status() === 200,
+    );
+    await inbox.getByRole('button', { name: '다시 시도', exact: true }).click();
+    const actual = (await (await recovered).json()) as NotificationPage;
+    expect(
+      actual.data.some((notice) => notice.applicationId === application.id),
+    ).toBe(true);
+    await expect(inbox.getByRole('alert')).toHaveCount(0);
+    await expect(
+      inbox.getByRole('button', { name: /읽지 않음/ }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(inbox.getByRole('list', { name: '알림 목록' })).toBeVisible();
+    expect(
+      await get<NotificationPage>(owner.request, '/me/notifications'),
+    ).toEqual(before);
+    await captureLayout(page, testInfo, 'notifications-query-recovered');
+  } finally {
+    await Promise.all([owner.close(), applicant.close()]);
   }
 });

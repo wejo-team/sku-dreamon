@@ -81,7 +81,11 @@ function NotificationInbox() {
   const provided = [all, unreadList].flatMap(
     (list) => list.data?.pages.flatMap((page) => page.data) ?? [],
   );
-  const unreadCount = signedIn ? (all.data?.pages[0]?.unreadCount ?? 0) : 0;
+  // 미읽음 수도 모든 필터 응답에 포함됩니다. 한 조회가 실패해도 더 최근의 성공 응답을 사용합니다.
+  const countPage = [all, unreadList]
+    .sort((left, right) => right.dataUpdatedAt - left.dataUpdatedAt)
+    .find((list) => list.data)?.data?.pages[0];
+  const unreadCount = signedIn ? (countPage?.unreadCount ?? 0) : 0;
   const totalCount = all.data?.pages[0]?.pagination.total ?? 0;
   const location = useLocation();
   const navigate = useNavigate();
@@ -251,7 +255,26 @@ function NotificationInbox() {
               읽지 않은 알림 {unreadCount}개
             </p>
             <div className="preview-notifications-body">
-              {visible.length ? (
+              {(active.isError || all.isError) && (
+                <Alert role="alert" className="mx-5 mb-3 w-auto">
+                  <AlertDescription>
+                    <p>알림을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-2 justify-self-start"
+                      onClick={() => {
+                        void active.refetch();
+                        if (filter === 'unread' && all.isError)
+                          void all.refetch();
+                      }}
+                    >
+                      다시 시도
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {active.isError ? null : visible.length ? (
                 <ul
                   className="preview-notifications-list"
                   aria-label="알림 목록"

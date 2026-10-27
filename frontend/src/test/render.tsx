@@ -10,7 +10,7 @@
  */
 
 import { act, render, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { expect, vi } from 'vitest';
@@ -24,6 +24,7 @@ import {
 import type { Profile } from '@/features/profiles/api';
 import { ApplicantReviewProvider } from '@/features/teams/ApplicantReviewProvider';
 import { mockFetch, resetMockApi } from '@/lib/api-mock';
+import { createQueryClient } from '@/lib/query-client';
 import { db, state } from '@/lib/api-mock/state';
 
 export { demoIds };
@@ -83,7 +84,7 @@ export function startMockApi({
 /** 테스트마다 새 QueryClient(재시도 없음)로 화면을 그립니다. */
 export function renderWithApi(ui: ReactNode, options: ApiRenderOptions = {}) {
   startMockApi(options);
-  const client = new QueryClient({
+  const client = createQueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
       mutations: { retry: false },

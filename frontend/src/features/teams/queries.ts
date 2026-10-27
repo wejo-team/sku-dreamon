@@ -7,6 +7,7 @@
  * 5. docs/api/conventions.md#versioned-action - 409 후 다시 조회, 자동 재전송 없음
  */
 
+import { allPages } from '@/lib/all-pages';
 import {
   queryOptions,
   useMutation,
@@ -61,7 +62,7 @@ export const teamSpaceQueryOptions = (teamId: string) =>
     queryFn: ({ signal }) => getTeamSpace(teamId, signal),
   });
 
-// 내 팀은 페이지 크기 최대(100)로 한 번에 받습니다(한 계정의 소속 팀은 공모전 수 이하).
+// 내 팀 목록의 번호 페이지 조회(전체 소속 판정은 allMyTeamsQueryOptions).
 export const myTeamsQueryOptions = (
   query: { page?: number; pageSize?: number } = { pageSize: 100 },
 ) =>
@@ -100,3 +101,11 @@ export function useRecruitmentAction() {
       isConflict(error) ? invalidateParticipation(client) : undefined,
   });
 }
+
+// 공개 팀 상세의 지원·소속 판단에는 페이지 밖의 현재 관계도 포함합니다.
+export const allMyTeamsQueryOptions = () =>
+  queryOptions({
+    queryKey: ['my', 'teams', 'all-for-eligibility'] as const,
+    queryFn: ({ signal }) =>
+      allPages((page) => listMyTeams({ page, pageSize: 100 }, signal)),
+  });

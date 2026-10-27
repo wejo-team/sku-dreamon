@@ -7,6 +7,7 @@
  * 5. docs/api/conventions.md#versioned-action - 409 후 다시 조회, 자동 재전송 없음
  */
 
+import { allPages } from '@/lib/all-pages';
 import {
   queryOptions,
   useMutation,
@@ -31,7 +32,7 @@ import {
   queryKeys,
 } from '@/lib/query-keys';
 
-// [출처 1, 2] 내 지원은 최대 페이지 크기로 한 번에 받습니다.
+// [출처 1, 2] 내 지원 목록의 번호 페이지 조회.
 export const myApplicationsQueryOptions = (
   query: ApplicationListQuery = { pageSize: 100 },
 ) =>
@@ -106,3 +107,11 @@ export const useSelectApplication = () =>
     ({ applicationId, expectedVersion }: VersionedInput) =>
       selectApplication(applicationId, { expectedVersion }),
   );
+
+// 공개 팀 상세의 지원·소속 판단에는 페이지 밖의 현재 관계도 포함합니다.
+export const allMyApplicationsQueryOptions = () =>
+  queryOptions({
+    queryKey: ['my', 'applications', 'all-for-eligibility'] as const,
+    queryFn: ({ signal }) =>
+      allPages((page) => listMyApplications({ page, pageSize: 100 }, signal)),
+  });
