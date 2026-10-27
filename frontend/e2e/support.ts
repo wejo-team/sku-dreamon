@@ -8,6 +8,8 @@ import {
   expect,
   type APIRequestContext,
   type Page,
+  type Locator,
+  type TestInfo,
 } from '@playwright/test';
 import type { Application } from '../src/features/applications/api';
 import type {
@@ -278,4 +280,40 @@ export async function createTeam(
     name: team.name,
   });
   return team;
+}
+
+// 표시 판정은 실제 응답의 boolean을 사용하며 이름·UUID에서 추정하지 않습니다.
+export async function expectDemoBadge(
+  scope: Page | Locator,
+  kind: 'account' | 'contest' | 'team',
+  isDemo: boolean,
+) {
+  expect(typeof isDemo).toBe('boolean');
+  const label = { account: '시연 계정', contest: '시연 공고', team: '시연 팀' }[
+    kind
+  ];
+  const badge = scope.getByText(label, { exact: true });
+  await expect(badge).toHaveCount(isDemo ? 1 : 0);
+  if (isDemo) await expect(badge).toBeVisible();
+}
+
+export async function captureLayout(
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+      {
+        message: `${name}: 페이지가 가로로 넘치면 안 됩니다`,
+      },
+    )
+    .toBeLessThanOrEqual(1);
+  await page.screenshot({
+    path: testInfo.outputPath(`${name}.png`),
+    fullPage: true,
+    animations: 'disabled',
+  });
 }

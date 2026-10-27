@@ -10,6 +10,8 @@ import {
   expect,
   get as api,
   login,
+  expectDemoBadge,
+  captureLayout,
   type Data,
   type Listing as PageResult,
   type Profile,
@@ -23,6 +25,7 @@ type Item = {
   realName?: string;
   fieldCodes?: string[];
   isRecruiting?: boolean;
+  isDemo: boolean;
 };
 type Listing = {
   data: Item[];
@@ -51,6 +54,13 @@ async function assertListing(
     await expect(card.getByRole('heading', { level: 3 })).toHaveText(
       item.title ?? item.name ?? item.realName ?? '',
     );
+    await expectDemoBadge(
+      card,
+      kind === 'people' ? 'account' : kind === 'contests' ? 'contest' : 'team',
+      item.isDemo,
+    );
+    if (item.isDemo)
+      await expect(card).toHaveAccessibleName(/시연 (계정|공고|팀)/);
   }
   const navigation = page.getByRole('navigation', { name: '탐색 결과 페이지' });
   if (expected.pagination.total === 0) {
@@ -79,6 +89,7 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
   ).toBeGreaterThan(1);
   await page.goto('/explore');
   await assertListing(page, 'contests', first);
+  await captureLayout(page, testInfo, 'demo-contest-list');
 
   const second = await api<Listing>(
     page.request,
@@ -168,10 +179,12 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
   await expect(
     page.getByRole('heading', { name: '공모전 소개', exact: true }),
   ).toBeVisible();
-  await page.screenshot({
-    path: testInfo.outputPath('devdb-contest-detail.png'),
-    fullPage: true,
-  });
+  await expectDemoBadge(
+    page.locator('.preview-detail-grid article'),
+    'contest',
+    detail.data.isDemo,
+  );
+  await captureLayout(page, testInfo, 'devdb-contest-detail');
   await page.getByRole('link', { name: '탐색으로', exact: true }).click();
   await expect(page).toHaveURL(listUrl);
   await assertListing(page, 'contests', sorted);
@@ -245,6 +258,16 @@ test('기존 시드 로그인: 팀·사람 탐색과 페이지·상세 조회, �
     }),
   ).toBeVisible();
 
+  await expectDemoBadge(
+    page.getByRole('region', { name: '내 기본 정보' }),
+    'account',
+    before.data.isDemo,
+  );
+  await expect(
+    page.getByRole('button', { name: '교내 미인증, 학교 인증 안내' }),
+  ).toBeVisible();
+  await captureLayout(page, testInfo, 'demo-own-profile');
+
   const teams = await api<Listing>(page.request, '/teams?page=1&pageSize=6');
   expect(
     teams.pagination.totalPages,
@@ -252,6 +275,7 @@ test('기존 시드 로그인: 팀·사람 탐색과 페이지·상세 조회, �
   ).toBeGreaterThan(1);
   await page.goto('/explore?tab=teams');
   await assertListing(page, 'teams', teams);
+  await captureLayout(page, testInfo, 'demo-team-list');
   await page
     .getByRole('navigation', { name: '탐색 결과 페이지' })
     .getByRole('link', { name: '다음 페이지' })
@@ -276,6 +300,24 @@ test('기존 시드 로그인: 팀·사람 탐색과 페이지·상세 조회, �
   expect(recruiting.data.every((item) => item.isRecruiting)).toBe(true);
   await assertListing(page, 'teams', recruiting);
 
+  const teamUrl = page.url();
+  const selectedTeam = recruiting.data[0];
+  const teamDetail = await api<Data<Item>>(
+    page.request,
+    `/teams/${selectedTeam.id}`,
+  );
+  await page
+    .locator(
+      `.preview-explore-grid--teams a[href^="/teams/${selectedTeam.id}?"]`,
+    )
+    .click();
+  await expect(
+    page.getByRole('heading', { name: selectedTeam.name!, exact: true }),
+  ).toBeVisible();
+  await expectDemoBadge(page, 'team', teamDetail.data.isDemo);
+  await captureLayout(page, testInfo, 'demo-team-detail');
+  await page.goto(teamUrl);
+
   const people = await api<Listing>(page.request, '/people?page=1&pageSize=6');
   expect(
     people.pagination.totalPages,
@@ -283,6 +325,7 @@ test('기존 시드 로그인: 팀·사람 탐색과 페이지·상세 조회, �
   ).toBeGreaterThan(1);
   await page.goto('/explore?tab=people');
   await assertListing(page, 'people', people);
+  await captureLayout(page, testInfo, 'demo-person-list');
   await page
     .getByRole('navigation', { name: '탐색 결과 페이지' })
     .getByRole('link', { name: '다음 페이지' })
@@ -306,6 +349,12 @@ test('기존 시드 로그인: 팀·사람 탐색과 페이지·상세 조회, �
       exact: true,
     }),
   ).toBeVisible();
+  const personDetail = await api<Data<Profile>>(
+    page.request,
+    `/people/${selected.accountId}`,
+  );
+  await expectDemoBadge(page, 'account', personDetail.data.isDemo);
+  await captureLayout(page, testInfo, 'demo-person-detail');
   await page.getByRole('link', { name: '사람 탐색으로', exact: true }).click();
   await expect(page).toHaveURL(listUrl);
   await assertListing(page, 'people', peopleSecond);
