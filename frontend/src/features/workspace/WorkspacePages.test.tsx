@@ -631,7 +631,9 @@ describe('explicit applicant decisions', () => {
     );
     expect(current().status).toBe('submitted');
     await step(() =>
-      user.click(screen.getByRole('link', { name: '김서연 지원서 검토' })),
+      user.click(
+        screen.getByRole('link', { name: '김서연 지원서 검토, 시연 계정' }),
+      ),
     );
     expect(current().status).toBe('submitted');
     expect(writes('review-start')).toHaveLength(0);
@@ -1117,4 +1119,113 @@ describe('version conflicts', () => {
       ),
     ).toBeInTheDocument();
   });
+});
+
+describe('demo identity labels', () => {
+  it('labels the team independently from its real contest', async () => {
+    const db = publicRecords();
+    const team = db.teams.find((item) => item.id === demoIds.teams.greenwave)!;
+    const contest = db.contests.find((item) => item.id === team.contestId)!;
+    contest.id = '12345678-0000-4000-8000-000000000001';
+    team.contestId = contest.id;
+    await renderPage(`/teams/${team.id}`, { db });
+    expect(screen.getByText('시연 팀')).toBeInTheDocument();
+    expect(screen.queryByText('시연 공고')).not.toBeInTheDocument();
+  });
+
+  it('does not classify a real team by its demo-looking name', async () => {
+    const db = publicRecords();
+    const team = db.teams.find((item) => item.id === demoIds.teams.greenwave)!;
+    const originalId = team.id;
+    team.id = '12345678-0000-4000-8000-000000000002';
+    for (const member of db.memberships) {
+      if (member.teamId === originalId) member.teamId = team.id;
+    }
+    team.name = '시연 테스트 팀';
+    await renderPage(`/teams/${team.id}`, { db });
+    expect(screen.queryByText('시연 팀')).not.toBeInTheDocument();
+    expect(screen.getByText('시연 공고')).toBeInTheDocument();
+  });
+
+  it('labels workspace team links and application targets', async () => {
+    const { user, step } = await renderPage('/workspace', { signedIn: true });
+    const link = screen.getByRole('link', { name: /그린웨이브.*팀 공간으로/ });
+    expect(link).toHaveAccessibleName(/시연 팀/);
+    expect(within(link).getByText('시연 팀')).toBeInTheDocument();
+    await step(() => user.click(screen.getByRole('link', { name: '내 지원' })));
+    expect(screen.getAllByText('시연 팀').length).toBeGreaterThan(0);
+  });
+
+  it('labels applicants in the list, profile and selection confirmation', async () => {
+    const { user, step } = await renderPage(
+      `/teams/${demoIds.teams.greenwave}?view=applicants`,
+      { signedIn: true },
+    );
+    const link = screen.getByRole('link', { name: /김서연.*지원서 검토/ });
+    expect(link).toHaveAccessibleName(/시연 계정/);
+    await step(() => user.click(link));
+    expect(
+      within(screen.getByRole('region', { name: '김서연' })).getByText(
+        '시연 계정',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('시연 팀')).toBeInTheDocument();
+    expect(screen.getByText('교내 미인증')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: '이 지원자 선발하기' }),
+    );
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(/시연 계정/);
+    expect(
+      sentRequests.filter(
+        (request) =>
+          request.method === 'PUT' && request.path.includes('/selection'),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('labels a private member without exposing the hidden profile', async () => {
+    const db = withProfile(publicRecords(), ME, {
+      isPublic: false,
+      experienceState: 'provided',
+      experienceBody: '비공개 경력은 표시하지 않음',
+    });
+    db.account.id = demoIds.accounts.haneul;
+    await renderPage(`/teams/${demoIds.teams.greenwave}?view=space`, {
+      signedIn: true,
+      db,
+    });
+    const members = within(screen.getByRole('region', { name: '확정된 팀원' }));
+    const hiddenMember = members
+      .getByText(
+        db.profiles.find((profile) => profile.accountId === ME)!.realName,
+      )
+      .closest('li')!;
+    expect(within(hiddenMember).getByText('시연 계정')).toBeInTheDocument();
+    expect(
+      screen.queryByText('비공개 경력은 표시하지 않음'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '모집 종료' }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+it('keeps a real applicant unlabelled in review and rejection confirmation', async () => {
+  const db = withProfile(publicRecords(), demoIds.accounts.seoyeon, {
+    isDemo: false,
+    realName: '시연이라는 이름',
+  });
+  const { user } = await renderPage(
+    `/applicants/${demoIds.applications.seoyeon}`,
+    { signedIn: true, db },
+  );
+  expect(
+    screen.getByRole('region', { name: '시연이라는 이름' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText('시연 계정')).not.toBeInTheDocument();
+  expect(screen.getByText('시연 팀')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: '미선발 처리' }));
+  expect(screen.getByRole('dialog')).not.toHaveAccessibleDescription(
+    /시연 계정/,
+  );
 });

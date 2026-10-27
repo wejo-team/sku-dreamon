@@ -57,7 +57,7 @@ import {
   MessageScrollerButton,
 } from '@/components/ui/message-scroller';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Avatar } from '@/components/common/CommonUi';
+import { Avatar, DemoBadge } from '@/components/common/CommonUi';
 import { LoginGate } from '@/features/account/AccountPages';
 import { ContestCover } from '@/components/common/ContestCover';
 import { useQuery } from '@tanstack/react-query';
@@ -303,7 +303,13 @@ function RecommendationCard({ item }: { item: ChatRecommendation }) {
           </span>
         )}
         <div>
-          <h3>{title}</h3>
+          <div className="preview-row">
+            <h3>{title}</h3>
+            <DemoBadge
+              isDemo={(person ?? contest ?? team!).isDemo}
+              kind={person ? 'account' : contest ? 'contest' : 'team'}
+            />
+          </div>
           <p>{metadata}</p>
         </div>
         <ChevronRight size={16} aria-hidden="true" />

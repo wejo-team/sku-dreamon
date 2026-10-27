@@ -156,6 +156,65 @@ const level3Headings = () =>
   screen.getAllByRole('heading', { level: 3 }).map((node) => node.textContent);
 
 describe('official reference public exploration', () => {
+  it.each([true, false])(
+    'uses API isDemo=%s for contest cards and details regardless of the title',
+    async (isDemo) => {
+      const db = createDemoRecords();
+      const contest = {
+        ...db.contests[0]!,
+        id: isDemo ? db.contests[0]!.id : uuid(900),
+        title: '시연 이름을 가진 공고',
+      };
+      db.contests = [contest];
+      const { user, step } = await renderExplore('/explore', { db });
+      const card = screen.getByRole('link', { name: /시연 이름을 가진 공고/ });
+      expect(within(card).queryByText('시연 공고') !== null).toBe(isDemo);
+      await step(() => user.click(card));
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+        contest.title,
+      );
+      expect(screen.queryByText('시연 공고') !== null).toBe(isDemo);
+    },
+  );
+
+  it.each([true, false])(
+    'uses the contextual contest API isDemo=%s in team exploration',
+    async (isDemo) => {
+      const db = createDemoRecords();
+      const contest = {
+        ...db.contests[0]!,
+        id: isDemo ? db.contests[0]!.id : uuid(900),
+        title: '시연 이름을 가진 공고',
+      };
+      db.contests = [contest];
+      await renderExplore(`/explore?tab=teams&contest=${contest.id}`, { db });
+      const context = screen.getByRole('note');
+      expect(context).toHaveTextContent(
+        `${contest.title}에 함께 도전하는 팀이에요.`,
+      );
+      expect(within(context).queryByText('시연 공고') !== null).toBe(isDemo);
+    },
+  );
+
+  it.each([true, false])(
+    'uses API isDemo=%s for people cards and details regardless of the name',
+    async (isDemo) => {
+      const name = '시연 이름을 가진 사용자';
+      const { user, step } = await renderExplore(
+        `/explore?tab=people&q=${encodeURIComponent(name)}`,
+        {
+          signedIn: true,
+          db: recordsWithMyProfile({ realName: name, isPublic: true, isDemo }),
+        },
+      );
+      const card = screen.getByRole('link', { name: new RegExp(name) });
+      expect(within(card).queryByText('시연 계정') !== null).toBe(isDemo);
+      await step(() => user.click(card));
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(name);
+      expect(screen.queryByText('시연 계정') !== null).toBe(isDemo);
+    },
+  );
+
   it('allows guests to read and filter public contests using the shared interests', async () => {
     const { user, step } = await renderExplore('/explore');
     expect(

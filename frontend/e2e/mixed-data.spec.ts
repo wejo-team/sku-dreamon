@@ -7,6 +7,8 @@ import {
   baseURL,
   createAccount,
   createTeam,
+  captureLayout,
+  expectDemoBadge,
   expect,
   get,
   login,
@@ -34,7 +36,7 @@ type Manifest = {
   };
 };
 type MixedTeam = Team & { name: string; isDemo: boolean };
-type MixedProfile = { accountId: string; isDemo: boolean };
+type MixedProfile = { accountId: string; isDemo: boolean; realName: string };
 type Space = {
   team: MixedTeam;
   viewerRole: 'leader' | 'member';
@@ -160,6 +162,18 @@ if (process.env.E2E_MIXED_DATA === '1') {
           expect(profile.accountId).toBe(applicant.accountId);
           expect(profile.isDemo).toBe(applicantDemo);
           expect(team.isDemo).toBe(teamDemo);
+          await memberPage.goto('/profile');
+          const ownProfile = memberPage.getByRole('region', {
+            name: '내 기본 정보',
+          });
+          await expect(
+            ownProfile.getByRole('heading', {
+              name: profile.realName,
+              exact: true,
+            }),
+          ).toBeVisible();
+          await expectDemoBadge(ownProfile, 'account', profile.isDemo);
+          await captureLayout(memberPage, testInfo, 'mixed-own-profile');
           expect(
             (
               await applicantContext.request.get(
@@ -179,6 +193,8 @@ if (process.env.E2E_MIXED_DATA === '1') {
           await expect(
             memberPage.getByRole('heading', { name: team.name, exact: true }),
           ).toBeVisible();
+          await expectDemoBadge(memberPage, 'team', team.isDemo);
+          await captureLayout(memberPage, testInfo, 'mixed-application-target');
           await memberPage
             .getByRole('radio', { name: '디자인', exact: true })
             .check();
@@ -203,15 +219,65 @@ if (process.env.E2E_MIXED_DATA === '1') {
           await expect(
             memberPage.getByText('지원이 완료됐어요', { exact: true }),
           ).toBeVisible();
+          await memberPage.goto('/workspace?view=applications');
+          const ownApplication = memberPage
+            .locator('.workspace-application-list > li')
+            .filter({
+              has: memberPage.getByRole('heading', {
+                name: team.name,
+                exact: true,
+              }),
+            });
+          await expect(ownApplication).toHaveCount(1);
+          await expectDemoBadge(ownApplication, 'team', team.isDemo);
+          await captureLayout(memberPage, testInfo, 'mixed-application-status');
           const review = await get<Data<{ profile: MixedProfile }>>(
             leaderContext.request,
             `/applications/${application.id}/applicant`,
           );
           expect(review.data.profile.isDemo).toBe(applicantDemo);
-          await ownerPage.goto(`/applicants/${application.id}`);
+          await ownerPage.goto(`/teams/${team.id}?view=applicants`);
+          const applicantLink = ownerPage.locator(
+            `a[href="/applicants/${application.id}"]`,
+          );
+          await expect(applicantLink).toBeVisible();
+          await expectDemoBadge(
+            applicantLink,
+            'account',
+            review.data.profile.isDemo,
+          );
+          if (review.data.profile.isDemo)
+            await expect(applicantLink).toHaveAccessibleName(/시연 계정/);
+          else
+            await expect(applicantLink).not.toHaveAccessibleName(/시연 계정/);
+          await applicantLink.click();
+          const applicantProfile = ownerPage.getByRole('region', {
+            name: profile.realName,
+            exact: true,
+          });
+          await expect(applicantProfile).toBeVisible();
+          await expectDemoBadge(
+            applicantProfile,
+            'account',
+            review.data.profile.isDemo,
+          );
+          await expectDemoBadge(ownerPage, 'team', team.isDemo);
+          await captureLayout(ownerPage, testInfo, 'mixed-applicant-review');
           await ownerPage
             .getByRole('button', { name: '이 지원자 선발하기' })
             .click();
+          const confirmation = ownerPage.getByRole('dialog');
+          if (review.data.profile.isDemo)
+            await expect(confirmation).toHaveAccessibleDescription(/시연 계정/);
+          else
+            await expect(confirmation).not.toHaveAccessibleDescription(
+              /시연 계정/,
+            );
+          await captureLayout(
+            ownerPage,
+            testInfo,
+            'mixed-selection-confirmation',
+          );
           await ownerPage
             .getByRole('button', { name: '선발하고 팀원 확정' })
             .click();
@@ -249,15 +315,21 @@ if (process.env.E2E_MIXED_DATA === '1') {
           await expect(
             memberPage.getByRole('heading', { name: '확정된 팀원' }),
           ).toBeVisible();
-          await memberPage.screenshot({
-            path: testInfo.outputPath('mixed-selected-member.png'),
-            fullPage: true,
-          });
-          expect(
-            await memberPage.evaluate(
-              () => document.documentElement.scrollWidth <= innerWidth + 1,
-            ),
-          ).toBe(true);
+          await expectDemoBadge(memberPage, 'team', space.team.isDemo);
+          const self = space.members.find(
+            (member) => member.accountId === applicant.accountId,
+          )!;
+          const ownMember = memberPage
+            .getByRole('region', { name: '확정된 팀원' })
+            .locator('li')
+            .filter({
+              has: memberPage.getByText(`${profile.realName} (나)`, {
+                exact: true,
+              }),
+            });
+          await expect(ownMember).toHaveCount(1);
+          await expectDemoBadge(ownMember, 'account', self.isDemo);
+          await captureLayout(memberPage, testInfo, 'mixed-selected-member');
 
           // 복제본의 기존 시연 팀 여석을 반환하며 권한도 즉시 회수되는지 확인한다.
           const cancellation = await write(

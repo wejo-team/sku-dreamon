@@ -578,3 +578,26 @@ describe('design preview AI chat', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });
+
+it.each([
+  ['디자인 공모전 찾아줘', '시연 공고'],
+  ['개발자를 모집하는 팀 찾아줘', '시연 팀'],
+  ['디자인 역할 사람 찾아줘', '시연 계정'],
+])(
+  'labels API demo resources in existing recommendation cards: %s',
+  async (message, label) => {
+    const user = await renderChat();
+    await user.type(
+      screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' }),
+      message,
+    );
+    await user.click(screen.getByRole('button', { name: '메시지 보내기' }));
+    await finishReply();
+    const cards = within(screen.getByRole('log')).getAllByRole('link');
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) {
+      expect(within(card).getByText(label)).toBeInTheDocument();
+      expect(card).toHaveAccessibleName(new RegExp(label));
+    }
+  },
+);

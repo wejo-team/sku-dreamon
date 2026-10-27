@@ -95,6 +95,20 @@ export function Badge({
     </UiBadge>
   );
 }
+// docs/specs/sprint-1.md#demo-data-scope: 서버가 반환한 대상별 표시값만 사용합니다.
+// 학교 인증·모집 상태와 별개이며 이름이나 ID로 시연 여부를 추정하지 않습니다.
+export function DemoBadge({
+  isDemo,
+  kind,
+}: {
+  isDemo: boolean;
+  kind: 'account' | 'contest' | 'team';
+}) {
+  if (!isDemo) return null;
+  const label = { account: '시연 계정', contest: '시연 공고', team: '시연 팀' };
+  return <Badge>{label[kind]}</Badge>;
+}
+
 // [출처 2, 5] 모집 상태: 녹색·회색 면 + 상태 문구
 export function TeamStatusBadge({ team }: { team: TeamWithContest }) {
   return (

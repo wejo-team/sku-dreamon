@@ -84,6 +84,7 @@ import {
   Avatar,
   BackLink,
   Badge,
+  DemoBadge,
   EmptyState,
   PageIntro,
   SchoolVerificationBadge,
@@ -389,7 +390,10 @@ export function WorkspacePage() {
                   >
                     <div className="preview-split">
                       <div>
-                        <h3>{team.name}</h3>
+                        <div className="preview-row">
+                          <h3>{team.name}</h3>
+                          <DemoBadge isDemo={team.isDemo} kind="team" />
+                        </div>
                         <p className="preview-muted">
                           {roleLabel(application.roleCode)} 지원
                         </p>
@@ -500,7 +504,7 @@ export function WorkspacePage() {
                       key={team.id}
                       to={teamViewPath(team.id, 'space')}
                       className="preview-card workspace-team-card"
-                      aria-label={`${team.name} 팀 공간으로`}
+                      aria-label={`${team.name} 팀 공간으로${team.isDemo ? ', 시연 팀' : ''}`}
                     >
                       <div className="preview-split">
                         <TeamStatusBadge team={team} />
@@ -510,7 +514,10 @@ export function WorkspacePage() {
                           </span>
                         )}
                       </div>
-                      <h3>{team.name}</h3>
+                      <div className="preview-row">
+                        <h3>{team.name}</h3>
+                        <DemoBadge isDemo={team.isDemo} kind="team" />
+                      </div>
                       <p className="workspace-team-contest">
                         {team.contestTitle}
                       </p>
@@ -645,7 +652,10 @@ function TeamOverview({
         aria-labelledby="team-contest-title"
       >
         <h2 id="team-contest-title">참여 공모전</h2>
-        <h3>{team.contest.title}</h3>
+        <div className="preview-row">
+          <h3>{team.contest.title}</h3>
+          <DemoBadge isDemo={team.contest.isDemo} kind="contest" />
+        </div>
         <p className="preview-inline-fact">
           {team.contest.registrationStatus === 'closed' ? (
             '접수 마감됨'
@@ -781,6 +791,7 @@ function TeamSpaceView({
       <BackLink to={from}>{returnLabel(from)}</BackLink>
       <PageIntro title={team.name} description={team.contestTitle} />
       <div className="preview-row">
+        <DemoBadge isDemo={team.isDemo} kind="team" />
         <TeamStatusBadge team={team} />
         <span className="preview-inline-fact">
           <span>내 역할</span>
@@ -822,7 +833,7 @@ function TeamSpaceView({
                 <li key={application.id}>
                   <Link
                     to={`/applicants/${application.id}`}
-                    aria-label={`${profile.realName} 지원서 검토`}
+                    aria-label={`${profile.realName} 지원서 검토${profile.isDemo ? ', 시연 계정' : ''}`}
                     className="workspace-applicant-row"
                   >
                     <Avatar
@@ -830,7 +841,10 @@ function TeamSpaceView({
                       imageCode={profile.profileImageCode}
                     />
                     <div className="workspace-applicant-name">
-                      <strong>{profile.realName}</strong>
+                      <div className="preview-row">
+                        <strong>{profile.realName}</strong>
+                        <DemoBadge isDemo={profile.isDemo} kind="account" />
+                      </div>
                       <p className="preview-muted">
                         {roleLabel(application.roleCode)} 지원
                       </p>
@@ -873,10 +887,13 @@ function TeamSpaceView({
                     imageCode={member.profile?.profileImageCode ?? null}
                   />
                   <div>
-                    <strong>
-                      {member.realName}
-                      {member.accountId === account?.id ? ' (나)' : ''}
-                    </strong>
+                    <div className="preview-row">
+                      <strong>
+                        {member.realName}
+                        {member.accountId === account?.id ? ' (나)' : ''}
+                      </strong>
+                      <DemoBadge isDemo={member.isDemo} kind="account" />
+                    </div>
                     <p className="preview-muted">
                       {memberRole(member, roleLabel)} · 교내 미인증
                     </p>
@@ -1059,6 +1076,7 @@ function TeamRecruitmentDetail({
       <BackLink to={from}>{returnLabel(from)}</BackLink>
       <PageIntro title={team.name} description={team.contestTitle} />
       <div className="preview-row">
+        <DemoBadge isDemo={team.isDemo} kind="team" />
         <TeamStatusBadge team={team} />
         <span className="preview-muted">팀장 포함 총 {team.capacity}명</span>
       </div>
@@ -1385,6 +1403,11 @@ function ApplicantDetail({
         title="지원서 검토"
         description={`${team.name} · ${roleLabel(application.roleCode)} 지원`}
       />
+      {team.isDemo && (
+        <div className="preview-row">
+          <DemoBadge isDemo={team.isDemo} kind="team" />
+        </div>
+      )}
       <TeamTabs
         teamId={team.id}
         isLeader
@@ -1403,7 +1426,10 @@ function ApplicantDetail({
           />
           <div>
             <h2 id="applicant-name">{profile.realName}</h2>
-            <SchoolVerificationBadge />
+            <div className="preview-row">
+              <DemoBadge isDemo={profile.isDemo} kind="account" />
+              <SchoolVerificationBadge />
+            </div>
           </div>
           <Badge>{applicationLabel(application.status)}</Badge>
         </div>
@@ -1484,7 +1510,7 @@ function ApplicantDetail({
             ) : (
               <ConfirmAction
                 title={`${profile.realName} 님을 선발할까요?`}
-                description="선발하면 즉시 팀원이 확정돼요. 이 지원자가 같은 공모전의 다른 팀에 낸 대기 지원은 폐기되며, 나중에 팀 참여를 취소해도 복원되지 않아요."
+                description={`${profile.isDemo ? '시연 계정의 지원서예요. ' : ''}선발하면 즉시 팀원이 확정돼요. 이 지원자가 같은 공모전의 다른 팀에 낸 대기 지원은 폐기되며, 나중에 팀 참여를 취소해도 복원되지 않아요.`}
                 confirmLabel="선발하고 팀원 확정"
                 disabled={busy}
                 onConfirm={() => {
@@ -1519,7 +1545,7 @@ function ApplicantDetail({
             )}
             <ConfirmAction
               title={`${profile.realName} 님을 미선발로 처리할까요?`}
-              description="미선발로 처리하면 이 지원자는 이 팀에 다시 지원할 수 없어요. 기존 지원 기록은 남아요."
+              description={`${profile.isDemo ? '시연 계정의 지원서예요. ' : ''}미선발로 처리하면 이 지원자는 이 팀에 다시 지원할 수 없어요. 기존 지원 기록은 남아요.`}
               confirmLabel="미선발로 확정"
               destructive
               disabled={busy}
