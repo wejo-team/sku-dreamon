@@ -61,7 +61,9 @@ npm run docs:preview
 
 미리보기 주소는 `http://localhost:4173/sku-dreamon/`입니다. 문서를 수정하며 보려면 `npm run docs:dev`를 실행하고 터미널에 표시된 `/sku-dreamon/` 주소로 접속합니다. 문서 설정·테마 변경 시 검색, 내부 링크, 좁은 화면의 메뉴도 확인합니다.
 
-VitePress는 안정 버전 1.6.4를 고정합니다. 해당 버전의 Vite·esbuild 개발 서버 의존성에는 알려진 보안 권고가 남아 있습니다. 개발 서버를 외부에 공개하지 않고 로컬에서 사용하며, 운영에는 빌드된 정적 파일만 배포합니다. 의존성 갱신 시 `npm audit` 결과와 공식 지원 범위·빌드·검색·링크 호환성을 함께 검토합니다.
+VitePress는 안정 버전 1.6.4를 유지하고, 루트 `package.json`의 `overrides`로 Vite 6.4.5를 고정해 Vite·esbuild 의존성의 알려진 보안 권고를 해소합니다. VitePress 1.6.4의 기본 의존 범위는 Vite 5이지만, 이 문서 사이트는 data·path loader를 사용하지 않아 [관리자가 안내한 Vite 6 override 조건](https://github.com/vuejs/vitepress/issues/4494#issuecomment-2600813008)을 따릅니다. Vite 6.4는 [보안 패치를 받는 계열](https://vite.dev/releases#supported-versions)입니다.
+
+개발 서버는 로컬에서 사용하며, 운영에는 빌드된 정적 파일만 배포합니다. 의존성 갱신 시 `npm ci`·`npm audit`, 빌드·원본 및 생성 링크 검사와 개발 서버·정적 미리보기의 검색·좁은 화면 메뉴·본문 HMR을 함께 확인합니다. 향후 VitePress 안정 버전이 수정된 Vite를 기본 지원하면 같은 검사를 거쳐 override를 제거합니다.
 
 ## 저장소 이름을 변경할 때
 

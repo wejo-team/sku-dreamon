@@ -94,7 +94,13 @@ export function validate<T extends z.ZodTypeAny>(
   if (result.success) return result.data;
   throw new MockValidationError(
     result.error.issues.map((issue) => ({
-      loc: [location, ...(field ? [field] : []), ...issue.path],
+      loc: [
+        location,
+        ...(field ? [field] : []),
+        ...issue.path.map((key) =>
+          typeof key === 'symbol' ? String(key) : key,
+        ),
+      ],
       msg: issue.message,
       type: issue.code,
     })),

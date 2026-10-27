@@ -320,6 +320,22 @@ describe('endpoint requests match docs/api', () => {
 
 // [출처 2] 응답이 문서 필드와 다르면 화면에 넘기지 않음
 describe('response schemas reject shapes outside the contract', () => {
+  it('rejects oversized bounded profile fields before reading their elements', () => {
+    const readFirst = vi.fn(() => null);
+    const fields = Array<unknown>(1_000).fill(null);
+    Object.defineProperty(fields, 0, { get: readFirst });
+
+    const result = profiles.profileFields.fieldCodes.safeParse(fields);
+
+    expect(result.success).toBe(false);
+    expect(readFirst).not.toHaveBeenCalled();
+    if (!result.success) {
+      expect(result.error.issues).toEqual([
+        expect.objectContaining({ code: 'too_big', maximum: 3 }),
+      ]);
+    }
+  });
+
   it.each([
     ['missing key', { ...profile, version: undefined }],
     ['undeclared key', { ...profile, email: 'x@example.com' }],
