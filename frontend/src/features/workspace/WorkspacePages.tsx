@@ -9,13 +9,13 @@
  * 7. docs/api/teams.md#endpoints - GET /teams/{teamId}, GET /me/teams(WorkspaceTeam), GET /teams/{teamId}/space(현재 소속만, 아니면 403),
  *    PUT …/recruitment/closure·reopening(expectedVersion)
  * 8. docs/api/applications.md#endpoints - POST /teams/{teamId}/applications(requestId), GET /me/applications(MyApplication),
- *    PUT …/cancellation·selection, GET /teams/{teamId}/applicants·/applications/{id}/applicant(팀장만)
+ *    PUT …/cancellation·selection·review-start·rejection, GET /teams/{teamId}/applicants·/applications/{id}/applicant(팀장만)
  * 9. docs/development/frontend.md - 「API와 query」 각 화면은 로딩·빈 결과·오류 상태 제공
  */
 
 import { useRef, useState, type ReactNode } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import {
   ArrowRight,
@@ -71,7 +71,9 @@ import {
   myApplicationsQueryOptions,
   useApply,
   useCancelApplication,
+  useRejectApplication,
   useSelectApplication,
+  useStartReview,
 } from '@/features/applications/queries';
 import {
   recruitmentIssue,
@@ -203,6 +205,8 @@ function ConfirmAction({
   confirmLabel,
   onConfirm,
   destructive = false,
+  disabled = false,
+  errorMessage = '현재 상태가 바뀌어 처리하지 못했어요. 모집 상태와 정원, 소속을 다시 확인해 주세요.',
 }: {
   children: ReactNode;
   title: string;
@@ -211,6 +215,8 @@ function ConfirmAction({
   /** 성공하면 true. 실패(409 등)면 false로 안내를 남기고 닫지 않습니다. */
   onConfirm: () => Promise<boolean>;
   destructive?: boolean;
+  disabled?: boolean;
+  errorMessage?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState(false);
@@ -225,7 +231,12 @@ function ConfirmAction({
       }}
     >
       <DrawerTrigger asChild>
-        <Button type="button" variant="outline" className="preview-button">
+        <Button
+          type="button"
+          variant="outline"
+          className="preview-button"
+          disabled={disabled}
+        >
           {children}
         </Button>
       </DrawerTrigger>
@@ -236,19 +247,18 @@ function ConfirmAction({
         </DrawerHeader>
         {error && (
           <Alert variant="destructive" role="alert">
-            <AlertDescription>
-              현재 상태가 바뀌어 처리하지 못했어요. 모집 상태와 정원, 소속을
-              다시 확인해 주세요.
-            </AlertDescription>
+            <AlertDescription>{errorMessage}</AlertDescription>
           </Alert>
         )}
         <DrawerFooter>
           <Button
             type="button"
             variant="default"
-            disabled={busy}
+            disabled={busy || disabled}
+            aria-busy={busy}
             className={`preview-button${destructive ? ' workspace-destructive-action' : ''}`}
             onClick={async () => {
+              if (busy || disabled) return;
               setBusy(true);
               const done = await onConfirm();
               setBusy(false);
@@ -256,7 +266,7 @@ function ConfirmAction({
               else setError(true);
             }}
           >
-            {confirmLabel}
+            {busy ? '처리 중…' : confirmLabel}
           </Button>
           <DrawerClose asChild>
             <Button
@@ -1315,15 +1325,58 @@ function ApplicantDetail({
 }) {
   const labels = useLabels();
   const { roleLabel } = labels;
+  const client = useQueryClient();
   const select = useSelectApplication();
+  const startReview = useStartReview();
+  const reject = useRejectApplication();
+  const [decisionError, setDecisionError] = useState<string | null>(null);
+  const [decisionNotice, setDecisionNotice] = useState<string | null>(null);
+  const decisionInFlight = useRef(false);
+  const busy = select.isPending || startReview.isPending || reject.isPending;
+  const decide = async (action: 'review' | 'reject') => {
+    if (decisionInFlight.current || busy) return false;
+    decisionInFlight.current = true;
+    setDecisionError(null);
+    setDecisionNotice(null);
+    startReview.reset();
+    reject.reset();
+    try {
+      await (action === 'review' ? startReview : reject).mutateAsync({
+        applicationId: application.id,
+        expectedVersion: application.version,
+      });
+      setDecisionNotice(
+        action === 'review' ? '검토를 시작했어요.' : '미선발로 처리했어요.',
+      );
+      return true;
+    } catch (error) {
+      const status = statusOf(error);
+      setDecisionError(
+        status === 409
+          ? '지원 정보가 변경됐어요. 최신 지원 상태를 확인한 뒤 다시 시도해 주세요.'
+          : status === 401 || status === 403 || status === 404
+            ? '지원서를 처리할 권한을 확인하지 못했어요. 로그인과 지원서 접근 권한을 확인해 주세요.'
+            : '처리하지 못했어요. 잠시 후 다시 시도해 주세요.',
+      );
+      if (status === 401 || status === 403 || status === 404) {
+        // 권한이 바뀌었다면 캐시의 비공개 지원서를 계속 보여 주지 않습니다.
+        await client.invalidateQueries({
+          queryKey: applicantQueryOptions(application.id).queryKey,
+        });
+      }
+      return false;
+    } finally {
+      decisionInFlight.current = false;
+    }
+  };
   const managementPath = teamViewPath(team.id, 'applicants');
   const pending = PENDING.includes(application.status);
   // 선발 가능 여부: 남은 자리가 있고 공고 접수 기간 안(서버가 선발 시 다시 확인)
   const scenario =
-    team.memberCount >= Number(team.capacity)
-      ? 'full'
-      : team.contest.registrationStatus === 'closed'
-        ? 'not-modeled'
+    team.contest.registrationStatus === 'closed'
+      ? 'closed'
+      : team.memberCount >= Number(team.capacity)
+        ? 'full'
         : 'ready';
   return (
     <div className="preview-detail preview-stack">
@@ -1380,6 +1433,16 @@ function ApplicantDetail({
         aria-labelledby="applicant-decision-title"
       >
         <h2 id="applicant-decision-title">검토 결과</h2>
+        {decisionNotice && (
+          <Alert role="status">
+            <AlertDescription>{decisionNotice}</AlertDescription>
+          </Alert>
+        )}
+        {startReview.isError && decisionError && (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{decisionError}</AlertDescription>
+          </Alert>
+        )}
         {application.status === 'selected' ? (
           <>
             <Alert role="status">
@@ -1416,15 +1479,18 @@ function ApplicantDetail({
               <p className="preview-muted">
                 {scenario === 'full'
                   ? '팀 정원이 모두 찼어요.'
-                  : '지원서가 접수되어 있어요.'}
+                  : '공고 접수가 마감되어 선발할 수 없어요. 미선발로 정리할 수 있어요.'}
               </p>
             ) : (
               <ConfirmAction
                 title={`${profile.realName} 님을 선발할까요?`}
                 description="선발하면 즉시 팀원이 확정돼요. 이 지원자가 같은 공모전의 다른 팀에 낸 대기 지원은 폐기되며, 나중에 팀 참여를 취소해도 복원되지 않아요."
                 confirmLabel="선발하고 팀원 확정"
-                onConfirm={() =>
-                  select
+                disabled={busy}
+                onConfirm={() => {
+                  setDecisionError(null);
+                  setDecisionNotice(null);
+                  return select
                     .mutateAsync({
                       applicationId: application.id,
                       expectedVersion: application.version,
@@ -1432,13 +1498,36 @@ function ApplicantDetail({
                     .then(
                       () => true,
                       () => false,
-                    )
-                }
+                    );
+                }}
               >
                 이 지원자 선발하기
                 <ArrowRight size={18} aria-hidden="true" />
               </ConfirmAction>
             )}
+            {application.status === 'submitted' && (
+              <Button
+                type="button"
+                variant="outline"
+                className="preview-button"
+                disabled={busy}
+                aria-busy={startReview.isPending}
+                onClick={() => void decide('review')}
+              >
+                {startReview.isPending ? '검토 시작 중…' : '검토 시작'}
+              </Button>
+            )}
+            <ConfirmAction
+              title={`${profile.realName} 님을 미선발로 처리할까요?`}
+              description="미선발로 처리하면 이 지원자는 이 팀에 다시 지원할 수 없어요. 기존 지원 기록은 남아요."
+              confirmLabel="미선발로 확정"
+              destructive
+              disabled={busy}
+              errorMessage={decisionError ?? undefined}
+              onConfirm={() => decide('reject')}
+            >
+              미선발 처리
+            </ConfirmAction>
           </>
         ) : (
           <p>

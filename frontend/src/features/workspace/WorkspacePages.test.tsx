@@ -2,7 +2,8 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import { fill, setupUser } from '@/test/user';
 import { useQuery } from '@tanstack/react-query';
 import { Route, Routes, useLocation } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { ApplicationStatus } from '@/features/applications/api';
 import {
   ApplicantPage,
   TeamPage,
@@ -598,6 +599,261 @@ describe('applicant review', () => {
     expect(
       screen.queryByRole('link', { name: /김서연의 프로젝트/ }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('explicit applicant decisions', () => {
+  const path = `/applicants/${demoIds.applications.seoyeon}`;
+  const records = (status: ApplicationStatus = 'submitted') => {
+    const db = publicRecords();
+    const application = db.applications.find(
+      (item) => item.id === demoIds.applications.seoyeon,
+    )!;
+    application.status = status;
+    application.discardReason =
+      status === 'discarded' ? 'selected_elsewhere' : null;
+    return db;
+  };
+  const current = () =>
+    mockDb().applications.find(
+      (item) => item.id === demoIds.applications.seoyeon,
+    )!;
+  const writes = (action: string) =>
+    sentRequests.filter(
+      (request) =>
+        request.method === 'PUT' && request.path.endsWith(`/${action}`),
+    );
+
+  it('keeps reads unchanged and starts review only after the leader clicks', async () => {
+    const { user, step } = await renderPage(
+      `/teams/${demoIds.teams.greenwave}?view=applicants`,
+      { signedIn: true, db: records() },
+    );
+    expect(current().status).toBe('submitted');
+    await step(() =>
+      user.click(screen.getByRole('link', { name: '김서연 지원서 검토' })),
+    );
+    expect(current().status).toBe('submitted');
+    expect(writes('review-start')).toHaveLength(0);
+    const memberships = structuredClone(mockDb().memberships);
+    const notifications = mockDb().notifications.length;
+    await step(() =>
+      user.click(screen.getByRole('button', { name: '검토 시작' })),
+    );
+    expect(current().status).toBe('reviewing');
+    expect(
+      within(screen.getByRole('region', { name: '검토 결과' })).getByRole(
+        'status',
+      ),
+    ).toHaveTextContent('검토를 시작했어요');
+    expect(
+      screen.queryByRole('button', { name: '검토 시작' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '미선발 처리' })).toBeEnabled();
+    expect(mockDb().memberships).toEqual(memberships);
+    expect(mockDb().notifications).toHaveLength(notifications + 1);
+    expect(writes('review-start')).toHaveLength(1);
+  });
+
+  it('confirms direct rejection, explains reapplication and preserves state on cancel', async () => {
+    const { user, step } = await renderPage(path, {
+      signedIn: true,
+      db: records(),
+    });
+    await user.click(screen.getByRole('button', { name: '미선발 처리' }));
+    expect(
+      within(screen.getByRole('dialog')).getByText(
+        /이 팀에 다시 지원할 수 없어요/,
+      ),
+    ).toBeInTheDocument();
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '돌아가기',
+      }),
+    );
+    expect(current().status).toBe('submitted');
+    expect(writes('rejection')).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: '미선발 처리' }));
+    await step(() =>
+      user.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: '미선발로 확정',
+        }),
+      ),
+    );
+    expect(current().status).toBe('rejected');
+    expect(screen.getByText('미선발된 지원서예요.')).toBeInTheDocument();
+    expect(writes('review-start')).toHaveLength(0);
+    expect(writes('rejection')).toHaveLength(1);
+  });
+
+  it.each(['closed', 'full', 'closed-full'] as const)(
+    'allows rejection of a reviewing applicant when the contest or team is %s',
+    async (condition) => {
+      const db = records('reviewing');
+      if (condition !== 'full') {
+        const contest = db.contests.find(
+          (item) => item.id === demoIds.contests.green,
+        )!;
+        contest.startsAt = '2026-08-31T15:00:00Z';
+        contest.timing.startsAt = contest.startsAt;
+        contest.timing.openSourceDate = '2026-09-01';
+        contest.endsAt = '2026-09-30T15:00:00Z';
+        contest.timing.endsAt = contest.endsAt;
+        contest.timing.closing.sourceDate = '2026-09-30';
+      }
+      if (condition !== 'closed') {
+        const team = db.teams.find(
+          (item) => item.id === demoIds.teams.greenwave,
+        )!;
+        team.capacity = '2';
+        team.recruitmentState = 'closed';
+        team.closedReason = 'capacity_reached';
+      }
+      const { user, step } = await renderPage(path, { signedIn: true, db });
+      expect(current().status).toBe('reviewing');
+      expect(
+        screen.queryByRole('button', { name: '이 지원자 선발하기' }),
+      ).not.toBeInTheDocument();
+      if (condition !== 'full')
+        expect(
+          screen.getByText(/공고 접수가 마감되어 선발할 수 없어요/),
+        ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: '미선발 처리' }));
+      await step(() =>
+        user.click(
+          within(screen.getByRole('dialog')).getByRole('button', {
+            name: '미선발로 확정',
+          }),
+        ),
+      );
+      expect(current().status).toBe('rejected');
+    },
+  );
+
+  it.each(['selected', 'rejected', 'canceled', 'discarded'] as const)(
+    'does not offer review or rejection for %s applications',
+    async (status) => {
+      await renderPage(path, { signedIn: true, db: records(status) });
+      expect(
+        screen.queryByRole('button', { name: '검토 시작' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: '미선발 처리' }),
+      ).not.toBeInTheDocument();
+      expect(writes('review-start')).toHaveLength(0);
+      expect(writes('rejection')).toHaveLength(0);
+    },
+  );
+
+  it('refetches the version after a conflict without retrying the decision automatically', async () => {
+    const { user, step } = await renderPage(path, {
+      signedIn: true,
+      db: records(),
+    });
+    const loaded = current().version;
+    current().version = String(Number(loaded) + 1);
+    const latest = current().version;
+    await step(() =>
+      user.click(screen.getByRole('button', { name: '검토 시작' })),
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '최신 지원 상태를 확인한 뒤 다시 시도해 주세요',
+    );
+    expect(current().status).toBe('submitted');
+    expect(writes('review-start').map((request) => request.body)).toEqual([
+      { expectedVersion: loaded },
+    ]);
+    await step(() =>
+      user.click(screen.getByRole('button', { name: '검토 시작' })),
+    );
+    expect(writes('review-start').map((request) => request.body)).toEqual([
+      { expectedVersion: loaded },
+      { expectedVersion: latest },
+    ]);
+    expect(current().status).toBe('reviewing');
+  });
+
+  it('keeps a failed rejection open and uses the refreshed version after confirmation', async () => {
+    const { user, step } = await renderPage(path, {
+      signedIn: true,
+      db: records('reviewing'),
+    });
+    const loaded = current().version;
+    current().version = String(Number(loaded) + 1);
+    const latest = current().version;
+    await user.click(screen.getByRole('button', { name: '미선발 처리' }));
+    const confirm = () =>
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: '미선발로 확정',
+      });
+    await step(() => user.click(confirm()));
+    expect(
+      within(screen.getByRole('dialog')).getByRole('alert'),
+    ).toHaveTextContent('최신 지원 상태를 확인한 뒤 다시 시도해 주세요');
+    expect(writes('rejection')).toHaveLength(1);
+    await step(() => user.click(confirm()));
+    expect(writes('rejection').map((request) => request.body)).toEqual([
+      { expectedVersion: loaded },
+      { expectedVersion: latest },
+    ]);
+    expect(current().status).toBe('rejected');
+  });
+
+  it('blocks repeated and competing decisions while review is pending', async () => {
+    const { user, client } = await renderPage(path, {
+      signedIn: true,
+      db: records(),
+    });
+    const fetch = globalThis.fetch;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
+      if (input.endsWith('/review-start')) await gate;
+      return fetch(input, init);
+    });
+    const button = screen.getByRole('button', {
+      name: '검토 시작',
+    });
+    try {
+      await user.click(button);
+      expect(
+        screen.getByRole('button', { name: '검토 시작 중…' }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: '미선발 처리' }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: '이 지원자 선발하기' }),
+      ).toBeDisabled();
+      await user.click(button);
+    } finally {
+      await act(async () => release());
+      await settled(client);
+    }
+    expect(writes('review-start')).toHaveLength(1);
+  });
+
+  it('hides cached private details when the leader loses permission during a decision', async () => {
+    const { user, step } = await renderPage(path, {
+      signedIn: true,
+      db: withProfile(records(), demoIds.accounts.seoyeon, { isPublic: false }),
+    });
+    mockDb().teams.find(
+      (item) => item.id === demoIds.teams.greenwave,
+    )!.ownerAccountId = demoIds.accounts.doyun;
+    await step(() =>
+      user.click(screen.getByRole('button', { name: '검토 시작' })),
+    );
+    expect(
+      screen.getByRole('heading', { name: '지원서를 확인할 수 없어요' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(seoyeonProfile.experienceBody!),
+    ).not.toBeInTheDocument();
+    expect(current().status).toBe('submitted');
   });
 });
 
