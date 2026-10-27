@@ -22,6 +22,8 @@
 
 `ci.yml`에서 선택된 프론트·백엔드 검사 job을 병렬 실행합니다. 백엔드 검사와 브라우저 통합 검사는 서로 다른 전용 PostgreSQL 17.11 서비스를 사용합니다. 백엔드 검사에서는 `DATABASE_URL`과 `TEST_DATABASE_URL`을 같은 테스트 DB로 지정해 DB 검사가 생략되지 않도록 합니다.
 
+`Integration E2E`는 Ubuntu 24.04를 사용합니다. [Azure APT 미러의 저속 전송 문제](https://github.com/actions/runner-images/issues/14823)를 피하기 위해 공식 runner의 미러 구성을 확인한 뒤 Azure 항목만 제거하고, 기존 HTTPS Ubuntu archive·security 미러를 사용합니다. `playwright install --with-deps chromium`의 패키지·서명 검사와 15분 job 제한은 유지합니다. 설치 시간은 GitHub 실행 로그에서 비교하며, upstream 문제가 해결되면 [CI 설치 안정화 이슈](https://github.com/wejo-team/sku-dreamon/issues/184)에 따라 미러 선택을 재검토합니다.
+
 | 단계 | 검사 |
 | --- | --- |
 | 프론트 실행 기반 | `npm ci`, ESLint, Prettier check, TypeScript check, production build |
