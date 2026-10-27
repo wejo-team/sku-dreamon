@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import Table, update
 from sqlalchemy.engine import Result
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.schema import CreateSchema, DropSchema
 from sqlalchemy.sql.base import Executable
@@ -167,6 +168,9 @@ async def test_anonymous_detail_returns_current_public_source_and_all_teams(
     assert set(data["audienceCodes"]) == {"student", "general"}
     assert data["eligibilityText"] == "원문 참가 조건"
     assert data["sourceUrl"] == "https://example.test/official"
+    assert data["officialUrl"] == data["sourceUrl"]
+    assert data["verifiedAt"] == "2026-10-23T01:00:00Z"
+    assert data["timing"]["openTimeDefaulted"] is False
     assert data["deliverables"] == "제출물 원문" and data["contact"] == "문의처 원문"
     assert data["awards"] is None and data["posterUrl"] is None
     assert data["capacity"] == {
@@ -207,6 +211,7 @@ async def test_anonymous_detail_returns_current_public_source_and_all_teams(
         "contact",
         "verifiedAt",
         "sourceUrl",
+        "officialUrl",
     }
     assert "private-" not in response.text and "privateowner" not in response.text
 
@@ -374,3 +379,68 @@ async def test_long_http_urls_keep_the_stored_value_without_an_implicit_limit(
         response_field
     ]
     assert "maxLength" not in str(field)
+
+
+async def test_collected_source_keeps_unknown_verification_and_opening(
+    api: ContestApi,
+) -> None:
+    async with api.database.session() as session:
+        await session.execute(
+            update(Contest)
+            .where(Contest.contest_id == CONTEST_ID)
+            .values(
+                official_url=None,
+                source_url="https://example.test/collected",
+                verified_at=None,
+                source_metadata={
+                    "externalId": "collected-1",
+                    "raw": {"internalNote": "private-source-metadata"},
+                },
+                open_source_time=None,
+                registration_opens_at=datetime(2026, 10, 23, 15, tzinfo=UTC),
+            )
+        )
+        await session.commit()
+    response = await api.client.get(f"/api/v1/contests/{CONTEST_ID}")
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["sourceUrl"] == "https://example.test/collected"
+    assert data["officialUrl"] is None and data["verifiedAt"] is None
+    assert data["timing"]["openTimeDefaulted"] is True
+    assert data["timing"]["openSourceTime"] is None
+    assert "sourceMetadata" not in data
+    assert "private-source-metadata" not in response.text
+    async with api.database.session() as session:
+        stored = await session.get(Contest, CONTEST_ID)
+        assert stored is not None
+        assert stored.source_metadata["raw"] == {
+            "internalNote": "private-source-metadata"
+        }
+
+
+async def test_official_link_takes_precedence_without_claiming_verification(
+    api: ContestApi,
+) -> None:
+    async with api.database.session() as session:
+        await session.execute(
+            update(Contest)
+            .where(Contest.contest_id == CONTEST_ID)
+            .values(source_url="https://example.test/collected", verified_at=None)
+        )
+        await session.commit()
+    response = await api.client.get(f"/api/v1/contests/{CONTEST_ID}")
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["sourceUrl"] == data["officialUrl"] == "https://example.test/official"
+    assert data["verifiedAt"] is None
+
+
+async def test_contest_cannot_lose_both_source_links(api: ContestApi) -> None:
+    async with api.database.session() as session:
+        with pytest.raises(IntegrityError):
+            await session.execute(
+                update(Contest)
+                .where(Contest.contest_id == CONTEST_ID)
+                .values(official_url=None, source_url=None)
+            )
+        await session.rollback()

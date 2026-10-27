@@ -63,7 +63,7 @@ DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:5432/wejo_dev
 
 API는 `http://127.0.0.1:8000`, 대화형 API 문서는 `/docs`입니다. `GET /api/v1/health`는 `{"status":"ok"}`를 반환합니다. health는 프로세스 연결 확인이며 DB 준비 상태 검사가 아닙니다.
 
-`upgrade head`는 계정·서버 세션, 학사, 공고, 프로필, 팀·지원·소속·발생 건·알림과 AI 실행 메타데이터·대화·메시지까지 migration 8개를 적용합니다. 현재 적용 대상은 [DB 인덱스](../database/README.md)와 [Alembic 모델 등록](../../backend/alembic/env.py)에서 확인합니다. 스키마 적용은 운영 학사 원장·공고·시연 데이터를 적재하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
+`upgrade head`는 계정·서버 세션, 학사, 공고, 프로필, 팀·지원·소속·발생 건·알림과 AI 실행 메타데이터·대화·메시지까지 migration 9개를 적용합니다. 현재 적용 대상은 [DB 인덱스](../database/README.md)와 [Alembic 모델 등록](../../backend/alembic/env.py)에서 확인합니다. 스키마 적용은 운영 학사 원장·공고·시연 데이터를 적재하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
 
 개발용 데이터는 `wejo_dev`에 넣고 실제 API로 변경하면서 검증합니다. 공고 등록은 [공고 CLI](../api/contests.md#contest-import-cli), 가입·프로필·팀 생성은 각 [API](../api/README.md)를 사용합니다. 자동 테스트 fixture는 `wejo_test`에서 생성·정리하며 개발 DB의 예시 데이터를 대신하지 않습니다.
 

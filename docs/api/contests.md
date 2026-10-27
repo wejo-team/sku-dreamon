@@ -90,7 +90,7 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 
 상세 조회는 확인되어 저장된 경계와 원문을 그대로 읽으며 누락된 시작 시각을 임의 보완하거나 날짜·시간대를 다시 해석하지 않습니다. 접수 상태는 조회 시각이 시작 경계 이상·마감 경계 미만일 때만 `open`이고, 마감 상태에서도 상세와 원문 링크는 공개합니다.
 
-원문에 시작 시각이 없거나 모호한 경우의 처리까지 이 계약으로 확정하지 않습니다. 등록 전 확인과 미정 범위는 [공고 테이블](../database/contests.md)을 따릅니다.
+개발용 수집 자료의 시작 날짜만 있을 때는 적재 시 해당일 00:00으로 계산하고 `openSourceTime=null`, `openTimeDefaulted=true`로 구분합니다. 상세 조회가 저장된 경계를 다시 계산하지는 않습니다. 등록 전 확인과 운영 입력 범위는 [공고 테이블](../database/contests.md)을 따릅니다.
 
 <a id="deadline-interpretation"></a>
 
@@ -101,6 +101,10 @@ D-day는 `endsAt`과 표시 시간대를 기준으로 표현합니다. 저장된
 실제 마감 경계는 상위의 `endsAt` 또는 `recruitmentEndsAt`으로 제공합니다. 원문 입력과 서비스가 보완한 값을 구분해 안내합니다.
 
 ## 검증
+
+개발용 수집 자료에서는 공식 원문 미확인을 `verifiedAt=null`로 제공합니다. `officialUrl`은 수집한 주최 측 링크 또는 null이며, `sourceUrl`은 공식 링크를 우선하고 없으면 실제 수집 출처를 제공합니다. 수집 시각·원본 외부 ID·가공 근거는 DB의 `source_metadata`에 보존하고 공개 응답에서는 제외합니다. 소비자는 `sourceUrl`을 항상 공식 사이트로 표시하지 않고, 확인 시각의 null과 시작 시각 보완 여부를 처리해야 합니다.
+
+[프론트 응답 계약](../../frontend/src/features/contests/api.ts)은 이 필드들을 명시적으로 검증합니다. 공식 링크가 없으면 수집 출처로 안내하고, 확인 시각이 없으면 날짜를 생성하지 않고 미확인 상태를 표시합니다. 시작 시각을 해당일 00:00으로 보완한 경우에도 원문과 적용 시각을 구분합니다.
 
 [PostgreSQL·HTTP 상세 테스트](../../backend/tests/integration/test_contest_detail.py)는 미인증 열람·UUID 오류·시각 경계·원문/null 보존·정원 전송·전체 팀 수·동시 변경의 동일 스냅샷을 확인합니다. [DTO 테스트](../../backend/tests/unit/test_contest_detail_schemas.py)는 큰 정원의 십진 문자열과 필수 null 계약을 검증합니다. 목록 정책·운영 저장 경로·화면 완료 조건은 이 상세 API의 검증 범위에 포함하지 않습니다.
 

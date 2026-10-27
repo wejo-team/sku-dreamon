@@ -58,7 +58,7 @@ def test_nullable_bounds_must_be_supplied_and_remain_in_json() -> None:
             ParticipationCapacity.model_validate(payload)
 
 
-@pytest.mark.parametrize("field", ["source_url", "poster_url"])
+@pytest.mark.parametrize("field", ["source_url", "official_url", "poster_url"])
 @pytest.mark.parametrize("value", ["ftp://example.test/file", "not a URL"])
 def test_public_urls_keep_the_http_and_https_format_requirement(
     field: str, value: str

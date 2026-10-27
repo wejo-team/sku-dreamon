@@ -533,6 +533,7 @@ describe('official reference public exploration', () => {
       within(facts).getByText('아이디어 제안서 PDF · 발표 자료'),
     ).toBeInTheDocument();
     expect(within(facts).getByText('2026-10-01')).toBeInTheDocument();
+    expect(within(facts).getByText('2026-10-18')).toBeInTheDocument();
     expect(within(facts).getByText('2026.11.08')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: '공식 공고 확인하기' }),
@@ -541,6 +542,49 @@ describe('official reference public exploration', () => {
       'href',
       `/teams/new?contest=${demoIds.contests.campus}`,
     );
+  });
+
+  it('shows collected sources and unverified dates without inventing official confirmation', async () => {
+    const db = createDemoRecords();
+    const seed = db.contests.find(
+      (item) => item.id === demoIds.contests.campus,
+    )!;
+    seed.verifiedAt = null;
+    seed.officialUrl = null;
+    seed.sourceUrl = 'https://collection.example.com/notice/123';
+    seed.timing.openTimeDefaulted = true;
+    await renderExplore(`/contests/${seed.id}`, { db });
+    expect(
+      screen.getByRole('heading', { name: seed.title }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('공식 원문 미확인')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: '수집 출처 확인하기' }),
+    ).toHaveAttribute('href', seed.sourceUrl);
+    expect(
+      screen.queryByRole('link', { name: '공식 공고 확인하기' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/접수 시작 시각이 없어.*00:00/),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps an organizer link separate from whether its information was verified', async () => {
+    const db = createDemoRecords();
+    const seed = db.contests.find(
+      (item) => item.id === demoIds.contests.campus,
+    )!;
+    seed.verifiedAt = null;
+    seed.officialUrl = 'https://organizer.example.com/notice';
+    seed.timing.openSourceTime = '00:00';
+    seed.timing.openTimeDefaulted = false;
+    seed.timing.openTimeZoneDefaulted = false;
+    await renderExplore(`/contests/${seed.id}`, { db });
+    expect(screen.getByText('공식 원문 미확인')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: '공식 공고 확인하기' }),
+    ).toHaveAttribute('href', seed.officialUrl);
+    expect(screen.queryByText(/접수 시작 시각이 없어/)).not.toBeInTheDocument();
   });
 
   it('shows only this contest’s teams inline with accessible create and AI icon actions', async () => {

@@ -47,6 +47,7 @@ import {
   deadlineLabel,
   deadlineNotice,
   memberLimitLabel,
+  openingNotice,
   summaryBadgeLabel,
   summaryDaysLeft,
 } from '@/features/demo/contest-state';
@@ -531,9 +532,16 @@ export function ContestPage() {
               </div>
               <div>
                 <dt>정보 확인일</dt>
-                <dd>{koreanDate(contest.verifiedAt)}</dd>
+                <dd>
+                  {contest.verifiedAt === null
+                    ? '공식 원문 미확인'
+                    : koreanDate(contest.verifiedAt)}
+                </dd>
               </div>
             </dl>
+            {openingNotice(contest.timing) && (
+              <p className="preview-muted">{openingNotice(contest.timing)}</p>
+            )}
             {deadlineNotice(contest.timing.closing) && (
               <p className="preview-muted">
                 {deadlineNotice(contest.timing.closing)}
@@ -541,11 +549,13 @@ export function ContestPage() {
             )}
             <a
               className="preview-button"
-              href={contest.sourceUrl}
+              href={contest.officialUrl ?? contest.sourceUrl}
               target="_blank"
               rel="noreferrer"
             >
-              공식 공고 확인하기
+              {contest.officialUrl
+                ? '공식 공고 확인하기'
+                : '수집 출처 확인하기'}
             </a>
           </div>
           <Notice>공모전 접수는 주최 기관에서 진행합니다.</Notice>

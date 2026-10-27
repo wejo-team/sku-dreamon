@@ -1,6 +1,7 @@
 """공고 원문·적용 일정과 대상·분야 연결의 저장 제약을 정의한다."""
 
 from datetime import date, datetime, time
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
@@ -17,6 +18,7 @@ from sqlalchemy import (
     Uuid,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db.base import Base
@@ -41,10 +43,22 @@ class Contest(CreatedAtMixin, UpdatedAtMixin, Base):
                     "title",
                     "organizer_name",
                     "eligibility_text",
-                    "official_url",
                 )
             ),
             name="ck_contests_required_text",
+        ),
+        CheckConstraint(
+            "(official_url IS NOT NULL OR source_url IS NOT NULL) AND "
+            + " AND ".join(
+                f"({column} IS NULL OR "
+                f"btrim({column}, U&'{_REQUIRED_TEXT_WHITESPACE}') <> '')"
+                for column in ("official_url", "source_url")
+            ),
+            name="ck_contests_source_urls",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(source_metadata) = 'object'",
+            name="ck_contests_source_metadata",
         ),
         CheckConstraint(
             "(member_limit_kind = 'range' AND min_members IS NOT NULL "
@@ -74,7 +88,11 @@ class Contest(CreatedAtMixin, UpdatedAtMixin, Base):
     contest_id: Mapped[UUIDPrimaryKey]
     title: Mapped[str] = mapped_column(Text)
     organizer_name: Mapped[str] = mapped_column(Text)
-    official_url: Mapped[str] = mapped_column(Text)
+    official_url: Mapped[str | None] = mapped_column(Text)
+    source_url: Mapped[str | None] = mapped_column(Text)
+    source_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, server_default=text("'{}'::jsonb")
+    )
     eligibility_text: Mapped[str] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
     submission_details: Mapped[str | None] = mapped_column(Text)
@@ -84,7 +102,7 @@ class Contest(CreatedAtMixin, UpdatedAtMixin, Base):
     member_limit_kind: Mapped[str] = mapped_column(String(16))
     min_members: Mapped[int | None] = mapped_column(BigInteger)
     max_members: Mapped[int | None] = mapped_column(BigInteger)
-    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(BigInteger, server_default=text("1"))
     registration_opens_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     registration_closes_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

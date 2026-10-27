@@ -103,6 +103,7 @@ export const ContestTiming = z
     openSourceTimeZone: z.string().nullable(),
     openEffectiveTimeZone: z.string(),
     openTimeZoneDefaulted: z.boolean(),
+    openTimeDefaulted: z.boolean(),
     closing: DeadlineInterpretation,
   })
   .strict();
@@ -127,8 +128,9 @@ export const ContestDetail = ContestSummary.extend({
   deliverables: z.string().nullable(),
   awards: z.string().nullable(),
   contact: z.string().nullable(),
-  verifiedAt: Timestamp,
+  verifiedAt: Timestamp.nullable(),
   sourceUrl: HttpUrl,
+  officialUrl: HttpUrl.nullable(),
 })
   .strict()
   // [출처 7] timing.startsAt·endsAt은 상위 Contest의 같은 이름 필드와 같은 경계

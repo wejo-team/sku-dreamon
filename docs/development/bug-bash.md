@@ -48,7 +48,7 @@ POSTGRES_PORT=55433 docker compose -p sku-dreamon-bugbash exec -T postgres creat
 cd backend
 uv sync --locked
 
-# 자동 테스트용 DB: 8개 migration을 순서대로 적용하고 모델과 대조
+# 자동 테스트용 DB: 현재 head까지 migration을 적용하고 모델과 대조
 uv run --env-file ../.bugbash/test.env alembic upgrade head
 uv run --env-file ../.bugbash/test.env alembic check
 uv run --env-file ../.bugbash/test.env python -m app.core.db.check

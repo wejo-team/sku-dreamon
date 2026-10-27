@@ -23,6 +23,7 @@ docs/.vitepress/cache/
 
 # Local files
 .bugbash/
+/data/
 .DS_Store
 Thumbs.db
 *.log

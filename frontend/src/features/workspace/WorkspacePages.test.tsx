@@ -136,6 +136,23 @@ const signIn = (step: (action: () => Promise<void>) => Promise<void>) =>
   );
 
 describe('team application', () => {
+  it('labels an unverified collection link as its source on the team overview', async () => {
+    const db = createDemoRecords();
+    const contest = db.contests.find(
+      (item) => item.id === demoIds.contests.campus,
+    )!;
+    contest.verifiedAt = null;
+    contest.officialUrl = null;
+    contest.sourceUrl = 'https://collection.example.com/notice/123';
+    await renderPage(`/teams/${demoIds.teams.makers}`, { db });
+    expect(
+      screen.getByRole('link', { name: '수집 출처 보기' }),
+    ).toHaveAttribute('href', contest.sourceUrl);
+    expect(
+      screen.queryByRole('link', { name: '공식 원문 보기' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('accepts an unadvertised role and links the new application to its result', async () => {
     const { user, step } = await renderPage(`/teams/${demoIds.teams.makers}`);
     await signIn(step);
