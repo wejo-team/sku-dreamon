@@ -54,9 +54,10 @@ def _error_headers(
     response_headers = {
         key: value
         for key, value in (headers or {}).items()
-        if key.lower() != "x-request-id"
+        if key.lower() not in {"x-request-id", "cache-control"}
     }
     response_headers["X-Request-ID"] = request_id
+    response_headers["Cache-Control"] = "no-store"
     return response_headers
 
 
