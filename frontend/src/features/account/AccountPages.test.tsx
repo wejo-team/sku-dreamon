@@ -106,6 +106,7 @@ async function renderAccount(
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/profile" element={<ProfilePage />} />
+      <Route path="/profile/public" element={<PublicProfilePage />} />
       <Route path="/teams/new" element={<CreateTeamPage />} />
       <Route path="*" element={<CurrentLocation />} />
     </Routes>,
@@ -145,6 +146,40 @@ async function renderProfileFlow() {
 }
 
 describe('design preview account flows', () => {
+  it.each([true, false])(
+    'uses API isDemo=%s across the profile summary, editor and public preview regardless of the name',
+    async (isDemo) => {
+      const client = await renderAccount('/profile', {
+        profile: {
+          realName: '시연 이름을 가진 사용자',
+          isPublic: true,
+          isDemo,
+        },
+      });
+      const user = setupUser();
+      expect(
+        within(
+          screen.getByRole('region', { name: '내 기본 정보' }),
+        ).queryByText('시연 계정') !== null,
+      ).toBe(isDemo);
+      await user.click(screen.getByRole('button', { name: '프로필 수정' }));
+      expect(screen.getByLabelText('이름 (필수)')).toHaveValue(
+        '시연 이름을 가진 사용자',
+      );
+      expect(screen.queryByText('시연 계정') !== null).toBe(isDemo);
+      await user.click(screen.getByRole('button', { name: '취소' }));
+      await user.click(screen.getByRole('link', { name: '공개된 모습 보기' }));
+      await settled(client);
+      expect(
+        within(
+          screen.getByRole('region', { name: '공개된 내 프로필' }),
+        ).queryByText('시연 계정') !== null,
+      ).toBe(isDemo);
+      expect(profileSaves()).toHaveLength(0);
+      expect(visibilitySaves()).toHaveLength(0);
+    },
+  );
+
   it('projects every registered field of a public profile and none of a private profile', async () => {
     const profile = {
       ...initialProfile,

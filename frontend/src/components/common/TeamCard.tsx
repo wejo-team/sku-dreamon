@@ -9,7 +9,11 @@
 import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
 import type { TeamWithContest } from '@/features/teams/status';
-import { Badge, TeamStatusBadge } from '@/components/common/CommonUi';
+import {
+  Badge,
+  DemoBadge,
+  TeamStatusBadge,
+} from '@/components/common/CommonUi';
 
 // [출처 2, 3, 4] 카드 전체 링크, 모집 상태·역할·인원 요약
 export function TeamCard({
@@ -30,7 +34,10 @@ export function TeamCard({
         <TeamStatusBadge team={team} />
         <span className="preview-muted">{team.memberCount}명 활동 중</span>
       </div>
-      <h3>{team.name}</h3>
+      <div className="preview-row">
+        <h3>{team.name}</h3>
+        <DemoBadge isDemo={team.isDemo} kind="team" />
+      </div>
       <p className="preview-card-description">{team.introduction}</p>
       <div className="preview-row preview-team-card-roles">
         {team.roleCodes.map((code) => (

@@ -34,6 +34,7 @@ import type { ContestSummary } from '@/features/contests/api';
 import { openContestSearchOptions } from '@/features/contests/queries';
 import { useLabels } from '@/features/catalogs/queries';
 import { endsAtLabel } from '@/features/demo/contest-state';
+import { DemoBadge } from '@/components/common/CommonUi';
 import { ContestCover } from '@/components/common/ContestCover';
 
 // 입력이 멈춘 뒤 검색 요청을 보냅니다.
@@ -42,7 +43,7 @@ const searchDelay = 250;
 /** 선택 버튼에 표시할 공모전 정보(목록 요약 또는 상세) */
 export type ContestChoice = Pick<
   ContestSummary,
-  'id' | 'title' | 'organizer' | 'fieldCodes' | 'endsAt'
+  'id' | 'title' | 'organizer' | 'fieldCodes' | 'endsAt' | 'isDemo'
 >;
 
 type ContestPickerProps = {
@@ -127,11 +128,20 @@ export function ContestPicker({
           variant="outline"
           className="preview-button preview-contest-picker-trigger"
           aria-invalid={invalid}
-          aria-describedby={describedBy}
+          aria-describedby={
+            [describedBy, current?.isDemo ? `${id}-demo` : undefined]
+              .filter(Boolean)
+              .join(' ') || undefined
+          }
           onBlur={onBlur}
         >
           <span className="preview-contest-picker-value">
             <strong>{current?.title ?? '공모전 검색해서 선택'}</strong>
+            {current?.isDemo && (
+              <span id={`${id}-demo`}>
+                <DemoBadge isDemo={current.isDemo} kind="contest" />
+              </span>
+            )}
             {current && (
               <span>
                 {current.organizer} ·{' '}
@@ -191,7 +201,7 @@ export function ContestPicker({
                     value={contest.id}
                     className="preview-contest-option"
                     data-current={contest.id === value}
-                    aria-label={`${contest.title}, ${contest.organizer}, ${contest.fieldCodes.map(fieldLabel).join(' ')}, 마감 ${endsAtLabel(contest.endsAt)}${contest.id === value ? ', 현재 선택됨' : ''}`}
+                    aria-label={`${contest.title}, ${contest.organizer}, ${contest.fieldCodes.map(fieldLabel).join(' ')}, 마감 ${endsAtLabel(contest.endsAt)}${contest.isDemo ? ', 시연 공고' : ''}${contest.id === value ? ', 현재 선택됨' : ''}`}
                     onSelect={() => {
                       setPicked(contest);
                       onChange(contest.id);
@@ -204,6 +214,7 @@ export function ContestPicker({
                     />
                     <span className="preview-contest-option-copy">
                       <strong>{contest.title}</strong>
+                      <DemoBadge isDemo={contest.isDemo} kind="contest" />
                       <span className="preview-contest-option-organizer">
                         {contest.organizer}
                       </span>

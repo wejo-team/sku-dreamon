@@ -302,3 +302,20 @@ describe('ContestPicker', () => {
     );
   });
 });
+
+it('keeps API demo identity visible and accessible while selecting a contest', async () => {
+  await renderPicker({ contests: [base, ...fixtures] });
+  const user = setupUser();
+  const { drawer } = await openPicker(user);
+  await expectOptions(drawer, fixtures.length + 1);
+  const option = within(drawer).getByRole('option', {
+    name: new RegExp(base.title),
+  });
+  expect(option).toHaveAccessibleName(/시연 공고/);
+  expect(within(option).getByText('시연 공고')).toBeInTheDocument();
+  expect(within(drawer).getAllByText('시연 공고')).toHaveLength(1);
+  await user.click(option);
+  const trigger = screen.getByRole('button', { name: '참여 공모전' });
+  expect(within(trigger).getByText('시연 공고')).toBeInTheDocument();
+  expect(trigger).toHaveAccessibleDescription(/시연 공고/);
+});

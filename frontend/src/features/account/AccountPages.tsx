@@ -73,6 +73,7 @@ import {
   Avatar,
   BackLink,
   Badge,
+  DemoBadge,
   PageIntro,
   SchoolVerificationBadge,
 } from '@/components/common/CommonUi';
@@ -503,6 +504,11 @@ function ProfileEditor({
         }
       })}
     >
+      {profile?.isDemo && (
+        <div className="preview-row">
+          <DemoBadge isDemo={profile.isDemo} kind="account" />
+        </div>
+      )}
       <Controller
         control={control}
         name="profileImageCode"
@@ -783,7 +789,10 @@ export function ProfilePage() {
                 />
                 <div>
                   <h2>{profile.realName}</h2>
-                  <SchoolVerificationBadge interactive />
+                  <div className="preview-row">
+                    <SchoolVerificationBadge interactive />
+                    <DemoBadge isDemo={profile.isDemo} kind="account" />
+                  </div>
                 </div>
               </div>
               <div
@@ -993,7 +1002,10 @@ export function PublicProfilePage() {
             />
             <div>
               <h2>{person.realName}</h2>
-              <SchoolVerificationBadge />
+              <div className="preview-row">
+                <SchoolVerificationBadge />
+                <DemoBadge isDemo={person.isDemo} kind="account" />
+              </div>
             </div>
           </div>
           <ProfileDetails profile={person} labels={labels} />

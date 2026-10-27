@@ -67,6 +67,7 @@ import {
   Avatar,
   BackLink,
   Badge,
+  DemoBadge,
   EmptyState,
   Notice,
   PageIntro,
@@ -260,7 +261,12 @@ export function ExplorePage() {
         )}
       </div>
       {contestContext && tab === 'teams' && (
-        <Notice>{contestContext.title}에 함께 도전하는 팀이에요.</Notice>
+        <Notice>
+          <div className="preview-row">
+            <span>{contestContext.title}에 함께 도전하는 팀이에요.</span>
+            <DemoBadge isDemo={contestContext.isDemo} kind="contest" />
+          </div>
+        </Notice>
       )}
       <div className="preview-results-heading">
         <h2 ref={headingRef} tabIndex={-1}>
@@ -342,6 +348,7 @@ export function ExplorePage() {
                 <div className="preview-contest-copy">
                   <h3>{item.title}</h3>
                   <div className="preview-row">
+                    <DemoBadge isDemo={item.isDemo} kind="contest" />
                     {item.fieldCodes.map((code) => (
                       <Badge key={code}>{fieldLabel(code)}</Badge>
                     ))}
@@ -391,6 +398,7 @@ export function ExplorePage() {
                   />
                 </div>
                 <div className="preview-row">
+                  <DemoBadge isDemo={item.isDemo} kind="account" />
                   {item.fieldCodes.map((code) => (
                     <Badge key={code}>{fieldLabel(code)}</Badge>
                   ))}
@@ -486,6 +494,7 @@ export function ContestPage() {
       <div className="preview-detail-grid">
         <article className="preview-stack">
           <div className="preview-row">
+            <DemoBadge isDemo={contest.isDemo} kind="contest" />
             {contest.fieldCodes.map((code) => (
               <Badge key={code}>{fieldLabel(code)}</Badge>
             ))}
@@ -747,7 +756,10 @@ export function PersonPage() {
             </p>
           </div>
         </div>
-        <SchoolVerificationBadge />
+        <div className="preview-row">
+          <SchoolVerificationBadge />
+          <DemoBadge isDemo={person.isDemo} kind="account" />
+        </div>
         <ProfileDetails profile={person} labels={labels} />
       </div>
     </div>
