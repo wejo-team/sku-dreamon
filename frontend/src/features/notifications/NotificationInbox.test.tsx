@@ -374,3 +374,88 @@ describe('notifications beyond the first page', () => {
     ).toBeInTheDocument();
   });
 });
+
+// 조회 오류는 정상 0건과 구분하고, 필터를 유지한 채 사용자가 재시도합니다.
+describe('notification query failures', () => {
+  it.each(['503', 'network'])(
+    'shows an error and recovers from an initial %s failure',
+    async (failure) => {
+      const { vi } = await import('vitest');
+      const view = renderWithApi(<Notifications />, {
+        path: '/explore',
+        signedIn: true,
+      });
+      const originalFetch = globalThis.fetch;
+      let failing = true;
+      vi.stubGlobal('fetch', (input: string, init?: RequestInit) => {
+        if (String(input).includes('/me/notifications') && failing) {
+          if (failure === 'network')
+            return Promise.reject(new TypeError('Failed to fetch'));
+          return Promise.resolve(
+            Response.json(
+              {
+                error: { code: 'UNAVAILABLE', message: '일시 오류' },
+                requestId: 'test',
+              },
+              { status: 503 },
+            ),
+          );
+        }
+        return originalFetch(input, init);
+      });
+      await settled(view.client);
+      const user = setupUser();
+      await openInbox(user);
+      expect(screen.queryByText('아직 알림이 없어요')).not.toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        '알림을 불러오지 못했어요',
+      );
+      await user.click(screen.getByRole('button', { name: /읽지 않음/ }));
+      await settled(view.client);
+      failing = false;
+      await user.click(screen.getByRole('button', { name: '다시 시도' }));
+      await settled(view.client);
+      expect(screen.getByRole('button', { name: /읽지 않음/ })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('list', { name: '알림 목록' }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it('shows a successful empty inbox without a query error', async () => {
+    const db = recordsWithMyProfile({ isPublic: true });
+    db.notifications = [];
+    const { user } = await renderInbox('/explore', { db });
+    await openInbox(user);
+    expect(screen.getByText('아직 알림이 없어요')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('reports a refetch failure instead of claiming cached items are current and recovers', async () => {
+    const { vi } = await import('vitest');
+    const { user, client } = await renderInbox();
+    await openInbox(user);
+    expect(screen.getByRole('list', { name: '알림 목록' })).toBeInTheDocument();
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal('fetch', (input: string, init?: RequestInit) =>
+      String(input).includes('/me/notifications')
+        ? Promise.reject(new TypeError('Failed to fetch'))
+        : originalFetch(input, init),
+    );
+    await client.invalidateQueries({ queryKey: ['my', 'notifications'] });
+    await settled(client);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '알림을 불러오지 못했어요',
+    );
+    expect(screen.queryByText('아직 알림이 없어요')).not.toBeInTheDocument();
+    vi.stubGlobal('fetch', originalFetch);
+    await user.click(screen.getByRole('button', { name: '다시 시도' }));
+    await settled(client);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('list', { name: '알림 목록' })).toBeInTheDocument();
+  });
+});

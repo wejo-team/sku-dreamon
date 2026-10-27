@@ -251,7 +251,25 @@ function NotificationInbox() {
               읽지 않은 알림 {unreadCount}개
             </p>
             <div className="preview-notifications-body">
-              {visible.length ? (
+              {active.isError ? (
+                <Alert role="alert" className="mx-5 mb-3 w-auto">
+                  <AlertDescription>
+                    <p>알림을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-2 justify-self-start"
+                      onClick={() => {
+                        void active.refetch();
+                        if (filter === 'unread' && all.isError)
+                          void all.refetch();
+                      }}
+                    >
+                      다시 시도
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              ) : visible.length ? (
                 <ul
                   className="preview-notifications-list"
                   aria-label="알림 목록"
