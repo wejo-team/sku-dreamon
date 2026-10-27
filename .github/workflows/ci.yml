@@ -109,7 +109,7 @@ jobs:
     name: Integration E2E
     needs: changes
     if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
@@ -145,6 +145,21 @@ jobs:
         working-directory: frontend
       - run: uv sync --locked
         working-directory: backend
+      - name: Use official Ubuntu archive mirrors
+        run: |
+          # Azure의 저속 전송은 APT 무응답 timeout으로 전환되지 않는다. runner-images#14823
+          mirror_list=/etc/apt/apt-mirrors.txt
+          if ! grep -Fq 'mirror+file:/etc/apt/apt-mirrors.txt' /etc/apt/sources.list.d/ubuntu.sources ||
+             ! grep -Eq '^https://archive\.ubuntu\.com/ubuntu/[[:space:]]+priority:2$' "$mirror_list" ||
+             ! grep -Eq '^https://security\.ubuntu\.com/ubuntu/[[:space:]]+priority:3$' "$mirror_list"; then
+            echo '::error::Expected the official Ubuntu runner APT mirror configuration.'
+            exit 1
+          fi
+          sudo sed -i '\|^http://azure\.archive\.ubuntu\.com/ubuntu/[[:space:]]\+priority:1$|d' "$mirror_list"
+          if grep -Eq '^http://azure\.archive\.ubuntu\.com/ubuntu/([[:space:]]|$)' "$mirror_list"; then
+            echo '::error::Unexpected Azure APT mirror entry remains.'
+            exit 1
+          fi
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - run: python scripts/prepare_bugbash.py --database-name wejo_e2e
