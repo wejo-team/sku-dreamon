@@ -459,3 +459,47 @@ describe('notification query failures', () => {
     expect(screen.getByRole('list', { name: '알림 목록' })).toBeInTheDocument();
   });
 });
+
+it('uses unread response counts while keeping the failed all-list retry available', async () => {
+  const { vi } = await import('vitest');
+  const view = renderWithApi(<Notifications />, {
+    path: '/explore',
+    signedIn: true,
+  });
+  const original = globalThis.fetch;
+  let failing = true;
+  vi.stubGlobal('fetch', (input: string, init?: RequestInit) =>
+    failing &&
+    String(input).includes('/me/notifications') &&
+    !String(input).includes('unreadOnly=true')
+      ? Promise.resolve(
+          Response.json(
+            {
+              error: { code: 'UNAVAILABLE', message: '일시 오류' },
+              requestId: 'partial-error',
+            },
+            { status: 503 },
+          ),
+        )
+      : original(input, init),
+  );
+  await settled(view.client);
+  const user = setupUser();
+  await openInbox(user);
+  await user.click(screen.getByRole('button', { name: /읽지 않음/ }));
+  await settled(view.client);
+  expect(screen.getByRole('list', { name: '알림 목록' })).toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('읽지 않은 알림 3개');
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    '알림을 불러오지 못했어요',
+  );
+  failing = false;
+  await user.click(screen.getByRole('button', { name: '다시 시도' }));
+  await settled(view.client);
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /읽지 않음/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  expect(screen.getByRole('status')).toHaveTextContent('읽지 않은 알림 3개');
+});
