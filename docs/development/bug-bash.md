@@ -21,7 +21,7 @@
 | --- | --- |
 | Compose 프로젝트 | `sku-dreamon-bugbash` |
 | PostgreSQL | `127.0.0.1:55433`, 사용자/개발 암호 `wejo` |
-| 수동·브라우저 검증 DB | 별도 컨테이너의 `wejo_dev` |
+| 수동·브라우저 검증 DB | 별도 컨테이너의 `wejo_e2e` |
 | pytest 전용 DB | 같은 컨테이너의 `wejo_test` |
 | 백엔드 | `http://127.0.0.1:8011` |
 | 프론트·인증 Origin | `https://localhost:5183` |
@@ -32,13 +32,14 @@ Node·npm·Python·uv는 [저장소 고정 버전](local-development.md)을 사�
 ```bash
 # 저장소 루트, 전용 셸
 unset DATABASE_URL TEST_DATABASE_URL OPENAI_API_KEY
-python3 scripts/prepare_bugbash.py
+python3 scripts/prepare_bugbash.py --database-name wejo_e2e
 POSTGRES_PORT=55433 docker compose -p sku-dreamon-bugbash up -d --wait
 # 최초 한 번만. 이미 존재하면 다시 만들지 않습니다.
+POSTGRES_PORT=55433 docker compose -p sku-dreamon-bugbash exec -T postgres createdb -U wejo wejo_e2e
 POSTGRES_PORT=55433 docker compose -p sku-dreamon-bugbash exec -T postgres createdb -U wejo wejo_test
 ```
 
-[준비 스크립트](../../scripts/prepare_bugbash.py)는 설정·난수 CSRF 키·30일 로컬 인증서·가상 공고 JSON을 만듭니다. DB에는 쓰지 않고 기존 `backend/.env`도 수정하지 않습니다. 재실행해도 기존 bug bash CSRF 키·인증서를 유지합니다. 인증서가 만료되면 이 환경을 종료하고 `.bugbash/localhost.pem`과 `localhost-key.pem`을 함께 제거한 뒤 다시 준비합니다.
+[준비 스크립트](../../scripts/prepare_bugbash.py)는 설정·난수 CSRF 키·30일 로컬 인증서와 별도 입력 CLI용 공고 JSON을 만듭니다. 기본 E2E는 아래 전용 8개 공고 시드를 사용합니다. DB에는 쓰지 않고 기존 `backend/.env`도 수정하지 않습니다. 재실행해도 기존 bug bash CSRF 키·인증서를 유지합니다. 인증서가 만료되면 이 환경을 종료하고 `.bugbash/localhost.pem`과 `localhost-key.pem`을 함께 제거한 뒤 다시 준비합니다.
 
 가입 시험용 차단 목록은 가상 비밀번호 한 줄이며 운영 차단 목록이 아닙니다. 반복 실행을 위해 이 격리 환경의 가입·로그인 IP·아이디 확인 제한만 1,000으로 설정합니다. 실제 제한 경계는 기본 설정을 사용하는 백엔드 테스트로 검증하며, 이 값을 운영에 복사하지 않습니다. 외부 AI 키는 비워 둡니다.
 
@@ -56,14 +57,13 @@ uv run --env-file ../.bugbash/test.env pytest
 
 # 브라우저 검증용 DB
 uv run --env-file ../.bugbash/backend.env alembic upgrade head
-# 빈 환경에서 한 번만 신규 공고를 등록합니다. CLI 재실행은 새 공고를 만듭니다.
-uv run --env-file ../.bugbash/backend.env python -m app.cli.contests ../.bugbash/contest.json --apply
-uv run --env-file ../.bugbash/backend.env python -m scripts.seed_dev_data --apply
+# 비어 있는 *_e2e 환경에 한 번만 전체 fixture를 적재합니다.
+uv run --env-file ../.bugbash/backend.env python -m scripts.seed_e2e_data --apply
 ```
 
-준비 시점부터 약 30일간 접수 중인 가상 공고를 사용합니다. 시드 스크립트는 공고를 만들지 않으므로 **공고 등록 → 시드** 순서를 지킵니다. 공고가 만료되면 새 가상 공고 입력을 준비해 신규 등록해야 합니다. `seed_dev_data --apply`는 재실행 시 기존 시드 계정·팀을 덮어쓰지 않습니다.
+전용 E2E 시드는 준비 시점 기준 접수 중 6개·마감 1개·예정 1개 공고와 계정·팀을 한 트랜잭션으로 준비합니다. 비어 있지 않은 DB에 재실행하면 거부하며, 테스트 자료를 최신 날짜로 준비하려면 별도의 빈 `*_e2e` DB를 사용합니다. 기존 개발 자료의 `seed_dev_data --apply`는 [로컬 실행](local-development.md)의 `wejo_dev` 전용 명령이며 기존 시드 계정·팀을 덮어쓰지 않습니다.
 
-시드는 학사 94개, 사용자 300명, 조건에 맞는 공고가 있으면 최대 100개 팀과 지원·알림을 준비합니다. 이 학사 목록은 문서 기반 개발 자료이며 공식 운영 원장 검증 완료를 뜻하지 않습니다. 가상 계정은 `devuser001`~`devuser300`, 공개된 개발 비밀번호는 `WejoDev2026!Demo`입니다. 수동 시나리오의 새 팀장·지원자는 기존 소속이 없는 새 계정으로 만들면 기존 시드 활동과 충돌하지 않습니다.
+E2E 시드는 학사 94개, 사용자 300명, 팀 100개와 지원·알림을 준비합니다. 이 학사 목록은 문서 기반 개발 자료이며 공식 운영 원장 검증 완료를 뜻하지 않습니다. 가상 계정은 `devuser001`~`devuser300`, 공개된 개발 비밀번호는 `WejoDev2026!Demo`입니다. 수동 시나리오의 새 팀장·지원자는 기존 소속이 없는 새 계정으로 만들면 기존 시드 활동과 충돌하지 않습니다.
 
 `TEST_DATABASE_URL`이 없으면 pytest의 DB 검사가 생략됩니다. 위 `test.env`를 사용하고 출력의 skip 여부를 확인합니다. 자동 테스트 DB와 브라우저 검증 DB를 바꾸어 사용하지 않습니다.
 
@@ -86,11 +86,23 @@ npm run dev -- --mode bugbash --host 127.0.0.1 --port 5183
 
 브라우저에서 `https://localhost:5183`을 엽니다. `/api`는 Vite가 백엔드로 전달합니다. `__Host-`·Secure·HttpOnly 쿠키와 HTTPS Origin 검사를 그대로 사용합니다. 인증서 예외는 전용 로컬 검증 주소에만 적용합니다. 팀원·실기기 공동 검증에는 신뢰된 인증서와 별도 HTTPS 주소가 필요하며 [#165](https://github.com/wejo-team/sku-dreamon/issues/165)에서 준비합니다. `127.0.0.1` 바인딩을 공용 운영 배포로 취급하지 않습니다.
 
-`/health`는 서버 프로세스 확인일 뿐 DB·로그인 정상의 증거가 아닙니다. Network와 서버 로그에서 `/api/v1/catalogs`, `/auth/csrf`, `/auth/login`, `/me`가 실제로 요청되는지도 확인합니다.
+`/api/v1/health`는 서버 프로세스 확인일 뿐 DB·로그인 정상의 증거가 아닙니다. Network와 서버 로그에서 `/api/v1/catalogs`, `/auth/csrf`, `/auth/login`, `/me`가 실제로 요청되는지도 확인합니다.
 
 ## 브라우저 통합테스트
 
-서버 두 개를 위 상태로 실행한 다음 별도 터미널에서 검사합니다. 현재 자동 서버 시작·종료와 CI E2E job은 제공하지 않습니다.
+준비된 DB·환경 파일·인증서가 있으면 저장소 루트에서 아래 실행기로 서버 시작·준비 확인·E2E·종료를 한 번에 수행합니다. Linux/macOS/WSL용이며 이미 사용 중인 IPv4/IPv6 포트는 거부합니다. 직접 시작한 프로세스만 종료하고 DB는 그대로 유지합니다.
+
+```bash
+python3 scripts/run_bugbash.py
+# 기존 개발 DB 설정을 사용하고 실행 중 서버와 포트를 분리할 때
+python3 scripts/run_bugbash.py --backend-env .bugbash/devdb-e2e/backend.env --backend-port 8013 --frontend-port 5185
+# 한 프로젝트나 시나리오만 실행할 때
+python3 scripts/run_bugbash.py -- --project=chromium
+```
+
+`--backend-env`에는 대상 로컬 PostgreSQL의 `DATABASE_URL`, CSRF 키, 비밀번호 차단 목록 등 가입 준비 설정을 명시합니다. 실행기는 다른 셸 DB 설정을 제거하고 실제 앱 설정과 대상 DB가 같은지 확인합니다. AI 키는 비워 비AI E2E에서 외부 모델을 호출하지 않습니다. 인증 Origin과 프록시는 선택한 포트에 맞춰 설정하며, health·카탈로그·공고 목록·CSRF가 준비된 뒤 브라우저를 실행합니다. `.bugbash/runs/<실행 시각>/`에 서버 로그·HTML·JSON·생성 자원 manifest를 남깁니다.
+
+서버 두 개를 직접 실행한 상태라면 별도 터미널에서 다음 명령을 사용합니다.
 
 ```bash
 cd frontend
@@ -105,15 +117,46 @@ npx playwright show-report
 
 Linux의 브라우저 시스템 패키지 설치에는 관리자 권한이 필요할 수 있습니다. 이미 패키지가 준비된 환경은 `npx playwright install chromium`만 실행합니다. 저장소에 고정한 Playwright와 브라우저 버전을 맞추며 다른 버전의 실행 파일을 임의로 섞지 않습니다.
 
-[설정](../../frontend/playwright.config.ts)과 [시나리오](../../frontend/e2e/service.spec.ts)는 데스크톱 Chromium과 320px 모바일 Chromium에서 실행합니다. 테스트는 고유 아이디로 가상 사용자를 만들고 팀장·지원자의 브라우저 컨텍스트를 분리합니다. 실패 재시도는 0회로 두어 최초 실패를 숨기지 않습니다. 정상 데이터도 이 격리 DB에 남기므로 다음 실행은 다른 계정을 사용합니다.
+[설정](../../frontend/playwright.config.ts)과 [시나리오](../../frontend/e2e/service.spec.ts)는 데스크톱 Chromium과 320px 모바일 Chromium에서 실행합니다. 테스트는 고유 아이디로 가상 사용자를 만들고 팀장·지원자의 브라우저 컨텍스트를 분리합니다. `E2E_BASE_URL`로 주소를, `E2E_ARTIFACT_DIR`로 결과 경로를 지정할 수 있습니다. 원본 DB에서는 기존 공고·계정을 읽고 새 계정·팀·지원만 변경합니다. 생성 직후 자원 종류·UUID·실행 ID를 manifest에 기록합니다. 실패 재시도는 0회로 두어 최초 실패를 숨기지 않습니다. 생성 데이터는 대상 DB에 남기므로 다음 실행은 다른 계정을 사용합니다. 삭제·전체 복원으로 기존 자료를 덮어쓰지 않습니다.
 
 | 시나리오 | 확인 내용 | 관련 제품 AC |
 | --- | --- | --- |
 | 가입·프로필·세션 | UI 가입·초기 프로필·수정·공개·새로고침·쿠키 속성·로그아웃·재로그인 | sprint-1 AC-02·11 |
 | 팀 활동 | UI 팀 생성·지원·선발·팀 공간·알림 모두 읽음·취소·자리 반환·접근 종료·명시적 모집 재개 | AC-04·05·07·08 |
+| 탐색·공고 계약 | API 목록 대조·검색·필터 취소·페이지 경계·상세 복귀·공식/수집 출처·미확인·시각 보완·마감 공고 | sprint-1 AC-14, contests AC-04·09·11·13 |
+| 지원 생명주기·알림 | 취소 후 새 지원·검토·미선발·재지원 제한·다른 팀 선발 시 대기 지원 폐기·읽음 처리와 현재 권한 | team AC-16·36·37·40·42·44, notifications AC-01·02·05·08 |
 | 권한·실제 HTTP | CSRF 누락 거부·비공개 신규 지원 거부·공개 후 접수·동일 ID 재전송·타인 404·지원 팀장 예외·버전 충돌 | AC-05·08·11 |
 
 `test-results/`에 실패 trace·스크린샷 및 성공 시 주요 화면을, `playwright-report/`에 HTML 결과를 남깁니다. 모두 Git에서 제외합니다. trace에는 가상 계정의 인증 요청이 포함될 수 있으므로 원본을 공개 이슈에 첨부하지 않고, 필요한 오류·요청 ID·화면만 확인해 공유합니다. 운영 계정으로 이 스크립트를 실행하지 않습니다.
+
+## 기존 개발 DB와 CI 자료의 구분
+
+공고는 고정 UUID나 제목으로 선택하지 않습니다. API에서 접수 중·2명 팀 허용·검사 종료까지 충분한 시간이 남은 공고를 선택하고, 모집 마감은 공고 마감 이내로 계산합니다. 탐색 검증에는 2페이지 이상 공고, 공개 사람·팀 목록과 미확인/수집 출처/시작 시각 보완/마감 공고 사례가 필요합니다. 필요한 자료가 없으면 사전 조건 실패로 기록하며 임의 공고 생성이나 skip으로 대체하지 않습니다.
+
+CI는 매번 빈 `wejo_e2e`를 만들고 [E2E 시드](../../backend/scripts/seed_e2e_data.py)로 공고 계약 사례 8개와 기존 개발 시드의 계정·팀을 준비합니다. 이 도구는 명시적 `--apply`, localhost의 `*_e2e` DB, 비어 있는 업무 테이블을 요구합니다. 공고·계정·팀·지원·알림은 한 트랜잭션으로 적재하며 중간 실패 시 모두 롤백합니다. 원본 개발 공고 490개를 넣는 도구가 아니며 원본 DB의 로컬 회귀 검증을 대체하지 않습니다. CI에서 생성한 가상 자료만 사용하고 모델 키·원본 개발 DB 자료는 가져오지 않습니다. CI HTML/JSON·스크린샷·trace는 `integration-e2e` artifact에 1일 보관하며 환경 파일·키·DB 덤프는 업로드하지 않습니다.
+
+```bash
+# 새로운 격리 E2E DB를 준비할 때만 사용
+python3 scripts/prepare_bugbash.py --database-name wejo_e2e
+cd backend
+uv run --env-file ../.bugbash/backend.env alembic upgrade head
+uv run --env-file ../.bugbash/backend.env python -m scripts.seed_e2e_data --apply
+```
+
+이미 `.bugbash/backend.env`가 있으면 준비 스크립트는 다른 DB 설정으로 덮어쓰지 않습니다. 기존 설정을 그대로 사용하는 실행과 새 격리 환경 준비를 구분합니다.
+
+## 실제·시연 네 조합
+
+기본 검사는 새 자원끼리 쓰고 기존 자료는 읽습니다. 기존 시연 계정·팀에 지원·선발하는 네 조합 검사는 개발 DB의 **별도 복제본**에서만 추가 실행합니다. 복제본은 localhost의 `*_e2e` 이름을 사용하고, 원본 DB를 지우거나 복원하지 않습니다.
+
+```bash
+# 복제 DB를 가리키는 환경 파일과 기존 인증서가 준비된 상태
+E2E_MIXED_DATA=1 \
+E2E_MIXED_DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:55433/wejo_quality_e2e \
+python3 scripts/run_bugbash.py --backend-env .bugbash/mixed-e2e/backend.env --backend-port 8014 --frontend-port 5186 -- mixed-data.spec.ts
+```
+
+실행기는 후보 조회 DB와 서버 DB가 같은지 검사합니다. [후보 선택기](../../backend/scripts/prepare_mixed_e2e.py)는 읽기 전용으로 고정 시연 UUID 목록과 현재 모집·소속·지원 상태를 확인하며, 이름 접두사로 `isDemo`를 추정하지 않습니다. 실제→실제, 실제→시연, 시연→실제, 시연→시연 각각 지원·선발·결과·팀 공간·취소 후 권한 회수를 검증합니다. 기존 시연 자료가 변경되므로 원본 DB에서 이 모드를 실행하지 않습니다. 시연 공고 UUID 목록은 현재 비어 있어 이 네 조합은 계정×팀 기준입니다.
 
 ## 팀 bug bash 진행
 
@@ -161,6 +204,19 @@ Linux의 브라우저 시스템 패키지 설치에는 관리자 권한이 필�
 - 실제 모델 호출·운영 배포·실기기·WebKit·모든 실제/시연 데이터 조합은 이번 검증의 완료 범위가 아닙니다. 동시성·롤백 경계는 기존 PostgreSQL 테스트에서 확인합니다.
 
 이번 Linux 호스트에서는 관리자 권한 설치 대신 이미 준비된 로컬 브라우저 라이브러리 경로를 프로세스의 `LD_LIBRARY_PATH`에 지정했습니다. 제품의 인증·API를 우회하지 않았으며 일반 재현 환경은 위 `install --with-deps` 절차를 따릅니다.
+
+## 2026-10-28 개발 DB 회귀 기록
+
+기존 개발 DB의 공고 490개를 사용한 검사에서 공고 상세 DTO 불일치를 재현했습니다. [#170](https://github.com/wejo-team/sku-dreamon/pull/170)으로 수정한 main `63ba9a6`에서 기존 데스크톱/320px 모바일 10개 검사가 병합 전·후 모두 통과했습니다. 해당 main의 앱·문서 CI도 통과했습니다.
+
+후속 자동화는 기존 DB 탐색 경계·출처 표시·지원 생명주기·알림을 포함한 기본 16개로 확장했습니다. 기존 개발 DB에서는 12개 통과 후 테스트 선택자 두 곳을 수정해 나머지 4개를 재검증했습니다. CI와 같은 새 DB의 공고 8개·계정 300개·팀 100개에서는 16개를 한 번에 통과했습니다. 개발 DB 복제본의 실제/시연 계정×팀 네 조합도 두 화면 크기에서 8개 모두 통과했습니다. 재시도 설정은 0회이며 생략한 검사는 없습니다.
+
+- 기존 개발 공고·계정·팀·지원 등 도메인 행의 해시가 보존됐습니다. 새 테스트 자원은 실행별 manifest로 식별하며 DB에 남겨 둡니다.
+- 새 CI 시드에서 공고 8개와 계정 300개를 쓴 뒤 강제 실패를 주입해 관련 16개 테이블이 모두 비어 있는 상태로 롤백됨을 확인했습니다. 정상 적재 후 재실행은 거부됐고 22개 public 테이블의 행 수·해시가 유지됐습니다.
+- 실제 AI는 별도 HTTPS 요청 한 건으로 `gpt-6-luna` 응답·SSE 순서·DTO·상태 조회·결과 유효성만 검사했습니다. 제공자 요청은 총 3회, 모두 200이며 재시도는 없었습니다. 요청 전송 제한기는 별도 모의 검증에서 네 번째 전송을 막았습니다. 응답 품질 평가·전체 AI 화면 연동의 완료 근거는 아닙니다.
+- 시연 데이터 화면 표시와 팀장 검토 시작·미선발 조작의 누락은 [#171](https://github.com/wejo-team/sku-dreamon/issues/171), [#172](https://github.com/wejo-team/sku-dreamon/issues/172)로 분리했습니다. 현재 생명주기 검사는 해당 상태 변경을 실제 HTTP로 실행하고 UI 결과를 확인하며, 없는 버튼을 검증했다고 기록하지 않습니다.
+
+전체 반복 점검과 후속 결과는 [#169](https://github.com/wejo-team/sku-dreamon/issues/169)에서 관리합니다. 원본 DB 자료·모델 키·로컬 원본 trace는 저장소에 포함하지 않았습니다.
 
 ## 종료와 데이터 유지
 

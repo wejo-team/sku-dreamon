@@ -105,10 +105,76 @@ jobs:
       - run: uv run python -m app.core.db.check
       - run: uv run pytest
 
+  integration:
+    name: Integration E2E
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: wejo
+          POSTGRES_PASSWORD: wejo
+          POSTGRES_DB: wejo_e2e
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd "pg_isready -U wejo -d wejo_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+          package-manager-cache: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: backend/.python-version
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.30"
+          enable-cache: false
+      - run: npm install --global npm@9.2.0
+      - run: npm ci
+        working-directory: frontend
+      - run: uv sync --locked
+        working-directory: backend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: python scripts/prepare_bugbash.py --database-name wejo_e2e
+      - name: Prepare isolated database
+        working-directory: backend
+        run: |
+          uv run --env-file ../.bugbash/backend.env alembic upgrade head
+          uv run --env-file ../.bugbash/backend.env python -m scripts.seed_e2e_data --apply
+      - name: Run HTTPS integration tests
+        env:
+          E2E_DATASET: synthetic-ci-fixture
+        run: python scripts/run_bugbash.py
+      - name: Save synthetic-data E2E evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: integration-e2e
+          path: |
+            .bugbash/runs/**/report/**
+            .bugbash/runs/**/test-results/**
+            .bugbash/runs/**/results.json
+            .bugbash/runs/**/execution.json
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: warn
+
   # 변경 영향이 없어 앱 테스트를 생략해도 필수 검사 이름은 유지한다.
   frontend:
     name: Frontend
-    needs: [changes, frontend_checks]
+    needs: [changes, frontend_checks, integration]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -125,10 +191,16 @@ jobs:
           CHECK_REQUIRED: ${{ needs.changes.outputs.frontend }}
           CHECK_RESULT: ${{ needs.frontend_checks.result }}
         run: python scripts/check_ci_job.py
+      - name: Verify integration result
+        env:
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          CHECK_REQUIRED: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true' }}
+          CHECK_RESULT: ${{ needs.integration.result }}
+        run: python scripts/check_ci_job.py
 
   backend:
     name: Backend
-    needs: [changes, backend_checks]
+    needs: [changes, backend_checks, integration]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -144,4 +216,10 @@ jobs:
           SCOPE_RESULT: ${{ needs.changes.result }}
           CHECK_REQUIRED: ${{ needs.changes.outputs.backend }}
           CHECK_RESULT: ${{ needs.backend_checks.result }}
+        run: python scripts/check_ci_job.py
+      - name: Verify integration result
+        env:
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          CHECK_REQUIRED: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true' }}
+          CHECK_RESULT: ${{ needs.integration.result }}
         run: python scripts/check_ci_job.py
