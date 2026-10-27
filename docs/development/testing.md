@@ -18,6 +18,19 @@
 - 일반 PR 테스트에서 AI·유료 외부 API는 mock으로 대체합니다. 실 API 테스트는 필요할 때 수동·정기 workflow로 분리합니다.
 - 제품 Playwright는 `frontend/e2e/`에서 실제 HTTPS·쿠키·CSRF·서버·DB를 검사합니다. `npm run test:e2e`는 준비된 서버에 연결하고, `python3 scripts/run_bugbash.py`는 서버 준비 확인·실행·종료까지 담당합니다. CI의 `Integration E2E`도 같은 실행기를 사용합니다. Vitest의 `npm test`와 별도 검사입니다. 모바일 viewport 검사는 실제 기기의 키보드·스크롤 확인을 보완합니다.
 
+## 개발 시드 통합 회귀
+
+[개발 시드 검사](../../backend/tests/integration/test_dev_seed.py)는 기존 `TEST_DATABASE_URL`의 PostgreSQL에 실행별 임시 스키마를 만들고 검사 후 제거합니다. Docker 실행 권한이나 별도 DB 생성 권한을 추가로 요구하지 않습니다. 명령은 백엔드 폴더에서 실행합니다.
+
+```bash
+# TEST_DATABASE_URL은 기존 wejo_test 같은 격리 테스트 DB로 지정합니다.
+uv run pytest tests/integration/test_dev_seed.py
+```
+
+실제 `seed_users`·`seed_teams`·제품 서비스를 사용해 계정·팀·지원·알림의 부분 저장 후 전체 롤백, 300개 계정·100개 팀 생성, 재실행 시 추가 생성 없음과 편집된 프로필을 포함한 기존 행 보존을 검사합니다. 외부 transaction과 `create_savepoint`는 원래 시드와 같은 방식으로 구성합니다. 암호 해시는 해당 테스트 안에서만 저장용 값으로 대신하며 로그인·암호 검증은 기존 인증 테스트가 담당합니다.
+
+공고가 없거나 마감·예정 상태일 때, 접수 시작 시각과 정확히 같을 때, 마감까지 남은 시간이 1시간 미만·정확히 1시간·1시간 초과일 때의 SQL 선별을 고정 시각으로 검사합니다. 경계마다 팀 100개를 만들지 않도록 팀 생성 진입 지점만 관찰하며, 실제 전체 생성은 별도 사례에서 검증합니다. 로컬 `wejo_dev`만 허용하는 원래 `run()`의 보호 조건은 우회하지 않으므로 이 CI 검사는 하위 시드 함수와 트랜잭션 경계의 회귀입니다. `run()` 직접 실행 검증은 별도 임시 `wejo_dev` 컨테이너에서 수행하며 AI는 호출하지 않습니다.
+
 ## 단계별 CI
 
 `ci.yml`에서 선택된 프론트·백엔드 검사 job을 병렬 실행합니다. 백엔드 검사와 브라우저 통합 검사는 서로 다른 전용 PostgreSQL 17.11 서비스를 사용합니다. 백엔드 검사에서는 `DATABASE_URL`과 `TEST_DATABASE_URL`을 같은 테스트 DB로 지정해 DB 검사가 생략되지 않도록 합니다.
