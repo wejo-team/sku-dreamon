@@ -81,7 +81,7 @@ const teamSchema = z
       ),
     roleCodes: z.array(z.string()),
     capacity: z
-      .number({ invalid_type_error: '총 정원을 숫자로 입력해 주세요.' })
+      .number({ error: '총 정원을 숫자로 입력해 주세요.' })
       .int()
       .min(1, '총 정원은 1명 이상이어야 해요.'),
     recruitmentDeadline: z.string().min(1, '모집 마감을 설정해 주세요.'),

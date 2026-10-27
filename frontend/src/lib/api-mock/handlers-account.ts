@@ -379,6 +379,7 @@ export const parseOptionalQuery = <T extends z.ZodTypeAny>(
 ): z.infer<T> | null => {
   if (value === null) return null;
   const result = schema.safeParse(value);
-  if (!result.success) invalid(['query', key], `${key} 값이 올바르지 않아요.`);
+  if (!result.success)
+    return invalid(['query', key], `${key} 값이 올바르지 않아요.`);
   return result.data;
 };
