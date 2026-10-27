@@ -2,7 +2,7 @@
 
 import re
 from collections.abc import Collection, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, time, timedelta, timezone, tzinfo
 from enum import StrEnum
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -121,6 +121,18 @@ def interpret_deadline(
 def _positive_bigint(value: int) -> None:
     if type(value) is not int or not 1 <= value <= _MAX_BIGINT:
         raise ValueError("A positive signed 64-bit integer is required")
+
+
+def interpret_opening(
+    *, source_date: date, source_time: time | None, source_timezone: str | None
+) -> ResolvedDeadline:
+    """시작 시각 누락은 해당 날짜 00:00으로 보완하고 누락 사실을 보존한다."""
+    resolved = interpret_deadline(
+        source_date=source_date,
+        source_time=source_time if source_time is not None else time.min,
+        source_timezone=source_timezone,
+    )
+    return replace(resolved, source_time=source_time, time_assumed=source_time is None)
 
 
 def validate_participation_capacity(

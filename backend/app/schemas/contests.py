@@ -167,6 +167,9 @@ class ContestTiming(ResponseDTO):
     open_time_zone_defaulted: bool = Field(
         description="원문 시작 시간대가 없어 서비스 기준으로 보완했는지 여부."
     )
+    open_time_defaulted: bool = Field(
+        default=False, description="시작 시각이 없어 해당일 00:00으로 보완했는지 여부."
+    )
     closing: DeadlineInterpretation = Field(
         description="접수 마감의 원문 정보와 시각·시간대 보완 여부."
     )
@@ -206,10 +209,15 @@ class ContestDetail(ContestSummary):
     contact: str | None = Field(
         description="문의처 안내. 제공된 안내가 없으면 null입니다."
     )
-    verified_at: Timestamp = Field(
-        description="등록 전에 공고 자료를 확인한 시각. UTC 기준입니다."
+    verified_at: Timestamp | None = Field(
+        description="공식 원문 확인 시각. 확인 전에는 null이며 수집 시각과 구분합니다."
     )
-    source_url: AnyHttpUrl = Field(description="공식 공고 원문의 HTTP(S) URL.")
+    source_url: AnyHttpUrl = Field(
+        description="공고를 확인할 HTTP(S) 주소. 공식 링크가 없으면 수집 출처입니다."
+    )
+    official_url: AnyHttpUrl | None = Field(
+        default=None, description="수집한 주최 측 링크. 없으면 null입니다."
+    )
 
     @field_validator("audience_codes")
     @classmethod

@@ -277,6 +277,7 @@ const contestSeed = ({
     openSourceTimeZone: null,
     openEffectiveTimeZone: 'Asia/Seoul',
     openTimeZoneDefaulted: true,
+    openTimeDefaulted: true,
     closing,
   },
   deliverables,
@@ -284,6 +285,9 @@ const contestSeed = ({
   contact: null,
   verifiedAt: '2026-10-17T15:00:00Z',
   sourceUrl: absoluteUrl(
+    `/reference/notices/${key === 'openLab' ? 'open-lab' : key}`,
+  ),
+  officialUrl: absoluteUrl(
     `/reference/notices/${key === 'openLab' ? 'open-lab' : key}`,
   ),
 });

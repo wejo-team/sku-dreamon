@@ -80,6 +80,9 @@ async def get_contest_detail(
     if row is None:
         raise AppError(404, "CONTEST_NOT_FOUND", "공고를 찾을 수 없습니다.")
     contest, field_codes, audience_codes, count = row
+    source_url = contest.official_url or contest.source_url
+    if source_url is None:
+        raise RuntimeError("Contest requires a source URL")
     summary = build_contest_summary(
         contest, field_codes=field_codes or [], team_count=count, now=current
     )
@@ -112,6 +115,7 @@ async def get_contest_detail(
             open_source_time_zone=contest.open_source_timezone,
             open_effective_time_zone=contest.open_effective_timezone,
             open_time_zone_defaulted=contest.open_timezone_assumed,
+            open_time_defaulted=contest.open_source_time is None,
             closing=DeadlineInterpretation(
                 source_date=contest.close_source_date,
                 source_time=(
@@ -129,7 +133,10 @@ async def get_contest_detail(
         awards=contest.awards,
         contact=contest.contact_info,
         verified_at=contest.verified_at,
-        source_url=AnyHttpUrl(contest.official_url),
+        source_url=AnyHttpUrl(source_url),
+        official_url=(
+            None if contest.official_url is None else AnyHttpUrl(contest.official_url)
+        ),
     )
 
 

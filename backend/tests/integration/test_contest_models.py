@@ -12,7 +12,7 @@ import pytest
 import pytest_asyncio
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import Connection, Table, delete, inspect, select
+from sqlalchemy import Connection, Table, delete, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.schema import CreateSchema
@@ -24,10 +24,8 @@ from app.models.contests import Contest, ContestAudience, ContestField
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
-def load_migration() -> ModuleType:
-    path = (
-        Path(__file__).resolve().parents[2] / "alembic/versions/20261024_02_contests.py"
-    )
+def load_migration(filename: str = "20261024_02_contests.py") -> ModuleType:
+    path = Path(__file__).resolve().parents[2] / "alembic/versions" / filename
     spec = importlib.util.spec_from_file_location("contest_migration", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -38,6 +36,18 @@ def load_migration() -> ModuleType:
 def run_migration(connection: Connection, *, downgrade: bool = False) -> None:
     with Operations.context(MigrationContext.configure(connection)):
         migration = load_migration()
+        sources = load_migration("20261026_09_contest_sources.py")
+        if downgrade:
+            sources.downgrade()
+            migration.downgrade()
+        else:
+            migration.upgrade()
+            sources.upgrade()
+
+
+def run_source_migration(connection: Connection, *, downgrade: bool = False) -> None:
+    with Operations.context(MigrationContext.configure(connection)):
+        migration = load_migration("20261026_09_contest_sources.py")
         if downgrade:
             migration.downgrade()
         else:
@@ -252,3 +262,88 @@ async def test_required_text_matches_python_whitespace_without_rewriting_content
     await session.flush()
     await session.refresh(contest)
     assert contest.title == original
+
+
+@pytest.mark.parametrize("session", ["migration", "models"], indirect=True)
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"official_url": None, "source_url": None},
+        {"source_url": "\u00a0\t"},
+        {"official_url": " ", "source_url": "https://example.test/collected"},
+        {"source_metadata": []},
+        {"source_metadata": None},
+    ],
+)
+async def test_source_constraints_match_models_and_migration(
+    session: AsyncSession, overrides: dict[str, object]
+) -> None:
+    session.add(new_contest(**overrides))
+    with pytest.raises(IntegrityError):
+        await session.flush()
+    await session.rollback()
+
+
+@pytest.mark.parametrize("session", ["migration", "models"], indirect=True)
+async def test_collected_source_preserves_metadata_without_fabricating_verification(
+    session: AsyncSession,
+) -> None:
+    metadata = {"externalId": "fixture-42", "raw": {"host_name": "원문 기관"}}
+    contest = new_contest(
+        official_url=None,
+        source_url="https://example.test/collected",
+        verified_at=None,
+        source_metadata=metadata,
+    )
+    session.add(contest)
+    await session.flush()
+    await session.refresh(contest)
+    assert contest.official_url is None and contest.verified_at is None
+    assert contest.source_url == "https://example.test/collected"
+    assert contest.source_metadata == metadata
+
+
+async def test_source_migration_preserves_existing_rows_and_classifications(
+    session: AsyncSession,
+) -> None:
+    contest = new_contest()
+    session.add(contest)
+    await session.flush()
+    session.add_all(
+        [
+            ContestField(contest_id=contest.contest_id, field_code="design"),
+            ContestAudience(contest_id=contest.contest_id, audience_code="student"),
+        ]
+    )
+    await session.flush()
+    connection = await session.connection()
+    await connection.run_sync(lambda conn: run_source_migration(conn, downgrade=True))
+    before = (await session.execute(text("SELECT * FROM contests"))).mappings().one()
+
+    await connection.run_sync(run_source_migration)
+
+    after = (await session.execute(text("SELECT * FROM contests"))).mappings().one()
+    assert {key: after[key] for key in before} == dict(before)
+    assert after["source_url"] is None and after["source_metadata"] == {}
+    assert await session.scalar(select(ContestField.field_code)) == "design"
+    assert await session.scalar(select(ContestAudience.audience_code)) == "student"
+
+
+@pytest.mark.parametrize("missing", ["official_url", "verified_at"])
+async def test_source_downgrade_rejects_unverified_rows_before_changing_schema(
+    session: AsyncSession, missing: str
+) -> None:
+    contest = new_contest(
+        source_url="https://example.test/collected", **{missing: None}
+    )
+    session.add(contest)
+    await session.flush()
+    connection = await session.connection()
+    with pytest.raises(RuntimeError, match="Unverified contests must be resolved"):
+        await connection.run_sync(
+            lambda conn: run_source_migration(conn, downgrade=True)
+        )
+    await session.refresh(contest)
+    assert getattr(contest, missing) is None
+    assert contest.source_url == "https://example.test/collected"
+    assert contest.source_metadata == {}

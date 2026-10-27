@@ -1,8 +1,10 @@
 # 공모전 테이블
 
-이 문서는 공모전 원문 정보와 분류의 PostgreSQL 저장 계약을 정의합니다. **ORM 모델·마이그레이션·순수 규칙과 공개 상세 조회를 구현했습니다.** 공고 신규 입력 CLI는 [공고 API 안내](../api/contests.md#contest-import-cli)를 따릅니다. 공고 목록과 관리자 수정 경로는 아직 미구현이며, 상세의 실제 전송 계약은 [공고 API](../api/contests.md)에서 코드로 연결합니다. 등록·공개·참가 조건은 [공모전 기능 명세](../specs/contests.md)가 원본이며, 이 문서에서는 각 테이블의 업무상 의미와 컬럼·무결성을 설명합니다. 타입·기본값·삭제 원칙은 [공통 규칙](conventions.md)을 따릅니다.
+이 문서는 공모전 원문 정보와 분류의 PostgreSQL 저장 계약을 정의합니다. **ORM 모델·마이그레이션·순수 규칙과 공개 목록·상세 조회를 구현했습니다.** 공고 신규 입력 CLI는 [공고 API 안내](../api/contests.md#contest-import-cli)를 따릅니다. 관리자 수정 경로는 미구현이며, 실제 전송 계약은 [공고 API](../api/contests.md)에서 코드로 연결합니다. 등록·공개·참가 조건은 [공모전 기능 명세](../specs/contests.md)가 원본이며, 이 문서에서는 각 테이블의 업무상 의미와 컬럼·무결성을 설명합니다. 타입·기본값·삭제 원칙은 [공통 규칙](conventions.md)을 따릅니다.
 
 구현 원본은 [공고 모델](../../backend/app/models/contests.py), [접수·인원·분류 규칙](../../backend/app/rules/contests.py), [마이그레이션](../../backend/alembic/versions/20261024_02_contests.py)입니다. [규칙 테스트](../../backend/tests/unit/test_contest_rules.py)와 [PostgreSQL 제약·마이그레이션 테스트](../../backend/tests/integration/test_contest_models.py)가 저장 제약과 시간 경계를 검증합니다. URL·원문/적용 시각의 일치와 분류 집합을 한 트랜잭션에서 검증하는 [신규 등록 서비스](../../backend/app/services/contest_import.py)를 구현했으며, 모델 생성만으로 등록 전 확인을 완료한 것으로 취급하지 않습니다.
+
+[출처 확장 revision 9](../../backend/alembic/versions/20261026_09_contest_sources.py)는 기존 공식 링크를 보존하며 수집 출처·비공개 메타데이터와 미확인 상태를 추가합니다. 공식 링크나 확인 시각이 없는 행이 남아 있으면 이전의 필수 값 계약으로 downgrade하지 않고 오류를 반환합니다. 개발 DB를 이전 상태로 맞추기 위해 미확인 값을 만들어 넣거나 원본 자료를 삭제하지 않습니다.
 
 ## 먼저 볼 구조
 
@@ -56,7 +58,9 @@ erDiagram
 | `contest_id` | `uuid` | 불가 | — | PK `pk_contests`; 서버가 생성한 공고 ID |
 | `title` | `text` | 불가 | — | 공모전명; 공백만 있는 값 금지 |
 | `organizer_name` | `text` | 불가 | — | 주최 기관 표시명 |
-| `official_url` | `text` | 불가 | — | 공식 원문 HTTP(S) URL; 유일키 아님 |
+| `official_url` | `text` | 허용 | `NULL` | 수집한 주최 측 HTTP(S) URL; 유일키 아님 |
+| `source_url` | `text` | 허용 | `NULL` | 실제 공고 수집 출처. 공식 링크와 구분하며 둘 중 하나는 필수 |
+| `source_metadata` | `jsonb` | 불가 | `{}` | 원본 외부 ID·수집 시각·정밀도·원문·가공 근거. 공개 API에는 노출하지 않음 |
 | `eligibility_text` | `text` | 불가 | — | 원문 참가 조건 |
 | `description` | `text` | 허용 | `NULL` | 확인된 설명; 별도 AI 요약 필드 아님 |
 | `submission_details` | `text` | 허용 | `NULL` | 제출물·제출 안내 |
@@ -66,7 +70,7 @@ erDiagram
 | `member_limit_kind` | `varchar(16)` | 불가 | — | `range` / `unlimited` / `unknown` |
 | `min_members` | `bigint` | 허용 | `NULL` | 확인된 최소 양의 정수 |
 | `max_members` | `bigint` | 허용 | `NULL` | 확인된 최대 양의 정수 |
-| `verified_at` | `timestamptz` | 불가 | — | 등록 전 원문 확인 완료 시각 |
+| `verified_at` | `timestamptz` | 허용 | `NULL` | 공식 원문 확인 시각. 미확인은 NULL이며 수집 시각으로 대체하지 않음 |
 | `created_at` | `timestamptz` | 불가 | `now()` | 생성 시각 |
 | `updated_at` | `timestamptz` | 불가 | `now()` | 저장 시 갱신 |
 | `version` | `bigint` | 불가 | `1` | 저장 성공마다 증가하는 변경 버전 |
@@ -97,13 +101,15 @@ erDiagram
 
 `interpret_deadline`은 마감 원문의 IANA 시간대 또는 `±HH:MM` 고정 오프셋을 받아 UTC 종료 경계와 보완 여부를 반환합니다. 서머타임 때문에 현지 시각이 중복되거나 존재하지 않으면 임의 해석하지 않고 오류를 반환하므로 운영 입력에서 정확한 오프셋을 추가 확인해야 합니다. 이 함수로 시작 시각을 보완하지 않습니다.
 
-**시작 시각이 없는 공고의 보완 기준은 미정입니다.** `open_source_time=NULL`을 자동으로 00:00으로 바꾸지 않습니다. 기준이 확정되기 전에는 관리자가 시작 경계를 추가 확인한 공고만 이 저장 계약을 만족할 수 있습니다. 관리자 입력 화면과 등록 API는 아직 제공 계약에 포함하지 않습니다.
+날짜만 있는 개발용 수집 자료는 `interpret_opening`으로 해당 날짜 00:00을 적용 경계로 계산합니다. `open_source_time=NULL`은 그대로 보존하고 API의 `openTimeDefaulted=true`로 보완 사실을 표시합니다. 시작 날짜나 마감 날짜 자체가 없으면 경계를 만들지 않습니다. 운영용 확인 완료 입력 CLI는 시작 시각과 필수 자료 확인을 계속 요구합니다.
 
 ### 행 제약
 
 | 제약 이름 | 보장하는 내용 |
 | --- | --- |
-| `ck_contests_required_text` | 제목·주최 기관·참가 조건·공식 URL이 공백만으로 이루어지지 않음 |
+| `ck_contests_required_text` | 제목·주최 기관·참가 조건이 공백만으로 이루어지지 않음 |
+| `ck_contests_source_urls` | 공식 링크·수집 출처 중 하나 이상 존재하며 제공된 값은 공백만으로 이루어지지 않음 |
+| `ck_contests_source_metadata` | 수집 메타데이터는 JSON 객체 |
 | `ck_contests_member_limit` | `range`: 양의 정수 최소·최대와 최소 ≤ 최대. `unlimited`: 최대 NULL, 최소는 NULL 또는 양의 정수. `unknown`: 최소·최대 모두 NULL. 나머지 코드 금지 |
 | `ck_contests_period` | 시작 경계 < 종료 경계 |
 | `ck_contests_deadline_assumptions` | `close_time_assumed`와 원문 시각 NULL 여부가 일치. 각 `*_timezone_assumed`와 해당 원문 시간대 NULL 여부가 일치 |

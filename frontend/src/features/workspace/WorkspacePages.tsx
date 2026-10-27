@@ -657,11 +657,12 @@ function TeamOverview({
         {contest && (
           <a
             className="workspace-text-link"
-            href={contest.sourceUrl}
+            href={contest.officialUrl ?? contest.sourceUrl}
             target="_blank"
             rel="noreferrer"
           >
-            공식 원문 보기 <ExternalLink size={16} aria-hidden="true" />
+            {contest.officialUrl ? '공식 원문 보기' : '수집 출처 보기'}{' '}
+            <ExternalLink size={16} aria-hidden="true" />
           </a>
         )}
       </section>
