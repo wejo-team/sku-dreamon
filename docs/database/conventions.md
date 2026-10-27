@@ -33,7 +33,7 @@
 - FK의 로컬 컬럼은 `leader_account_id`, `recipient_account_id`, `parent_id`처럼 역할을 나타내는 기존 이름을 유지하고, 참조 대상은 변경된 PK 컬럼을 가리킵니다. 프로필 선택 목록의 `account_id`는 계정과 같은 값을 가진 `profiles.profile_id`를 참조합니다.
 - 공개 API의 `id`·`accountId`·`membershipId` 등은 현재 계약을 유지합니다. DB의 `account_id`를 계정 응답의 `id`로, `profile_id`를 프로필 응답의 `accountId`로 옮기는 작업은 DTO를 구성하는 경계에서 명시합니다. 일반적인 snake_case→camelCase 변환만으로 이 의미 매핑을 대신하지 않습니다.
 
-현재 도메인 테이블·migration은 구현 전이므로 설계·참조·ERD와 공통 코드의 사용법을 함께 맞춥니다. 향후 이미 생성된 테이블의 컬럼명을 바꿀 때는 FK·인덱스·쿼리와 데이터 보존 migration을 함께 검토합니다.
+현재 도메인 테이블과 migration의 구현 원본은 [DB 인덱스](README.md)에 연결되어 있습니다. 설계·참조·ERD를 실제 모델과 맞추고, 이미 생성된 테이블의 컬럼명을 바꿀 때는 FK·인덱스·쿼리와 데이터 보존 migration을 함께 검토합니다.
 
 ## 제약을 두는 위치
 

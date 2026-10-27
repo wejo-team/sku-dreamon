@@ -2,7 +2,7 @@
 
 - 구현 상태: 진행 중
 - 명세 검토: [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17)
-- 구현 작업: [지원자 조회·검토 #110](https://github.com/wejo-team/sku-dreamon/issues/110), [선발·소속·폐기 #111](https://github.com/wejo-team/sku-dreamon/issues/111). 서버 구현·검증 범위는 [지원 API](../api/applications.md)를 참조하며 프론트 전체 흐름·배포 완료와 구분합니다.
+- 구현 작업: [지원자 조회·검토 #110](https://github.com/wejo-team/sku-dreamon/issues/110), [선발·소속·폐기 #111](https://github.com/wejo-team/sku-dreamon/issues/111). 서버 계약은 [지원 API](../api/applications.md), 병합된 화면·통합 검증 범위는 [구현 현황](../development/implementation-status.md)을 참조합니다. 명시적 검토 시작·미선발 UI의 AC-40·42·43 보완은 [PR #175](https://github.com/wejo-team/sku-dreamon/pull/175)로 병합했으며 실제 버튼을 통한 상태 변경·모바일 확인창을 검증했습니다. 배포 완료와 구분합니다.
 - 변경 근거: 2026-10-21 사용자 승인으로 팀 모집 상태 단순화, 검토·미선발·선발 기한, 재지원·소속 경계와 MVP 제외 행동 확정. 2026-10-19 사용자 결정과 [#77](https://github.com/wejo-team/sku-dreamon/issues/77)의 팀 입력·공식 정원·프로필 공개·참가 자격 정책은 유지. 디자인·배포 검증 상태는 [대조 기록](prototype-alignment.md)에서 별도 관리
 
 스프린트 1의 팀 생성부터 지원 결과 확인까지를 정의합니다. LLM 추천 후보·추천 이유는 [추천 매칭](matching.md), 공고 정보와 마감 관리는 [공모전 공고](contests.md), 전체 개발 범위는 [스프린트 1](sprint-1.md)을 따릅니다.
@@ -354,7 +354,7 @@
 
 [#49의 최신 결정](https://github.com/wejo-team/sku-dreamon/issues/77)에 따른 신규 지원의 공개 상태 조건은 [프로필 정책](profile.md#before-application)을 따릅니다. 지원 후 비공개로 바꾸어도 기존 지원·소속과 지원받은 팀장의 최신 프로필 직접 열람·AI 검토는 유지하며, 일반 사람 검색·AI 사람 추천에는 노출하지 않습니다. AI 입력의 구체 필드·외부 포트폴리오·인증 정보 등 제한은 [추천 정책](matching.md#result-display)을 따릅니다.
 
-모집 마감·정원 충족 후에도 팀장은 기존 지원자의 AI 검토 결과를 확인하고 재요청할 수 있습니다. 새 선발 후보 추천은 현재 유효한 `지원 완료`·`검토 중`만 대상으로 하며 `선발`·`미선발`·`지원 취소`·`폐기`는 제외합니다. 후보 제외가 기존 지원 기록·직접 열람 권한의 삭제를 뜻하지 않으며 별도 개별 재검토 모드를 추가하지 않습니다. 신규 지원 제한·정원 초과 선발 금지는 유지하고, 실제 LLM 내부 구조는 [추천 명세](matching.md)의 TBD로 남깁니다.
+모집 마감·정원 충족 후에도 팀장은 기존 지원자의 AI 검토 결과를 확인하고 재요청할 수 있습니다. 새 선발 후보 추천은 현재 유효한 `지원 완료`·`검토 중`만 대상으로 하며 `선발`·`미선발`·`지원 취소`·`폐기`는 제외합니다. 후보 제외가 기존 지원 기록·직접 열람 권한의 삭제를 뜻하지 않으며 별도 개별 재검토 모드를 추가하지 않습니다. 신규 지원 제한·정원 초과 선발 금지는 유지하고, 구현된 LLM 백엔드 구조와 실제 화면 연결·운영의 후속 범위는 [추천 명세](matching.md)에서 구분합니다.
 
 공고 조건 변경은 주최 측의 책임으로 두고 기존 지원·선발·팀 소속에 미치는 세부 영향은 [TBD](contests.md#eligibility-changes)로 유지합니다. 자격 제한을 두지 않는 정책이나 관리자 정보 수정만으로 자동 취소·팀원 제외·기존 관계 변경을 추가하지 않습니다.
 

@@ -1,6 +1,6 @@
 # 알림 API
 
-**상태: 서버 조회·읽음·업무 알림 생성 구현, 화면 연결은 후속 범위.** 본인 목록·미읽음 수는 [라우터](../../backend/app/routers/notifications.py), [DTO](../../backend/app/schemas/notifications.py), [저장 접근](../../backend/app/repositories/notifications.py)와 [읽음 서비스](../../backend/app/services/notifications.py)에 구현합니다. 개별·선택 집합 읽음도 구현하며 최초 읽음 시각과 전체 실패 원자성을 보장합니다. 서버 앱에 연결했고, 신규 지원·지원 상태 변경·팀 생성에 따른 대기 지원 폐기의 알림을 업무와 함께 저장합니다. 프론트 통합은 후속 범위입니다. 아래 표는 최종 요청·응답 계약을 설명합니다. 모든 경로는 `/api/v1` 기준이며 로그인이 필요합니다. 제품 정책은 [알림 명세](../specs/notifications.md)를 참조합니다.
+**상태: 서버 조회·읽음·업무 알림 생성과 화면 API 연결 구현.** 본인 목록·미읽음 수는 [라우터](../../backend/app/routers/notifications.py), [DTO](../../backend/app/schemas/notifications.py), [저장 접근](../../backend/app/repositories/notifications.py)와 [읽음 서비스](../../backend/app/services/notifications.py)에 구현했습니다. 개별·선택 집합 읽음도 구현하며 최초 읽음 시각과 전체 실패 원자성을 보장합니다. 서버 앱에 연결했고, 신규 지원·지원 상태 변경·팀 생성에 따른 대기 지원 폐기의 알림을 업무와 함께 저장합니다. [알림함 화면](../../frontend/src/features/notifications/NotificationInbox.tsx)은 [조회·읽음 훅](../../frontend/src/features/notifications/queries.ts)과 [API 계층](../../frontend/src/features/notifications/api.ts)을 사용합니다. 실제 연동 검증은 [bug bash 기록](../development/bug-bash.md)을 따르며 운영 검증과 구분합니다. 아래 표는 최종 요청·응답 계약을 설명합니다. 모든 경로는 `/api/v1` 기준이며 로그인이 필요합니다. 제품 정책은 [알림 명세](../specs/notifications.md)를 참조합니다.
 
 | 찾는 내용 | 위치 |
 | --- | --- |

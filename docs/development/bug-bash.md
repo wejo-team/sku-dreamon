@@ -90,9 +90,15 @@ npm run dev -- --mode bugbash --host 127.0.0.1 --port 5183
 
 ## 브라우저 통합테스트
 
-준비된 DB·환경 파일·인증서가 있으면 저장소 루트에서 아래 실행기로 서버 시작·준비 확인·E2E·종료를 한 번에 수행합니다. Linux/macOS/WSL용이며 이미 사용 중인 IPv4/IPv6 포트는 거부합니다. 직접 시작한 프로세스만 종료하고 DB는 그대로 유지합니다.
+준비된 DB·환경 파일·인증서가 있으면 아래 실행기로 서버 시작·준비 확인·E2E·종료를 한 번에 수행합니다. 최초 실행 전에는 프론트 의존성과 브라우저도 설치합니다. Linux/macOS/WSL용이며 이미 사용 중인 IPv4/IPv6 포트는 거부합니다. 위의 수동 서버가 실행 중이면 직접 사용하거나, 자동 실행기에 다른 포트를 지정합니다. 직접 시작한 프로세스만 종료하고 DB는 그대로 유지합니다.
 
 ```bash
+# 최초 준비: 저장소 루트에서 시작
+cd frontend
+npm ci
+npx playwright install --with-deps chromium
+cd ..
+
 python3 scripts/run_bugbash.py
 # 기존 개발 DB 설정을 사용하고 실행 중 서버와 포트를 분리할 때
 python3 scripts/run_bugbash.py --backend-env .bugbash/devdb-e2e/backend.env --backend-port 8013 --frontend-port 5185

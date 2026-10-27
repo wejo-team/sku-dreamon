@@ -172,7 +172,7 @@ CSRF 보호는 필수이며, 토큰 전달·검증 방식과 추가 저장 항�
 
 ## 현재 프로필
 
-[프로필 ORM](../../backend/app/models/profiles.py)과 [마이그레이션](../../backend/alembic/versions/20261024_04_profiles.py)에 아래 저장 구조를 정의합니다. [PostgreSQL 제약 테스트](../../backend/tests/integration/test_profile_models.py)는 참조 대상의 키만 별도로 제공해 프로필 자체의 무결성을 검사합니다. 인증·학사 모델과의 전체 migration 검증 및 본인 프로필 저장 API는 [#102](https://github.com/wejo-team/sku-dreamon/issues/102)에서 이어서 확인합니다.
+[프로필 ORM](../../backend/app/models/profiles.py)과 [마이그레이션](../../backend/alembic/versions/20261024_04_profiles.py)에 아래 저장 구조를 정의합니다. [PostgreSQL 제약 테스트](../../backend/tests/integration/test_profile_models.py)는 참조 대상의 키만 별도로 제공해 프로필 자체의 무결성을 검사합니다. 인증·학사 모델을 포함한 migration 대상은 [Alembic 모델 등록](../../backend/alembic/env.py)을 따릅니다. 본인 프로필 전체 저장·공개 전환은 [쓰기 서비스](../../backend/app/services/profile_write.py)에 구현했으며, [DB·HTTP 테스트](../../backend/tests/integration/test_profile_write.py)에서 최초 저장·수정·공개 전환·동시 저장·실패 시 롤백을 검증합니다.
 
 ### `profiles`
 

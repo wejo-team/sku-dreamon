@@ -16,7 +16,7 @@
 
 | 문서 | 다루는 내용 |
 | --- | --- |
-| [구현 현황과 다음 작업](implementation-status.md) | 2026-10-26 main의 프론트·백엔드 구현과 남은 작업을 확인할 때 |
+| [구현 현황과 다음 작업](implementation-status.md) | 검증한 main의 프론트·백엔드 구현과 남은 작업을 확인할 때 |
 | [local-development.md](local-development.md) | 처음 설치·실행하거나 검사 명령이 필요할 때 |
 | [workflow.md](workflow.md) | 팀 공통 명세·개발 계획·구현·리뷰 절차와 병합 기준 |
 | [AI 에이전트 SDD](../development-plans/ai-agent.md) | `create_agent`·OpenAI Luna 백엔드 구현과 프론트·운영 후속 작업 |

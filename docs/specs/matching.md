@@ -1,8 +1,8 @@
 # LLM 기반 공모전·팀·지원자 추천
 
-- 구현 상태: 진행 중 — 백엔드 작업 브랜치 구현, 프론트 미연결·미배포
+- 구현 상태: 진행 중 — 백엔드 [PR #157](https://github.com/wejo-team/sku-dreamon/pull/157) 병합, 프론트 실제 AI 미연결·미배포
 - 명세 검토: 기존 [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17), LLM 전환 [PR #73](https://github.com/wejo-team/sku-dreamon/pull/73), AI 로그인 전용·프로필 공개 정책 [PR #75](https://github.com/wejo-team/sku-dreamon/pull/75); 2026-10-19 [#77](https://github.com/wejo-team/sku-dreamon/issues/77)의 입력·결과 제한과 #33·#36·#46·#49 연결 결정 반영
-- 구현 작업: 미등록
+- 후속 작업: [AI 화면 연결 #163](https://github.com/wejo-team/sku-dreamon/issues/163), [실제 자료 품질·보존 #164](https://github.com/wejo-team/sku-dreamon/issues/164), [운영 배포 #165](https://github.com/wejo-team/sku-dreamon/issues/165)
 
 공모전·팀·실제 지원자 추천을 **LLM 기반 추천**으로 변경합니다. 이 문서는 사용자에게 제공할 동작, 근거와 공개 범위를 정의합니다. `create_agent`·OpenAI Luna·실시간 스트리밍·현재 탭 메모리 유지는 확정했으며, 백엔드 구현과 후속 범위는 [AI 에이전트 SDD](../development-plans/ai-agent.md)에서 관리합니다. 저장소의 실행 가능한 공식 디자인은 화면·상태·인터랙션의 참고 자료이며 실제 LLM·서버 구현 완료를 뜻하지 않습니다.
 

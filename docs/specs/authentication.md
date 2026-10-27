@@ -3,7 +3,7 @@
 - 구현 상태: 진행 중
 - 명세 검토: [PR #14](https://github.com/wejo-team/sku-dreamon/pull/14), PDF 대조·명세 연결 보완 [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17)
 - 정책 변경: [이슈 #20 · 자체 로그인과 향후 계정 연결](https://github.com/wejo-team/sku-dreamon/issues/20)
-- 구현 작업: [#100](https://github.com/wejo-team/sku-dreamon/issues/100). 계정·세션 저장, 입력·해시와 세션·CSRF 기반을 구현 중이며 가입·로그인 HTTP 연결·운영 설정과 실제 프로필 존재 조회는 후속 검증
+- 구현 작업: [#100](https://github.com/wejo-team/sku-dreamon/issues/100)의 계정·세션 저장, 입력·해시·CSRF, 가입·로그인 HTTP 연결과 실제 프로필 존재 조회를 구현했습니다. 자체 가입·로그인·프로필 저장·로그아웃·재로그인 화면의 실제 API 검증은 [구현 현황](../development/implementation-status.md)과 [서비스 E2E](../../frontend/e2e/service.spec.ts)를 참조합니다. 운영 설정·배포와 아래 미정 정책의 완료를 뜻하지 않습니다.
 - 변경 검토: 2026-10-19 [#77](https://github.com/wejo-team/sku-dreamon/issues/77)의 입력 규칙·신규 지원 공개 조건, 2026-10-21 사용자의 서버 세션·만료·독립 동시 로그인·기본 로그인 유지·가입 후 자동 로그인·MVP 복구 제외 결정 반영. 사용자 결정과 제품 구현 완료는 구분
 
 기획 원문의 가입·인증 요구사항 중 스프린트 1 가입 경로를 이슈 #20의 결정으로 변경합니다. 서비스 자체 아이디·비밀번호로 가입하고 로그인하며, 학교 인증·이메일 인증·소셜 로그인은 후속 범위로 미룹니다. 문서 반영과 기능 구현 완료는 구분합니다.

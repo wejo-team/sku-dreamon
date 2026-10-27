@@ -1,14 +1,14 @@
 # AI 에이전트 SDD
 
 - 기준: 2026-10-25 사용자 결정, [설계 PR #156](https://github.com/wejo-team/sku-dreamon/pull/156)
-- 상태: **백엔드 작업 브랜치 구현 · 프론트 미구현 · 미배포**
+- 상태: **백엔드 PR #157 병합 · 프론트 실제 AI 미연결 · 미배포**
 - 기준 명세: [LLM 기반 추천](../specs/matching.md#acceptance-criteria), AC-16~35
 - 구현 PR: [#157](https://github.com/wejo-team/sku-dreamon/pull/157)
 - 구현 구조: [AI 에이전트 아키텍처](../development/ai-architecture.md)
 - 계약 원본: [AI API](../api/ai.md), [AI 실행 저장](../database/ai.md)
-- 현재 작업 범위: 사용자가 계획대로 구현을 요청한 뒤 **백엔드만 구현**으로 한정. 후속 요청으로 구현 변경을 커밋·푸시하며 운영 DB 적용은 범위 밖
+- 구현 PR의 범위: 사용자 요청에 따라 **백엔드만 구현**했으며 운영 DB 적용은 포함하지 않았습니다. 아래 결정·검증은 PR #157 당시 범위이고 현재 남은 작업은 후속 절에서 구분합니다.
 
-공모전·팀·공개 사람 탐색과 팀장의 지원자 검토를 기존 FastAPI 서비스에 연결합니다. 사용자 동작은 기능 명세, 전송 계약은 DTO·API 문서, 저장 구조는 ORM·DB 문서가 원본입니다. 프론트의 로그인·대화·지원자 화면은 기존 모의 동작을 유지하며 이번 구현 완료 범위가 아닙니다.
+공모전·팀·공개 사람 탐색과 팀장의 지원자 검토를 기존 FastAPI 서비스에 연결합니다. 사용자 동작은 기능 명세, 전송 계약은 DTO·API 문서, 저장 구조는 ORM·DB 문서가 원본입니다. PR #157은 프론트 변경을 포함하지 않았습니다. 현재 자체 로그인·지원자 조회의 실제 API 연결 상태는 [구현 현황](../development/implementation-status.md), AI 대화·지원자 AI 검토의 실제 화면 연결은 [후속 작업 #163](https://github.com/wejo-team/sku-dreamon/issues/163)을 참조합니다.
 
 ## 결정과 적용 범위
 
@@ -23,7 +23,7 @@
 | 대화 유지 | 현재 브라우저 탭 메모리, 새로고침·새 대화·로그아웃 시 초기화 | 제품 요구사항. 서버 원문은 별도 보존하며 복원 API 없음 |
 | 실행 상태 | PostgreSQL 공유 메타데이터·입력/결과 해시·근거 참조 | 모델·migration·재시도·중단·정리 구현 |
 | 대화 저장 | 계정 소유 대화·접수 입력·완성 답변 | 일반 채팅만 보존, 조회 API·자동 만료 없음 |
-| 프론트 | 로그인·탭 메모리·스트림 파서·복사 재검증 | 사용자 요청에 따라 이번 구현에서 제외 |
+| 프론트 | AI 화면의 인증·탭 메모리·스트림 파서·복사 재검증 | PR #157에서 제외. 실제 AI 화면 연결은 #163 후속 |
 
 별도 LLM worker·큐·LangGraph 서버·Deep Agents·벡터 DB·임베딩·장기 기억은 도입하지 않습니다. 자동 지원·선발·외부 웹/포트폴리오 수집·과거 대화 목록은 기존 제외 범위를 유지합니다.
 
@@ -58,7 +58,7 @@
 - [실제 모델 수동 검사](../../backend/tests/manual/check_ai_model.py): 가상 자료만으로 Luna 도구 호출·구조화 출력·답변 스트리밍 확인. 일반 pytest는 유료 모델을 호출하지 않음.
 - 로컬 DB 검증은 격리된 PostgreSQL 18에서 수행합니다. Docker를 사용할 수 없어 Compose 기준 PostgreSQL 17.11은 이번 로컬 실행에 사용하지 않았습니다. 운영 DB에는 migration을 적용하지 않았습니다.
 
-실행·정리 명령은 [AI 로컬 실행](../development/local-development.md#ai-backend)을 참조합니다. 프론트 AC-16·23·26·28·33·34의 실제 화면 동작과 브라우저 E2E, 실제 지원자 자료를 사용한 추천 품질 평가는 완료로 표시하지 않습니다. 후속 사용자 요청에 따라 현재 작업 브랜치에 구현 커밋을 추가합니다. main 병합과 운영 배포는 별도 작업입니다.
+실행·정리 명령은 [AI 로컬 실행](../development/local-development.md#ai-backend)을 참조합니다. 프론트 AC-16·23·26·28·33·34의 실제 화면 동작과 브라우저 E2E, 실제 지원자 자료를 사용한 추천 품질 평가는 완료로 표시하지 않습니다. 백엔드는 PR #157로 main에 병합했습니다. 실제 AI 화면 연결은 [#163](https://github.com/wejo-team/sku-dreamon/issues/163), 실제 자료 품질·보존 정책은 [#164](https://github.com/wejo-team/sku-dreamon/issues/164), 운영 배포는 [#165](https://github.com/wejo-team/sku-dreamon/issues/165)에 남깁니다.
 
 ## 기술 근거
 
