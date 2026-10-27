@@ -443,7 +443,7 @@ class RunService:
             or now >= login.last_seen_at + IDLE_LIFETIME
         ):
             raise ContextChanged()
-        reader = SourceReader(self.database, execution.context)
+        reader = SourceReader(self.database, execution.context, session=session)
         values: list[Resource] = []
         for source in sources:
             try:

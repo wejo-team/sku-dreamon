@@ -312,6 +312,13 @@ async def get_applicant(
     session: AsyncSession, application_id: UUID, account_id: UUID
 ) -> ApplicantResponse:
     await _read_snapshot(session)
+    return await read_applicant(session, application_id, account_id)
+
+
+async def read_applicant(
+    session: AsyncSession, application_id: UUID, account_id: UUID
+) -> ApplicantResponse:
+    """호출자의 스냅샷·잠금 안에서 팀장 권한과 최신 지원 상세를 함께 읽는다."""
     identity = await repository.get_application_identity(session, application_id)
     if identity is None or account_id not in (
         identity.applicant_id,
