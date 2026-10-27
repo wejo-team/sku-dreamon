@@ -4,4 +4,4 @@
 
 | 문서 | 상태 | 기준 명세 |
 | --- | --- | --- |
-| [AI 에이전트 SDD](ai-agent.md) | 백엔드 작업 브랜치 구현, 프론트 미구현, 미배포 | [LLM 기반 추천](../specs/matching.md) |
+| [AI 에이전트 SDD](ai-agent.md) | 백엔드 [#157 병합](https://github.com/wejo-team/sku-dreamon/pull/157), 실제 AI 화면 연결·운영 배포 후속 | [LLM 기반 추천](../specs/matching.md) |

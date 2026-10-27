@@ -1,6 +1,6 @@
 # 구조와 초기 실행 기반
 
-현재 기능의 구현 범위와 남은 작업은 [API 인덱스](../api/README.md)와 [DB 인덱스](../database/README.md)에서 확인합니다. 아래는 책임별 폴더 배치 기준입니다. 각 계층의 기능 파일과 프론트의 `e2e/`는 해당 코드가 필요할 때 추가하며, 빈 기능 폴더를 미리 늘리지 않습니다.
+현재 기능의 구현 범위와 남은 작업은 [API 인덱스](../api/README.md)와 [DB 인덱스](../database/README.md)에서 확인합니다. 아래는 현재 책임별 폴더 배치입니다. 새 기능 파일은 필요할 때 추가하며, 빈 기능 폴더를 미리 늘리지 않습니다.
 
 ```text
 frontend/
@@ -13,7 +13,7 @@ frontend/
     lib/                 # 공통 HTTP·환경설정·QueryClient
     styles/              # 전역 스타일·디자인 토큰
     main.tsx
-  e2e/                   # 핵심 사용자 흐름이 생길 때
+  e2e/                   # 실제 HTTPS·API·DB의 핵심 사용자 흐름
   .env.example
   .nvmrc
   package.json
@@ -38,13 +38,14 @@ backend/
     main.py              # 앱 생성·lifespan·라우터 연결
   alembic/versions/      # DB 변경 이력
   tests/                 # unit / integration (HTTP·PostgreSQL)
+  scripts/               # 개발·E2E 시드와 검증 자료 준비
   .env.example
   .python-version
   pyproject.toml
   uv.lock
 docs/                    # 작업별 인덱스·명세·개발 및 에이전트 가이드
   .vitepress/            # 문서 사이트 설정·테마
-scripts/                 # CI 영향 범위·필수 결과 판별, 문서·사이트 검증
+scripts/                 # CI 영향 범위·필수 결과 판별, 문서·사이트 검증, E2E 실행
 .github/workflows/        # 앱 CI와 문서·Pages workflow
 package.json             # VitePress 문서 도구 전용
 package-lock.json

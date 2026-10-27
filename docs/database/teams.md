@@ -2,7 +2,7 @@
 
 이 문서는 [팀 모집·지원 명세](../specs/team-recruitment.md)의 PostgreSQL 저장 구조와 제약을 설명합니다. **저장 모델·행 제약, 팀 조회·공간·모집 변경, 지원 조회·취소·팀장 검토·선발을 구현했습니다. 팀 생성과 신규 지원도 관련 소속·사건·알림과 함께 원자적으로 저장합니다.** 실제 경로와 계약은 [팀 API](../api/teams.md)와 [지원 API](../api/applications.md)에서 코드로 연결합니다. 사용자 흐름·권한·정책은 원문 링크로 참조하고, 공통 타입·기본값·삭제 규칙은 [공통 규칙](conventions.md), 여러 테이블을 함께 바꾸는 처리 순서는 [트랜잭션 설계](transactions.md)를 따릅니다.
 
-구현 원본은 [팀·소속 모델](../../backend/app/models/teams.py), [지원·사건 모델](../../backend/app/models/applications.py), [마이그레이션](../../backend/alembic/versions/20261024_05_team_integrity.py)입니다. [PostgreSQL 통합 검사](../../backend/tests/integration/test_team_integrity.py)는 복합 참조·현재 소속과 지원의 중복·상태 사건 제약·트랜잭션 롤백·마이그레이션 정합성을 검증합니다. 구현한 검토·선발·취소·모집 변경의 권한·잠금 순서·정원 보호는 각 [지원 API](../api/applications.md)·[팀 API](../api/teams.md)에 연결한 실제 DB·HTTP 테스트에서 검증합니다. 팀 생성과 신규 지원의 유스케이스 검증은 후속 범위입니다.
+구현 원본은 [팀·소속 모델](../../backend/app/models/teams.py), [지원·사건 모델](../../backend/app/models/applications.py), [마이그레이션](../../backend/alembic/versions/20261024_05_team_integrity.py)입니다. [PostgreSQL 통합 검사](../../backend/tests/integration/test_team_integrity.py)는 복합 참조·현재 소속과 지원의 중복·상태 사건 제약·트랜잭션 롤백·마이그레이션 정합성을 검증합니다. 구현한 검토·선발·취소·모집 변경의 권한·잠금 순서·정원 보호는 각 [지원 API](../api/applications.md)·[팀 API](../api/teams.md)에 연결한 실제 DB·HTTP 테스트에서 검증합니다. 팀 생성은 [생성 테스트](../../backend/tests/integration/test_team_creation.py)와 [HTTP·경합 테스트](../../backend/tests/integration/test_team_creation_http.py), 신규 지원은 [접수 테스트](../../backend/tests/integration/test_application_submission.py)와 [무결성 테스트](../../backend/tests/integration/test_submission_integrity.py)에서 재전송·권한·경합·실패 시 롤백을 검증합니다.
 
 ## 구조와 책임
 
@@ -317,4 +317,4 @@ PK·UNIQUE가 만드는 인덱스 외의 초기 인덱스입니다. 팀의 공�
 
 [공고 조건 변경의 기존 팀 영향](../specs/contests.md#eligibility-changes) 등 남은 질문은 별도 정책 결정이며, 위 확정 전이의 구현을 모두 보류한다는 뜻은 아닙니다.
 
-DB 행 제약만으로 실제 선발·팀 생성의 정원·권한·교차 행 상태가 보장되지는 않습니다. 후속 서비스는 [트랜잭션 경계](transactions.md)와 동시성 검증 사례를 적용하고, HTTP 동작까지 확인한 뒤 해당 기능의 완료 조건을 갱신합니다.
+DB 행 제약만으로 실제 선발·팀 생성의 정원·권한·교차 행 상태가 보장되지는 않습니다. 현재 서비스는 [트랜잭션 경계](transactions.md)를 적용하며, 위 DB·HTTP 테스트에서 업무 동작과 동시성을 검증합니다. 후속 변경도 해당 검증을 수행하고 기능 명세의 완료 조건과 운영 검증을 구분합니다.

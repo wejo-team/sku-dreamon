@@ -1,6 +1,6 @@
 # 통합테스트와 bug bash
 
-실제 제품 프론트 → HTTPS 프록시 → FastAPI → PostgreSQL을 연결해 확인하는 실행 안내입니다. 검사 원칙·CI는 [테스트·CI](testing.md), 일반 개발 실행은 [로컬 실행](local-development.md)을 따릅니다. [진행 이슈 #162](https://github.com/wejo-team/sku-dreamon/issues/162)에서 실행 결과와 후속 자동화를 추적합니다.
+실제 제품 프론트 → HTTPS 프록시 → FastAPI → PostgreSQL을 연결해 확인하는 실행 안내입니다. 검사 원칙·CI는 [테스트·CI](testing.md), 일반 개발 실행은 [로컬 실행](local-development.md)을 따릅니다. [초기 통합 검증 #162](https://github.com/wejo-team/sku-dreamon/issues/162)의 실행 안내를 바탕으로, 반복 점검의 최종 실행 커밋·결과·후속 조치는 [#169](https://github.com/wejo-team/sku-dreamon/issues/169)에서 추적합니다.
 
 ## 무엇을 검증하는가
 
@@ -90,9 +90,15 @@ npm run dev -- --mode bugbash --host 127.0.0.1 --port 5183
 
 ## 브라우저 통합테스트
 
-준비된 DB·환경 파일·인증서가 있으면 저장소 루트에서 아래 실행기로 서버 시작·준비 확인·E2E·종료를 한 번에 수행합니다. Linux/macOS/WSL용이며 이미 사용 중인 IPv4/IPv6 포트는 거부합니다. 직접 시작한 프로세스만 종료하고 DB는 그대로 유지합니다.
+준비된 DB·환경 파일·인증서가 있으면 아래 실행기로 서버 시작·준비 확인·E2E·종료를 한 번에 수행합니다. 최초 실행 전에는 프론트 의존성과 브라우저도 설치합니다. Linux/macOS/WSL용이며 이미 사용 중인 IPv4/IPv6 포트는 거부합니다. 위의 수동 서버가 실행 중이면 직접 사용하거나, 자동 실행기에 다른 포트를 지정합니다. 직접 시작한 프로세스만 종료하고 DB는 그대로 유지합니다.
 
 ```bash
+# 최초 준비: 저장소 루트에서 시작
+cd frontend
+npm ci
+npx playwright install --with-deps chromium
+cd ..
+
 python3 scripts/run_bugbash.py
 # 기존 개발 DB 설정을 사용하고 실행 중 서버와 포트를 분리할 때
 python3 scripts/run_bugbash.py --backend-env .bugbash/devdb-e2e/backend.env --backend-port 8013 --frontend-port 5185
@@ -119,6 +125,8 @@ Linux의 브라우저 시스템 패키지 설치에는 관리자 권한이 필�
 
 [설정](../../frontend/playwright.config.ts)과 [시나리오](../../frontend/e2e/service.spec.ts)는 데스크톱 Chromium과 320px 모바일 Chromium에서 실행합니다. 테스트는 고유 아이디로 가상 사용자를 만들고 팀장·지원자의 브라우저 컨텍스트를 분리합니다. `E2E_BASE_URL`로 주소를, `E2E_ARTIFACT_DIR`로 결과 경로를 지정할 수 있습니다. 원본 DB에서는 기존 공고·계정을 읽고 새 계정·팀·지원만 변경합니다. 생성 직후 자원 종류·UUID·실행 ID를 manifest에 기록합니다. 실패 재시도는 0회로 두어 최초 실패를 숨기지 않습니다. 생성 데이터는 대상 DB에 남기므로 다음 실행은 다른 계정을 사용합니다. 삭제·전체 복원으로 기존 자료를 덮어쓰지 않습니다.
 
+기본 시나리오는 [서비스 흐름](../../frontend/e2e/service.spec.ts) 3개, [탐색·공고](../../frontend/e2e/browse.spec.ts) 3개, [생명주기·오류 회복](../../frontend/e2e/lifecycle.spec.ts) 4개를 두 브라우저 프로젝트에서 실행하는 **20개 구성**입니다([#188](https://github.com/wejo-team/sku-dreamon/pull/188) 반영). 복제 DB의 혼합 검사는 명시적으로 선택한 별도 8개이며 기본 20개에 포함되지 않습니다. 아래 과거 실행 기록의 6·10·16개는 당시 커밋의 구성입니다. 구성 개수가 실행 성공을 뜻하지 않으며, 실제 수집·통과·실패·생략·재시도는 실행별 JSON 결과를 확인합니다.
+
 | 시나리오 | 확인 내용 | 관련 제품 AC |
 | --- | --- | --- |
 | 가입·프로필·세션 | UI 가입·초기 프로필·수정·공개·새로고침·쿠키 속성·로그아웃·재로그인 | sprint-1 AC-02·11 |
@@ -126,6 +134,7 @@ Linux의 브라우저 시스템 패키지 설치에는 관리자 권한이 필�
 | 탐색·공고 계약 | API 목록 대조·검색·필터 취소·페이지 경계·상세 복귀·공식/수집 출처·미확인·시각 보완·마감 공고 | sprint-1 AC-14, contests AC-04·09·11·13 |
 | 지원 생명주기·알림 | 취소 후 새 지원·검토·미선발·재지원 제한·다른 팀 선발 시 대기 지원 폐기·읽음 처리와 현재 권한 | team AC-16·36·37·40·42·44, notifications AC-01·02·05·08 |
 | 권한·실제 HTTP | CSRF 누락 거부·비공개 신규 지원 거부·공개 후 접수·동일 ID 재전송·타인 404·지원 팀장 예외·버전 충돌 | AC-05·08·11 |
+| 세션 회수·알림 조회 실패 | 실제 로그아웃으로 세션 회수 후 401·개인 화면 숨김·재로그인 안내. 브라우저에서 알림 GET 503을 주입한 뒤 필터·개수·재시도·실제 서버 복구 확인 | [인증 실패](../specs/authentication.md#auth-failures), [알림](../specs/notifications.md) |
 
 `test-results/`에 실패 trace·스크린샷 및 성공 시 주요 화면을, `playwright-report/`에 HTML 결과를 남깁니다. 모두 Git에서 제외합니다. trace에는 가상 계정의 인증 요청이 포함될 수 있으므로 원본을 공개 이슈에 첨부하지 않고, 필요한 오류·요청 ID·화면만 확인해 공유합니다. 운영 계정으로 이 스크립트를 실행하지 않습니다.
 
@@ -217,6 +226,37 @@ python3 scripts/run_bugbash.py --backend-env .bugbash/mixed-e2e/backend.env --ba
 - 팀장 지원자 상세에 검토 시작·미선발 조작을 연결했습니다([#172](https://github.com/wejo-team/sku-dreamon/issues/172)). 생명주기 검사는 실제 버튼과 미선발 확인창을 조작하고 서버의 상태·알림·재지원 제한을 확인합니다. 같은 상태의 API 재요청이 알림을 중복 생성하지 않는지도 별도로 검사합니다. 시연 계정·팀·공고는 API의 `isDemo`에 따라 화면과 접근 가능한 이름에 표시합니다([#171](https://github.com/wejo-team/sku-dreamon/issues/171)). 실제·시연 네 조합 검사는 API 값과 배지의 일치·부재, 320px 화면의 가로 넘침도 확인합니다.
 
 전체 반복 점검과 후속 결과는 [#169](https://github.com/wejo-team/sku-dreamon/issues/169)에서 관리합니다. 원본 DB 자료·모델 키·로컬 원본 trace는 저장소에 포함하지 않았습니다.
+
+## 2026-10-28 후속 수정과 검증 기록
+
+[#175](https://github.com/wejo-team/sku-dreamon/pull/175)의 지원자 검토 조작과 [#177](https://github.com/wejo-team/sku-dreamon/pull/177)의 시연 표시를 병합한 main `3b751aa`에서 **원본 개발 DB 기본 16개가 한 번에 통과**했습니다. 실패·생략·flaky·재시도는 모두 0건입니다. 별도 보존 검사에서 기존 작업 파일 14개와 기존 행을 비교한 도메인 테이블 20개의 보존을 확인했습니다. 새 테스트 행은 남겨 두며 인증 세션·시도 제한 상태는 불변성 대상에서 제외합니다. 여기서 20은 테이블 수이며 아래 최종 E2E 구성 개수와 구분합니다.
+
+별도 UI 작업 브랜치에서는 생명주기 집중 검사 **8개를 두 차례 각각 8/8 통과**했습니다. 같은 시나리오를 반복한 결과로, 고유 시나리오 16개가 아닙니다. 실제 세션 회수는 로그아웃으로 검사했고 시간 경과에 따른 TTL 만료를 검증한 것은 아닙니다. 알림 503은 브라우저의 응답 오류 주입이며 복구 요청은 실제 서버를 사용했습니다. 101명 지원자·100개 초과 팀의 목록 경계는 컴포넌트 테스트로 검증했으며 그 대규모 자료를 실제 DB 브라우저에서 시험했다고 확대하지 않습니다. 복제 DB의 실제/시연 네 조합 **8/8**은 별도 실행 기록입니다.
+
+[#183](https://github.com/wejo-team/sku-dreamon/pull/183)의 취약 의존성, [#186](https://github.com/wejo-team/sku-dreamon/pull/186)의 AI 발행 DB 연결, [#187](https://github.com/wejo-team/sku-dreamon/pull/187)의 개인 응답 캐시 방지, [#188](https://github.com/wejo-team/sku-dreamon/pull/188)의 화면 경계 복구, [#189](https://github.com/wejo-team/sku-dreamon/pull/189)의 시드 회귀와 [#190](https://github.com/wejo-team/sku-dreamon/pull/190)의 문서 검색 갱신을 병합한 제품 기준은 main `329b9b9`입니다.
+
+- [#188 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40572857540): 프론트 26개 파일·413개 테스트와 lint·format·typecheck·build, 격리 CI DB의 기본 E2E 20개 통과. 병합 후 main의 [앱 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40573547260)와 [문서 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40573547246)도 통과했습니다.
+- [#189 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40573652554): 백엔드 759개 통과·생략 0개, 기본 CI E2E 20개 통과. 병합 후 main의 [앱 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40574351836)와 [문서 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40574351821)도 통과했습니다.
+- [#190 앱 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40574400031): 프론트 413개·백엔드 759개·기본 CI E2E 20개 통과. [문서 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40574400021)는 검색 회귀 2개·기존 도구 44개·원본 문서 64개 검사와 빌드·생성 사이트 검사를 통과했습니다.
+
+위 CI는 격리된 가상 자료를 사용하며 원본 개발 DB·실제 AI를 사용한 검사로 간주하지 않습니다.
+
+### CI 설치 지연과 재검증
+
+#177의 [main CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40567862079)는 APT 내려받기에 703초가 걸려 16개 중 14개 검사가 끝난 상태에서 15분 작업 제한으로 종료됐습니다. 이 실행을 전체 통과로 기록하지 않습니다. [#183 main 앱 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40569535308)와 [문서 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40569535154)는 이후 통과했습니다.
+
+[#185](https://github.com/wejo-team/sku-dreamon/pull/185)는 Integration 환경을 Ubuntu 24.04로 고정하고 공식 Ubuntu 미러를 사용하도록 조정했습니다. 서로 다른 실행의 실측값은 다음과 같으며 항상 같은 소요 시간을 보장하는 수치는 아닙니다.
+
+| 측정 항목 | #177 PR 실행 | #185 PR 실행 |
+| --- | --- | --- |
+| APT 내려받기 | 609초 | 5초 |
+| 브라우저·시스템 의존성 설치 단계 | 626.65초 | 68초 |
+
+[#185 검증 실행](https://github.com/wejo-team/sku-dreamon/actions/runs/40570503393)은 Integration 작업 전체 278초, E2E 16개 통과·생략 0개였습니다. 병합 후 main의 [앱 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40571490806)와 [문서 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40571490711)도 통과했습니다. 설치 지연과 제품 검사 실패를 구분하고, timeout은 실행 완료로 취급하지 않습니다.
+
+### 최종 반복 실행의 범위
+
+최종 반복 검증의 범위는 원본 개발 DB 기본 **20개**와 복제 DB 혼합 **8개**입니다. 실행 커밋·대상·성공/실패·생략·재시도·기존 작업 파일 및 도메인 행의 보존 판정은 [#169](https://github.com/wejo-team/sku-dreamon/issues/169)를 기준 기록으로 확인합니다. 시나리오 구성 개수나 다른 커밋의 CI 통과를 해당 실행의 성공으로 대체하지 않습니다. 실제 AI 제공자 호출은 위의 3회 검증 범위로 한정하며 후속 회귀는 가짜 모델을 사용합니다. 운영 배포·실기기 Safari·전체 AI 품질 평가와 미정 정책은 이 검증의 완료 범위가 아닙니다.
 
 ## 종료와 데이터 유지
 
