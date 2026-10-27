@@ -56,10 +56,13 @@ python3 -m unittest discover -s scripts/tests -v
 python3 scripts/check_docs.py
 npm run docs:build
 python3 scripts/check_docs_site.py
+npm run docs:test-search
 npm run docs:preview
 ```
 
 미리보기 주소는 `http://localhost:4173/sku-dreamon/`입니다. 문서를 수정하며 보려면 `npm run docs:dev`를 실행하고 터미널에 표시된 `/sku-dreamon/` 주소로 접속합니다. 문서 설정·테마 변경 시 검색, 내부 링크, 좁은 화면의 메뉴도 확인합니다.
+
+`docs:dev`는 VitePress 1.6.4의 로컬 검색 갱신 결함에 대한 `docs/.vitepress/patch-local-search.mjs` 패치를 설치된 모듈에 적용하며, `docs:test-search`와 문서 CI가 실제 파일 감시를 통해 제목·문서 추가/삭제·검색 제외·연속 편집을 검증합니다. 의존성 갱신 시 [#182](https://github.com/wejo-team/sku-dreamon/issues/182)의 임시 패치를 재검토하며, 정적 빌드는 패치 적용을 요구하지 않습니다.
 
 VitePress는 안정 버전 1.6.4를 유지하고, 루트 `package.json`의 `overrides`로 Vite 6.4.5를 고정해 Vite·esbuild 의존성의 알려진 보안 권고를 해소합니다. VitePress 1.6.4의 기본 의존 범위는 Vite 5이지만, 이 문서 사이트는 data·path loader를 사용하지 않아 [관리자가 안내한 Vite 6 override 조건](https://github.com/vuejs/vitepress/issues/4494#issuecomment-2600813008)을 따릅니다. Vite 6.4는 [보안 패치를 받는 계열](https://vite.dev/releases#supported-versions)입니다.
 
