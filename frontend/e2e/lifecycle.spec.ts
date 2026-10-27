@@ -177,7 +177,10 @@ test('취소 후 새 지원·명시적 검토·미선발·재지원 제한과 �
     ).toBeVisible();
     await expect(rejectionDialog.locator(':focus')).toHaveCount(1);
     await expect(
-      rejectionDialog.getByRole('button', { name: '미선발로 확정', exact: true }),
+      rejectionDialog.getByRole('button', {
+        name: '미선발로 확정',
+        exact: true,
+      }),
     ).toBeInViewport({ ratio: 1 });
     await expect(
       rejectionDialog.getByRole('button', { name: '돌아가기', exact: true }),
