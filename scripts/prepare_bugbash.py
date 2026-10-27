@@ -4,7 +4,9 @@ DB 생성/적재와 서버 실행은 docs/development/bug-bash.md의 명시적 �
 기존 backend/.env와 개발 DB에는 접근하지 않는다.
 """
 
+import argparse
 import json
+import re
 import secrets
 import subprocess
 from datetime import UTC, datetime, timedelta
@@ -20,6 +22,14 @@ def write_private(path: Path, content: str) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--database-name", default="wejo_dev")
+    args = parser.parse_args()
+    if not re.fullmatch(r"[a-z][a-z0-9_]{0,62}", args.database_name):
+        parser.error("DB 이름은 영문 소문자로 시작하는 영문·숫자·밑줄이어야 합니다.")
+    database_url = (
+        "postgresql+asyncpg://wejo:wejo@127.0.0.1:55433/" + args.database_name
+    )
     OUTPUT.mkdir(mode=0o700, exist_ok=True)
     certificate = OUTPUT / "localhost.pem"
     private_key = OUTPUT / "localhost-key.pem"
@@ -54,10 +64,17 @@ def main() -> None:
     write_private(blocklist, "blocked-bugbash-password\n")
     backend_env = OUTPUT / "backend.env"
     # 재실행해도 실행 중 서버의 CSRF 키를 바꾸지 않는다.
+    if backend_env.exists() and (
+        f"DATABASE_URL={database_url}"
+        not in backend_env.read_text(encoding="utf-8").splitlines()
+    ):
+        parser.error(
+            "기존 backend.env의 DB가 다릅니다. 해당 설정을 유지하고 중단합니다."
+        )
     if not backend_env.exists():
         write_private(
             backend_env,
-            "DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:55433/wejo_dev\n"
+            f"DATABASE_URL={database_url}\n"
             f"CSRF_SIGNING_KEY={secrets.token_urlsafe(48)}\n"
             "AUTH_ALLOWED_ORIGINS='[\"https://localhost:5183\"]'\n"
             f"PASSWORD_BLOCKLIST_PATH={blocklist}\n"
