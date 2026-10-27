@@ -214,7 +214,7 @@ python3 scripts/run_bugbash.py --backend-env .bugbash/mixed-e2e/backend.env --ba
 - 기존 개발 공고·계정·팀·지원 등 도메인 행의 해시가 보존됐습니다. 새 테스트 자원은 실행별 manifest로 식별하며 DB에 남겨 둡니다.
 - 새 CI 시드에서 공고 8개와 계정 300개를 쓴 뒤 강제 실패를 주입해 관련 16개 테이블이 모두 비어 있는 상태로 롤백됨을 확인했습니다. 정상 적재 후 재실행은 거부됐고 22개 public 테이블의 행 수·해시가 유지됐습니다.
 - 실제 AI는 별도 HTTPS 요청 한 건으로 `gpt-6-luna` 응답·SSE 순서·DTO·상태 조회·결과 유효성만 검사했습니다. 제공자 요청은 총 3회, 모두 200이며 재시도는 없었습니다. 요청 전송 제한기는 별도 모의 검증에서 네 번째 전송을 막았습니다. 응답 품질 평가·전체 AI 화면 연동의 완료 근거는 아닙니다.
-- 시연 데이터 화면 표시와 팀장 검토 시작·미선발 조작의 누락은 [#171](https://github.com/wejo-team/sku-dreamon/issues/171), [#172](https://github.com/wejo-team/sku-dreamon/issues/172)로 분리했습니다. 현재 생명주기 검사는 해당 상태 변경을 실제 HTTP로 실행하고 UI 결과를 확인하며, 없는 버튼을 검증했다고 기록하지 않습니다.
+- 팀장 지원자 상세에 검토 시작·미선발 조작을 연결했습니다([#172](https://github.com/wejo-team/sku-dreamon/issues/172)). 생명주기 검사는 실제 버튼과 미선발 확인창을 조작하고 서버의 상태·알림·재지원 제한을 확인합니다. 같은 상태의 API 재요청이 알림을 중복 생성하지 않는지도 별도로 검사합니다. 시연 데이터 화면 표시 누락은 [#171](https://github.com/wejo-team/sku-dreamon/issues/171)에서 추적합니다.
 
 전체 반복 점검과 후속 결과는 [#169](https://github.com/wejo-team/sku-dreamon/issues/169)에서 관리합니다. 원본 DB 자료·모델 키·로컬 원본 trace는 저장소에 포함하지 않았습니다.
 
