@@ -37,7 +37,7 @@ async def test_app_error_preserves_contract_headers_and_log_id(
             status_code=409,
             code="VERSION_CONFLICT",
             message="최신 정보를 확인해 주세요.",
-            headers={"Retry-After": "2"},
+            headers={"Retry-After": "2", "Cache-Control": "public, max-age=60"},
         )
     )
     body = json.loads(bytes(response.body))
@@ -50,6 +50,7 @@ async def test_app_error_preserves_contract_headers_and_log_id(
     assert UUID(body["requestId"])
     assert response.headers["x-request-id"] == body["requestId"]
     assert response.headers["retry-after"] == "2"
+    assert response.headers.getlist("cache-control") == ["no-store"]
     assert body["requestId"] in caplog.text
 
 
@@ -78,13 +79,14 @@ async def test_http_error_uses_safe_message_and_preserves_status_and_headers(
         HTTPException(
             status_code=status_code,
             detail=secret,
-            headers={"Retry-After": "5"},
+            headers={"Retry-After": "5", "cache-control": "public, max-age=60"},
         )
     )
 
     assert response.status_code == status_code
     assert json.loads(bytes(response.body))["error"]["code"] == code
     assert response.headers["retry-after"] == "5"
+    assert response.headers.getlist("cache-control") == ["no-store"]
     assert secret not in bytes(response.body).decode()
     assert secret not in caplog.text
 
@@ -97,7 +99,11 @@ async def test_http_422_uses_validation_contract_and_preserves_headers(
         HTTPException(
             status_code=422,
             detail=secret,
-            headers={"Retry-After": "3", "x-request-id": "untrusted-id"},
+            headers={
+                "Retry-After": "3",
+                "x-request-id": "untrusted-id",
+                "cAcHe-CoNtRoL": "public, max-age=60",
+            },
         )
     )
 
@@ -106,6 +112,7 @@ async def test_http_422_uses_validation_contract_and_preserves_headers(
         "detail": [{"loc": [], "msg": "입력값을 확인해 주세요.", "type": "value_error"}]
     }
     assert response.headers["retry-after"] == "3"
+    assert response.headers.getlist("cache-control") == ["no-store"]
     assert UUID(response.headers["x-request-id"])
     assert response.headers["x-request-id"] in caplog.text
     assert secret not in bytes(response.body).decode()
@@ -143,6 +150,7 @@ async def test_validation_error_removes_input_context_and_unsafe_message(
             }
         ]
     }
+    assert response.headers.getlist("cache-control") == ["no-store"]
     assert secret not in bytes(response.body).decode()
     assert secret not in caplog.text
     assert UUID(response.headers["x-request-id"])
@@ -157,6 +165,7 @@ async def test_unexpected_error_does_not_expose_exception_text(
     body = json.loads(bytes(response.body))
 
     assert response.status_code == 500
+    assert response.headers.getlist("cache-control") == ["no-store"]
     assert body["error"]["code"] == "INTERNAL_ERROR"
     assert body["requestId"] == response.headers["x-request-id"]
     assert body["requestId"] in caplog.text

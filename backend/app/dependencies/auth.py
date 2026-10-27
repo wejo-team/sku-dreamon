@@ -3,7 +3,7 @@
 from typing import Annotated, cast
 from uuid import UUID
 
-from fastapi import Depends, Request, Security
+from fastapi import Depends, Request, Response, Security
 from fastapi.security import APIKeyCookie
 
 from app.core.db.session import Database
@@ -27,7 +27,10 @@ async def get_optional_session(
 OptionalSession = Annotated[SessionPrincipal | None, Depends(get_optional_session)]
 
 
-async def get_current_session(session: OptionalSession) -> SessionPrincipal:
+async def get_current_session(
+    session: OptionalSession, response: Response
+) -> SessionPrincipal:
+    response.headers["Cache-Control"] = "no-store"
     if session is None:
         raise AppError(401, "UNAUTHENTICATED", "로그인이 필요합니다.")
     return session

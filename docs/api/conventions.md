@@ -145,7 +145,7 @@ CSRF 토큰은 임의 nonce에 HMAC-SHA-256을 적용하며 로그인 후에는 
 
 시도 제한 수치와 로컬 차단 목록 공급 방식은 [인증 운영 기준](../specs/authentication.md#auth-operation-settings)을 따릅니다. 실제 파일·설정 배포와 종료 세션의 정리·보존 기간은 후속 운영 범위입니다. 이 전송 계약으로 자동 삭제나 계정 잠금 정책을 추가하지 않습니다. 설계 근거는 [OWASP의 서명된 double-submit 및 origin 검사](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html), [세션 관리](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)입니다.
 
-개인 프로필·지원·AI·알림 응답은 공유 캐시에 저장하지 않는 방향을 제안합니다. 비공개 전환 후 일반 조회가 이전 응답을 다시 사용하지 않도록 서버 재검증과 클라이언트 무효화 범위를 함께 구현합니다. 구체 캐시 기술은 이 문서로 선택하지 않습니다.
+로그인이 필요한 개인 프로필·사람 조회·지원·AI·알림 응답은 `Cache-Control: no-store`로 브라우저와 공유 HTTP 캐시에 저장하지 않도록 합니다. 공통 인증 의존성이 일반 성공 응답에 적용하고, 명시적으로 반환하는 `Response`·AI 스트림은 반환 응답에 직접 설정합니다. 공통 오류 처리에도 적용해 인증 실패·권한 거부·비공개 또는 없는 자원의 404·입력 검증 실패 응답을 재사용하지 않도록 합니다. 공개 공고와 정적 파일의 정상 응답은 이 규칙의 적용 대상이 아닙니다. 비공개 전환 후 서버의 현재 권한 재검사와 프론트의 화면 데이터 무효화는 계속 필요하며, `no-store`가 이미 화면에 보관된 데이터를 제거하는 것은 아닙니다.
 
 <a id="pagination"></a>
 
