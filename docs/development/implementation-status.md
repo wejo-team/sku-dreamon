@@ -1,5 +1,16 @@
 # 구현 현황과 다음 작업
 
+## 2026-10-28 AI 제품 화면 연결
+
+[AI 화면 연결 #163](https://github.com/wejo-team/sku-dreamon/issues/163)의 [구현 PR #192](https://github.com/wejo-team/sku-dreamon/pull/192)에서 일반 대화·팀장의 지원자 검토·팀 지원자 추천을 기존 실제 API에 연결했습니다. `VITE_API_MOCK=false`는 POST SSE를 사용하고, 명시적인 모의 모드에서만 예시 답변을 만듭니다. 준비·생성·완료·빈 결과·실패·취소, 원입력 재시도와 실행 상태 확인을 구분합니다.
+
+- 대화·초안은 현재 탭 메모리에서 유지하고, 새 대화·새로고침·로그아웃·동일 계정 재로그인 때 초기화합니다. 서버 기록 조회·복원은 추가하지 않았습니다.
+- 최초 결과 DTO를 보존해 표시·복사·화면 복귀·포커스 때 현재 권한과 근거를 재검증합니다. 무효화·세션 변경·늦은 응답은 본문과 카드 전체에 적용합니다.
+- 팀장 검토는 최신/사용 프로필 버전과 선발 후보 여부를 보여주며, 추천은 실제 지원자 상세로 연결합니다. 생성·검토·추천만으로 지원 상태나 선발을 변경하지 않습니다.
+- 자동 검증은 프론트 API/컴포넌트 검사와 [실제 HTTPS·DB AI 브라우저 검사](bug-bash.md#ai-e2e)를 분리합니다. 브라우저에서는 모델만 대체하며 실제 제공자 호출은 0회입니다. 이전에 실시한 제공자 API 3회 검증을 이번 UI 실행으로 다시 계산하지 않습니다.
+
+실제 자료의 추천 품질·비용·보존 정책 [#164](https://github.com/wejo-team/sku-dreamon/issues/164), 공동 HTTPS·운영 배포 [#165](https://github.com/wejo-team/sku-dreamon/issues/165)는 후속 범위입니다. 아래는 각 기준 커밋 당시의 기록입니다.
+
 ## 2026-10-28 통합 검증과 점검 기록
 
 제품 기준은 [main `329b9b9`](https://github.com/wejo-team/sku-dreamon/commit/329b9b968f4ae0cf997cd9cce821aca08e70d350)입니다. 문서 **64개를 개별 검토**했고, 코드 점검은 인증·프로필·AI·업무 트랜잭션·프론트·기반 설정의 **고유 파일 126개**를 대상으로 했습니다. 코드에는 기능별 일부 구간 검토가 포함되므로 모든 줄·실행 경로를 전수 검증한 수치가 아닙니다.
@@ -20,7 +31,7 @@
 
 최종 반복 검증의 범위는 **원본 개발 DB 기본 20개와 복제 DB 혼합 8개**입니다. 실행 커밋·대상·개수·성공/실패·생략·재시도·원본 보존 판정과 후속 조치는 [반복 검증 이슈 #169](https://github.com/wejo-team/sku-dreamon/issues/169)를 기준 기록으로 확인합니다. 이 문서의 구성 개수나 다른 커밋의 CI 결과로 해당 실행의 성공을 대신 판단하지 않습니다. [통합테스트와 bug bash](bug-bash.md)는 재현 방법과 완료된 시점별 검증 범위를 설명합니다.
 
-AI 화면 연결 [#163](https://github.com/wejo-team/sku-dreamon/issues/163), 품질·비용·보존 [#164](https://github.com/wejo-team/sku-dreamon/issues/164), 운영 인증 [#98](https://github.com/wejo-team/sku-dreamon/issues/98), 공동 HTTPS·제품 배포 [#165](https://github.com/wejo-team/sku-dreamon/issues/165), 공식 학사 원장 대조 [#101](https://github.com/wejo-team/sku-dreamon/issues/101)와 기존 미정 정책은 후속입니다. 아래 과거 기준의 테스트·테이블·migration 수는 해당 시점의 기록으로 보존하며 현재 수치로 합산하지 않습니다. 로컬 검증·CI 통과·문서 게시를 제품 운영 배포 완료로 해석하지 않습니다.
+이 통합 점검 당시 남았던 AI 화면 연결 #163은 위 후속 구현에서 다룹니다. 품질·비용·보존 [#164](https://github.com/wejo-team/sku-dreamon/issues/164), 운영 인증 [#98](https://github.com/wejo-team/sku-dreamon/issues/98), 공동 HTTPS·제품 배포 [#165](https://github.com/wejo-team/sku-dreamon/issues/165), 공식 학사 원장 대조 [#101](https://github.com/wejo-team/sku-dreamon/issues/101)와 기존 미정 정책은 후속입니다. 아래 과거 기준의 테스트·테이블·migration 수는 해당 시점의 기록으로 보존하며 현재 수치로 합산하지 않습니다. 로컬 검증·CI 통과·문서 게시를 제품 운영 배포 완료로 해석하지 않습니다.
 
 ## 2026-10-26 main 검증 기록
 
@@ -97,6 +108,6 @@ AI를 제외하고 설계가 정해진 서버의 진입 기능을 구현했습�
 
 ## 현재 후속 작업의 원본
 
-현재 상태는 문서 상단의 2026-10-28 표와 연결된 이슈를 따릅니다. 최종 반복 실행의 커밋·결과는 [#169](https://github.com/wejo-team/sku-dreamon/issues/169)에서 확인합니다. AI 구조는 [SDD](../development-plans/ai-agent.md)·[아키텍처](ai-architecture.md), 실행 결과는 [bug bash 기록](bug-bash.md)에서 구분합니다. 미정 정책을 구현 완료나 운영 배포로 표시하지 않습니다.
+현재 상태는 문서 상단의 AI 제품 화면 연결 절·2026-10-28 점검 표와 연결된 이슈를 따릅니다. 최종 반복 실행의 커밋·결과는 [#169](https://github.com/wejo-team/sku-dreamon/issues/169)에서 확인합니다. AI 구조는 [SDD](../development-plans/ai-agent.md)·[아키텍처](ai-architecture.md), 실행 결과는 [bug bash 기록](bug-bash.md)에서 구분합니다. 미정 정책을 구현 완료나 운영 배포로 표시하지 않습니다.
 
 이전 PR #123~#146의 모델·조회·지원 상태 변경 기반은 유지합니다. 기존 기록은 [이전 구현 현황 문서](https://github.com/wejo-team/sku-dreamon/blob/ad423ca8d56118d5d95c75bbe4e8081a5f950707/docs/development/implementation-status.md)와 각 PR에서 확인할 수 있습니다.

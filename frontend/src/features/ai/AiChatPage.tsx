@@ -6,9 +6,8 @@
  * 4. docs/design/screens.md - 「확인할 상태와 연결」 AI → 추천 카드 → 상세, 로그아웃 시 대화 제거
  * 5. docs/design/assets/ai-390.png, ai-welcome-390.png, ai-login-390.png, ai-overflow-320.png, people-ai-390.png - 실제 화면
  *
- * 실제 LLM을 호출하지 않는 로컬 응답 UI입니다. 로컬 응답 코드를 제품 추천 알고리즘으로 사용하지 않습니다.
- * 7. docs/api/ai.md - AI API는 미구현·SSE 검토안: 응답 문장은 화면 데모, 추천 대상은 실제 API 조회 결과
- *    (GET /contests·/teams·/people·/me/applications·/me/teams)
+ * 7. docs/api/ai.md - 실제 모드는 LiveAiChat의 SSE·결과 재검증 경로를 사용합니다.
+ *    로컬 응답은 명시적인 모의 모드에서만 사용합니다.
  */
 
 import {
@@ -71,6 +70,8 @@ import {
 } from '@/features/teams/queries';
 import { myApplicationsQueryOptions } from '@/features/applications/queries';
 import { summaryBadgeLabel } from '@/features/demo/contest-state';
+import { isMockApi } from '@/lib/clock';
+import { LiveAiChatProvider, LiveAiConversation } from './LiveAiChat';
 
 // [출처 2, 4, 7] 추천 대상: 공모전, 팀, 로그인 후 현재 공개된 프로필. 본인 소속·지원 팀은 신규 지원 대상에서 제외
 function useSearchData(enabled = true): SearchData {
@@ -128,6 +129,11 @@ const ChatContext = createContext<ChatState | null>(null);
 // [출처 4] 현재 세션의 대화·초안 보관
 // 계정이 바뀌면 대화만 비우고 화면은 다시 마운트하지 않습니다(가입 직후 자동 로그인에서 완료 화면 유지).
 export function AiChatProvider({ children }: { children: ReactNode }) {
+  if (!isMockApi) return <LiveAiChatProvider>{children}</LiveAiChatProvider>;
+  return <DemoAiChatProvider>{children}</DemoAiChatProvider>;
+}
+
+function DemoAiChatProvider({ children }: { children: ReactNode }) {
   const { account } = useSession();
   return <ChatSession owner={account?.id ?? null}>{children}</ChatSession>;
 }
@@ -390,7 +396,7 @@ export function AiChatPage() {
       />
     );
   }
-  return <AiConversation />;
+  return isMockApi ? <AiConversation /> : <LiveAiConversation />;
 }
 
 function AiConversation() {
@@ -412,6 +418,9 @@ function AiConversation() {
   return (
     <section className="preview-ai" aria-label="AI 탐색 대화">
       <h1 className="sr-only">AI</h1>
+      <p className="px-4 pt-2 text-xs text-muted-foreground">
+        모의 응답 모드 · 실제 AI를 호출하지 않습니다.
+      </p>
       <MessageScrollerProvider
         key={messages[0]?.id ?? 'empty'}
         // Replies arrive at once in this prototype; keep the question in view.

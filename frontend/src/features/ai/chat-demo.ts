@@ -4,8 +4,8 @@
  * 2. docs/design/handoff.md - 실제 모델 호출 없이 대화·추천 카드 동작 확인
  * 3. docs/specs/matching.md#acceptance-criteria - 본인·소속 팀 제외, 공개 범위·모집 조건 재검사
  *
- * 4. docs/api/ai.md - AI API는 미구현·SSE 검토안이라 응답 문장은 화면 데모로 만들고,
- *    추천 대상 데이터(공모전·팀·사람·내 지원)는 실제 API 조회 결과를 받습니다(AiChatPage).
+ * 4. docs/api/ai.md - 이 응답 생성기는 명시적인 모의 모드에서만 사용합니다.
+ *    실제 모드에서는 서버 SSE와 결과 validation을 사용합니다.
  *
  * 화면 확인용 모의 대화 응답입니다. 실제 모델 호출이나 서버 계약이 아닙니다.
  */

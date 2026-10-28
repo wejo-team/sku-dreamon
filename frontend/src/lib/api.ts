@@ -98,11 +98,11 @@ export type ApiResponse = {
   body: unknown;
 };
 
-// [출처 1, 2, 3, 4, 5] 상태·헤더까지 필요한 호출(201/200 구분, 202 Location)에 사용합니다.
-export async function apiRequestWithResponse(
+// JSON과 SSE가 동일한 쿠키·CSRF·HTTP 오류 처리를 거치고 본문 소비만 구분합니다.
+export async function apiRequestRaw(
   path: string,
   { json, ...options }: ApiRequestOptions = {},
-): Promise<ApiResponse> {
+): Promise<Response> {
   const headers = new Headers(options.headers);
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
   const init: RequestInit = {
@@ -137,6 +137,16 @@ export async function apiRequestWithResponse(
     if (unsafe && response.status === 403) resetCsrfToken();
     throw new ApiError(response.status, body);
   }
+
+  return response;
+}
+
+// [출처 1, 2, 3, 4, 5] 상태·헤더와 JSON 본문이 필요한 호출에 사용합니다.
+export async function apiRequestWithResponse(
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<ApiResponse> {
+  const response = await apiRequestRaw(path, options);
 
   // [출처 2] 204는 본문이 없으므로 JSON을 읽지 않습니다.
   if (response.status === 204)

@@ -19,7 +19,7 @@
 | [구현 현황과 다음 작업](implementation-status.md) | 검증한 main의 프론트·백엔드 구현과 남은 작업을 확인할 때 |
 | [local-development.md](local-development.md) | 처음 설치·실행하거나 검사 명령이 필요할 때 |
 | [workflow.md](workflow.md) | 팀 공통 명세·개발 계획·구현·리뷰 절차와 병합 기준 |
-| [AI 에이전트 SDD](../development-plans/ai-agent.md) | `create_agent`·OpenAI Luna 백엔드 구현과 프론트·운영 후속 작업 |
+| [AI 에이전트 SDD](../development-plans/ai-agent.md) | `create_agent`·OpenAI Luna 백엔드·제품 화면 연결과 운영 후속 작업 |
 | [architecture.md](architecture.md) | 폴더 책임·의존 방향·실행 기반을 변경할 때 |
 | [ai-architecture.md](ai-architecture.md) | AI 흐름도·도구 구성도·저장 시퀀스와 구현 설명 |
 | [conventions.md](conventions.md) | 이름·포맷·주석·브랜치·커밋·PR |
@@ -46,7 +46,7 @@
 
 ## 아직 결정하지 않은 것
 
-상세 도메인·테이블과 외부 API 계약은 [DB 설계](../database/README.md)와 [API 명세](../api/README.md)에서 실제 구현과 보류 범위를 구분합니다. 확정된 비AI 서버와 화면 API 호출은 구현했습니다. 실제 연동 검증은 [bug bash](bug-bash.md), 운영 배포는 별도 작업으로 구분합니다. 쿠키·CSRF 전달은 [API 전송 계약](../api/conventions.md#csrf-transport)을 따릅니다. 로그인 시도 제한·차단 목록 공급 방식은 [인증 운영 기준](../specs/authentication.md#auth-operation-settings)으로 확정했습니다. 실제 파일·설정 배포, 세션 정리·데이터 보존·운영 배포 플랫폼은 남은 범위입니다. 기본 로그인 유지·가입 후 자동 로그인·세션 만료·독립 동시 로그인은 [확정 정책](../specs/authentication.md#session-policy)을 적용하고 [계정 복구는 MVP에서 제외](../specs/authentication.md#account-recovery)합니다. AI는 `create_agent`·OpenAI Luna·실시간 스트리밍·현재 탭 메모리 유지를 선택했습니다. 검색·실행·검증·메타데이터/대화 저장·API는 [SDD](../development-plans/ai-agent.md)에 따라 백엔드에 구현하여 #157로 main에 병합했습니다. 프론트 연결·운영 배포·비용/품질 평가는 후속 범위입니다. 기능 구현에 필요한 선행 결정은 [설계 검토 목록](../database/decisions.md#open-decisions)에서 확인합니다.
+상세 도메인·테이블과 외부 API 계약은 [DB 설계](../database/README.md)와 [API 명세](../api/README.md)에서 실제 구현과 보류 범위를 구분합니다. 확정된 비AI 서버와 화면 API 호출은 구현했습니다. 실제 연동 검증은 [bug bash](bug-bash.md), 운영 배포는 별도 작업으로 구분합니다. 쿠키·CSRF 전달은 [API 전송 계약](../api/conventions.md#csrf-transport)을 따릅니다. 로그인 시도 제한·차단 목록 공급 방식은 [인증 운영 기준](../specs/authentication.md#auth-operation-settings)으로 확정했습니다. 실제 파일·설정 배포, 세션 정리·데이터 보존·운영 배포 플랫폼은 남은 범위입니다. 기본 로그인 유지·가입 후 자동 로그인·세션 만료·독립 동시 로그인은 [확정 정책](../specs/authentication.md#session-policy)을 적용하고 [계정 복구는 MVP에서 제외](../specs/authentication.md#account-recovery)합니다. AI는 `create_agent`·OpenAI Luna·실시간 스트리밍·현재 탭 메모리 유지를 선택했습니다. 검색·실행·검증·메타데이터/대화 저장·API는 [SDD](../development-plans/ai-agent.md)에 따라 백엔드에 구현하여 #157로 main에 병합했습니다. 제품 프론트의 대화·지원자 검토·추천도 실제 API에 연결했습니다. 운영 배포·비용/품질 평가는 후속 범위입니다. 기능 구현에 필요한 선행 결정은 [설계 검토 목록](../database/decisions.md#open-decisions)에서 확인합니다.
 
 현재 런타임·패키지 버전은 버전 파일과 lockfile에 고정합니다. [로컬 실행](local-development.md)에서 설치 명령을 확인합니다. 버전을 변경할 때 호환성을 검사하고 파일과 문서를 함께 갱신합니다.
 

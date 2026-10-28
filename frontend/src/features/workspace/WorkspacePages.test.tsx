@@ -34,6 +34,12 @@ import {
 } from '@/test/render';
 import { TestSessionButton } from '@/test/providers';
 
+// 기존 시나리오는 데모 모드를 검증하며 실제 AI는 TargetAiPanel.test.tsx에서 검증합니다.
+vi.mock('@/features/teams/ApplicantReview', async () => ({
+  ApplicantReview: (await import('@/features/teams/MockApplicantReview'))
+    .MockApplicantReview,
+}));
+
 const seed = createDemoRecords();
 const seoyeonProfile = seed.profiles.find(
   (item) => item.accountId === demoIds.accounts.seoyeon,

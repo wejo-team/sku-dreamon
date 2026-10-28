@@ -101,6 +101,7 @@ import {
 import { ProfileDetails } from '@/components/common/ProfileDetails';
 import { ProfileVisibilityControl } from '@/features/account/AccountPages';
 import { ApplicantReview } from '@/features/teams/ApplicantReview';
+import { TeamApplicantRecommendations } from '@/features/teams/TeamApplicantRecommendations';
 import { deadlineLabel } from '@/features/demo/contest-state';
 import {
   missingProfileFields,
@@ -909,6 +910,11 @@ function TeamSpaceView({
           <p className="preview-muted">
             선발하면 즉시 팀원이 확정되고 남은 자리가 줄어요.
           </p>
+          <TeamApplicantRecommendations
+            teamId={team.id}
+            isLeader={isLeader}
+            revision={`${team.version}:${applicants.data?.data.map(({ application, profile }) => `${application.id}:${application.version}:${application.status}:${profile.version}`).join(',') ?? ''}`}
+          />
         </section>
       ) : (
         <>

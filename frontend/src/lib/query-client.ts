@@ -29,7 +29,9 @@ export function createQueryClient(config: QueryClientConfig = {}) {
     resetCsrfToken();
     const sessionData = {
       predicate: (query: { queryKey: readonly unknown[] }) =>
-        ['my', 'applications', 'people'].includes(String(query.queryKey[0])) ||
+        ['my', 'applications', 'people', 'ai'].includes(
+          String(query.queryKey[0]),
+        ) ||
         (query.queryKey[0] === 'teams' && query.queryKey[1] === 'space'),
     };
     // 취소를 먼저 마쳐 늦게 도착한 이전 세션의 응답이 개인 캐시를 복구하지 못하게 합니다.

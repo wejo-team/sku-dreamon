@@ -4,15 +4,18 @@ import { defineConfig, devices } from '@playwright/test';
 
 const artifacts = process.env.E2E_ARTIFACT_DIR;
 const mixedData = process.env.E2E_MIXED_DATA === '1';
+const aiFixture = process.env.E2E_AI_FIXTURE === '1';
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: [
-    'service.spec.ts',
-    'browse.spec.ts',
-    'lifecycle.spec.ts',
-    ...(mixedData ? ['mixed-data.spec.ts'] : []),
-  ],
+  testMatch: aiFixture
+    ? ['ai.spec.ts']
+    : [
+        'service.spec.ts',
+        'browse.spec.ts',
+        'lifecycle.spec.ts',
+        ...(mixedData ? ['mixed-data.spec.ts'] : []),
+      ],
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -39,6 +42,7 @@ export default defineConfig({
       process.env.E2E_DATASET ??
       (mixedData ? 'development-db-copy' : 'configured-db'),
     mixedData,
+    aiFixture,
   },
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'https://localhost:5183',

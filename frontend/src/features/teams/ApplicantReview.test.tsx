@@ -1,12 +1,18 @@
 import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import { setupUser } from '@/test/user';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApplicantReview } from '@/features/teams/ApplicantReview';
 import { useSession } from '@/features/auth/queries';
 import { createDemoRecords, demoIds } from '@/features/demo/fixtures';
 import { CatalogProviders, TestSessionButton } from '@/test/providers';
 import { renderWithApi } from '@/test/render';
+
+// 등록 정보로 만든 모의 검토를 검증합니다. 실제 API/SSE는 TargetAiPanel.test.tsx에서 검증합니다.
+vi.mock('@/lib/clock', async (original) => ({
+  ...(await original<typeof import('@/lib/clock')>()),
+  isMockApi: true,
+}));
 
 // 김서연의 그린웨이브 지원(Application DTO)과 현재 프로필(Profile DTO)
 const records = createDemoRecords();
