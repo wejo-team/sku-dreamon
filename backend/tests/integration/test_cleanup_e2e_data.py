@@ -538,11 +538,119 @@ async def test_application_exception_cannot_expand_or_accept_changed_state(
     expected = {
         "status": "approved_application_missing_or_changed",
         "membership": "membership_crosses_cleanup_boundary",
-        "ai_reference": "ai_run_active_or_crosses_cleanup_boundary",
+        "ai_reference": "approved_application_has_ai_reference",
         "unapproved_application": "application_crosses_cleanup_boundary",
     }[change]
     async with cleanup_database.session() as session:
         with pytest.raises(CleanupError, match=expected):
             await apply_plan(session, plan, TARGET)
+        await session.rollback()
+    assert await snapshot(cleanup_database) == before
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        "candidate_reference",
+        "candidate_key",
+        "retained_reference",
+        "retained_key",
+        "retained_message",
+        "near_miss",
+    ],
+)
+async def test_approved_application_json_ai_references_are_checked_globally(
+    cleanup_database: Database,
+    tmp_path: Path,
+    location: str,
+) -> None:
+    manifest, backup = await setup_resources(cleanup_database, tmp_path)
+    approved = await add_retained_account_application(cleanup_database, manifest)
+    manifest.retainedAccountApplications.append(approved)
+    async with cleanup_database.session() as session:
+        plan = await build_plan(session, manifest, backup, TARGET)
+    reference = {
+        "kind": "application",
+        "resource_id": str(approved.id),
+        "fingerprint": "f" * 64,
+    }
+    async with cleanup_database.session() as session:
+        if location == "retained_message":
+            conversation = await session.scalar(
+                select(AiConversation).where(
+                    AiConversation.account_id == approved.accountId
+                )
+            )
+            assert conversation is not None
+            session.add(
+                AiMessage(
+                    ai_conversation_id=conversation.ai_conversation_id,
+                    client_message_id=uuid4(),
+                    request_id=uuid4(),
+                    role="assistant",
+                    content="테스트 답변",
+                    attempt=1,
+                    model="fixture",
+                    source_references=[reference],
+                    created_at=NOW,
+                )
+            )
+        else:
+            if location.startswith("candidate"):
+                team = await session.get(Team, approved.teamId)
+            else:
+                team = await session.scalar(
+                    select(Team).where(Team.team_id != approved.teamId)
+                )
+            assert team is not None
+            auth_session = AuthSession(
+                account_id=team.leader_account_id,
+                token_hash=b"r" * 32,
+                created_at=NOW,
+                last_seen_at=NOW,
+                expires_at=NOW + timedelta(days=1),
+            )
+            session.add(auth_session)
+            await session.flush()
+            references = [reference] if location.endswith("reference") else []
+            selected_keys = (
+                [f"application:{approved.id}"] if location.endswith("key") else []
+            )
+            if location == "near_miss":
+                references = [{**reference, "kind": "team"}]
+                selected_keys = [
+                    f"team:{approved.id}",
+                    f"application:{approved.id}-extra",
+                ]
+            session.add(
+                AiRun(
+                    account_id=team.leader_account_id,
+                    auth_session_id=auth_session.auth_session_id,
+                    purpose="applicant_recommendation",
+                    scope_key="test-recommendation",
+                    team_id=team.team_id,
+                    application_id=None,
+                    request_fingerprint="a" * 64,
+                    attempt=1,
+                    status="failed",
+                    failure_code="model_error",
+                    references=references,
+                    selected_keys=selected_keys,
+                    created_at=NOW,
+                    updated_at=NOW,
+                    deadline_at=NOW + timedelta(minutes=1),
+                    expires_at=NOW + timedelta(minutes=2),
+                )
+            )
+        await session.commit()
+    before = await snapshot(cleanup_database)
+    async with cleanup_database.session() as session:
+        if location == "near_miss":
+            await apply_plan(session, plan, TARGET)
+        else:
+            with pytest.raises(
+                CleanupError, match="approved_application_has_ai_reference"
+            ):
+                await apply_plan(session, plan, TARGET)
         await session.rollback()
     assert await snapshot(cleanup_database) == before

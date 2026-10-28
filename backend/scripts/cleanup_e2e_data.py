@@ -298,6 +298,31 @@ async def collect_rows(
         for row in application_rows
     ):
         raise CleanupError("application_crosses_cleanup_boundary")
+    if approved_applications:
+        run = table("ai_runs")
+        message = table("ai_messages")
+        # JSON 자료 근거는 FK가 아니다. 보존 계정의 실행까지 ID만 조회해 검사한다.
+        run_references: list[ColumnElement[bool]] = [
+            run.c.application_id.in_(approved_applications)
+        ]
+        message_references: list[ColumnElement[bool]] = []
+        for identity in approved_applications:
+            reference = [{"kind": "application", "resource_id": str(identity)}]
+            run_references.extend(
+                [
+                    run.c.references.contains(reference),
+                    run.c.selected_keys.contains([f"application:{identity}"]),
+                ]
+            )
+            message_references.append(message.c.source_references.contains(reference))
+        referenced_run = await session.scalar(
+            select(run.c.ai_run_id).where(or_(*run_references)).limit(1)
+        )
+        referenced_message = await session.scalar(
+            select(message.c.ai_message_id).where(or_(*message_references)).limit(1)
+        )
+        if referenced_run is not None or referenced_message is not None:
+            raise CleanupError("approved_application_has_ai_reference")
     application_ids = {row["application_id"] for row in application_rows}
     membership = table("team_memberships")
     membership_rows = await read(
