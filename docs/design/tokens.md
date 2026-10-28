@@ -56,7 +56,11 @@
 
 제품의 공모전 탐색은 2026-10-28 사용자 요청에 따라 더 작은 카드 변형을 사용합니다. 포스터 열과 정보 여백을 줄여 한 화면에 더 많은 공고를 보여주되, 원본 이미지 비율·제목 전체·44px 조작 영역은 유지합니다. 공식 디자인 레퍼런스의 원래 카드와 상세 화면은 그대로 두며, 제품의 적용값은 [탐색 화면](../../frontend/src/features/explore/ExplorePages.tsx)과 제품 스타일에서 확인합니다.
 
-실제 API와 같은 공고를 사용한 [480px 변경 전](assets/explore-before-compact-480.png)·[480px 변경 후](assets/explore-compact-480.png)와 [320px 변경 후](assets/explore-compact-320.png)를 비교할 수 있습니다. 캡처는 대표 포스터를 복구한 2026-10-28의 개발 데이터이며 페이지당 12개, 이미지 표시와 가로 넘침 없음을 브라우저에서 확인했습니다.
+아래 캡처는 실제 API와 같은 공고를 사용한 비교입니다. 대표 포스터를 복구한 2026-10-28의 개발 데이터이며 페이지당 12개, 이미지 표시와 가로 넘침 없음을 브라우저에서 확인했습니다.
+
+| 480px 변경 전 | 480px 변경 후 | 320px 변경 후 |
+| --- | --- | --- |
+| ![480px 변경 전](assets/explore-before-compact-480.png) | ![480px 변경 후](assets/explore-compact-480.png) | ![320px 변경 후](assets/explore-compact-320.png) |
 
 ## shadcn/ui 사용 맵
 
