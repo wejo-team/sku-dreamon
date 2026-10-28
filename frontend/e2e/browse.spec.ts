@@ -97,7 +97,7 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
   );
   await page
     .getByRole('navigation', { name: '탐색 결과 페이지' })
-    .getByRole('link', { name: '다음 페이지' })
+    .getByRole('link', { name: '2페이지' })
     .click();
   await expect(page).toHaveURL(/page=2/);
   await assertListing(page, 'contests', second);
@@ -219,12 +219,23 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
   await expect(
     page
       .getByRole('navigation', { name: '탐색 결과 페이지' })
-      .getByRole('button', { name: '다음 페이지' }),
-  ).toBeDisabled();
+      .getByRole('link', { name: `${last.pagination.page}페이지` }),
+  ).toHaveAttribute('aria-current', 'page');
+  const pagination = page.getByRole('navigation', {
+    name: '탐색 결과 페이지',
+  });
+  await expect(
+    pagination.getByLabel(/^(이전|다음|마지막) 페이지$/),
+  ).toHaveCount(0);
   await page.screenshot({
     path: testInfo.outputPath('devdb-contest-last-page.png'),
     fullPage: true,
   });
+  await pagination.getByRole('link', { name: '처음 페이지' }).click();
+  await assertListing(page, 'contests', first);
+  await expect(
+    pagination.getByRole('button', { name: '처음 페이지' }),
+  ).toBeDisabled();
   await testInfo.attach('existing-contest-count', {
     body: JSON.stringify({
       total: first.pagination.total,
@@ -278,7 +289,7 @@ test('기존 시드 로그인: 팀·사람 탐색과 페이지·상세 조회, �
   await captureLayout(page, testInfo, 'demo-team-list');
   await page
     .getByRole('navigation', { name: '탐색 결과 페이지' })
-    .getByRole('link', { name: '다음 페이지' })
+    .getByRole('link', { name: '2페이지' })
     .click();
   const teamSecond = await api<Listing>(
     page.request,
@@ -328,7 +339,7 @@ test('기존 시드 로그인: 팀·사람 탐색과 페이지·상세 조회, �
   await captureLayout(page, testInfo, 'demo-person-list');
   await page
     .getByRole('navigation', { name: '탐색 결과 페이지' })
-    .getByRole('link', { name: '다음 페이지' })
+    .getByRole('link', { name: '2페이지' })
     .click();
   const peopleSecond = await api<Listing>(
     page.request,

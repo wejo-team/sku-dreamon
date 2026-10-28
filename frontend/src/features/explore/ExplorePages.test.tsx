@@ -176,11 +176,12 @@ describe('official reference public exploration', () => {
     expect(level3Headings()).toEqual(names.slice(12, 24));
     expect(screen.getByText('전체 3페이지 중 2페이지')).toBeInTheDocument();
 
-    await step(() =>
-      user.click(screen.getByRole('link', { name: '다음 페이지' })),
-    );
+    await step(() => user.click(screen.getByRole('link', { name: '3페이지' })));
     expect(level3Headings()).toEqual(names.slice(24));
-    expect(screen.getByRole('button', { name: '다음 페이지' })).toBeDisabled();
+    expect(screen.getByRole('link', { name: '3페이지' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
     expect(
       screen.getByRole('heading', { name: '공모전 둘러보기' }),
     ).toHaveFocus();
@@ -373,7 +374,7 @@ describe('official reference public exploration', () => {
     );
 
     await step(() =>
-      user.click(within(nav).getByRole('link', { name: '다음 페이지' })),
+      user.click(within(nav).getByRole('link', { name: '3페이지' })),
     );
     expect(level3Headings()).toEqual(pagedNames.slice(12));
     expect(
@@ -384,11 +385,12 @@ describe('official reference public exploration', () => {
     expect(currentUrl().searchParams.toString()).toBe(
       expectedLastPage.toString(),
     );
-    expect(screen.getByRole('button', { name: '다음 페이지' })).toBeDisabled();
-
-    await step(() =>
-      user.click(screen.getByRole('link', { name: '이전 페이지' })),
+    expect(screen.getByRole('link', { name: '3페이지' })).toHaveAttribute(
+      'aria-current',
+      'page',
     );
+
+    await step(() => user.click(screen.getByRole('link', { name: '2페이지' })));
     const listPath = currentUrl().pathname + currentUrl().search;
     const teamLink = screen.getByRole('link', { name: /페이지 팀 07/ });
     expect(
