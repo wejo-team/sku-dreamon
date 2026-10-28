@@ -2,7 +2,7 @@
 
 - 구현 상태: 진행 중
 - 명세 검토: [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17)
-- 구현 작업: 병합된 코드·검증과 후속 작업은 [구현 현황](../development/implementation-status.md)에서 확인합니다. AI 실제 화면 연결·운영 배포와 미정 정책은 완료 범위에 포함하지 않습니다.
+- 구현 작업: 병합된 코드·검증과 후속 작업은 [구현 현황](../development/implementation-status.md)에서 확인합니다. AI 제품 화면의 실제 API 연결은 [PR #192](https://github.com/wejo-team/sku-dreamon/pull/192)에 반영했습니다. 운영 배포와 미정 정책은 완료 범위에 포함하지 않습니다.
 - 변경 근거: 2026-10-18 공식 디자인·LLM 추천 반영과 이후 담당 명세의 사용자 결정. 당시 문서 검토와 현재 구현·배포 상태는 구분합니다.
 - 현재 화면 대조: [공식 디자인의 적용 기능·검증 버전·남은 차이](prototype-alignment.md). 화면 검증만으로 제품 구현 상태를 완료로 바꾸지 않음
 
@@ -39,7 +39,7 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 | 공모전 공고 | 관리자의 등록·수정·등록 전 필수 정보 확인, 사용자 목록·상세 탐색과 공식 원문 확인; 확인된 JSON 신규 적재 CLI 제공, 운영 수집·갱신·관리자 페이지는 TBD | [공고](contests.md) |
 | 팀 생성·모집 | 공모전·팀 목표·필요 역할·모집 인원 등록, 팀 탐색과 모집 조건 확인; 공고의 참가 인원 범위에 맞춘 목표 정원과 1명 공고의 추가 모집 제외 | [팀 모집과 지원](team-recruitment.md), [참가 방식 정책](contests.md#participation-policy) |
 | 지원·선발 | 지원·취소·현황 확인, 팀장의 지원자 검토·선발, 지원자의 결과 확인 | [팀 모집과 지원](team-recruitment.md) |
-| AI·추천 | 로그인 후 AI 탭의 자연어 탐색·후속 대화, LLM 기반 공모전·팀·실제 지원자 추천과 근거 표시; 백엔드 구현, 실제 AI 화면 연결·운영 후속 | [추천 매칭](matching.md) |
+| AI·추천 | 로그인 후 AI 탭의 자연어 탐색·후속 대화, LLM 기반 공모전·팀·실제 지원자 추천과 근거 표시; 백엔드·제품 화면의 실제 API 연결 구현, 품질 평가·운영 후속 | [추천 매칭](matching.md) |
 | 사람 탐색 | 기본 비공개. 로그인한 사용자에게 공개 프로필의 등록 항목 전체 표시; 지원 팀장 예외 적용 | [프로필](profile.md#people-directory) |
 | 알림 | 상단 알림함에서 본인의 지원 상태 변경·팀장이 받은 신규 지원과 읽음 상태 확인 | [서비스 알림](notifications.md) |
 | 팀 공간 | 팀장과 현재 확정 팀원에게 공모전 정보, 팀원, 모집·매칭 상태를 보여 주는 최소 공간 | [팀 모집과 지원](team-recruitment.md#team-workspace-access) |
@@ -72,13 +72,13 @@ AI 기반 교내 공모전 도전 지원 서비스의 첫 흐름을 만듭니다
 
 ## AI와 알고리즘의 역할
 
-추천은 LLM 기반이며 백엔드의 실행 구조·입력·저장은 [AI 아키텍처](../development/ai-architecture.md)에 구현 범위를 명시합니다. 실제 AI 화면 연결·자료 품질 평가·운영 배포는 후속입니다. 추천과 실제 참여 권한·접수 제한은 구분합니다. 긴 문서를 읽기 쉽게 정리하는 공고 요약은 별도 활용 후보이며, [#38의 보류 판단](contests.md#summary-scope)에 따라 요약의 사용처·필요성과 MVP 포함 여부를 화면 기획 때 먼저 정하고 AI 연동 여부는 그 뒤에 결정합니다.
+추천은 LLM 기반이며 백엔드의 실행 구조·입력·저장은 [AI 아키텍처](../development/ai-architecture.md)에 구현 범위를 명시합니다. 제품 화면은 [PR #192](https://github.com/wejo-team/sku-dreamon/pull/192)에서 실제 API에 연결했습니다. 화면의 브라우저 통합 검사는 시험 모델을 사용하며 실제 제공자를 추가로 호출하지 않았습니다. 실제 모델을 사용한 화면 통합 검사·자료 품질 평가·운영 배포는 후속입니다. 기존 서버의 제공자 호출 검증과 이번 화면 검증은 [구현 현황](../development/implementation-status.md)에서 구분합니다. 추천과 실제 참여 권한·접수 제한은 구분합니다. 긴 문서를 읽기 쉽게 정리하는 공고 요약은 별도 활용 후보이며, [#38의 보류 판단](contests.md#summary-scope)에 따라 요약의 사용처·필요성과 MVP 포함 여부를 화면 기획 때 먼저 정하고 AI 연동 여부는 그 뒤에 결정합니다.
 
 | 기능 | 처리 기준 | 담당 명세 |
 | --- | --- | --- |
 | 참가 자격 확인 | 넓은 참가 대상 분류와 원문 조건 안내. 참가 자격은 비즈니스 로직의 차단 조건으로 사용하지 않고 원문 확인 안내 제공. 마감·정원·공개·중복·소속 등 서비스 제한은 유지 | [추천 매칭](matching.md) |
 | 마감 여부 확인 | 날짜와 상태 기반 처리 | [공고](contests.md), [팀 모집과 지원](team-recruitment.md) |
-| 공모전·팀·지원자 추천 | LLM 기반 후보 제안·근거. 고정 점수·기존 산식 제외. 백엔드 구현과 실제 AI 화면 연결·운영 후속을 구분 | [추천 매칭](matching.md) |
+| 공모전·팀·지원자 추천 | LLM 기반 후보 제안·근거. 고정 점수·기존 산식 제외. 백엔드·제품 화면의 실제 API 연결과 품질 평가·운영 후속을 구분 | [추천 매칭](matching.md) |
 | 공고 요약 | 사용처·필요성·MVP 포함 여부는 TBD. 포함 시 내용·생성 방식·표시 기준을 정하고 실제 AI 연동은 이후 결정. 참가 조건 정리와 최초 공개 조건은 유지 | [요약 범위](contests.md#summary-scope) |
 | 매칭 이유 | 현재 확인 가능한 데이터와 요청 조건에 근거한 설명, 공개 범위 준수 | [추천 매칭](matching.md) |
 
@@ -216,9 +216,9 @@ PDF에는 일정의 연도가 명시되어 있지 않습니다. 이 표는 원�
 | 원문 항목 | 현재 정리와 결정 위치 |
 | --- | --- |
 | 공고 등록·관리 및 AI 요약 | [최초 공개 조건](contests.md#publication-policy)은 정의됨. [요약 사용처·필요성·MVP 포함 여부](contests.md#summary-scope)는 TBD이며 AI 연동은 이후 결정. 관리자 등록·수정·확인 책임은 확정하고 등록자·수정자 이력은 [MVP 제외](contests.md#operation-flow). 확인된 JSON 신규 적재 CLI는 구현. 운영 수집·갱신·관리자 계정/인증/권한 저장·권한 부여/회수·관리자 페이지·재확인 방식은 [공고 미정 사항](contests.md#open-questions) |
-| 매칭 기준 | [LLM 추천 전환](matching.md#policy-decisions)으로 기존 규칙·산식 제외. 백엔드 모델·실행·조회 도구·API·저장·검증은 구현. 실제 AI 화면 연결·자료 품질·운영 보존/배포는 [후속 범위](matching.md#open-questions) |
+| 매칭 기준 | [LLM 추천 전환](matching.md#policy-decisions)으로 기존 규칙·산식 제외. 백엔드 모델·실행·조회 도구·API·저장·검증과 제품 화면의 실제 API 연결은 구현. 실제 모델을 사용한 화면 통합 검사·자료 품질·운영 보존/배포는 [후속 범위](matching.md#open-questions) |
 | 프로필 공개 범위 | 기본 비공개인 전체 프로필 상태를 [설명·확인 후 전환](profile.md#visibility-changes). 지원 팀장은 비공개여도 전체 현재 프로필을 열람하며 [취소·미선발 후 관계도 유지](profile.md#former-applicant-visibility). 기록 보존·탈퇴 등은 [프로필 미정 사항](profile.md#open-questions) |
-| 로그인·지원 진입·AI·시연 데이터 | [공개 탐색과 로그인 필요 행동](authentication.md#access-policy), [지원 직전 필수 정보 점검](profile.md#before-application), [실제·시연 데이터 상호작용](#demo-data-scope)은 정의됨. 참가 자격을 비즈니스 로직으로 제한하지 않고 원문 확인을 안내하며, 공개 프로필·마감·정원 등 나머지 제한은 유지. [기본 로그인 유지·가입 후 자동 로그인](authentication.md#session-policy)과 [실패·만료 단순 안내](authentication.md#auth-failures)는 확정, 계정 복구는 [MVP 제외](authentication.md#account-recovery). 인증의 구현된 시도 제한과 운영 세션 정리 등 [남은 결정](authentication.md#open-questions)을 구분. AI 실제 화면 연결·공고 요약·시연 데이터 선정/준비/정리는 후속이며 시연 표시 연결은 [병합·검증한 표시 범위](#demo-data-scope)로 구분 |
+| 로그인·지원 진입·AI·시연 데이터 | [공개 탐색과 로그인 필요 행동](authentication.md#access-policy), [지원 직전 필수 정보 점검](profile.md#before-application), [실제·시연 데이터 상호작용](#demo-data-scope)은 정의됨. 참가 자격을 비즈니스 로직으로 제한하지 않고 원문 확인을 안내하며, 공개 프로필·마감·정원 등 나머지 제한은 유지. [기본 로그인 유지·가입 후 자동 로그인](authentication.md#session-policy)과 [실패·만료 단순 안내](authentication.md#auth-failures)는 확정, 계정 복구는 [MVP 제외](authentication.md#account-recovery). 인증의 구현된 시도 제한과 운영 세션 정리 등 [남은 결정](authentication.md#open-questions)을 구분. AI 제품 화면의 실제 API 연결은 구현했습니다. 공고 요약·시연 데이터 선정/준비/정리는 후속이며 시연 표시 연결은 [병합·검증한 표시 범위](#demo-data-scope)로 구분 |
 | 웹 구현 범위 | 위 주요 화면과 모바일 웹 기준을 적용. 시연 URL·대상 브라우저 버전·기기 목록은 미정 |
 
 <a id="source-coverage"></a>

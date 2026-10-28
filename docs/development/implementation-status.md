@@ -9,7 +9,9 @@
 - 팀장 검토는 최신/사용 프로필 버전과 선발 후보 여부를 보여주며, 추천은 실제 지원자 상세로 연결합니다. 생성·검토·추천만으로 지원 상태나 선발을 변경하지 않습니다.
 - 자동 검증은 프론트 API/컴포넌트 검사와 [실제 HTTPS·DB AI 브라우저 검사](bug-bash.md#ai-e2e)를 분리합니다. 브라우저에서는 모델만 대체하며 실제 제공자 호출은 0회입니다. 이전에 실시한 제공자 API 3회 검증을 이번 UI 실행으로 다시 계산하지 않습니다.
 
-실제 자료의 추천 품질·비용·보존 정책 [#164](https://github.com/wejo-team/sku-dreamon/issues/164), 공동 HTTPS·운영 배포 [#165](https://github.com/wejo-team/sku-dreamon/issues/165)는 후속 범위입니다. 아래는 각 기준 커밋 당시의 기록입니다.
+병합 기준 [main `94bda18`](https://github.com/wejo-team/sku-dreamon/commit/94bda183dce2dabaf0cf7358334dd140ff5a5f27)의 [앱 CI](https://github.com/wejo-team/sku-dreamon/actions/runs/40609049159)는 프론트 468개·백엔드 766개·격리 DB 비AI 브라우저 20개·AI 브라우저 6개를 통과했고, [문서 검사·게시](https://github.com/wejo-team/sku-dreamon/actions/runs/40609048885)도 성공했습니다. AI 브라우저 검사는 실제 HTTPS·인증·DB·SSE에 시험 모델을 연결한 결과입니다. 실제 모델을 사용한 화면 통합 검사는 아직 수행하지 않았습니다.
+
+실제 자료의 추천 품질·비용·보존 정책 [#164](https://github.com/wejo-team/sku-dreamon/issues/164), 공동 HTTPS·운영 배포 [#165](https://github.com/wejo-team/sku-dreamon/issues/165)는 후속 범위입니다. 공식 학사 원장 대조와 전체 AC·실기기·데이터 조합의 남은 검증은 [#77](https://github.com/wejo-team/sku-dreamon/issues/77), 정책 결정은 [#19](https://github.com/wejo-team/sku-dreamon/issues/19), 구현·운영의 전체 지도는 [#97](https://github.com/wejo-team/sku-dreamon/issues/97)에서 추적합니다. 아래는 각 기준 커밋 당시의 기록입니다.
 
 ## 2026-10-28 통합 검증과 점검 기록
 
