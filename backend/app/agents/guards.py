@@ -122,7 +122,8 @@ class InputGuard:
             # Responses의 추론 블록은 판정에서 제외하고 텍스트 JSON만 읽는다.
             blocks = response.content
             if (
-                getattr(response, "tool_calls", None)
+                response.response_metadata.get("status", "completed") != "completed"
+                or getattr(response, "tool_calls", None)
                 or getattr(response, "invalid_tool_calls", None)
                 or response.additional_kwargs.get("refusal")
                 or (

@@ -139,6 +139,10 @@ async def test_regex_signal_is_context_not_a_blocking_verdict() -> None:
         AIMessage(content='{"reason":"allowed","extra":"ignore"}'),
         AIMessage(
             content='{"reason":"allowed"}',
+            response_metadata={"status": "incomplete"},
+        ),
+        AIMessage(
+            content='{"reason":"allowed"}',
             tool_calls=[{"name": "read", "args": {}, "id": "call-1"}],
         ),
         AIMessage(
