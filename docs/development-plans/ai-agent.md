@@ -3,7 +3,7 @@
 - 기준: 2026-10-25 사용자 결정, [설계 PR #156](https://github.com/wejo-team/sku-dreamon/pull/156)
 - 상태: **백엔드 PR #157 병합 · 제품 프론트 실제 API 연결 구현 · 미배포**
 - 기준 명세: [LLM 기반 추천](../specs/matching.md#acceptance-criteria), AC-16~35
-- 구현 PR: [#157](https://github.com/wejo-team/sku-dreamon/pull/157)
+- 구현 PR: 백엔드 [#157](https://github.com/wejo-team/sku-dreamon/pull/157), 제품 화면 [#192](https://github.com/wejo-team/sku-dreamon/pull/192)
 - 구현 구조: [AI 에이전트 아키텍처](../development/ai-architecture.md)
 - 계약 원본: [AI API](../api/ai.md), [AI 실행 저장](../database/ai.md)
 - 구현 PR의 범위: 사용자 요청에 따라 **백엔드만 구현**했으며 운영 DB 적용은 포함하지 않았습니다. 아래 결정·검증은 PR #157 당시 범위이고 현재 남은 작업은 후속 절에서 구분합니다.
