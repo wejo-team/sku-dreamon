@@ -18,7 +18,9 @@
 | --- | --- |
 | ![시각 보완 설명이 반복된 공고 상세](assets/ui-polish-before-contest-320.png) | ![확인일과 출처 링크를 유지한 공고 상세](assets/ui-polish-after-contest-320.png) |
 
-[480px 페이지 이동](assets/ui-polish-after-pagination-480.png) · [480px 공고 상세](assets/ui-polish-after-contest-480.png)
+| 페이지 이동 · 480px | 공고 상세 · 480px |
+| --- | --- |
+| ![480px 페이지 이동](assets/ui-polish-after-pagination-480.png) | ![480px 공고 상세](assets/ui-polish-after-contest-480.png) |
 
 ## 이번 변경의 확인 결과
 
