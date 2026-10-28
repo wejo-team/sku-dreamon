@@ -18,9 +18,27 @@ from scripts import run_bugbash
 from scripts.run_bugbash import require_unused_port, stop
 
 
+class PlaywrightArgumentTests(unittest.TestCase):
+    def test_preserves_scenario_selection(self):
+        self.assertEqual(
+            run_bugbash.playwright_arguments(["--", "--project=chromium", "browse"]),
+            ["--project=chromium", "browse"],
+        )
+
+    def test_rejects_config_overrides_that_remove_global_setup(self):
+        for arguments in (
+            ["--", "--config", "unverified.config.ts"],
+            ["--config=unverified.config.ts"],
+            ["-c", "unverified.config.ts"],
+            ["-cunverified.config.ts"],
+        ):
+            with self.subTest(arguments=arguments), self.assertRaises(ValueError):
+                run_bugbash.playwright_arguments(arguments)
+
+
 @unittest.skipUnless(os.name == "posix", "The bug bash runner requires POSIX")
 class AiFixtureBoundaryTests(unittest.TestCase):
-    def run_fixture(self, *, selected=False, valid=True):
+    def run_fixture(self, *, selected=False, valid=True, change_file_after_check=False):
         # 실패 시 런타임을 시작하지 않는지와 자식의 실제 실행 인자·환경을 확인한다.
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
             root = Path(directory)
@@ -47,6 +65,14 @@ class AiFixtureBoundaryTests(unittest.TestCase):
                         "e2e_ai_fixture": "1",
                         "E2E_AI_VERIFIED_BASE_URL": "https://unverified.invalid",
                         "e2e_ai_verified_base_url": "https://unverified.invalid",
+                        "E2E_VERIFIED_BASE_URL": "https://localhost:5183",
+                        "e2e_verified_base_url": "https://localhost:5183",
+                        "E2E_VERIFIED_BACKEND_URL": "http://127.0.0.1:8011",
+                        "API_PROXY_TARGET": "http://127.0.0.1:8011",
+                        "api_proxy_target": "http://127.0.0.1:8011",
+                        "VITE_API_BASE_URL": "https://localhost:5183/api/v1",
+                        "vite_api_base_url": "https://localhost:5183/api/v1",
+                        "VITE_API_MOCK": "true",
                         "database_url": "inherited-database",
                         "openai_api_key": "synthetic-inherited-key",
                     },
@@ -54,11 +80,23 @@ class AiFixtureBoundaryTests(unittest.TestCase):
                 )
             )
             stack.enter_context(patch.object(run_bugbash, "require_unused_port"))
+            database_url = "postgresql+asyncpg://wejo:synthetic@127.0.0.1/guard_e2e"
+
+            def checked_environment(*_args, **_kwargs):
+                if change_file_after_check:
+                    files[0].write_text(
+                        "DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1/wejo_dev\n"
+                    )
+                return Mock(
+                    returncode=0 if valid else 1,
+                    stdout=json.dumps({"databaseUrl": database_url}).encode(),
+                )
+
             check = stack.enter_context(
                 patch.object(
                     run_bugbash.subprocess,
                     "run",
-                    return_value=Mock(returncode=0 if valid else 1),
+                    side_effect=checked_environment,
                 )
             )
             child = Mock()
@@ -87,10 +125,42 @@ class AiFixtureBoundaryTests(unittest.TestCase):
             "e2e_ai_fixture",
             "e2e_ai_verified_base_url",
             "E2E_AI_VERIFIED_BASE_URL",
+            "e2e_verified_base_url",
+            "api_proxy_target",
+            "vite_api_base_url",
         ):
             self.assertNotIn(key, environment)
-        self.assertIn("app.main:app", calls[0].args[0])
-        self.assertNotIn("--factory", calls[0].args[0])
+        self.assertIn("tests.e2e_app:create_app", calls[0].args[0])
+        self.assertIn("--factory", calls[0].args[0])
+
+    def test_all_browser_runs_get_verified_and_owned_targets(self):
+        environment, calls = self.run_fixture()
+        self.assertEqual(environment["E2E_BASE_URL"], "https://localhost:5185")
+        self.assertEqual(
+            environment["E2E_VERIFIED_BASE_URL"], environment["E2E_BASE_URL"]
+        )
+        self.assertEqual(environment["API_PROXY_TARGET"], "http://127.0.0.1:8013")
+        self.assertEqual(
+            environment["E2E_VERIFIED_BACKEND_URL"], environment["API_PROXY_TARGET"]
+        )
+        self.assertEqual(environment["VITE_API_BASE_URL"], "/api/v1")
+        self.assertEqual(environment["VITE_API_MOCK"], "false")
+        self.assertEqual(len(calls), 3)
+        self.assertNotIn("DATABASE_URL", environment)
+        self.assertEqual(
+            calls[0].kwargs["env"]["DATABASE_URL"],
+            "postgresql+asyncpg://wejo:synthetic@127.0.0.1/guard_e2e",
+        )
+        for call in calls[1:]:
+            self.assertIs(call.kwargs["env"], environment)
+
+    def test_file_change_after_preflight_cannot_redirect_backend_to_development(self):
+        environment, calls = self.run_fixture(change_file_after_check=True)
+        self.assertEqual(
+            calls[0].kwargs["env"]["DATABASE_URL"],
+            "postgresql+asyncpg://wejo:synthetic@127.0.0.1/guard_e2e",
+        )
+        self.assertNotIn("DATABASE_URL", environment)
 
     def test_explicit_ai_option_uses_only_test_factory_after_preflight(self):
         environment, calls = self.run_fixture(selected=True)
@@ -103,6 +173,9 @@ class AiFixtureBoundaryTests(unittest.TestCase):
 
     def test_rejected_ai_preflight_starts_no_servers_or_browser(self):
         self.run_fixture(selected=True, valid=False)
+
+    def test_rejected_basic_preflight_starts_no_servers_or_browser(self):
+        self.run_fixture(valid=False)
 
 
 @unittest.skipUnless(os.name == "posix", "The bug bash runner requires POSIX")

@@ -21,14 +21,26 @@ def write_private(path: Path, content: str) -> None:
     path.chmod(0o600)
 
 
+def database_port(value: str) -> int:
+    port = int(value)
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("포트는 1~65535여야 합니다.")
+    return port
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--database-name", default="wejo_dev")
+    parser.add_argument("--database-name", default="wejo_e2e")
+    parser.add_argument("--database-port", type=database_port, default=55433)
     args = parser.parse_args()
-    if not re.fullmatch(r"[a-z][a-z0-9_]{0,62}", args.database_name):
-        parser.error("DB 이름은 영문 소문자로 시작하는 영문·숫자·밑줄이어야 합니다.")
+    if (
+        not re.fullmatch(r"[a-z][a-z0-9_]{0,62}", args.database_name)
+        or not args.database_name.endswith("_e2e")
+    ):
+        parser.error("브라우저 검사 DB는 영문 소문자로 시작하고 _e2e로 끝나야 합니다.")
     database_url = (
-        "postgresql+asyncpg://wejo:wejo@127.0.0.1:55433/" + args.database_name
+        f"postgresql+asyncpg://wejo:wejo@127.0.0.1:{args.database_port}/"
+        + args.database_name
     )
     OUTPUT.mkdir(mode=0o700, exist_ok=True)
     certificate = OUTPUT / "localhost.pem"
@@ -76,7 +88,7 @@ def main() -> None:
             backend_env,
             f"DATABASE_URL={database_url}\n"
             f"CSRF_SIGNING_KEY={secrets.token_urlsafe(48)}\n"
-            "AUTH_ALLOWED_ORIGINS='[\"https://localhost:5183\"]'\n"
+            "AUTH_ALLOWED_ORIGINS='[\"https://localhost:5185\"]'\n"
             f"PASSWORD_BLOCKLIST_PATH={blocklist}\n"
             "PASSWORD_BLOCKLIST_VERSION=bugbash-fixture-v1\n"
             "AUTH_SIGNUP_IP_LIMIT=1000\n"
@@ -86,15 +98,15 @@ def main() -> None:
         )
     write_private(
         OUTPUT / "test.env",
-        "DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:55433/wejo_test\n"
-        "TEST_DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:55433/wejo_test\n"
+        f"DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:{args.database_port}/wejo_test\n"
+        f"TEST_DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:{args.database_port}/wejo_test\n"
         "OPENAI_API_KEY=\n",
     )
     write_private(
         ROOT / "frontend" / ".env.bugbash",
         "VITE_API_MOCK=false\n"
         "VITE_API_BASE_URL=/api/v1\n"
-        "API_PROXY_TARGET=http://127.0.0.1:8011\n"
+        "API_PROXY_TARGET=http://127.0.0.1:8013\n"
         f"DEV_HTTPS_CERT={certificate}\n"
         f"DEV_HTTPS_KEY={private_key}\n",
     )

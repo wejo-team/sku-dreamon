@@ -1,4 +1,4 @@
-"""준비된 DB에서 HTTPS E2E를 실행하고 직접 시작한 서버만 종료한다."""
+"""전용 로컬 *_e2e DB에서 HTTPS 검사를 실행하고 소유한 서버만 종료한다."""
 
 from __future__ import annotations
 
@@ -25,6 +25,21 @@ def available_port(value: str) -> int:
     if not 1 <= port <= 65535:
         raise argparse.ArgumentTypeError("포트는 1~65535여야 합니다.")
     return port
+
+
+def playwright_arguments(arguments: list[str]) -> list[str]:
+    if arguments[:1] == ["--"]:
+        arguments = arguments[1:]
+    if any(
+        argument == "--config"
+        or argument.startswith("--config=")
+        or argument.startswith("-c")
+        for argument in arguments
+    ):
+        raise ValueError(
+            "대상 검증을 유지하기 위해 Playwright 설정 교체는 허용하지 않습니다."
+        )
+    return arguments
 
 
 def require_unused_port(port: int) -> None:
@@ -92,8 +107,8 @@ def main() -> int:
     parser.add_argument(
         "--backend-env", type=Path, default=ROOT / ".bugbash/backend.env"
     )
-    parser.add_argument("--backend-port", type=available_port, default=8011)
-    parser.add_argument("--frontend-port", type=available_port, default=5183)
+    parser.add_argument("--backend-port", type=available_port, default=8013)
+    parser.add_argument("--frontend-port", type=available_port, default=5185)
     parser.add_argument(
         "--certificate", type=Path, default=ROOT / ".bugbash/localhost.pem"
     )
@@ -107,6 +122,10 @@ def main() -> int:
     )
     parser.add_argument("playwright_args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
+    try:
+        arguments = playwright_arguments(args.playwright_args)
+    except ValueError as error:
+        parser.error(str(error))
     if os.name != "posix":
         parser.error("이 실행기는 Linux/macOS/WSL에서 사용합니다.")
     for path in (args.backend_env, args.certificate, args.private_key):
@@ -132,6 +151,17 @@ def main() -> int:
             "OPENAI_API_KEY",
             "E2E_AI_FIXTURE",
             "E2E_AI_VERIFIED_BASE_URL",
+            "E2E_VERIFIED_BASE_URL",
+            "E2E_VERIFIED_BACKEND_URL",
+            "E2E_MIXED_VERIFIED_BASE_URL",
+            "E2E_BASE_URL",
+            "E2E_ARTIFACT_DIR",
+            "AUTH_ALLOWED_ORIGINS",
+            "API_PROXY_TARGET",
+            "VITE_API_MOCK",
+            "VITE_API_BASE_URL",
+            "DEV_HTTPS_CERT",
+            "DEV_HTTPS_KEY",
         }:
             environment.pop(name)
     if args.ai_fixture and environment.get("E2E_MIXED_DATA") == "1":
@@ -157,20 +187,18 @@ def main() -> int:
         + [
             "python",
             "-c",
-            "import os, sys\nfrom sqlalchemy.engine import make_url\n"
+            "import json, os, sys\nfrom sqlalchemy.engine import make_url\n"
             "from app.core.config import Settings\n"
-            "a=make_url(os.environ['DATABASE_URL'])\n"
+            "from tests.database_guard import isolated_database_url\n"
+            "a=isolated_database_url(os.environ['DATABASE_URL'], suffix='_e2e')\n"
             "settings=Settings()\n"
-            "valid = (not a.query and a.drivername == 'postgresql+asyncpg' "
-            "and a.host in {'localhost','127.0.0.1','::1'} and bool(a.database) "
-            "and make_url(str(settings.database_url)) == a "
+            "valid = (make_url(str(settings.database_url)) == a "
             "and not settings.openai_api_key)\n"
-            "if os.environ.get('E2E_AI_FIXTURE') == '1':\n"
-            " valid = valid and a.database.endswith('_e2e')\n"
             "if os.environ.get('E2E_MIXED_DATA') == '1':\n"
             " b=make_url(os.environ.get('E2E_MIXED_DATABASE_URL',''))\n"
-            " valid = valid and a == b and a.database.endswith('_e2e')\n"
-            "sys.exit(0 if valid else 1)",
+            " valid = valid and a == b\n"
+            "if not valid: sys.exit(1)\n"
+            "print(json.dumps({'databaseUrl': a.render_as_string(hide_password=False)}))",
         ],
         cwd=ROOT / "backend",
         env=environment,
@@ -178,13 +206,21 @@ def main() -> int:
     )
     if check.returncode:
         parser.error(
-            "env 파일의 명시적 localhost DATABASE_URL과 실제 설정이 같고 "
-            "AI 키가 비어 있어야 합니다. AI fixture는 *_e2e DB, "
-            "혼합 검사는 같은 *_e2e 복제 DB만 허용합니다."
+            "모든 브라우저 검사는 명시적 localhost *_e2e DATABASE_URL을 요구합니다. "
+            "실제 설정과 주소가 같고 AI 키가 비어 있어야 하며, "
+            "혼합 검사도 같은 *_e2e 복제 DB만 허용합니다."
         )
-    # 직접 npm 실행이 다른 원본 서버에 시연 계정으로 쓰지 못하게 한다.
+    try:
+        checked = json.loads(check.stdout)
+        validated_database_url = checked["databaseUrl"]
+        if not isinstance(validated_database_url, str) or not validated_database_url:
+            raise ValueError
+    except (ValueError, KeyError, TypeError):
+        parser.error("검증한 DB 주소를 받지 못했습니다. 서버를 시작하지 않습니다.")
+    # 직접 npm 실행이 다른 원본 서버에 계정·팀·지원을 쓰지 못하게 한다.
     # 부모 셸에는 남기지 않고 검증한 자식 실행에만 전달한다.
-    environment.pop("E2E_MIXED_VERIFIED_BASE_URL", None)
+    environment["E2E_VERIFIED_BASE_URL"] = origin
+    environment["E2E_VERIFIED_BACKEND_URL"] = environment["API_PROXY_TARGET"]
     if environment.get("E2E_MIXED_DATA") == "1":
         environment["E2E_MIXED_VERIFIED_BASE_URL"] = origin
     if args.ai_fixture:
@@ -206,7 +242,7 @@ def main() -> int:
                         *(
                             ["tests.e2e_ai_app:create_app", "--factory"]
                             if args.ai_fixture
-                            else ["app.main:app"]
+                            else ["tests.e2e_app:create_app", "--factory"]
                         ),
                         "--host",
                         "127.0.0.1",
@@ -215,7 +251,9 @@ def main() -> int:
                         "--no-access-log",
                     ],
                     cwd=ROOT / "backend",
-                    env=environment,
+                    # 검증 뒤 env 파일이 바뀌어도 검증한 DB로만 실행한다.
+                    # 접속 정보는 백엔드 자식에만 전달하고 로그에 남기지 않는다.
+                    env={**environment, "DATABASE_URL": validated_database_url},
                     stdout=backend_log,
                     stderr=subprocess.STDOUT,
                     start_new_session=True,
@@ -247,9 +285,6 @@ def main() -> int:
             # health만 성공하는 DB 미준비 상태도 브라우저를 열기 전에 실패시킨다.
             for route in ("/catalogs", "/contests?pageSize=1", "/auth/csrf"):
                 wait_ready(f"{origin}/api/v1{route}", processes)
-            arguments = args.playwright_args
-            if arguments[:1] == ["--"]:
-                arguments = arguments[1:]
             print(f"E2E 준비 완료: {origin}\n결과 경로: {output}", flush=True)
             runner = subprocess.Popen(
                 ["npm", "run", "test:e2e", "--", *arguments],
