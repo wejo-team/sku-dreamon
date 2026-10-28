@@ -4,26 +4,32 @@
 
 ## 구성과 실행 흐름
 
-![AI 요청 처리 흐름: 입력 접수, Planner의 자료 조회, 서버 검증, Writer 스트리밍, 답변 저장과 완료 전송](diagrams/ai-flow.svg)
+![AI 요청 처리 흐름: 입력 접수, 입력 가드, 단일 ReAct의 자료 조회와 필수 서버 검증, 최종 토큰 스트리밍, 답변 저장과 완료 전송](diagrams/ai-flow.svg)
 
 [그림 크게 보기](diagrams/ai-flow.svg) · [Mermaid 원본](diagrams/ai-flow.mmd)
 
-보라색은 **Luna를 호출하는 두 단계**, 초록색은 **서버의 처리·검증**, 노란색은 **완료 저장**입니다. Planner가 도구를 호출해 자료를 찾은 뒤 서버 검증을 통과한 내용으로 Writer가 답변을 작성합니다. 답변의 텍스트 조각을 먼저 전송하고, 생성 완료 후 저장과 최종 결과 전송으로 이어집니다. 실패 경로는 대표 사례만 표시했으며 자세한 처리는 아래 절을 따릅니다. 대화 원문 저장은 일반 채팅에만 적용합니다.
+보라색은 **Luna 호출**, 초록색은 **서버의 처리·검증**, 노란색은 **완료 저장**입니다. 입력 가드가 현재 사용자 요청을 허용한 뒤 단일 ReAct 에이전트가 자료 조회와 최종 답변을 이어갑니다. 서버의 필수 검증을 통과한 최종 호출의 텍스트만 즉시 전송하고, 생성 완료 후 저장과 최종 결과 전송으로 이어집니다. 대화 원문 저장은 일반 채팅에만 적용합니다.
 
+별도 worker·작업 큐 없이 요청을 받은 FastAPI 프로세스가 실행합니다. [앱 수명](../../backend/app/main.py) 동안 모델 클라이언트를 공유하지만 대화·검증 상태는 실행별 객체에 둡니다. 요청마다 [create_agent](../../backend/app/agents/factory.py)의 그래프 하나와 목적별 도구를 구성하며 LangGraph 영속 checkpointer·store는 연결하지 않습니다. 서버 재시작 뒤 중단된 그래프를 재개하지 않습니다.
 
-별도 worker·작업 큐 없이 요청을 받은 FastAPI 프로세스가 실행합니다. [앱 수명](../../backend/app/main.py) 동안 모델 클라이언트를 공유하지만 사용자 대화 상태를 공유 객체에 두지 않습니다. 요청마다 [create_agent](../../backend/app/agents/factory.py)의 그래프와 조회 도구를 구성하며 LangGraph 영속 checkpointer·store는 연결하지 않습니다. 서버 재시작 뒤 중단된 그래프를 재개하는 기능은 없습니다.
-
-## 두 모델 단계의 책임
+## 입력 가드와 단일 ReAct의 책임
 
 | 단계 | 입력과 출력 | 책임 |
 | --- | --- | --- |
-| Planner | 현재 입력·이전 사용자 발화·현재 권한으로 다시 조회한 이전 결과 → `RecommendationPlan` | 허용된 조회 도구로 실제 자료를 찾고 후보 ID·근거·추가 질문 여부를 구조화 |
-| 서버 검증 | 계획·관찰한 자료 → 허용 후보 | 존재하지 않는 ID, 관찰하지 않은 후보, 목적·권한·현재 후보 조건·개수 위반 거부 |
-| Writer | 현재 입력·검증된 계획·선택된 자료 → 텍스트 스트림 | 도구 없이 사용자에게 보여 줄 설명 작성 |
+| 입력 가드 middleware | 현재 사용자 발화·최근 사용자 발화 최대 6개(각 1,000자) → 허용/정책 사유 | 정규식은 의미 분류의 참고 신호이며 단어만으로 차단하지 않음. 도구 없는 Luna가 구조화된 판정만 반환 |
+| 읽기 단계 | 허용된 요청·이전 사용자 발화·현재 권한으로 다시 읽은 이전 결과 → 읽기 도구 호출 | `tool_choice=required`, 한 번에 도구 하나. 텍스트·추론·도구 JSON을 제품 스트림에 보내지 않음 |
+| 필수 서버 게이트 | `prepare_recommendations(RecommendationPlan)` → 확정 후보 | 관찰된 실제 ID·중복·목적·일반 채팅 카드 3개·현재 권한 검증. 서비스가 계획·선택 자료·참조를 복사해 고정 |
+| 같은 에이전트의 최종 단계 | 확정된 후보·근거 → 텍스트 토큰 | 도구를 제거하고 최종 모델 호출을 내부 태그로 구분. 텍스트 블록만 즉시 전달 |
 
-두 단계 모두 설정된 `gpt-6-luna`를 사용합니다. Planner는 필요한 조회를 위해 모델을 여러 번 호출할 수 있고 Writer는 별도 호출입니다. 구조화 출력이 맞아도 설명의 사실성·추천 품질까지 보장되지는 않습니다. 서버 검증 전의 계획·도구 원문·내부 추론은 사용자 스트림에 포함하지 않습니다. 첫 텍스트 전에는 진행 이벤트를 보내므로 자료 조회와 검증 시간이 첫 답변 지연에 포함됩니다.
+모든 호출은 설정된 `gpt-6-luna`를 사용합니다. 가드는 Planner가 아니며 별도 Writer도 없습니다. `RecommendationPlan`은 필수 제어 도구의 검증 schema입니다. 후보 없는 도움말·확인 질문도 빈 목록을 게이트에 제출합니다. 모델이 게이트 없이 끝내거나 여러 도구를 동시에 호출하거나 잘못된 인자를 제출하면 `invalid_output`으로 실패합니다. 최종 단계에서는 더 이상 도구를 호출할 수 없습니다.
 
-[프롬프트](../../backend/app/agents/prompts.py)는 자유 텍스트의 지시를 자료로 취급하고 고정 점수·자동 선발을 금지합니다. 참가 자격 원문은 확인 안내에 사용하며 학사 조건으로 후보를 차단하지 않습니다. 주당 참여 가능 시간은 모든 프로젝트를 합산한 참고값입니다. 보안·권한 검사는 프롬프트 준수 여부에 의존하지 않습니다.
+[입력 가드](../../backend/app/agents/guards.py)는 매 사용자 메시지를 먼저 검사하고, 허용 후에만 이전 결과의 자료를 재조회합니다. `TargetStart`에는 사용자 자유 입력이 없어 고정된 서버 요청을 사용합니다. 프롬프트·비밀 유출, 지시·권한 덮어쓰기, 모욕·괴롭힘 생성과 무관한 범용 요청을 구분합니다. 정당한 인용·신고·불만과 AI·앱·보안 공모전 탐색은 허용 대상입니다. 정확한 범위는 [입력 정책](../specs/matching.md#input-guard)이 원본입니다.
+
+정책 거절은 새 자료 조회·자유 생성 없이 빈 후보를 서버에서 검증하고 고정 안내를 반환합니다. 일반 채팅의 정상 `succeeded` 결과와 저장 규칙을 따릅니다. 분류기 장애·시간 초과·잘못된 응답은 `temporary_failure`이며 허용으로 간주하지 않습니다. 클라이언트의 역할·권한 주장과 이전 발화는 데이터이며 실제 권한은 서버가 결정합니다.
+
+최종 텍스트의 추가 LLM 검토·문장/전체 답변 버퍼링은 없습니다. 모델 내용의 사실성·추천 품질 전체를 결정론적으로 보장하는 구조는 아닙니다. 첫 텍스트 전에 가드·자료 조회·검증 지연이 있으며 기존 `searching → validating → writing` 진행 이벤트를 유지합니다. `validating`·`writing`은 게이트 성공 후 첫 텍스트 직전에 전달됩니다.
+
+[프롬프트](../../backend/app/agents/prompts.py)는 자유 텍스트의 지시를 자료로 취급하고 고정 점수·자동 선발을 금지합니다. 참가 자격은 원문 확인 안내에 사용하며 학사 조건으로 후보를 차단하지 않습니다. 주당 참여 가능 시간은 모든 프로젝트를 합산한 참고값입니다. 보안·권한 검사는 프롬프트 준수 여부에 의존하지 않습니다.
 
 ## 목적별 도구와 권한
 
@@ -31,15 +37,15 @@
 
 [그림 크게 보기](diagrams/ai-tools.svg) · [Mermaid 원본](diagrams/ai-tools.mmd)
 
-`SourceTools.build()`가 **요청 목적에 맞는 도구 묶음 하나**를 Planner에 전달합니다. 그림의 세 묶음을 한 요청에 모두 제공하지 않습니다. 도구 함수는 요청별 `SourceTools`를 클로저로 참조하고, 서버가 주입한 `SourceReader`에서 권한과 자료 범위를 확인합니다. Writer에는 도구를 제공하지 않습니다.
+`SourceTools.build()`가 **요청 목적에 맞는 읽기 도구 묶음 하나**를 ReAct 에이전트에 전달합니다. 그림의 세 묶음을 한 요청에 모두 제공하지 않습니다. 도구 함수는 요청별 `SourceTools`를 클로저로 참조하고, 서버가 주입한 `SourceReader`에서 권한과 자료 범위를 확인합니다. 팩토리는 DB를 변경하지 않는 내부 제어 도구 `prepare_recommendations`를 추가하며, 최종 단계에는 모든 도구를 제거합니다.
 
 | 목적 | 허용 도구·자료 | 경계 |
 | --- | --- | --- |
-| 일반 대화 | `search_resources`, `read_resource`: 공개 공고·추천 가능한 팀·공개 사람 | 비공개 본인 프로필도 자동으로 읽지 않음. 일반 사람을 실제 지원자로 취급하지 않음 |
+| 일반 대화 | `search_people`, `search_contests`, `search_teams`, `get_resource_detail`: 공개 공고·추천 가능한 팀·공개 사람 | 비공개 본인 프로필도 자동으로 읽지 않음. 일반 사람을 실제 지원자로 취급하지 않음 |
 | 지원자 검토 | `read_applicant`: 경로로 고정된 지원 한 건 | 현재 해당 팀장만 허용. 지원 뒤 비공개 프로필도 기존 검토 관계로 읽음 |
 | 팀 후보 추천 | `list_applicants`: 경로로 고정된 팀의 실제 지원 | 현재 팀장만 허용. 새 후보의 지원 상태·소속 검사 |
 
-[SourceTools](../../backend/app/agents/tools.py)는 실행별 도구/자료 수를 세고 동일 자료의 근거 변경을 감지합니다. 병렬 도구 요청의 자료 한도 예약은 잠금으로 직렬화합니다. [SourceReader](../../backend/app/services/ai_sources.py)는 도구 조회에 짧은 독립 DB 세션을 사용하고, 전송 직전 권한·근거 검증에는 잠금을 보유한 기존 세션을 재사용합니다. 기존 도메인 서비스의 권한 검사를 거쳐 모델 입력을 허용된 필드로 구성하며, 인증 정보·연락처 전용 필드·학사 항목·외부 포트폴리오 내용은 보내지 않습니다. 모델에는 SQL·범용 HTTP·쓰기 도구를 제공하지 않습니다.
+[SourceTools](../../backend/app/agents/tools.py)는 제어 도구를 포함한 실행별 도구/자료 수를 세고 동일 자료의 근거 변경을 감지합니다. 병렬 도구 요청의 자료 한도 예약은 잠금으로 직렬화합니다. [SourceReader](../../backend/app/services/ai_sources.py)는 도구 조회에 짧은 독립 DB 세션을 사용하고, 전송 직전 권한·근거 검증에는 잠금을 보유한 기존 세션을 재사용합니다. 기존 도메인 서비스의 권한 검사를 거쳐 모델 입력을 허용된 필드로 구성하며, 인증 정보·연락처 전용 필드·학사 항목·외부 포트폴리오 내용은 보내지 않습니다. 모델에는 SQL·범용 HTTP·쓰기 도구를 제공하지 않습니다.
 
 ## 대화 맥락과 저장 수명
 
@@ -85,13 +91,13 @@ OpenAI 호출은 `store=False`, 이전 응답 ID 연결은 끄고 LangSmith trac
 | 원본 | 책임 |
 | --- | --- |
 | [라우터](../../backend/app/routers/ai.py), [DTO](../../backend/app/schemas/ai.py) | HTTP·인증·입력·SSE·연결 수명 |
-| [AI 서비스](../../backend/app/services/ai.py) | 조회 → 검증 → 작성 → 완료·전송 조합 |
+| [AI 서비스](../../backend/app/services/ai.py) | 게이트·후보 고정·전송 중 현재 권한·완료 저장 조합 |
 | [실행 서비스](../../backend/app/services/ai_runs.py) | 시도·소유권·한도·잠금·완료 트랜잭션 |
 | [대화 서비스](../../backend/app/services/ai_chat.py) | 상위 트랜잭션 안의 대화 소유권·메시지 저장 |
-| [에이전트](../../backend/app/agents/factory.py), [도구](../../backend/app/agents/tools.py) | 모델 실행·예산·허용 도구 |
+| [에이전트](../../backend/app/agents/factory.py), [가드](../../backend/app/agents/guards.py), [도구](../../backend/app/agents/tools.py) | 입력 분류·단일 ReAct·단계 강제·예산·최종 토큰 필터 |
 | [자료 서비스](../../backend/app/services/ai_sources.py) | 도메인 조회·모델 입력 최소화 |
 | [대화 레포지토리](../../backend/app/repositories/ai_chat.py), [실행 레포지토리](../../backend/app/repositories/ai_runs.py) | SQL·고유 제약·행 잠금·flush. 자체 commit 없음 |
 
-의존 방향은 [공통 아키텍처](architecture.md#responsibility-boundaries)를 따릅니다. [통합 테스트](../../backend/tests/integration/test_ai.py)는 실제 PostgreSQL과 가짜 모델로 권한·중복·취소·원문 저장·트랜잭션 실패·연결 종료를 검사합니다. [도구 테스트](../../backend/tests/unit/test_ai_tools.py)는 병렬 조회 한도와 자료 변경을 검사합니다. 실제 모델 수동 검사는 [로컬 실행](local-development.md#ai-backend)을 따르며 일반 테스트는 유료 API를 호출하지 않습니다.
+의존 방향은 [공통 아키텍처](architecture.md#responsibility-boundaries)를 따릅니다. [통합 테스트](../../backend/tests/integration/test_ai.py)는 실제 PostgreSQL과 가짜 모델로 권한·중복·취소·원문 저장·트랜잭션 실패·연결 종료를 검사합니다. [도구 테스트](../../backend/tests/unit/test_ai_tools.py)는 도메인 분리·조회 한도·자료 변경을 검사합니다. [런타임 테스트](../../backend/tests/unit/test_ai_runtime.py)는 실제 `create_agent`와 가짜 모델로 필수 게이트·최종 토큰의 즉시 전달·취소를 검사하고, [가드 테스트](../../backend/tests/unit/test_ai_guards.py)와 [가드 통합 테스트](../../backend/tests/integration/test_ai_guard_stream.py)는 분류 계약·장애·거절 저장·재시도를 검사합니다. 가짜 판정 테스트는 실제 의미 분류 품질의 증거가 아닙니다. 실제 모델 수동 검사는 [로컬 실행](local-development.md#ai-backend)을 따르며 일반 테스트는 유료 API를 호출하지 않습니다.
 
 시각자료의 수정·재생성 방법은 [도표 원본 안내](diagrams/README.md)를 따릅니다.

@@ -14,7 +14,13 @@ from pydantic import SecretStr
 from sqlalchemy import select, update
 
 from app.agents.tools import SourceTools
-from app.agents.types import RecommendationPlan, Resource, Selection
+from app.agents.types import (
+    PreviousContext,
+    RecommendationGate,
+    RecommendationPlan,
+    Resource,
+    Selection,
+)
 from app.core.config import Settings
 from app.core.db.base import Base
 from app.core.exceptions import AppError
@@ -50,6 +56,21 @@ class FakeDriver:
         self.entered = asyncio.Event()
         self.cancelled = asyncio.Event()
         self.plan_calls = 0
+
+    async def stream(
+        self,
+        tools: SourceTools,
+        content: str,
+        history: list[str],
+        previous: PreviousContext,
+        *,
+        gate: RecommendationGate,
+    ) -> AsyncIterator[str]:
+        plan = await self.plan(tools, content, history, await previous())
+        await gate(plan)
+        resources = [tools.observed[choice.key] for choice in plan.selections]
+        async for part in self.write(plan, resources, content):
+            yield part
 
     async def plan(
         self,

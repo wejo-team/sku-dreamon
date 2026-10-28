@@ -12,6 +12,60 @@ from app.core.exceptions import AppError
 from app.services.ai_sources import SourceReader
 
 
+@pytest.mark.parametrize(
+    ("name", "kind"),
+    [
+        ("search_people", "person"),
+        ("search_contests", "contest"),
+        ("search_teams", "team"),
+    ],
+)
+async def test_domain_search_tools_fix_resource_kind(name: str, kind: str) -> None:
+    reader = Mock(spec=SourceReader)
+    reader.context = Mock(purpose="chat")
+    reader.search = AsyncMock(return_value=([], False))
+    sources = SourceTools(reader, max_sources=30, max_calls=8)
+    exposed = {item.name: item for item in sources.build()}
+    assert set(exposed) == {
+        "search_people",
+        "search_contests",
+        "search_teams",
+        "get_resource_detail",
+    }
+    assert set(exposed[name].args) == {"query", "page"}
+    result = await exposed[name].ainvoke({"query": "AI 아키텍처", "page": 2})
+    assert result == {"items": [], "hasMore": False}
+    reader.search.assert_awaited_once_with(kind, "AI 아키텍처", 2)
+    assert sources.calls == 1
+
+
+@pytest.mark.parametrize(
+    ("purpose", "application_id", "expected"),
+    [
+        ("applicant_review", uuid4(), {"read_applicant"}),
+        ("applicant_recommendation", None, {"list_applicants"}),
+    ],
+)
+def test_applicant_tools_do_not_expose_public_search(
+    purpose: str, application_id: UUID | None, expected: set[str]
+) -> None:
+    reader = Mock(spec=SourceReader)
+    reader.context = Mock(purpose=purpose, application_id=application_id)
+    exposed = SourceTools(reader, max_sources=30, max_calls=8).build()
+    assert {item.name for item in exposed} == expected
+    for item in exposed:
+        assert (
+            not {
+                "requester",
+                "principal",
+                "team_id",
+                "application_id",
+                "permission",
+            }
+            & item.args.keys()
+        )
+
+
 async def test_parallel_reads_cannot_exceed_source_budget() -> None:
     async def load(kind: str, resource_id: UUID) -> Resource:
         await asyncio.sleep(0)

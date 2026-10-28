@@ -1,37 +1,29 @@
 flowchart TB
-    accTitle: AI 요청 처리 흐름
-    accDescr: 요청 접수 뒤 Planner가 조회 도구를 사용하고 서버가 근거를 검증한다. Writer의 텍스트는 권한 검사를 거쳐 스트리밍하며, 완성 답변을 저장한 뒤 최종 결과를 보낸다.
-    client["클라이언트 요청
-    POST · 쿠키 · CSRF"]
-    accept["① FastAPI + 실행 접수
-    인증·입력 검사
-    중복·한도 확인"]
-    planner["② Planner
-    create_agent · Luna
-    도구 호출·후보 선정"]
-    tools["조회 도구
-    공개 자료·지원자 조회"]
-    validate["③ 서버 검증
-    실제 ID·현재 권한
-    자료 버전"]
-    writer["④ Writer · Luna
-    검증된 자료로 답변
-    도구 없음"]
-    chunk["조각마다 권한 재검증
-    answer.delta 전송"]
-    complete["⑤ 완료 트랜잭션
-    일반 채팅 답변 저장
-    실행 상태 완료"]
-    result["최종 권한 재검증
-    result → done 전송"]
-    rejected["중단 · 실패 · 자료 변경
-    부분 답변 미저장"]
-    client --> accept --> planner
-    planner -->|"도구 호출"| tools
-    tools -->|"현재 자료"| planner
-    planner -->|"구조화된 계획"| validate
-    validate --> writer --> chunk --> complete --> result
-    validate -.->|"검증 실패"| rejected
+    accTitle: 단일 ReAct AI 요청 처리 흐름
+    accDescr: 입력 접수 뒤 도구 없는 입력 가드가 요청을 분류한다. 단일 ReAct의 읽기 단계와 필수 서버 검증을 거쳐 같은 에이전트의 최종 텍스트를 스트리밍하고 완성 답변을 저장한다.
+    client["클라이언트 요청<br/>POST · 쿠키 · CSRF"]
+    accept["① FastAPI + 실행 접수<br/>인증·입력·중복·한도 확인"]
+    guard["② 입력 가드 middleware · Luna<br/>현재 입력·최근 발화<br/>정규식 신호·의미 분류<br/>도구 없음"]
+    policy["정책 거절<br/>빈 후보 검증 · 고정 안내"]
+    subgraph agent["③ 단일 create_agent · Luna"]
+        react["읽기 단계<br/>허용 도구 하나씩 호출<br/>중간 텍스트 비노출"]
+        tools["읽기 도구<br/>공개 자료·지원자"]
+        validate["필수 prepare_recommendations<br/>실제 ID·카드 수<br/>현재 권한·후보 고정"]
+        final["최종 단계<br/>모든 도구 제거<br/>최종 텍스트 토큰만 전달"]
+        react -->|"조회"| tools
+        tools -->|"현재 자료"| react
+        react --> validate --> final
+    end
+    chunk["④ 조각마다 권한 재검증<br/>answer.delta 즉시 전송"]
+    complete["⑤ 완료 트랜잭션<br/>일반 채팅 답변 저장<br/>실행 상태 완료"]
+    result["최종 권한 재검증<br/>result → done"]
+    rejected["중단 · 실패 · 자료 변경<br/>부분 답변 미저장"]
+    client --> accept --> guard
+    guard -->|"허용 후 이전 자료 재조회"| react
+    guard -->|"차단"| policy --> chunk
+    guard -.->|"분류 장애"| rejected
+    final --> chunk --> complete --> result
+    validate -.->|"실패"| rejected
     chunk -.->|"완료 전 중단"| rejected
     complete -.->|"저장 실패"| rejected
     classDef entry fill:#eff6ff,stroke:#2563eb,color:#172554,stroke-width:1.5px;
@@ -40,7 +32,7 @@ flowchart TB
     classDef storage fill:#fffbeb,stroke:#b45309,color:#78350f,stroke-width:1.5px;
     classDef failure fill:#fff1f2,stroke:#be123c,color:#881337,stroke-width:1.5px;
     class client,result entry;
-    class accept,tools,validate,chunk server;
-    class planner,writer model;
+    class accept,tools,validate,chunk,policy server;
+    class guard,react,final model;
     class complete storage;
     class rejected failure;

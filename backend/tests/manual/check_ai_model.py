@@ -1,4 +1,4 @@
-"""명시적으로 실행할 때만 가상 자료로 실제 Luna 도구·구조화 출력·스트림을 검사한다."""
+"""명시적으로 실행할 때만 가상 자료로 실제 Luna 입력 가드·ReAct·스트림을 검사한다."""
 
 import asyncio
 from datetime import UTC, datetime, timedelta
@@ -7,7 +7,13 @@ from uuid import UUID, uuid4
 
 from app.agents.factory import OpenAiAgentDriver
 from app.agents.tools import SourceTools
-from app.agents.types import AgentContext, Reference, Resource, fingerprint
+from app.agents.types import (
+    AgentContext,
+    RecommendationPlan,
+    Reference,
+    Resource,
+    fingerprint,
+)
 from app.core.config import Settings
 from app.core.db.session import create_database
 from app.core.exceptions import AppError
@@ -66,18 +72,29 @@ async def main() -> None:
     sources = SourceTools(
         SyntheticReader(database, context), max_sources=3, max_calls=3
     )
-    stage = "plan"
+    stage = "react"
     try:
         async with asyncio.timeout(90):
             request = (
                 "검색 도구로 연동 검증용 가상 공모전을 찾아 한 개 추천하고 "
                 "이유와 주의점을 세 문장으로 알려줘."
             )
-            plan = await driver.plan(sources, request, [], [])
-            selected = validate_plan(plan, sources)
+            selected: list[Resource] = []
+
+            async def gate(plan: RecommendationPlan) -> None:
+                nonlocal selected
+                selected = validate_plan(plan, sources)
+
+            async def previous() -> list[dict[str, object]]:
+                return []
+
+            chunks = [
+                part
+                async for part in driver.stream(
+                    sources, request, [], previous, gate=gate
+                )
+            ]
             assert len(selected) == 1 and sources.calls > 0
-            stage = "stream"
-            chunks = [part async for part in driver.write(plan, selected, request)]
             assert "".join(chunks).strip()
             print(
                 {

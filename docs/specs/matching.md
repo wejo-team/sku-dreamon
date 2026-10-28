@@ -1,6 +1,6 @@
 # LLM 기반 공모전·팀·지원자 추천
 
-- 구현 상태: 진행 중 — 백엔드 [PR #157](https://github.com/wejo-team/sku-dreamon/pull/157) 병합, 제품 프론트 [PR #192](https://github.com/wejo-team/sku-dreamon/pull/192) 실제 API 연결 구현·미배포
+- 구현 상태: 진행 중 — 백엔드 [PR #157](https://github.com/wejo-team/sku-dreamon/pull/157) 병합, 제품 프론트 [PR #192](https://github.com/wejo-team/sku-dreamon/pull/192) 실제 API 연결, 단일 ReAct·입력 가드 [PR #206](https://github.com/wejo-team/sku-dreamon/pull/206) 구현·미배포
 - 명세 검토: 기존 [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17), LLM 전환 [PR #73](https://github.com/wejo-team/sku-dreamon/pull/73), AI 로그인 전용·프로필 공개 정책 [PR #75](https://github.com/wejo-team/sku-dreamon/pull/75); 2026-10-19 [#77](https://github.com/wejo-team/sku-dreamon/issues/77)의 입력·결과 제한과 #33·#36·#46·#49 연결 결정 반영
 - 화면 구현과 후속: [AI 화면 연결 #163](https://github.com/wejo-team/sku-dreamon/issues/163), [실제 자료 품질·보존 #164](https://github.com/wejo-team/sku-dreamon/issues/164), [운영 배포 #165](https://github.com/wejo-team/sku-dreamon/issues/165)
 
@@ -189,10 +189,12 @@ LLM 전환으로 마감·정원·중복 지원·공모전별 소속 제한이나
 - [x] AC-34: 대화·초안은 현재 탭 메모리에서만 유지한다. 새로고침·탭 종료·새 대화·로그아웃 후 초기화하고 새 탭·재로그인에서 복원하지 않으며, 브라우저 영속 저장소에 대화 복원용 데이터를 남기지 않는다.
 
 - [ ] AC-35: 일반 AI 채팅의 접수 입력과 완성 답변을 계정 소유 대화로 저장한다. 재시도와 실행 메타데이터 정리가 메시지 중복·유실을 만들지 않고, 저장 실패를 성공으로 확정하지 않는다. 기록 조회·복원 API와 실패·취소·완료 전 무효화된 부분 답변 저장은 제외한다.
-- [ ] AC-36: 매 사용자 메시지를 입력 가드로 검사하고, 프롬프트·비밀 유출 요구와 지시·권한 덮어쓰기 및 모욕·괴롭힘 생성 요청에는 고정 안내와 빈 카드를 제공한다. 후속 메시지로 바꾼 요청도 검사하며, 가드 장애는 임의 허용하지 않고 재시도 가능한 실패로 표시한다.
-- [ ] AC-37: 공격 문구의 정당한 인용·신고·분석, 욕설을 포함한 불만, AI 아키텍처·앱·보안 관련 공모전 탐색을 단어 일치만으로 거절하지 않는다. 서비스 사용·권한·제한 도움말을 제공하고 무관한 요청에는 지원 범위를 안내한다.
-- [ ] AC-38: 단일 ReAct 에이전트가 읽기 도구로 자료를 확인하고 서버의 필수 후보·현재 권한 검증을 통과한 뒤 같은 실행의 최종 답변을 스트리밍한다. 검증 없는 종료·검증 실패·중간 추론·도구 JSON이 사용자 답변이나 카드로 게시되지 않는다.
-- [ ] AC-39: 입력 가드와 ReAct 전환 뒤에도 기존 SSE 순서·취소·재시도·권한 무효화·완성 답변 저장이 유지된다. 최종 답변의 추가 LLM 검사나 전체 답변·문장 버퍼링 없이 첫 최종 텍스트를 생성 중에 표시한다.
+- [x] AC-36: 매 사용자 메시지를 입력 가드로 검사하고, 프롬프트·비밀 유출 요구와 지시·권한 덮어쓰기 및 모욕·괴롭힘 생성 요청에는 고정 안내와 빈 카드를 제공한다. 후속 메시지로 바꾼 요청도 검사하며, 가드 장애는 임의 허용하지 않고 재시도 가능한 실패로 표시한다.
+- [x] AC-37: 공격 문구의 정당한 인용·신고·분석, 욕설을 포함한 불만, AI 아키텍처·앱·보안 관련 공모전 탐색을 단어 일치만으로 거절하지 않는다. 서비스 사용·권한·제한 도움말을 제공하고 무관한 요청에는 지원 범위를 안내한다.
+- [x] AC-38: 단일 ReAct 에이전트가 읽기 도구로 자료를 확인하고 서버의 필수 후보·현재 권한 검증을 통과한 뒤 같은 실행의 최종 답변을 스트리밍한다. 검증 없는 종료·검증 실패·중간 추론·도구 JSON이 사용자 답변이나 카드로 게시되지 않는다.
+- [x] AC-39: 입력 가드와 ReAct 전환 뒤에도 기존 SSE 순서·취소·재시도·권한 무효화·완성 답변 저장이 유지된다. 최종 답변의 추가 LLM 검사나 전체 답변·문장 버퍼링 없이 첫 최종 텍스트를 생성 중에 표시한다.
+
+AC-36~39의 자동 검증은 [입력 가드](../../backend/tests/unit/test_ai_guards.py)·[실제 그래프](../../backend/tests/unit/test_ai_runtime.py)·[제공자 모의 전송](../../backend/tests/unit/test_ai_provider.py)·[DB/SSE 수명](../../backend/tests/integration/test_ai_guard_stream.py) 테스트에 연결합니다. 가짜 판정과 모의 제공자로 실행 경계를 검증했으며 실제 의미 분류의 오탐·누락·추천 품질은 [#164](https://github.com/wejo-team/sku-dreamon/issues/164)의 후속 평가입니다. 이번 구현에서 운영 키를 사용하거나 실제 모델을 호출하지 않았습니다.
 
 <a id="open-questions"></a>
 
