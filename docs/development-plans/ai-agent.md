@@ -6,7 +6,7 @@
 - 구현 PR: 백엔드 [#157](https://github.com/wejo-team/sku-dreamon/pull/157), 제품 화면 [#192](https://github.com/wejo-team/sku-dreamon/pull/192)
 - 구현 구조: [AI 에이전트 아키텍처](../development/ai-architecture.md)
 - 계약 원본: [AI API](../api/ai.md), [AI 실행 저장](../database/ai.md)
-- 구현 PR의 범위: 사용자 요청에 따라 **백엔드만 구현**했으며 운영 DB 적용은 포함하지 않았습니다. 아래 결정·검증은 PR #157 당시 범위이고 현재 남은 작업은 후속 절에서 구분합니다.
+- PR #157 당시 구현 범위: 사용자 요청에 따라 **백엔드만 구현**했으며 운영 DB 적용은 포함하지 않았습니다. 아래 결정·검증은 PR #157 당시 범위이고 현재 남은 작업은 후속 절에서 구분합니다.
 
 공모전·팀·공개 사람 탐색과 팀장의 지원자 검토를 기존 FastAPI 서비스에 연결합니다. 사용자 동작은 기능 명세, 전송 계약은 DTO·API 문서, 저장 구조는 ORM·DB 문서가 원본입니다. PR #157은 프론트 변경을 포함하지 않았습니다. 현재 자체 로그인·지원자 조회의 실제 API 연결 상태는 [구현 현황](../development/implementation-status.md), AI 대화·지원자 검토·팀 지원자 추천의 실제 화면 연결은 [구현 작업 #163](https://github.com/wejo-team/sku-dreamon/issues/163)을 참조합니다.
 
@@ -19,7 +19,7 @@
 | 에이전트 | `langchain.agents.create_agent`, LangGraph 런타임 | 구현 |
 | 모델 | OpenAI Luna, `gpt-6-luna` | 실제 도구 호출·구조화 출력·스트림 수동 검증 |
 | 모델 API | Responses API, `store=False`, 자동 모델 대체 없음 | 구현 |
-| 응답 전달 | FastAPI 비동기 실행과 POST SSE | 백엔드 구현, 화면 연결은 후속 |
+| 응답 전달 | FastAPI 비동기 실행과 POST SSE | 백엔드 구현, 제품 화면 연결은 후속 PR #192에서 구현 |
 | 대화 유지 | 현재 브라우저 탭 메모리, 새로고침·새 대화·로그아웃 시 초기화 | 제품 요구사항. 서버 원문은 별도 보존하며 복원 API 없음 |
 | 실행 상태 | PostgreSQL 공유 메타데이터·입력/결과 해시·근거 참조 | 모델·migration·재시도·중단·정리 구현 |
 | 대화 저장 | 계정 소유 대화·접수 입력·완성 답변 | 일반 채팅만 보존, 조회 API·자동 만료 없음 |
@@ -58,7 +58,7 @@
 - [실제 모델 수동 검사](../../backend/tests/manual/check_ai_model.py): 가상 자료만으로 Luna 도구 호출·구조화 출력·답변 스트리밍 확인. 일반 pytest는 유료 모델을 호출하지 않음.
 - 로컬 DB 검증은 격리된 PostgreSQL 18에서 수행합니다. Docker를 사용할 수 없어 Compose 기준 PostgreSQL 17.11은 이번 로컬 실행에 사용하지 않았습니다. 운영 DB에는 migration을 적용하지 않았습니다.
 
-실행·정리 명령은 [AI 로컬 실행](../development/local-development.md#ai-backend)을 참조합니다. 위 검증 기록은 PR #157 당시 백엔드 범위입니다. 후속 [#163](https://github.com/wejo-team/sku-dreamon/issues/163)에서 프론트 AC-16·23·26·28·33·34에 대응하는 실제 API 화면·브라우저 E2E를 추가했습니다. 최초 결과 DTO를 보존해 표시·복사·복귀 때 재검증하고, 무효화·세션 변경 때 전체 본문과 카드를 폐기합니다. 현재 탭 메모리만 사용하며 서버 기록 복원은 추가하지 않습니다. 자동 검사는 시험 모델을 사용하므로 실제 지원자 자료의 추천 품질·비용·보존 정책 [#164](https://github.com/wejo-team/sku-dreamon/issues/164), 운영 배포 [#165](https://github.com/wejo-team/sku-dreamon/issues/165)는 남습니다.
+실행·정리 명령은 [AI 로컬 실행](../development/local-development.md#ai-backend)을 참조합니다. 위 검증 기록은 PR #157 당시 백엔드 범위입니다. 후속 [#163](https://github.com/wejo-team/sku-dreamon/issues/163)에서 프론트 AC-16·23·26·28·33·34에 대응하는 실제 API 화면·브라우저 E2E를 추가했습니다. 최초 결과 DTO를 보존해 표시·복사·복귀 때 재검증하고, 무효화·세션 변경 때 전체 본문과 카드를 폐기합니다. 현재 탭 메모리만 사용하며 서버 기록 복원은 추가하지 않습니다. 화면 자동 검사는 시험 모델을 사용하며 실제 제공자를 추가로 호출하지 않았습니다. 기존 서버의 제공자 호출 검증과 실제 모델을 사용한 화면 통합 검사는 구분하며, 후자는 아직 수행하지 않았습니다. 실제 지원자 자료의 추천 품질·비용·보존 정책 [#164](https://github.com/wejo-team/sku-dreamon/issues/164), 운영 배포 [#165](https://github.com/wejo-team/sku-dreamon/issues/165)는 남습니다.
 
 ## 기술 근거
 
