@@ -4,7 +4,7 @@
 
 | 원본 | 이미지 | 읽는 목적 |
 | --- | --- | --- |
-| [ai-flow.mmd](ai-flow.mmd) | [처리 흐름](ai-flow.svg) | Planner·검증·Writer·스트리밍·완료의 순서 |
+| [ai-flow.mmd](ai-flow.mmd) | [처리 흐름](ai-flow.svg) | 입력 가드·단일 ReAct·필수 검증·스트리밍·완료의 순서 |
 | [ai-tools.mmd](ai-tools.mmd) | [도구 구성](ai-tools.svg) | 서버 컨텍스트, 도구 팩토리, 목적별 도구, 기존 서비스 연결 |
 | [ai-lifecycle.mmd](ai-lifecycle.mmd) | [저장과 전송](ai-lifecycle.svg) | 일반 채팅의 두 저장 트랜잭션과 전송 중 권한 검사 |
 

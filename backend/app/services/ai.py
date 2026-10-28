@@ -14,7 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.agents.factory import AgentDriver as AgentDriver
 from app.agents.tools import SourceTools, ToolBudgetExceeded
-from app.agents.types import RecommendationPlan, Resource, fingerprint
+from app.agents.types import RecommendationPlan, Reference, Resource, fingerprint
 from app.core.config import Settings
 from app.core.db.session import Database
 from app.core.exceptions import AppError
@@ -252,9 +252,10 @@ class AiService:
                     max_sources=self.settings.ai_max_sources,
                     max_calls=self.settings.ai_max_tool_calls,
                 )
-                previous = await self._await_active(
-                    execution, self.previous_context(execution, sources)
-                )
+
+                async def previous() -> list[dict[str, object]]:
+                    return await self.previous_context(execution, sources)
+
                 content = (
                     execution.input.content
                     if isinstance(execution.input, ChatStart)
@@ -266,33 +267,52 @@ class AiService:
                     else []
                 )
                 driver = self.require_driver()
-                plan = await self._await_active(
-                    execution, driver.plan(sources, content, history, previous)
-                )
-                selected = validate_plan(plan, sources)
-                refs = [resource.reference for resource in sources.observed.values()]
-                yield event("progress", stage="validating")
-                async with self.runs.publishing(execution, refs):
-                    pass
-                yield event("progress", stage="writing")
+                plan: RecommendationPlan | None = None
+                selected: list[Resource] = []
+                refs: list[Reference] = []
+
+                async def gate(proposed: RecommendationPlan) -> None:
+                    nonlocal plan, selected, refs
+                    if plan is not None:
+                        raise ValueError("Recommendation already prepared")
+                    approved = proposed.model_copy(deep=True)
+                    candidates = validate_plan(approved, sources)
+                    current_refs = [
+                        resource.reference.model_copy(deep=True)
+                        for resource in sources.observed.values()
+                    ]
+                    async with self.runs.publishing(execution, current_refs):
+                        pass
+                    # 이후 모델·도구가 제안 객체를 바꿔도 게시할 후보는 고정한다.
+                    selected = [item.model_copy(deep=True) for item in candidates]
+                    refs = current_refs
+                    plan = approved
+
                 text = ""
-                writer = driver.write(plan, selected, content)
+                answering = False
+                response = driver.stream(sources, content, history, previous, gate=gate)
                 try:
                     while True:
                         try:
-                            delta = await self._await_active(execution, anext(writer))
+                            delta = await self._await_active(execution, anext(response))
                         except StopAsyncIteration:
                             break
+                        if plan is None:
+                            raise ValueError("Answer before recommendation validation")
+                        if not answering:
+                            yield event("progress", stage="validating")
+                            yield event("progress", stage="writing")
+                            answering = True
                         text += delta
                         if len(text) > 12000:
                             raise ToolBudgetExceeded()
                         async with self.runs.publishing(execution, refs):
                             yield event("answer.delta", text=delta)
                 finally:
-                    close = getattr(writer, "aclose", None)
+                    close = getattr(response, "aclose", None)
                     if close is not None:
                         await close()
-                if not text.strip():
+                if plan is None or not text.strip():
                     raise ValueError("Empty model answer")
                 result = build_result(execution, plan, selected, text)
                 status: Literal["empty", "succeeded"] = (

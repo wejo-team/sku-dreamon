@@ -1,61 +1,206 @@
-"""조회 에이전트와 도구 없는 답변 작성기를 Luna Responses API로 실행한다."""
+"""단일 ReAct 실행의 검증된 최종 모델 텍스트만 실시간으로 전달한다."""
 
-import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from contextlib import aclosing
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Protocol, cast
 
 import tiktoken
 from langchain.agents import create_agent
 from langchain.agents.middleware import AgentMiddleware
-from langchain.agents.middleware.types import AgentState
-from langchain.agents.structured_output import ProviderStrategy
+from langchain.agents.middleware.types import (
+    AgentState,
+    ModelRequest,
+    ModelResponse,
+    ToolCallRequest,
+)
 from langchain_core.messages import (
     AIMessage,
+    AIMessageChunk,
     HumanMessage,
     SystemMessage,
+    ToolMessage,
     messages_to_dict,
 )
+from langchain_core.runnables.schema import StreamEvent
+from langchain_core.tools import tool
+from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_openai import ChatOpenAI
 from langgraph.runtime import Runtime
+from langgraph.types import Command
 from langsmith import tracing_context
 
-from app.agents.prompts import PLANNER_PROMPT, WRITER_PROMPT
+from app.agents.guards import InputBlocked, InputGuard, InputGuardMiddleware
+from app.agents.prompts import AGENT_PROMPT, FINAL_ANSWER_PROMPT
 from app.agents.tools import SourceTools, ToolBudgetExceeded
-from app.agents.types import RecommendationPlan, Resource
+from app.agents.types import PreviousContext, RecommendationGate, RecommendationPlan
 from app.core.config import Settings
+
+Gate = RecommendationGate
+
+FINAL_ANSWER_TAG = "ai_final_answer"
+REQUEST_MESSAGE_ID = "request"
 
 
 class AgentDriver(Protocol):
-    async def plan(
+    def stream(
         self,
-        tools: SourceTools,
+        sources: SourceTools,
         content: str,
         history: list[str],
-        previous: list[dict[str, object]],
-    ) -> RecommendationPlan: ...
-
-    def write(
-        self, plan: RecommendationPlan, resources: list[Resource], content: str
+        previous: PreviousContext,
+        *,
+        gate: RecommendationGate,
     ) -> AsyncIterator[str]: ...
 
 
-class InputBudget(AgentMiddleware[AgentState[RecommendationPlan], None]):
+class RequestContext(AgentMiddleware[AgentState[None], None]):
+    """입력 검사가 허용한 뒤에만 이전 자료를 현재 권한으로 다시 읽는다."""
+
+    def __init__(
+        self,
+        sources: SourceTools,
+        content: str,
+        history: list[str],
+        previous: PreviousContext,
+    ) -> None:
+        self.sources, self.content = sources, content
+        self.history, self.previous = history, previous
+
+    async def abefore_agent(
+        self, state: AgentState[None], runtime: Runtime[None]
+    ) -> dict[str, object]:
+        payload = {
+            "purpose": self.sources.reader.context.purpose,
+            "currentTime": datetime.now(UTC).isoformat(),
+            "previousUserMessages": self.history,
+            "previousResults": await self.previous(),
+            "request": self.content,
+        }
+        return {
+            "messages": [
+                HumanMessage(
+                    id=REQUEST_MESSAGE_ID,
+                    content=json.dumps(payload, ensure_ascii=False),
+                )
+            ]
+        }
+
+
+class InputBudget(AgentMiddleware[AgentState[None], None]):
     def __init__(self, maximum: int) -> None:
         self.maximum = maximum
         self.encoder = tiktoken.get_encoding("o200k_base")
+        self.calls = 0
 
-    async def abefore_model(
-        self, state: AgentState[RecommendationPlan], runtime: Runtime[None]
-    ) -> dict[str, object] | None:
-        if sum(isinstance(item, AIMessage) for item in state["messages"]) >= 6:
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[None],
+        handler: Callable[[ModelRequest[None]], Awaitable[ModelResponse[None]]],
+    ) -> ModelResponse[None]:
+        self.calls += 1
+        if self.calls > 6:
             raise ToolBudgetExceeded()
-        serialized = json.dumps(messages_to_dict(state["messages"]), ensure_ascii=False)
-        # 토크나이저의 특수 토큰처럼 보이는 사용자 입력도 일반 문자열로 센다.
+        messages = list(request.messages)
+        if request.system_message is not None:
+            messages.insert(0, request.system_message)
+        serialized = json.dumps(
+            {
+                "messages": messages_to_dict(messages),
+                "tools": [convert_to_openai_tool(value) for value in request.tools],
+            },
+            ensure_ascii=False,
+        )
+        # 특수 토큰처럼 보이는 사용자 문자열도 일반 입력으로 센다.
         if len(self.encoder.encode(serialized, disallowed_special=())) > self.maximum:
             raise ToolBudgetExceeded()
-        return None
+        return await handler(request)
+
+
+class RecommendationPhase(AgentMiddleware[AgentState[None], None]):
+    """서버 게이트 성공 뒤 조회 도구를 제거하고 최종 모델 호출을 식별한다."""
+
+    def __init__(self, sources: SourceTools, gate: RecommendationGate) -> None:
+        self.sources, self.gate = sources, gate
+        self.plan: RecommendationPlan | None = None
+        self.frozen = ""
+
+    async def prepare(self, plan: RecommendationPlan) -> str:
+        if self.plan is not None:
+            raise ValueError("Recommendation already prepared")
+        self.sources.count_call()
+        await self.gate(plan)
+        # 서버 검증 이후에만 후보와 근거를 고정한다. 이후 도구는 제공하지 않는다.
+        self.frozen = json.dumps(
+            {
+                "plan": plan.model_dump(mode="json"),
+                "resources": [
+                    self.sources.observed[item.key].model_input()
+                    for item in plan.selections
+                ],
+            },
+            ensure_ascii=False,
+        )
+        self.plan = plan.model_copy(deep=True)
+        return "서버 검증을 통과했습니다. 확정된 자료만 사용해 최종 답변을 작성하세요."
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[None],
+        handler: Callable[[ModelRequest[None]], Awaitable[ModelResponse[None]]],
+    ) -> ModelResponse[None]:
+        if self.plan is None:
+            return await handler(
+                request.override(
+                    tool_choice="required",
+                    model_settings={"parallel_tool_calls": False},
+                )
+            )
+        return await handler(
+            request.override(
+                model=request.model.model_copy(update={"tags": [FINAL_ANSWER_TAG]}),
+                tools=[],
+                tool_choice=None,
+                model_settings={},
+                system_message=SystemMessage(
+                    content=f"{AGENT_PROMPT}\n{FINAL_ANSWER_PROMPT}\n{self.frozen}"
+                ),
+            )
+        )
+
+    async def aafter_model(
+        self, state: AgentState[None], runtime: Runtime[None]
+    ) -> None:
+        message = state["messages"][-1]
+        if not isinstance(message, AIMessage) or message.invalid_tool_calls:
+            raise ValueError("Invalid agent response")
+        status = message.response_metadata.get("status")
+        if status is not None and status != "completed":
+            details = message.response_metadata.get("incomplete_details")
+            if (
+                isinstance(details, dict)
+                and details.get("reason") == "max_output_tokens"
+            ):
+                raise ToolBudgetExceeded()
+            # 제공자가 잘린 응답을 반환해도 완성 답변으로 저장하지 않는다.
+            raise ValueError("Incomplete provider response")
+        if self.plan is None:
+            # 도구 병렬 호출을 제공자가 무시해도 게이트와 조회가 경쟁하지 못한다.
+            if len(message.tool_calls) != 1:
+                raise ValueError("Agent must call one tool before answering")
+        elif message.tool_calls:
+            raise ValueError("Final answer cannot call tools")
+
+    async def awrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[object]]],
+    ) -> ToolMessage | Command[object]:
+        result = await handler(request)
+        if isinstance(result, ToolMessage) and result.status == "error":
+            raise ValueError("Invalid agent tool call")
+        return result
 
 
 class OpenAiAgentDriver:
@@ -73,98 +218,77 @@ class OpenAiAgentDriver:
             max_retries=0,
         )
 
-    async def plan(
+    async def stream(
         self,
-        tools: SourceTools,
+        sources: SourceTools,
         content: str,
         history: list[str],
-        previous: list[dict[str, object]],
-    ) -> RecommendationPlan:
+        previous: PreviousContext,
+        *,
+        gate: RecommendationGate,
+    ) -> AsyncGenerator[str]:
+        phase = RecommendationPhase(sources, gate)
+
+        @tool
+        async def prepare_recommendations(plan: RecommendationPlan) -> str:
+            """실제 조회 후보·이유를 서버에 검증받고 최종 답변 단계를 시작한다."""
+            return await phase.prepare(plan)
+
+        middleware: list[AgentMiddleware[AgentState[None], None]] = []
+        if sources.reader.context.purpose == "chat":
+            middleware.append(
+                InputGuardMiddleware(InputGuard(self.model), content, history)
+            )
+        middleware.extend(
+            [
+                RequestContext(sources, content, history, previous),
+                phase,
+                InputBudget(self.settings.ai_max_input_tokens),
+            ]
+        )
         agent = create_agent(
             model=self.model,
-            tools=tools.build(),
-            system_prompt=PLANNER_PROMPT,
-            response_format=ProviderStrategy(RecommendationPlan, strict=True),
-            middleware=[
-                InputBudget(self.settings.ai_max_input_tokens),
-            ],
+            tools=[*sources.build(), prepare_recommendations],
+            system_prompt=AGENT_PROMPT,
+            middleware=middleware,
         )
-        payload = {
-            "purpose": tools.reader.context.purpose,
-            "currentTime": datetime.now(UTC).isoformat(),
-            "previousUserMessages": history,
-            "previousResults": previous,
-            "request": content,
-        }
-        with tracing_context(enabled=False):
-            state = await agent.ainvoke(
-                {
-                    "messages": [
-                        HumanMessage(content=json.dumps(payload, ensure_ascii=False))
-                    ]
-                },
-                config={"recursion_limit": 24, "callbacks": []},
-            )
-        plan = state.get("structured_response")
-        if not isinstance(plan, RecommendationPlan):
-            raise ValueError("Missing structured recommendation")
-        return plan
-
-    async def write(
-        self, plan: RecommendationPlan, resources: list[Resource], content: str
-    ) -> AsyncIterator[str]:
-        queue: asyncio.Queue[str | Exception | None] = asyncio.Queue(maxsize=1)
-
-        async def produce() -> None:
-            try:
-                async for part in self._write(plan, resources, content):
-                    await queue.put(part)
-            except Exception as error:
-                await queue.put(error)
-            else:
-                await queue.put(None)
-
-        task = asyncio.create_task(produce())
+        emitted = False
         try:
-            while True:
-                item = await queue.get()
-                if item is None:
-                    break
-                if isinstance(item, Exception):
-                    raise item
-                yield item
-        finally:
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-
-    async def _write(
-        self, plan: RecommendationPlan, resources: list[Resource], content: str
-    ) -> AsyncIterator[str]:
-        payload = json.dumps(
-            {
-                "request": content,
-                "plan": plan.model_dump(),
-                "resources": [resource.model_input() for resource in resources],
-            },
-            ensure_ascii=False,
-        )
-        budget = InputBudget(self.settings.ai_max_input_tokens)
-        if len(budget.encoder.encode(payload, disallowed_special=())) > budget.maximum:
-            raise ToolBudgetExceeded()
-        buffer = ""
-        total = 0
-        with tracing_context(enabled=False):
-            async for chunk in self.model.astream(
-                [SystemMessage(content=WRITER_PROMPT), HumanMessage(content=payload)],
-                config={"callbacks": []},
-            ):
-                part = str(chunk.text)
-                total += len(part)
-                if total > 12000:
-                    raise ToolBudgetExceeded()
-                buffer += part
-                if len(buffer) >= 48:
-                    yield buffer
-                    buffer = ""
-            if buffer:
-                yield buffer
+            with tracing_context(enabled=False):
+                async with aclosing(
+                    cast(
+                        AsyncGenerator[StreamEvent],
+                        agent.astream_events(
+                            {
+                                "messages": [
+                                    HumanMessage(id=REQUEST_MESSAGE_ID, content=content)
+                                ]
+                            },
+                            config={"recursion_limit": 32, "callbacks": []},
+                            version="v2",
+                        ),
+                    )
+                ) as events:
+                    async for event in events:
+                        if (
+                            event["event"] != "on_chat_model_stream"
+                            or FINAL_ANSWER_TAG not in event.get("tags", [])
+                        ):
+                            continue
+                        chunk = event["data"].get("chunk")
+                        if isinstance(chunk, AIMessageChunk) and chunk.text:
+                            if phase.plan is None:
+                                raise ValueError("Answer before server validation")
+                            emitted = True
+                            # text는 추론·도구 인자가 아닌 텍스트 블록만 추출한다.
+                            yield str(chunk.text)
+        except InputBlocked as error:
+            await gate(
+                RecommendationPlan(
+                    intent="clarify", selections=[], guidance=error.guidance
+                )
+            )
+            yield error.guidance
+            return
+        if phase.plan is None or not emitted:
+            raise ValueError("Missing validated final answer")

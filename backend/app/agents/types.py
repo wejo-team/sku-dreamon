@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
@@ -75,3 +76,7 @@ def fingerprint(value: object) -> str:
             value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         ).encode()
     ).hexdigest()
+
+
+RecommendationGate = Callable[[RecommendationPlan], Awaitable[None]]
+PreviousContext = Callable[[], Awaitable[list[dict[str, object]]]]
