@@ -1,0 +1,20 @@
+# 개발 DB의 영구 볼륨과 분리된 일회성 테스트 PostgreSQL입니다.
+name: sku-dreamon-tests
+
+services:
+  postgres:
+    image: postgres:17.11
+    environment:
+      POSTGRES_USER: wejo
+      POSTGRES_PASSWORD: wejo
+      POSTGRES_DB: wejo_e2e
+    ports:
+      - "127.0.0.1:${TEST_POSTGRES_PORT:-55433}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data:size=1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wejo -d wejo_e2e"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s

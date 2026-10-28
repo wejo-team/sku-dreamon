@@ -16,7 +16,7 @@
 - 다단어 필드를 가진 API DTO를 처음 구현할 때 [컨벤션](conventions.md)의 「API JSON 필드명」 규칙을 실제 HTTP 요청·응답으로 검사합니다. camelCase 요청 허용·응답 이름, snake_case·혼용 요청 거부, 선택 필드의 잘못된 이름, 중첩 DTO·목록에 대한 규칙 적용과 임의 map 키 보존을 확인합니다. 이 검사는 해당 DTO 구현과 함께 추가합니다.
 - DB 통합 테스트는 전용 PostgreSQL을 사용하고 테스트 사이의 데이터 오염을 막습니다. 서비스 내부 commit이 있는 경우에도 격리되는 전략을 구현하고 검증합니다.
 - 일반 PR 테스트에서 AI·유료 외부 API는 mock으로 대체합니다. 실 API 테스트는 필요할 때 수동·정기 workflow로 분리합니다.
-- 제품 Playwright는 `frontend/e2e/`에서 실제 HTTPS·쿠키·CSRF·서버·DB를 검사합니다. `npm run test:e2e`는 준비된 서버에 연결하고, `python3 scripts/run_bugbash.py`는 서버 준비 확인·실행·종료까지 담당합니다. CI의 `Integration E2E`도 같은 실행기를 사용하며, 기본 비AI 시나리오 뒤 `--ai-fixture`로 AI 화면 시나리오를 별도 실행합니다. 모델 드라이버만 대체하고 HTTPS·SSE·인증·DB는 실제 경로를 사용하며 유료 제공자는 호출하지 않습니다. [시험 환경과 명령](bug-bash.md#ai-e2e)을 따릅니다. Vitest의 `npm test`와 별도 검사입니다. 모바일 viewport 검사는 실제 기기의 키보드·스크롤 확인을 보완합니다.
+- 제품 Playwright는 `frontend/e2e/`에서 실제 HTTPS·쿠키·CSRF·서버·DB를 검사합니다. `python3 scripts/run_bugbash.py`가 localhost `*_e2e` DB 검증·서버 준비·E2E·종료를 담당합니다. 검증 정보를 받지 않은 `npm run test:e2e` 직접 실행은 요청 전에 실패하며 개발 DB에는 연결하지 않습니다. CI의 `Integration E2E`도 같은 실행기를 사용하며, 기본 비AI 시나리오 뒤 `--ai-fixture`로 AI 화면 시나리오를 별도 실행합니다. 모델 드라이버만 대체하고 HTTPS·SSE·인증·DB는 실제 경로를 사용하며 유료 제공자는 호출하지 않습니다. [시험 환경과 명령](bug-bash.md#ai-e2e)을 따릅니다. Vitest의 `npm test`와 별도 검사입니다. 모바일 viewport 검사는 실제 기기의 키보드·스크롤 확인을 보완합니다.
 
 ## 개발 시드 통합 회귀
 
@@ -46,7 +46,7 @@ uv run pytest tests/integration/test_dev_seed.py
 | 백엔드 실행 기반 | `uv sync --locked`, Ruff lint·format check, mypy, pytest |
 | 비동기 DB 기반 | PostgreSQL에서 `alembic upgrade head`, `alembic check`, 연결 검사, 세션 분리·commit·rollback·종료 정리 통합 테스트 |
 | DB 모델 도입 | 위 검사에 실제 모델의 migration 적용·조회 테스트 추가 |
-| 제품 브라우저 통합 | 앱 변경과 main에서 `Integration E2E`: HTTPS·실제 API·격리 DB, 데스크톱/320px Chromium. 로컬은 기존 개발 DB에서도 같은 시나리오 실행 |
+| 제품 브라우저 통합 | 앱 변경과 main에서 `Integration E2E`: HTTPS·실제 API·격리 DB, 데스크톱/320px Chromium. 로컬도 별도 fixture 또는 개발 DB의 `*_e2e` 복제본에서만 실행 |
 
 - 프론트 검사 명령은 package.json scripts, Python 도구 설정은 pyproject.toml에 모읍니다. README·로컬 실행·CI가 같은 명령을 사용하도록 맞춥니다.
 - DB 통합 테스트의 데이터베이스는 운영 환경과 분리합니다. Alembic 적용 후 모델을 실제로 조회할 수 있는지 확인합니다.

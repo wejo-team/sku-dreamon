@@ -18,6 +18,7 @@ import type {
 } from '../src/features/contests/api';
 import type { Profile } from '../src/features/profiles/api';
 import type { TeamDetail as Team } from '../src/features/teams/api';
+import { verifyEnvironment } from './environment-guard';
 
 export { expect };
 export type { Application, Profile, Team };
@@ -32,7 +33,7 @@ export type Listing<T> = {
   };
 };
 export type TestContest = ContestDetail & { recruitmentDate: string };
-export const baseURL = process.env.E2E_BASE_URL ?? 'https://localhost:5183';
+export const baseURL = process.env.E2E_BASE_URL ?? '';
 export const password = 'Bugbash2026!Synthetic';
 export const unique = () => randomUUID().replaceAll('-', '').slice(0, 14);
 
@@ -60,6 +61,8 @@ export type ResourceTracker = {
 export const test = base.extend<{ resources: ResourceTracker }>({
   resources: [
     async ({ baseURL }, provide, testInfo) => {
+      // 별도 --config나 UI 실행에서도 첫 생성·화면 조작 전에 같은 경계를 확인합니다.
+      verifyEnvironment([baseURL], process.env);
       const runId = unique();
       const startedAt = new Date().toISOString();
       const entries: Resource[] = [];

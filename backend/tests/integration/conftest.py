@@ -4,10 +4,20 @@ import os
 
 import pytest
 
+from tests.database_guard import isolated_database_url
 
-@pytest.fixture
-def database_url() -> str:
+
+def configured_database_url() -> str:
     url = os.environ.get("TEST_DATABASE_URL")
     if not url:
         pytest.skip("Set TEST_DATABASE_URL to an isolated PostgreSQL database")
+    try:
+        isolated_database_url(url, suffix="_test")
+    except ValueError as error:
+        pytest.fail(str(error), pytrace=False)
     return url
+
+
+@pytest.fixture
+def database_url() -> str:
+    return configured_database_url()

@@ -20,7 +20,8 @@ docker compose up -d --wait
 | DB | 용도 | 연결 설정 |
 | --- | --- | --- |
 | `wejo_dev` | 앱을 직접 사용하며 확인하는 로컬 개발 데이터 | `backend/.env`의 `DATABASE_URL` |
-| `wejo_test` | 자동 테스트의 데이터 생성·정리 | 셸의 `TEST_DATABASE_URL`, 테스트 migration에만 `DATABASE_URL` 임시 지정 |
+| `wejo_test` | 별도 테스트 컨테이너의 pytest 데이터 | 셸의 `TEST_DATABASE_URL`, 테스트 migration에만 `DATABASE_URL` 임시 지정 |
+| `wejo_e2e` | 별도 테스트 컨테이너의 브라우저 fixture·임시 자원 | `.bugbash/backend.env`, 검증 실행기로만 자동테스트 실행 |
 | 운영 DB | 별도 배포 환경의 실제 데이터 | 배포 환경에서 주입하며 로컬 설정과 분리 |
 
 5432 포트를 사용할 수 없다면 다른 포트로 실행합니다.
@@ -65,7 +66,7 @@ API는 `http://127.0.0.1:8000`, 대화형 API 문서는 `/docs`입니다. `GET /
 
 `upgrade head`는 계정·서버 세션, 학사, 공고, 프로필, 팀·지원·소속·발생 건·알림과 AI 실행 메타데이터·대화·메시지까지 migration 9개를 적용합니다. 현재 적용 대상은 [DB 인덱스](../database/README.md)와 [Alembic 모델 등록](../../backend/alembic/env.py)에서 확인합니다. 스키마 적용은 운영 학사 원장·공고·시연 데이터를 적재하지 않습니다. 모델 추가 방법은 [백엔드 가이드](backend.md)를 따릅니다.
 
-개발용 데이터는 `wejo_dev`에 넣고 실제 API로 변경하면서 검증합니다. 공고 등록은 [공고 CLI](../api/contests.md#contest-import-cli), 가입·프로필·팀 생성은 각 [API](../api/README.md)를 사용합니다. 자동 테스트 fixture는 `wejo_test`에서 생성·정리하며 개발 DB의 예시 데이터를 대신하지 않습니다.
+개발용 데이터는 `wejo_dev`에 넣고 직접 화면·API를 사용하며 확인합니다. 공고 등록은 [공고 CLI](../api/contests.md#contest-import-cli), 가입·프로필·팀 생성은 각 [API](../api/README.md)를 사용합니다. 개발 DB에는 준비된 데이터셋과 사용자 변경을 유지합니다. 자동테스트는 별도 컨테이너의 `wejo_test`·`wejo_e2e`에서 실행하며 개발 DB를 대상으로 실행할 수 없습니다. 구성과 초기화는 [통합테스트의 격리 환경](bug-bash.md#isolated-environment)을 따릅니다.
 
 개발용 사용자·팀 예시 데이터는 백엔드 폴더에서 다음 명령으로 준비합니다. [시드 스크립트](../../backend/scripts/seed_dev_data.py)는 로컬 `wejo_dev`만 허용하고, 기본 실행은 전체 데이터를 생성·검증한 뒤 롤백합니다.
 
@@ -146,16 +147,17 @@ uv run alembic check
 
 유닛 테스트만 실행하려면 `uv run pytest tests/unit`, DB 없이 HTTP 통합만 확인하려면 `uv run pytest tests/integration -m "not database"`를 사용합니다. 전체 테스트는 위의 `uv run pytest`로 실행합니다. `integration` marker는 HTTP·DB 경계 검사를, `database` marker는 전용 PostgreSQL이 필요한 검사를 뜻합니다.
 
-`pytest`는 `TEST_DATABASE_URL`이 없으면 DB 통합 테스트를 건너뜁니다. 전체 DB 검증에는 전용 테스트 DB를 만듭니다. 아래 생성 명령은 저장소 루트에서 한 번만 실행합니다.
+`pytest`는 `TEST_DATABASE_URL`이 없으면 DB 통합 테스트를 건너뜁니다. 지정한 경우 localhost `*_test`만 허용합니다. 개발 컨테이너와 영구 볼륨을 공유하지 않는 [테스트 전용 Compose](../../compose.test.yaml)를 준비합니다. 이 컨테이너의 데이터는 중지·재시작하면 사라지므로 그때마다 DB 생성·migration을 다시 실행합니다.
 
 ```bash
-docker compose exec postgres createdb -U wejo wejo_test
+docker compose -f compose.test.yaml up -d --wait
+docker compose -f compose.test.yaml exec -T postgres createdb -U wejo wejo_test
 ```
 
 그다음 백엔드 폴더에서 테스트 DB의 실제 포트에 맞춰 실행합니다. `TEST_DATABASE_URL`은 명시적으로 셸에 설정하며 `.env`에서 자동으로 읽지 않습니다.
 
 ```bash
-export TEST_DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:5432/wejo_test
+export TEST_DATABASE_URL=postgresql+asyncpg://wejo:wejo@127.0.0.1:55433/wejo_test
 DATABASE_URL="$TEST_DATABASE_URL" uv run alembic upgrade head
 DATABASE_URL="$TEST_DATABASE_URL" uv run alembic check
 DATABASE_URL="$TEST_DATABASE_URL" uv run python -m app.core.db.check

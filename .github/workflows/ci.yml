@@ -81,6 +81,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
+          --tmpfs /var/lib/postgresql/data:size=1g
           --health-cmd "pg_isready -U wejo -d wejo_test"
           --health-interval 5s
           --health-timeout 5s
@@ -121,6 +122,7 @@ jobs:
         ports:
           - 55433:5432
         options: >-
+          --tmpfs /var/lib/postgresql/data:size=1g
           --health-cmd "pg_isready -U wejo -d wejo_e2e"
           --health-interval 5s
           --health-timeout 5s
