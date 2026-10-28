@@ -5,12 +5,12 @@ flowchart TB
     인증 주체·목적·대상"]
     factory["SourceTools.build()
     목적별 도구 구성
-    Planner에 도구 주입
+    ReAct 읽기 단계에 주입
     호출 한도·근거 추적"]
     subgraph toolset["목적별로 선택하는 읽기 전용 도구"]
         chat["일반 채팅
-        search_resources
-        read_resource"]
+        search_people · search_contests
+        search_teams · get_resource_detail"]
         review["지원자 검토
         read_applicant
         대상은 서버에서 고정"]

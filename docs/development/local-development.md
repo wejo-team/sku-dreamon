@@ -188,7 +188,7 @@ AI 백엔드는 `backend/.env`의 `OPENAI_API_KEY`를 읽습니다. 키는 Pytho
 | `AI_MAX_TOOL_CALLS` / `AI_MAX_SOURCES` | 8 / 30 | 한 실행의 도구 호출·자료 수 |
 | `AI_CONCURRENT_REQUESTS` / `AI_REQUESTS_PER_HOUR` | 2 / 30 | 계정별 동시 실행·최근 시도 제한 |
 
-계획 단계는 최대 6회 모델 호출, 한 요청은 최초 실행을 포함해 최대 3회 시도합니다. 시간 제한·일시 장애는 실패 재시도, 입력/도구 예산 초과는 조건 수정 후 새 요청으로 처리합니다. 설정의 허용 범위는 [Settings](../../backend/app/core/config.py)가 원본입니다.
+단일 ReAct는 최종 답변을 포함해 최대 6회 모델을 호출하며 일반 채팅 입력 분류 1회는 별도입니다. 내부 검증 제어 도구도 도구 호출 한도에 포함합니다. 한 요청은 최초 실행을 포함해 최대 3회 시도합니다. 시간 제한·일시 장애는 실패 재시도, 입력/도구 예산 초과는 조건 수정 후 새 요청으로 처리합니다. 설정의 허용 범위는 [Settings](../../backend/app/core/config.py)가 원본입니다.
 
 일반 테스트는 가짜 모델과 격리 PostgreSQL로 검사합니다. 실제 모델 수동 검사는 아래 명령을 **명시적으로 실행할 때만** OpenAI API를 호출하며 과금될 수 있습니다. 가상 자료만 보내고 키·생성 원문은 출력하지 않습니다.
 
@@ -197,7 +197,7 @@ cd backend
 uv run pytest tests/unit/test_ai_contract.py
 # TEST_DATABASE_URL을 격리된 테스트 DB로 지정한 상태에서 실행합니다.
 uv run pytest tests/integration/test_ai.py
-# 실제 Luna 도구 호출·구조화 출력·스트리밍 검사
+# 실제 Luna 입력 가드·ReAct·필수 검증·스트리밍 검사
 PYTHONPATH=. uv run python tests/manual/check_ai_model.py
 ```
 

@@ -4,4 +4,4 @@
 
 | 문서 | 상태 | 기준 명세 |
 | --- | --- | --- |
-| [AI 에이전트 SDD](ai-agent.md) | 백엔드 [#157](https://github.com/wejo-team/sku-dreamon/pull/157)·제품 화면의 실제 API 연결 [#192](https://github.com/wejo-team/sku-dreamon/pull/192) 병합, 실제 모델 화면 통합 검사·운영 배포 후속 | [LLM 기반 추천](../specs/matching.md) |
+| [AI 에이전트 SDD](ai-agent.md) | 백엔드 [#157](https://github.com/wejo-team/sku-dreamon/pull/157)·제품 화면의 실제 API 연결 [#192](https://github.com/wejo-team/sku-dreamon/pull/192) 병합, 단일 ReAct·입력 가드 [#206](https://github.com/wejo-team/sku-dreamon/pull/206) 구현. 실제 모델 화면 통합 검사·운영 배포 후속 | [LLM 기반 추천](../specs/matching.md) |

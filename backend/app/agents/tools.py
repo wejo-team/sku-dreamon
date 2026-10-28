@@ -70,25 +70,44 @@ class SourceTools:
         if self.reader.context.purpose == "chat":
 
             @tool
-            async def search_resources(
-                kind: Literal["contest", "team", "person"],
+            async def search_people(
                 query: Annotated[str, Field(max_length=100)] = "",
                 page: Annotated[int, Field(ge=1, le=10)] = 1,
             ) -> dict[str, object]:
-                """공개 자료를 핵심 단어로 검색하고 없으면 빈 검색어로 확인한다."""
+                """공개 프로필만 검색하며 지원자 권한·본인 비공개 정보는 쓰지 않는다."""
                 self.count_call()
-                ids, more = await self.reader.search(kind, query, page)
-                return {"items": await self.items(kind, ids), "hasMore": more}
+                ids, more = await self.reader.search("person", query, page)
+                return {"items": await self.items("person", ids), "hasMore": more}
 
             @tool
-            async def read_resource(
+            async def search_contests(
+                query: Annotated[str, Field(max_length=100)] = "",
+                page: Annotated[int, Field(ge=1, le=10)] = 1,
+            ) -> dict[str, object]:
+                """추천 가능한 공모전을 검색한다. 자격은 원문 확인을 안내한다."""
+                self.count_call()
+                ids, more = await self.reader.search("contest", query, page)
+                return {"items": await self.items("contest", ids), "hasMore": more}
+
+            @tool
+            async def search_teams(
+                query: Annotated[str, Field(max_length=100)] = "",
+                page: Annotated[int, Field(ge=1, le=10)] = 1,
+            ) -> dict[str, object]:
+                """현재 요청자가 지원할 수 있는 모집 팀을 검색한다."""
+                self.count_call()
+                ids, more = await self.reader.search("team", query, page)
+                return {"items": await self.items("team", ids), "hasMore": more}
+
+            @tool
+            async def get_resource_detail(
                 kind: Literal["contest", "team", "person"], resource_id: UUID
             ) -> dict[str, object]:
                 """앞선 결과의 실제 식별자로 현재 공개된 상세 근거를 읽는다."""
                 self.count_call()
                 return (await self.load(kind, resource_id)).model_input()
 
-            return [search_resources, read_resource]
+            return [search_people, search_contests, search_teams, get_resource_detail]
 
         if self.reader.context.application_id is not None:
 
