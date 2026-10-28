@@ -188,7 +188,7 @@ describe('official reference public exploration', () => {
       'page',
     );
 
-    await user.click(within(nav).getByRole('link', { name: '다음 페이지' }));
+    await user.click(within(nav).getByRole('link', { name: '3페이지' }));
     expect(
       screen
         .getAllByRole('heading', { level: 3 })
@@ -202,9 +202,12 @@ describe('official reference public exploration', () => {
     expect(currentUrl().searchParams.toString()).toBe(
       expectedLastPage.toString(),
     );
-    expect(screen.getByRole('button', { name: '다음 페이지' })).toBeDisabled();
+    expect(screen.getByRole('link', { name: '3페이지' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
 
-    await user.click(screen.getByRole('link', { name: '이전 페이지' }));
+    await user.click(screen.getByRole('link', { name: '2페이지' }));
     const listPath = currentUrl().pathname + currentUrl().search;
     const teamLink = screen.getByRole('link', { name: /페이지 팀 07/ });
     expect(

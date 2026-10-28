@@ -210,7 +210,7 @@ describe('workspace boundary regressions', () => {
       await user.click(
         within(
           screen.getByRole('navigation', { name: '지원자 목록 페이지' }),
-        ).getByRole('link', { name: '다음 페이지' }),
+        ).getByRole('link', { name: `${page + 1}페이지` }),
       );
       await settled(view.client);
     }

@@ -31,7 +31,7 @@ describe('ListPagination', () => {
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
   });
 
-  it('shows one current page and disables all movement for one page', () => {
+  it('shows one current page and a disabled first-page control for one page', () => {
     const { onNavigate } = renderPagination(1, 1);
     const nav = screen.getByRole('navigation', { name: '사람 목록 페이지' });
     expect(within(nav).getByRole('link', { name: '1페이지' })).toHaveAttribute(
@@ -39,17 +39,9 @@ describe('ListPagination', () => {
       'page',
     );
     expect(
-      within(nav).getByRole('button', { name: '이전 페이지' }),
-    ).toBeDisabled();
-    expect(
-      within(nav).getByRole('button', { name: '다음 페이지' }),
-    ).toBeDisabled();
-    expect(
       within(nav).getByRole('button', { name: '처음 페이지' }),
     ).toBeDisabled();
-    expect(
-      within(nav).getByRole('button', { name: '마지막 페이지' }),
-    ).toBeDisabled();
+    expect(within(nav).getAllByRole('listitem')).toHaveLength(2);
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
@@ -65,6 +57,15 @@ describe('ListPagination', () => {
       const numberLinks = within(nav).getAllByRole('link', {
         name: /^\d+페이지$/,
       });
+      expect(within(nav).getAllByRole('listitem')).toHaveLength(6);
+      for (const name of ['이전 페이지', '다음 페이지', '마지막 페이지']) {
+        expect(
+          within(nav).queryByRole('link', { name }),
+        ).not.toBeInTheDocument();
+        expect(
+          within(nav).queryByRole('button', { name }),
+        ).not.toBeInTheDocument();
+      }
       expect(numberLinks.map((link) => link.textContent)).toEqual(
         expectedPages.map(String),
       );
@@ -86,7 +87,6 @@ describe('ListPagination', () => {
 
   it.each([
     { label: '처음 페이지', target: 1 },
-    { label: '마지막 페이지', target: 41 },
     { label: '6페이지', target: 6 },
   ])(
     'jumps directly with $label while retaining filters',
@@ -101,35 +101,42 @@ describe('ListPagination', () => {
     },
   );
 
-  it('disables backward actions on the first page', () => {
+  it('skips the disabled first-page control during keyboard navigation', async () => {
     renderPagination(1, 9);
     expect(screen.getByRole('button', { name: '처음 페이지' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '이전 페이지' })).toBeDisabled();
-    expect(screen.getByRole('link', { name: '마지막 페이지' })).toHaveAttribute(
-      'href',
-      '/explore?tab=people&page=9',
-    );
+    const user = userEvent.setup();
+    await user.tab();
+    expect(screen.getByRole('link', { name: '1페이지' })).toHaveFocus();
   });
 
-  it('navigates to a page URL while retaining filters and reports navigation', async () => {
-    const { onNavigate } = renderPagination(2, 3);
+  it('supports keyboard activation in visible order and retains filters', async () => {
+    const { onNavigate } = renderPagination(20, 41);
     const user = userEvent.setup();
-    await user.click(screen.getByRole('link', { name: '다음 페이지' }));
+    await user.tab();
+    expect(screen.getByRole('link', { name: '처음 페이지' })).toHaveFocus();
+    await user.keyboard('{Enter}');
     expect(screen.getByLabelText('현재 주소')).toHaveTextContent(
-      '?tab=people&page=3',
+      '?tab=people&page=1',
     );
     expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 
-  it('disables the next action on the last page', () => {
+  it('keeps valid backward page choices on the last page', () => {
     renderPagination(3, 3);
-    expect(screen.getByRole('button', { name: '다음 페이지' })).toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: '마지막 페이지' }),
-    ).toBeDisabled();
-    expect(screen.getByRole('link', { name: '이전 페이지' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '처음 페이지' })).toHaveAttribute(
+      'href',
+      '/explore?tab=people&page=1',
+    );
+    expect(screen.getByRole('link', { name: '2페이지' })).toHaveAttribute(
       'href',
       '/explore?tab=people&page=2',
     );
+    expect(screen.getByRole('link', { name: '3페이지' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(
+      screen.queryByRole('link', { name: '4페이지' }),
+    ).not.toBeInTheDocument();
   });
 });
