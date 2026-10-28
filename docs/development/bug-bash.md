@@ -9,9 +9,9 @@
 | 프론트 `npm test` | Vitest·컴포넌트·목업 HTTP 계약 | 실제 쿠키·서버·DB 연동 |
 | 백엔드 `uv run pytest` | 순수 로직·ASGI·격리 PostgreSQL | 실제 브라우저 UI·프록시 |
 | 프론트 `npm run test:e2e` | 실제 HTTPS 브라우저와 서버, 계정별 쿠키, DB 저장 | 실제 LLM·운영 배포·실기기 Safari |
-| 팀 bug bash | 아래 수동 시나리오와 실제 기기 | 미실행 시나리오·미구현 AI 연결 |
+| 팀 bug bash | 아래 수동 시나리오와 실제 기기 | 미실행 시나리오·운영 배포 |
 
-`VITE_API_MOCK=false`는 비AI 화면을 실제 서버에 연결합니다. 현재 AI 대화와 지원자 AI 검토 UI는 이 설정에서도 모의 응답입니다. 실제 AI 연결은 [#163](https://github.com/wejo-team/sku-dreamon/issues/163), 품질·비용·보존 검증은 [#164](https://github.com/wejo-team/sku-dreamon/issues/164)에서 추적합니다.
+`VITE_API_MOCK=false`는 AI를 포함한 제품 화면을 실제 서버에 연결합니다. `VITE_API_MOCK=true`의 모의 대화와 구분합니다. 기본 E2E는 모델 키 없이 비AI 흐름을 검사하고, 아래 AI 전용 E2E는 모델 드라이버만 결정적인 시험 구현으로 대체합니다. 실제 제공자 응답·품질·비용·보존 검증은 [#164](https://github.com/wejo-team/sku-dreamon/issues/164)의 별도 범위입니다.
 
 ## 격리 환경
 
@@ -138,6 +138,24 @@ Linux의 브라우저 시스템 패키지 설치에는 관리자 권한이 필�
 
 `test-results/`에 실패 trace·스크린샷 및 성공 시 주요 화면을, `playwright-report/`에 HTML 결과를 남깁니다. 모두 Git에서 제외합니다. trace에는 가상 계정의 인증 요청이 포함될 수 있으므로 원본을 공개 이슈에 첨부하지 않고, 필요한 오류·요청 ID·화면만 확인해 공유합니다. 운영 계정으로 이 스크립트를 실행하지 않습니다.
 
+
+<a id="ai-e2e"></a>
+
+## AI 화면의 브라우저 통합
+
+AI 전용 검사는 [브라우저 시나리오](../../frontend/e2e/ai.spec.ts)와 [시험 서버 factory](../../backend/tests/e2e_ai_app.py)를 사용합니다. 실제 HTTPS·인증 쿠키·CSRF·AI 라우터·SSE·DB 조회 도구·결과 검증·대화 저장을 통과하고, 모델의 계획·답변 생성만 가상 구현으로 대체합니다. 실제 제공자 요청은 0회이며 결과 품질·지연·비용 평가는 포함하지 않습니다.
+
+```bash
+# 앞 절에서 준비한 로컬 *_e2e DB와 빈 OPENAI_API_KEY 설정
+python3 scripts/run_bugbash.py --ai-fixture
+# 다른 격리 DB/포트를 사용할 때
+python3 scripts/run_bugbash.py --ai-fixture --backend-env .bugbash/mixed-e2e/backend.env --backend-port 8023 --frontend-port 5195
+```
+
+`--ai-fixture`는 별도 `tests.e2e_ai_app:create_app`을 실행하고 AI 시나리오만 선택합니다. localhost의 이름이 `_e2e`로 끝나는 DB, 명시적 시험 플래그, 비어 있는 모델 키를 모두 요구합니다. 원본 `wejo_dev`에는 이 시험 드라이버를 사용하지 않습니다. 제품 서버의 설정이나 AI 라우트에는 시험 모드를 추가하지 않았습니다.
+
+대화·공개 철회 뒤 전체 결과 폐기, 실패 후 원입력 재시도·중단, 팀장 개별 검토·실제 지원자 추천을 데스크톱과 320px Chromium에서 검사합니다. 기존 기본 E2E와 AI E2E는 별도 실행·보고서로 보관합니다. 결과 파일과 생성 자원은 실행기 manifest에 남습니다.
+
 ## 기존 개발 DB와 CI 자료의 구분
 
 공고는 고정 UUID나 제목으로 선택하지 않습니다. API에서 접수 중·2명 팀 허용·검사 종료까지 충분한 시간이 남은 공고를 선택하고, 모집 마감은 공고 마감 이내로 계산합니다. 탐색 검증에는 2페이지 이상 공고, 공개 사람·팀 목록과 미확인/수집 출처/시작 시각 보완/마감 공고 사례가 필요합니다. 필요한 자료가 없으면 사전 조건 실패로 기록하며 임의 공고 생성이나 skip으로 대체하지 않습니다.
@@ -183,7 +201,7 @@ python3 scripts/run_bugbash.py --backend-env .bugbash/mixed-e2e/backend.env --ba
 | 두 탭 수정·연타·느린 응답·응답 유실 | 버전 충돌 안내, 같은 생성 시도 중복 저장 없음 |
 | 새로고침·만료·계정 전환 | 현재 세션과 캐시 일치, 다른 계정 정보 잔류 없음 |
 | 모바일 실제 기기 | 키보드·스크롤·뒤로가기·하단 버튼·외부 링크·알림 닫기 |
-| AI 화면 | 모의/실제 구분. #163 완료 전 실제 AI 통합 성공으로 기록하지 않음 |
+| AI 화면 | 실제 API 연결·시험 모델 E2E·실제 제공자 검증을 구분. 자동 E2E 결과를 추천 품질의 근거로 사용하지 않음 |
 
 이슈에는 **커밋·주소 / 역할·브라우저 / 재현 순서 / 기대·실제 결과 / HTTP 상태·오류 코드·requestId / 화면 / 심각도**를 적습니다. 인증 쿠키·키·실제 사용자 정보는 제외합니다. P0는 데이터 유실·권한 누출 등 즉시 중단 대상, P1은 핵심 흐름 차단, P2는 우회 가능한 기능 오류, P3는 경미한 표시 문제로 분류합니다.
 

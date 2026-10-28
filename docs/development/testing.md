@@ -16,7 +16,7 @@
 - 다단어 필드를 가진 API DTO를 처음 구현할 때 [컨벤션](conventions.md)의 「API JSON 필드명」 규칙을 실제 HTTP 요청·응답으로 검사합니다. camelCase 요청 허용·응답 이름, snake_case·혼용 요청 거부, 선택 필드의 잘못된 이름, 중첩 DTO·목록에 대한 규칙 적용과 임의 map 키 보존을 확인합니다. 이 검사는 해당 DTO 구현과 함께 추가합니다.
 - DB 통합 테스트는 전용 PostgreSQL을 사용하고 테스트 사이의 데이터 오염을 막습니다. 서비스 내부 commit이 있는 경우에도 격리되는 전략을 구현하고 검증합니다.
 - 일반 PR 테스트에서 AI·유료 외부 API는 mock으로 대체합니다. 실 API 테스트는 필요할 때 수동·정기 workflow로 분리합니다.
-- 제품 Playwright는 `frontend/e2e/`에서 실제 HTTPS·쿠키·CSRF·서버·DB를 검사합니다. `npm run test:e2e`는 준비된 서버에 연결하고, `python3 scripts/run_bugbash.py`는 서버 준비 확인·실행·종료까지 담당합니다. CI의 `Integration E2E`도 같은 실행기를 사용합니다. Vitest의 `npm test`와 별도 검사입니다. 모바일 viewport 검사는 실제 기기의 키보드·스크롤 확인을 보완합니다.
+- 제품 Playwright는 `frontend/e2e/`에서 실제 HTTPS·쿠키·CSRF·서버·DB를 검사합니다. `npm run test:e2e`는 준비된 서버에 연결하고, `python3 scripts/run_bugbash.py`는 서버 준비 확인·실행·종료까지 담당합니다. CI의 `Integration E2E`도 같은 실행기를 사용하며, 기본 비AI 시나리오 뒤 `--ai-fixture`로 AI 화면 시나리오를 별도 실행합니다. 모델 드라이버만 대체하고 HTTPS·SSE·인증·DB는 실제 경로를 사용하며 유료 제공자는 호출하지 않습니다. [시험 환경과 명령](bug-bash.md#ai-e2e)을 따릅니다. Vitest의 `npm test`와 별도 검사입니다. 모바일 viewport 검사는 실제 기기의 키보드·스크롤 확인을 보완합니다.
 
 ## 개발 시드 통합 회귀
 

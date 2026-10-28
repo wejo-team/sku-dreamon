@@ -15,6 +15,9 @@ const clientWithSession = () => {
   });
   client.setQueryData(queryKeys.me, { id: 'current-account' });
   client.setQueryData(queryKeys.myProfile, { realName: '개인 정보' });
+  client.setQueryData(['ai', 'target-result', 'current-account', 0], {
+    summary: '지원자 AI 검토',
+  });
   return client;
 };
 
@@ -55,6 +58,9 @@ describe('session expiry cache handling', () => {
     await Promise.resolve();
     expect(client.getQueryData(queryKeys.me)).toBeNull();
     expect(client.getQueryData(queryKeys.myProfile)).toBeUndefined();
+    expect(
+      client.getQueryData(['ai', 'target-result', 'current-account', 0]),
+    ).toBeUndefined();
     expect(client.getQueryData(['applications', 'late'])).toBeUndefined();
     expect(client.isFetching()).toBe(0);
     client.clear();
@@ -75,6 +81,9 @@ describe('session expiry cache handling', () => {
     expect(attempts).toBe(1);
     expect(client.getQueryData(queryKeys.me)).toBeNull();
     expect(client.getQueryData(queryKeys.myProfile)).toBeUndefined();
+    expect(
+      client.getQueryData(['ai', 'target-result', 'current-account', 0]),
+    ).toBeUndefined();
     client.clear();
   });
 

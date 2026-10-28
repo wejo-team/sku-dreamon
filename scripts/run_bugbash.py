@@ -100,6 +100,11 @@ def main() -> int:
     parser.add_argument(
         "--private-key", type=Path, default=ROOT / ".bugbash/localhost-key.pem"
     )
+    parser.add_argument(
+        "--ai-fixture",
+        action="store_true",
+        help="localhost *_e2e DB에서 모델 driver만 대체하는 AI 전용 E2E 실행",
+    )
     parser.add_argument("playwright_args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if os.name != "posix":
@@ -121,9 +126,17 @@ def main() -> int:
     origin = f"https://localhost:{args.frontend_port}"
     environment = os.environ.copy()
     for name in list(environment):
-        if name.upper() in {"DATABASE_URL", "TEST_DATABASE_URL", "OPENAI_API_KEY"}:
+        if name.upper() in {
+            "DATABASE_URL",
+            "TEST_DATABASE_URL",
+            "OPENAI_API_KEY",
+            "E2E_AI_FIXTURE",
+            "E2E_AI_VERIFIED_BASE_URL",
+        }:
             environment.pop(name)
-    # 비AI 실행기는 셸이나 env 파일의 모델 키를 사용하지 않는다.
+    if args.ai_fixture and environment.get("E2E_MIXED_DATA") == "1":
+        parser.error("AI fixture와 혼합 자료 검사는 별도로 실행하세요.")
+    # 어느 검사도 셸이나 env 파일의 모델 키를 사용하지 않는다.
     environment.update(
         OPENAI_API_KEY="",
         TEST_DATABASE_URL="",
@@ -135,6 +148,7 @@ def main() -> int:
         DEV_HTTPS_KEY=str(args.private_key.resolve()),
         VITE_API_MOCK="false",
         VITE_API_BASE_URL="/api/v1",
+        E2E_AI_FIXTURE="1" if args.ai_fixture else "0",
     )
     backend_prefix = ["uv", "run", "--env-file", str(args.backend_env.resolve())]
     # 설정 누락·대소문자 별칭 때문에 다른 DB나 모델 키로 실행하지 않는다.
@@ -151,6 +165,8 @@ def main() -> int:
             "and a.host in {'localhost','127.0.0.1','::1'} and bool(a.database) "
             "and make_url(str(settings.database_url)) == a "
             "and not settings.openai_api_key)\n"
+            "if os.environ.get('E2E_AI_FIXTURE') == '1':\n"
+            " valid = valid and a.database.endswith('_e2e')\n"
             "if os.environ.get('E2E_MIXED_DATA') == '1':\n"
             " b=make_url(os.environ.get('E2E_MIXED_DATABASE_URL',''))\n"
             " valid = valid and a == b and a.database.endswith('_e2e')\n"
@@ -163,13 +179,16 @@ def main() -> int:
     if check.returncode:
         parser.error(
             "env 파일의 명시적 localhost DATABASE_URL과 실제 설정이 같고 "
-            "AI 키가 비어 있어야 합니다. 혼합 검사는 같은 *_e2e 복제 DB만 허용합니다."
+            "AI 키가 비어 있어야 합니다. AI fixture는 *_e2e DB, "
+            "혼합 검사는 같은 *_e2e 복제 DB만 허용합니다."
         )
     # 직접 npm 실행이 다른 원본 서버에 시연 계정으로 쓰지 못하게 한다.
     # 부모 셸에는 남기지 않고 검증한 자식 실행에만 전달한다.
     environment.pop("E2E_MIXED_VERIFIED_BASE_URL", None)
     if environment.get("E2E_MIXED_DATA") == "1":
         environment["E2E_MIXED_VERIFIED_BASE_URL"] = origin
+    if args.ai_fixture:
+        environment["E2E_AI_VERIFIED_BASE_URL"] = origin
 
     processes: list[subprocess.Popen[bytes]] = []
     result = 1
@@ -184,7 +203,11 @@ def main() -> int:
                     backend_prefix
                     + [
                         "uvicorn",
-                        "app.main:app",
+                        *(
+                            ["tests.e2e_ai_app:create_app", "--factory"]
+                            if args.ai_fixture
+                            else ["app.main:app"]
+                        ),
                         "--host",
                         "127.0.0.1",
                         "--port",
@@ -252,6 +275,7 @@ def main() -> int:
                     "baseURL": origin,
                     "exitCode": result,
                     "mixedData": environment.get("E2E_MIXED_DATA") == "1",
+                    "aiFixture": args.ai_fixture,
                 },
                 indent=2,
             )

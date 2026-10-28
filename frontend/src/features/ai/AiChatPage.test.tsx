@@ -12,6 +12,12 @@ import { createDemoRecords, type DemoDatabase } from '@/features/demo/fixtures';
 import { useSaveVisibility } from '@/features/profiles/queries';
 import { demoIds, ME, myProfile, renderWithApi, settled } from '@/test/render';
 
+// 이 파일은 명시적인 모의 대화 UI 회귀를 유지합니다. 실제 SSE는 별도 UI 테스트에서 검증합니다.
+vi.mock('@/lib/clock', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/clock')>()),
+  isMockApi: true,
+}));
+
 // 화면 밖 조작(로그인·로그아웃·지원·공개 전환)은 실제 API 함수로 목업 서버에 보냅니다.
 function TestNavigation() {
   const login = useLogin();

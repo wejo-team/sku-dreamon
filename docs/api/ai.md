@@ -1,6 +1,6 @@
 # AI API
 
-**상태: 백엔드 #157 main 병합 · 프론트 미연결 · 운영 배포 미검증.** 일반 대화, 팀장의 지원자 검토·후보 추천을 OpenAI Luna와 `create_agent`로 실행합니다. 모든 경로는 `/api/v1` 아래에 있으며 현재 서버 세션으로 인증합니다. 제품 정책은 [추천 명세](../specs/matching.md), 실행 구조는 [아키텍처](../development/ai-architecture.md), 범위·결정은 [SDD](../development-plans/ai-agent.md)를 따릅니다.
+**상태: 백엔드 #157과 제품 AI 화면의 실제 API 연결 구현 · 운영 배포 미검증.** 일반 대화, 팀장의 지원자 검토·후보 추천을 OpenAI Luna와 `create_agent`로 실행합니다. 모든 경로는 `/api/v1` 아래에 있으며 현재 서버 세션으로 인증합니다. 제품 정책은 [추천 명세](../specs/matching.md), 실행 구조는 [아키텍처](../development/ai-architecture.md), 범위·결정은 [SDD](../development-plans/ai-agent.md)를 따릅니다.
 
 정확한 요청·결과·이벤트 필드는 [AI DTO](../../backend/app/schemas/ai.py), 경로·HTTP 상태·의존성은 [라우터](../../backend/app/routers/ai.py)와 실행 앱의 `/docs`·`/openapi.json`이 원본입니다. 이전 `202 + Location + polling` 초안은 대체했으며 별도 대화 생성·목록·메시지 조회·복원 API는 제공하지 않습니다. 일반 채팅 접수 시 대화와 현재 입력을 저장하고 생성 완료 시 답변을 저장합니다.
 

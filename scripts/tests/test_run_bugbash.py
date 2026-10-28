@@ -8,9 +8,101 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import unittest
+from contextlib import ExitStack
+from pathlib import Path
+from unittest.mock import Mock, patch
 
+from scripts import run_bugbash
 from scripts.run_bugbash import require_unused_port, stop
+
+
+@unittest.skipUnless(os.name == "posix", "The bug bash runner requires POSIX")
+class AiFixtureBoundaryTests(unittest.TestCase):
+    def run_fixture(self, *, selected=False, valid=True):
+        # 실패 시 런타임을 시작하지 않는지와 자식의 실제 실행 인자·환경을 확인한다.
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            root = Path(directory)
+            files = [root / name for name in ("backend.env", "cert.pem", "key.pem")]
+            for file in files:
+                file.touch()
+            argv = [
+                "run_bugbash.py",
+                "--backend-env",
+                str(files[0]),
+                "--certificate",
+                str(files[1]),
+                "--private-key",
+                str(files[2]),
+                *(["--ai-fixture"] if selected else []),
+            ]
+            stack.enter_context(patch.object(run_bugbash, "ROOT", root))
+            stack.enter_context(patch.object(sys, "argv", argv))
+            stack.enter_context(
+                patch.dict(
+                    os.environ,
+                    {
+                        "E2E_AI_FIXTURE": "1",
+                        "e2e_ai_fixture": "1",
+                        "E2E_AI_VERIFIED_BASE_URL": "https://unverified.invalid",
+                        "e2e_ai_verified_base_url": "https://unverified.invalid",
+                        "database_url": "inherited-database",
+                        "openai_api_key": "synthetic-inherited-key",
+                    },
+                    clear=True,
+                )
+            )
+            stack.enter_context(patch.object(run_bugbash, "require_unused_port"))
+            check = stack.enter_context(
+                patch.object(
+                    run_bugbash.subprocess,
+                    "run",
+                    return_value=Mock(returncode=0 if valid else 1),
+                )
+            )
+            child = Mock()
+            child.wait.return_value = 0
+            start = stack.enter_context(
+                patch.object(run_bugbash.subprocess, "Popen", return_value=child)
+            )
+            stack.enter_context(patch.object(run_bugbash, "wait_ready"))
+            stack.enter_context(patch.object(run_bugbash, "stop"))
+            if valid:
+                self.assertEqual(run_bugbash.main(), 0)
+            else:
+                with self.assertRaises(SystemExit) as raised:
+                    run_bugbash.main()
+                self.assertEqual(raised.exception.code, 2)
+                start.assert_not_called()
+            return check.call_args.kwargs["env"], start.call_args_list
+
+    def test_inherited_ai_flags_and_case_aliases_cannot_select_fixture(self):
+        environment, calls = self.run_fixture()
+        self.assertEqual(environment["E2E_AI_FIXTURE"], "0")
+        self.assertEqual(environment["OPENAI_API_KEY"], "")
+        for key in (
+            "database_url",
+            "openai_api_key",
+            "e2e_ai_fixture",
+            "e2e_ai_verified_base_url",
+            "E2E_AI_VERIFIED_BASE_URL",
+        ):
+            self.assertNotIn(key, environment)
+        self.assertIn("app.main:app", calls[0].args[0])
+        self.assertNotIn("--factory", calls[0].args[0])
+
+    def test_explicit_ai_option_uses_only_test_factory_after_preflight(self):
+        environment, calls = self.run_fixture(selected=True)
+        self.assertEqual(environment["E2E_AI_FIXTURE"], "1")
+        self.assertEqual(
+            environment["E2E_AI_VERIFIED_BASE_URL"], environment["E2E_BASE_URL"]
+        )
+        self.assertIn("tests.e2e_ai_app:create_app", calls[0].args[0])
+        self.assertIn("--factory", calls[0].args[0])
+
+    def test_rejected_ai_preflight_starts_no_servers_or_browser(self):
+        self.run_fixture(selected=True, valid=False)
 
 
 @unittest.skipUnless(os.name == "posix", "The bug bash runner requires POSIX")

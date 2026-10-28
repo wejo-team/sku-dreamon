@@ -172,6 +172,10 @@ jobs:
         env:
           E2E_DATASET: synthetic-ci-fixture
         run: python scripts/run_bugbash.py
+      - name: Run AI UI with a fixture model and real HTTPS API
+        env:
+          E2E_DATASET: synthetic-ci-fixture-model
+        run: python scripts/run_bugbash.py --ai-fixture
       - name: Save synthetic-data E2E evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

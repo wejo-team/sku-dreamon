@@ -95,7 +95,7 @@ npm ci
 npm run dev
 ```
 
-`http://localhost:5173`에서 화면을 엽니다. `.env.example`의 기본값 `VITE_API_MOCK=true`는 메모리 목업 API를 사용합니다. 인증·프로필·탐색·팀·지원·알림의 화면 API 계층은 연결됐으며, 실제 서버 검증에는 `VITE_API_MOCK=false`와 HTTPS 설정 후 개발 서버를 재시작합니다. AI 화면은 아직 모의 응답입니다. [구현 현황](implementation-status.md)에서 구분합니다.
+`http://localhost:5173`에서 화면을 엽니다. `.env.example`의 기본값 `VITE_API_MOCK=true`는 메모리 목업 API를 사용합니다. 인증·프로필·탐색·팀·지원·알림의 화면 API 계층은 연결됐으며, 실제 서버 검증에는 `VITE_API_MOCK=false`와 HTTPS 설정 후 개발 서버를 재시작합니다. AI 대화·지원자 검토·지원자 추천도 이 설정에서 실제 서버에 연결됩니다. `VITE_API_MOCK=true`에서만 모의 대화를 사용합니다. [구현 현황](implementation-status.md)에서 구분합니다.
 
 `VITE_API_BASE_URL`은 브라우저에 노출되는 API 경로입니다. `API_PROXY_TARGET`은 Vite 개발 서버만 사용하며 기본값은 백엔드 8000 포트입니다. `DEV_HTTPS_CERT`·`DEV_HTTPS_KEY`를 모두 지정하면 HTTPS로 실행합니다. 서버의 Secure 쿠키·CSRF 검사는 유지하므로 HTTP 화면 시연을 실제 인증 검증으로 취급하지 않습니다. `/health`는 연결 확인 화면이며 DB 준비·인증 성공을 보장하지 않습니다. 실제 HTTPS 프록시 실행은 [bug bash 안내](bug-bash.md), 전송 계약은 [PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)를 따릅니다.
 
@@ -151,7 +151,7 @@ uv run pytest
 
 AI 백엔드는 `backend/.env`의 `OPENAI_API_KEY`를 읽습니다. 키는 Python 파일·프론트 환경변수에 넣지 않으며 `.env`는 Git에서 제외합니다. `uv sync --locked` 후 `uv run alembic upgrade head`로 AI 실행 메타데이터 migration까지 적용하고 서버를 실행합니다. 실제 서버에는 이전과 같은 HTTPS Origin·CSRF·세션 쿠키가 필요합니다.
 
-모델은 `gpt-6-luna`, Responses API, `store=False`로 연결합니다. 키가 없으면 일반 서버는 시작하지만 AI 생성 요청은 503을 반환합니다. 로그인 등 비AI 화면은 API에 연결됐으며, AI 화면의 실제 SSE 연결은 [#163](https://github.com/wejo-team/sku-dreamon/issues/163)의 후속 작업입니다. 정확한 경로·본문·SSE 이벤트는 [AI API](../api/ai.md)와 실행 앱의 `/docs`·`/openapi.json`에서 확인합니다.
+모델은 `gpt-6-luna`, Responses API, `store=False`로 연결합니다. 키가 없으면 일반 서버는 시작하지만 AI 생성 요청은 503을 반환합니다. `VITE_API_MOCK=false`에서 로그인 후 AI 탭의 자연어 대화, 팀장의 지원자 상세 AI 검토, 팀 공간의 AI 지원자 추천을 이용합니다. 생성 버튼을 누르면 실제 모델 요청이 발생하며, 자동 생성·실패 자동 재전송은 하지 않습니다. 키가 없는 경우 화면에 준비되지 않았다는 안내를 표시하고 모의 답변으로 대체하지 않습니다. 대화·초안은 현재 탭 메모리에서만 유지하며 새로고침·새 대화·로그아웃 시 초기화합니다. 무료 자동 회귀 검사는 [AI 브라우저 통합](bug-bash.md#ai-e2e)을 따릅니다. 정확한 경로·본문·SSE 이벤트는 [AI API](../api/ai.md)와 실행 앱의 `/docs`·`/openapi.json`에서 확인합니다.
 
 | 설정 | 기본값 | 의미 |
 | --- | --- | --- |
