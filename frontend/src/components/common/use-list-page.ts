@@ -1,7 +1,7 @@
 /**
  * [참조 출처]
  * 1. design-reference/src/features/design-preview/use-list-page.ts - 목록 페이지 계산 원본
- * 2. docs/design/screens.md - 「확인할 상태와 연결」 페이지당 6개, 조건 변경 시 1페이지, 잘못된 페이지 보정
+ * 2. docs/design/screens.md - 「확인할 상태와 연결」 목록별 페이지 크기, 조건 변경 시 1페이지, 잘못된 페이지 보정
  * 3. docs/development/frontend.md - 「화면과 상태」 공유 가능한 검색·필터·페이지 값은 URL 우선
  * 4. docs/api/conventions.md#pagination - page는 1 이상 정수, 범위 밖은 422, 마지막 페이지를 넘으면 서버가 마지막 페이지로 보정
  */
@@ -9,8 +9,9 @@
 import { useEffect, useRef } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 
-// [출처 2] 페이지당 6개(운영 페이지 크기는 미정)
+// [출처 2] 기본 목록은 6개, 공모전 탐색은 더 많은 결과를 한 페이지에 표시합니다.
 export const REFERENCE_PAGE_SIZE = 6;
+export const CONTEST_EXPLORE_PAGE_SIZE = 12;
 
 // [출처 3, 4] URL의 page 값을 API에 보낼 수 있는 값으로 읽습니다(잘못된 값은 1).
 export function requestedPage(params: URLSearchParams, parameter = 'page') {
@@ -20,13 +21,18 @@ export function requestedPage(params: URLSearchParams, parameter = 'page') {
 }
 
 // [출처 2, 3] URL의 page를 읽고 범위를 보정. 전체 수를 아직 모르면(ready=false) URL을 고치지 않습니다.
-export function useListPage(total: number, parameter = 'page', ready = true) {
+export function useListPage(
+  total: number,
+  parameter = 'page',
+  ready = true,
+  pageSize = REFERENCE_PAGE_SIZE,
+) {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const raw = params.get(parameter);
   const requested = requestedPage(params, parameter);
-  const totalPages = Math.ceil(total / REFERENCE_PAGE_SIZE);
+  const totalPages = Math.ceil(total / pageSize);
   const page = ready ? Math.min(requested, Math.max(1, totalPages)) : requested;
   const conditions = new URLSearchParams(params);
   conditions.delete(parameter);
@@ -63,8 +69,8 @@ export function useListPage(total: number, parameter = 'page', ready = true) {
   return {
     page,
     totalPages,
-    start: (page - 1) * REFERENCE_PAGE_SIZE,
-    end: page * REFERENCE_PAGE_SIZE,
+    start: (page - 1) * pageSize,
+    end: page * pageSize,
     hrefForPage,
     headingRef,
   };

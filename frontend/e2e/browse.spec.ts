@@ -81,7 +81,7 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
   test.setTimeout(120_000);
   const first = await api<Listing>(
     page.request,
-    '/contests?page=1&pageSize=6&sort=created_desc',
+    '/contests?page=1&pageSize=12&sort=created_desc',
   );
   expect(
     first.pagination.totalPages,
@@ -93,7 +93,7 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
 
   const second = await api<Listing>(
     page.request,
-    '/contests?page=2&pageSize=6&sort=created_desc',
+    '/contests?page=2&pageSize=12&sort=created_desc',
   );
   await page
     .getByRole('navigation', { name: '탐색 결과 페이지' })
@@ -113,7 +113,7 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
   );
   const searched = await api<Listing>(
     page.request,
-    `/contests?q=${encodeURIComponent(query)}&page=1&pageSize=6&sort=created_desc`,
+    `/contests?q=${encodeURIComponent(query)}&page=1&pageSize=12&sort=created_desc`,
   );
   expect(searched.data.some((item) => item.id === first.data[0].id)).toBe(true);
   await assertListing(page, 'contests', searched);
@@ -147,7 +147,7 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
   );
   const filtered = await api<Listing>(
     page.request,
-    `/contests?fieldCode=${encodeURIComponent(field.code)}&page=1&pageSize=6&sort=created_desc`,
+    `/contests?fieldCode=${encodeURIComponent(field.code)}&page=1&pageSize=12&sort=created_desc`,
   );
   expect(
     filtered.data.every((item) => item.fieldCodes?.includes(field.code)),
@@ -158,7 +158,7 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
     .selectOption('deadline');
   const sorted = await api<Listing>(
     page.request,
-    `/contests?fieldCode=${encodeURIComponent(field.code)}&page=1&pageSize=6&sort=deadline_asc`,
+    `/contests?fieldCode=${encodeURIComponent(field.code)}&page=1&pageSize=12&sort=deadline_asc`,
   );
   await assertListing(page, 'contests', sorted);
   const listUrl = page.url();
@@ -200,7 +200,7 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
   await page.getByRole('textbox', { name: '탐색 검색' }).fill(missingQuery);
   const empty = await api<Listing>(
     page.request,
-    `/contests?q=${missingQuery}&page=1&pageSize=6&sort=created_desc`,
+    `/contests?q=${missingQuery}&page=1&pageSize=12&sort=created_desc`,
   );
   expect(empty.pagination.total).toBe(0);
   await assertListing(page, 'contests', empty);
@@ -209,7 +209,7 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
   await assertListing(page, 'contests', first);
   const last = await api<Listing>(
     page.request,
-    `/contests?page=${first.pagination.totalPages}&pageSize=6&sort=created_desc`,
+    `/contests?page=${first.pagination.totalPages}&pageSize=12&sort=created_desc`,
   );
   await page.goto(`/explore?page=${first.pagination.totalPages + 10}`);
   await expect(page).toHaveURL(

@@ -2,7 +2,7 @@
  * [참조 출처]
  * 1. design-reference/src/features/design-preview/ExplorePages.tsx - 탐색·공모전 상세·사람 상세 원본
  * 2. docs/design/screens.md - 공모전·팀·사람 탐색, 공모전 상세의 함께할 팀, 사람 상세 접근 제한
- * 3. docs/design/tokens.md - 공모전 카드(왼쪽 40% 포스터·D-day·우하단 팀 수), 검색창 안 AI 아이콘, 44px 조작
+ * 3. docs/design/tokens.md - 공모전 카드(작은 포스터·D-day·우하단 팀 수), 검색창 안 AI 아이콘, 44px 조작
  * 4. docs/specs/contests.md - 공고 공개·참가·마감 정책
  * 5. docs/specs/profile.md#people-directory - 로그인 후 공개 프로필만 검색·열람
  * 6. docs/design/assets/explore-390.png, contest-teams-390.png, contest-teams-empty-390.png, people-pagination-390.png, search-ai-320.png - 실제 화면
@@ -57,6 +57,7 @@ import { ExploreFilters } from '@/features/explore/ExploreFilters';
 import { ProfileDetails } from '@/components/common/ProfileDetails';
 import { ListPagination } from '@/components/common/ListPagination';
 import {
+  CONTEST_EXPLORE_PAGE_SIZE,
   REFERENCE_PAGE_SIZE,
   requestedPage,
   useListPage,
@@ -108,7 +109,7 @@ export function ExplorePage() {
       fieldCode: category || undefined,
       sort: sort === 'deadline' ? 'deadline_asc' : 'created_desc',
       page,
-      pageSize: REFERENCE_PAGE_SIZE,
+      pageSize: CONTEST_EXPLORE_PAGE_SIZE,
     }),
     enabled: tab === 'contests',
   });
@@ -145,6 +146,7 @@ export function ExplorePage() {
     count,
     'page',
     ready,
+    tab === 'contests' ? CONTEST_EXPLORE_PAGE_SIZE : REFERENCE_PAGE_SIZE,
   );
   const reset = () => setParams(tab === 'contests' ? {} : { tab });
   const contextQuery = useQuery({

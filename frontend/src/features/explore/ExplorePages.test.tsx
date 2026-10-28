@@ -156,6 +156,69 @@ const level3Headings = () =>
   screen.getAllByRole('heading', { level: 3 }).map((node) => node.textContent);
 
 describe('official reference public exploration', () => {
+  it('shows twelve contests per page and preserves the filtered page through a detail visit', async () => {
+    const db = createDemoRecords();
+    const source = db.contests[0]!;
+    const names = Array.from(
+      { length: 25 },
+      (_, index) => `페이지 공모전 ${String(index + 1).padStart(2, '0')}`,
+    );
+    db.contests = names.map((title, index) => ({
+      ...source,
+      id: uuid(2000 + index),
+      title,
+      createdAt: new Date(
+        Date.parse(source.createdAt) - index * 60_000,
+      ).toISOString(),
+    }));
+    const params = new URLSearchParams({ q: '페이지 공모전', page: '2' });
+    const { user, step } = await renderExplore(`/explore?${params}`, { db });
+    expect(level3Headings()).toEqual(names.slice(12, 24));
+    expect(screen.getByText('전체 3페이지 중 2페이지')).toBeInTheDocument();
+
+    await step(() =>
+      user.click(screen.getByRole('link', { name: '다음 페이지' })),
+    );
+    expect(level3Headings()).toEqual(names.slice(24));
+    expect(screen.getByRole('button', { name: '다음 페이지' })).toBeDisabled();
+    expect(
+      screen.getByRole('heading', { name: '공모전 둘러보기' }),
+    ).toHaveFocus();
+    const listPath = currentUrl().pathname + currentUrl().search;
+    await step(() =>
+      user.click(screen.getByRole('link', { name: /페이지 공모전 25/ })),
+    );
+    expect(screen.getByRole('link', { name: '탐색으로' })).toHaveAttribute(
+      'href',
+      listPath,
+    );
+    await step(() =>
+      user.click(screen.getByRole('link', { name: '탐색으로' })),
+    );
+    expect(currentUrl().searchParams.get('page')).toBe('3');
+    expect(currentUrl().searchParams.get('q')).toBe('페이지 공모전');
+    expect(level3Headings()).toEqual(names.slice(24));
+  });
+
+  it('normalizes a contest page beyond the last twelve-item page while retaining the search', async () => {
+    const db = createDemoRecords();
+    const source = db.contests[0]!;
+    db.contests = Array.from({ length: 13 }, (_, index) => ({
+      ...source,
+      id: uuid(3000 + index),
+      title: `페이지 공모전 ${index + 1}`,
+      createdAt: new Date(
+        Date.parse(source.createdAt) - index * 60_000,
+      ).toISOString(),
+    }));
+    const params = new URLSearchParams({ q: '페이지 공모전', page: '99' });
+    await renderExplore(`/explore?${params}`, { db });
+    expect(currentUrl().searchParams.get('page')).toBe('2');
+    expect(currentUrl().searchParams.get('q')).toBe('페이지 공모전');
+    expect(level3Headings()).toEqual(['페이지 공모전 13']);
+    expect(screen.getByText('전체 2페이지 중 2페이지')).toBeInTheDocument();
+  });
+
   it.each([true, false])(
     'uses API isDemo=%s for contest cards and details regardless of the title',
     async (isDemo) => {

@@ -39,7 +39,7 @@ POSTGRES_PORT=55433 docker compose -p sku-dreamon-bugbash exec -T postgres creat
 POSTGRES_PORT=55433 docker compose -p sku-dreamon-bugbash exec -T postgres createdb -U wejo wejo_test
 ```
 
-[준비 스크립트](../../scripts/prepare_bugbash.py)는 설정·난수 CSRF 키·30일 로컬 인증서와 별도 입력 CLI용 공고 JSON을 만듭니다. 기본 E2E는 아래 전용 8개 공고 시드를 사용합니다. DB에는 쓰지 않고 기존 `backend/.env`도 수정하지 않습니다. 재실행해도 기존 bug bash CSRF 키·인증서를 유지합니다. 인증서가 만료되면 이 환경을 종료하고 `.bugbash/localhost.pem`과 `localhost-key.pem`을 함께 제거한 뒤 다시 준비합니다.
+[준비 스크립트](../../scripts/prepare_bugbash.py)는 설정·난수 CSRF 키·30일 로컬 인증서와 별도 입력 CLI용 공고 JSON을 만듭니다. 기본 E2E는 아래 전용 13개 공고 시드를 사용합니다. DB에는 쓰지 않고 기존 `backend/.env`도 수정하지 않습니다. 재실행해도 기존 bug bash CSRF 키·인증서를 유지합니다. 인증서가 만료되면 이 환경을 종료하고 `.bugbash/localhost.pem`과 `localhost-key.pem`을 함께 제거한 뒤 다시 준비합니다.
 
 가입 시험용 차단 목록은 가상 비밀번호 한 줄이며 운영 차단 목록이 아닙니다. 반복 실행을 위해 이 격리 환경의 가입·로그인 IP·아이디 확인 제한만 1,000으로 설정합니다. 실제 제한 경계는 기본 설정을 사용하는 백엔드 테스트로 검증하며, 이 값을 운영에 복사하지 않습니다. 외부 AI 키는 비워 둡니다.
 
@@ -160,7 +160,7 @@ python3 scripts/run_bugbash.py --ai-fixture --backend-env .bugbash/mixed-e2e/bac
 
 공고는 고정 UUID나 제목으로 선택하지 않습니다. API에서 접수 중·2명 팀 허용·검사 종료까지 충분한 시간이 남은 공고를 선택하고, 모집 마감은 공고 마감 이내로 계산합니다. 탐색 검증에는 2페이지 이상 공고, 공개 사람·팀 목록과 미확인/수집 출처/시작 시각 보완/마감 공고 사례가 필요합니다. 필요한 자료가 없으면 사전 조건 실패로 기록하며 임의 공고 생성이나 skip으로 대체하지 않습니다.
 
-CI는 매번 빈 `wejo_e2e`를 만들고 [E2E 시드](../../backend/scripts/seed_e2e_data.py)로 공고 계약 사례 8개와 기존 개발 시드의 계정·팀을 준비합니다. 이 도구는 명시적 `--apply`, localhost의 `*_e2e` DB, 비어 있는 업무 테이블을 요구합니다. 공고·계정·팀·지원·알림은 한 트랜잭션으로 적재하며 중간 실패 시 모두 롤백합니다. 원본 개발 공고 490개를 넣는 도구가 아니며 원본 DB의 로컬 회귀 검증을 대체하지 않습니다. CI에서 생성한 가상 자료만 사용하고 모델 키·원본 개발 DB 자료는 가져오지 않습니다. CI HTML/JSON·스크린샷·trace는 `integration-e2e` artifact에 1일 보관하며 환경 파일·키·DB 덤프는 업로드하지 않습니다.
+CI는 매번 빈 `wejo_e2e`를 만들고 [E2E 시드](../../backend/scripts/seed_e2e_data.py)로 공고 계약 사례 8개와 페이지 이동용 5개, 총 13개 공고 및 기존 개발 시드의 계정·팀을 준비합니다. 공모전 12개 페이지와 마지막 1개 페이지를 함께 검증합니다. 이 도구는 명시적 `--apply`, localhost의 `*_e2e` DB, 비어 있는 업무 테이블을 요구합니다. 공고·계정·팀·지원·알림은 한 트랜잭션으로 적재하며 중간 실패 시 모두 롤백합니다. 원본 개발 공고 490개를 넣는 도구가 아니며 원본 DB의 로컬 회귀 검증을 대체하지 않습니다. CI에서 생성한 가상 자료만 사용하고 모델 키·원본 개발 DB 자료는 가져오지 않습니다. CI HTML/JSON·스크린샷·trace는 `integration-e2e` artifact에 1일 보관하며 환경 파일·키·DB 덤프는 업로드하지 않습니다.
 
 ```bash
 # 새로운 격리 E2E DB를 준비할 때만 사용

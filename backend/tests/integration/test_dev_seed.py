@@ -264,3 +264,241 @@ async def test_reapplication_preserves_edited_profiles_and_all_existing_rows(
 
     assert len(before["accounts"]) == 300 and len(before["teams"]) == 100
     assert await snapshot(seed_database) == before
+
+
+async def populate_legacy_seed(
+    database: Database, monkeypatch: pytest.MonkeyPatch, *, teams: bool = False
+) -> None:
+    from scripts.seed_content import legacy_profile_input, legacy_team_content
+
+    if teams:
+        now = datetime.now(UTC)
+        await add_contest(database, now - timedelta(days=1), now + timedelta(days=30))
+    with monkeypatch.context() as scoped:
+        scoped.setattr(seed, "profile_input", legacy_profile_input)
+        scoped.setattr(seed, "team_content", legacy_team_content)
+        async with seed_transaction(database) as session:
+            assert await seed.seed_users(session) == 300
+            await session.commit()
+            if teams:
+                assert await seed.seed_teams(session) == 100
+                await seed.validate_seed(session)
+                await session.commit()
+
+
+async def test_refresh_only_exact_legacy_content_and_preserves_other_rows(
+    seed_database: Database,
+    fast_password_hash: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.demo_data import DEV_TEAM_IDS
+    from app.models.profiles import PortfolioLink, ProfileSkill
+    from app.models.teams import TeamRecruitmentRole
+
+    await populate_legacy_seed(seed_database, monkeypatch, teams=True)
+    async with seed_database.session() as session:
+        profiles = []
+        for identity in DEV_ACCOUNT_IDS[:8]:
+            profile = await session.get(Profile, identity)
+            assert profile is not None
+            profiles.append(profile)
+        profiles[0].real_name = "사용자가 고친 이름"
+        portfolio = await session.get(PortfolioLink, DEV_ACCOUNT_IDS[1])
+        assert portfolio
+        portfolio.title = "사용자가 고친 포트폴리오"
+        session.add(ProfileSkill(account_id=DEV_ACCOUNT_IDS[2], skill_code="ui_ux"))
+        profiles[3].is_public = not profiles[3].is_public
+        profiles[4].academic_unit_id = profiles[3].academic_unit_id
+        profiles[5].version += 1  # 값을 되돌렸어도 편집 이력을 덮지 않는다.
+        profiles[6].introduction = "직접 작성한 소개"
+        profiles[7].weekly_availability_code = None
+        teams = []
+        for identity in DEV_TEAM_IDS[:4]:
+            team = await session.get(Team, identity)
+            assert team is not None
+            teams.append(team)
+        teams[0].name = "직접 고친 팀명"
+        teams[1].introduction = "직접 고친 팀 소개"
+        session.add(TeamRecruitmentRole(team_id=DEV_TEAM_IDS[2], role_code="planning"))
+        teams[3].target_capacity += 1
+        await session.commit()
+    before = await snapshot(seed_database)
+
+    # 기존 일반 재실행은 새로운 문구를 적용하지 않고 모든 기존 행을 보존한다.
+    async with seed_transaction(seed_database) as session:
+        assert await seed.seed_users(session) == 0
+        assert await seed.seed_teams(session) == 0
+        await session.commit()
+    assert await snapshot(seed_database) == before
+
+    # run()과 같은 외부 rollback: 미리보기 중 버전·포트폴리오도 저장되지 않는다.
+    async with seed_database.engine.connect() as connection:
+        async with connection.begin() as transaction:
+            async with AsyncSession(
+                bind=connection, join_transaction_mode="create_savepoint"
+            ) as session:
+                result = await seed.refresh_content(session)
+                assert result == {
+                    "profilesUpdated": 292,
+                    "profilesSkipped": 8,
+                    "profilesMissing": 0,
+                    "teamsUpdated": 96,
+                    "teamsSkipped": 4,
+                    "teamsMissing": 0,
+                }
+                await session.commit()
+            await transaction.rollback()
+    assert await snapshot(seed_database) == before
+
+    # 프로필과 첫 팀의 변경 뒤 실패해도 같은 외부 transaction이 전부 되돌린다.
+    original_content = seed.team_content
+    attempts = 0
+
+    def fail_during_team_refresh(index: int, title: str) -> tuple[str, str]:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 2:
+            raise RuntimeError("during team refresh")
+        return original_content(index, title)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(seed, "team_content", fail_during_team_refresh)
+        with pytest.raises(RuntimeError, match="during team refresh"):
+            async with seed_transaction(seed_database) as session:
+                await seed.refresh_content(session)
+    assert attempts == 2
+    assert await snapshot(seed_database) == before
+
+    async with seed_transaction(seed_database) as session:
+        assert await seed.refresh_content(session) == result
+        await seed.validate_seed(session)
+        await session.commit()
+    after = await snapshot(seed_database)
+    for table, rows in before.items():
+        if table not in {"profiles", "portfolio_links", "teams"}:
+            assert after[table] == rows, table
+    async with seed_database.session() as session:
+        for index, identity in enumerate(DEV_ACCOUNT_IDS):
+            profile = await session.get(Profile, identity)
+            assert profile
+            original = next(row for row in before["profiles"] if row[0] == identity)
+            if index < 8:
+                assert (
+                    tuple(
+                        (
+                            await session.execute(
+                                select(Profile.__table__).where(
+                                    Profile.profile_id == identity
+                                )
+                            )
+                        ).one()
+                    )
+                    == original
+                )
+            else:
+                assert profile.real_name.endswith(f"[테스트 P{index + 1:03d}]")
+                assert profile.version == 2
+        for index, identity in enumerate(DEV_TEAM_IDS):
+            row = (
+                await session.execute(
+                    select(Team.__table__).where(Team.team_id == identity)
+                )
+            ).one()
+            original = next(old for old in before["teams"] if old[0] == identity)
+            if index < 4:
+                assert tuple(row) == original
+            else:
+                current = row._mapping
+                old = dict(zip(Team.__table__.columns.keys(), original, strict=True))
+                assert current["name"].endswith(f"[테스트 T{index + 1:03d}]")
+                assert isinstance(old["version"], int)
+                assert current["version"] == old["version"] + 1
+                for field in current:
+                    if field not in {"name", "introduction", "version", "updated_at"}:
+                        assert current[field] == old[field]
+    async with seed_transaction(seed_database) as session:
+        repeated = await seed.refresh_content(session)
+        assert repeated["profilesUpdated"] == repeated["teamsUpdated"] == 0
+        await session.commit()
+    assert await snapshot(seed_database) == after
+
+
+async def test_refresh_failure_rolls_back_content_and_versions(
+    seed_database: Database,
+    fast_password_hash: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await populate_legacy_seed(seed_database, monkeypatch)
+    before = await snapshot(seed_database)
+    with pytest.raises(RuntimeError, match="after refresh"):
+        async with seed_transaction(seed_database) as session:
+            refreshed = await seed.refresh_content(session, users_only=True)
+            assert refreshed["profilesUpdated"] == 300
+            await session.commit()
+            raise RuntimeError("after refresh")
+    assert await snapshot(seed_database) == before
+
+
+async def test_refresh_rechecks_after_waiting_for_profile_writer(
+    seed_database: Database,
+    fast_password_hash: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+
+    from app.repositories.profile_write import lock_profile
+    from app.repositories.recruitment_locks import lock_accounts
+
+    await populate_legacy_seed(seed_database, monkeypatch)
+    entered = asyncio.Event()
+
+    async def observe_lock(session: AsyncSession, identities: object) -> None:
+        entered.set()
+        await lock_accounts(session, DEV_ACCOUNT_IDS)
+
+    monkeypatch.setattr(seed, "lock_accounts", observe_lock)
+    async with seed_database.session() as writer, seed_database.session() as updater:
+        cached = await updater.get(Profile, DEV_ACCOUNT_IDS[0])
+        assert cached and cached.version == 1
+        await lock_accounts(writer, [DEV_ACCOUNT_IDS[0]])
+        profile = await lock_profile(writer, DEV_ACCOUNT_IDS[0])
+        assert profile
+        profile.introduction = "갱신 미리보기와 경쟁한 사용자 편집"
+        profile.version += 1
+        pending = asyncio.create_task(seed.refresh_content(updater, users_only=True))
+        await entered.wait()
+        await writer.commit()
+        result = await asyncio.wait_for(pending, timeout=15)
+        await updater.commit()
+        assert result["profilesUpdated"] == 299
+        assert result["profilesSkipped"] == 1
+    async with seed_database.session() as session:
+        saved = await session.get(Profile, DEV_ACCOUNT_IDS[0])
+        assert saved and saved.introduction == "갱신 미리보기와 경쟁한 사용자 편집"
+        assert saved.version == 2 and "[테스트" not in saved.real_name
+
+
+async def test_refresh_skips_uuid_login_collision_without_weakening_regular_seed(
+    seed_database: Database,
+    fast_password_hash: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await populate_legacy_seed(seed_database, monkeypatch)
+    async with seed_database.session() as session:
+        account = await session.get(Account, DEV_ACCOUNT_IDS[0])
+        assert account
+        account.login_id_normalized = "differentowner"
+        await session.commit()
+    before = await snapshot(seed_database)
+    async with seed_transaction(seed_database) as session:
+        with pytest.raises(ValueError, match="UUID"):
+            await seed.seed_users(session)
+    assert await snapshot(seed_database) == before
+    async with seed_transaction(seed_database) as session:
+        result = await seed.refresh_content(session, users_only=True)
+        assert result["profilesUpdated"] == 299
+        assert result["profilesSkipped"] == 1
+        await session.commit()
+    async with seed_database.session() as session:
+        profile = await session.get(Profile, DEV_ACCOUNT_IDS[0])
+        assert profile and profile.version == 1 and profile.real_name == "김민준"
