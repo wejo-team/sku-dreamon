@@ -3,14 +3,14 @@
 - 기준: 2026-10-25 사용자 결정, [설계 PR #156](https://github.com/wejo-team/sku-dreamon/pull/156)
 - 상태: **백엔드 PR #157 병합 · 제품 프론트 실제 API 연결 구현 · 미배포**
 - 기준 명세: [LLM 기반 추천](../specs/matching.md#acceptance-criteria), AC-16~35
-- 구현 PR: 백엔드 [#157](https://github.com/wejo-team/sku-dreamon/pull/157), 제품 화면 [#192](https://github.com/wejo-team/sku-dreamon/pull/192)
+- 구현 PR: 백엔드 [#157](https://github.com/wejo-team/sku-dreamon/pull/157), 제품 화면 [#192](https://github.com/wejo-team/sku-dreamon/pull/192), 단일 ReAct·입력 가드 [#206](https://github.com/wejo-team/sku-dreamon/pull/206)
 - 구현 구조: [AI 에이전트 아키텍처](../development/ai-architecture.md)
 - 계약 원본: [AI API](../api/ai.md), [AI 실행 저장](../database/ai.md)
 - PR #157 당시 구현 범위: 사용자 요청에 따라 **백엔드만 구현**했으며 운영 DB 적용은 포함하지 않았습니다. 아래 결정·검증은 PR #157 당시 범위이고 현재 남은 작업은 후속 절에서 구분합니다.
 
 공모전·팀·공개 사람 탐색과 팀장의 지원자 검토를 기존 FastAPI 서비스에 연결합니다. 사용자 동작은 기능 명세, 전송 계약은 DTO·API 문서, 저장 구조는 ORM·DB 문서가 원본입니다. PR #157은 프론트 변경을 포함하지 않았습니다. 현재 자체 로그인·지원자 조회의 실제 API 연결 상태는 [구현 현황](../development/implementation-status.md), AI 대화·지원자 검토·팀 지원자 추천의 실제 화면 연결은 [구현 작업 #163](https://github.com/wejo-team/sku-dreamon/issues/163)을 참조합니다.
 
-## 2026-10-28 단일 ReAct 전환 계획
+## 2026-10-28 단일 ReAct 전환 계획과 구현
 
 기준 명세는 [입력 정책·AC-36~39](../specs/matching.md#input-guard), 명세 PR은 [#203](https://github.com/wejo-team/sku-dreamon/pull/203)입니다. 사용자가 구현·이슈·PR·리뷰·안전한 병합까지 허용했습니다. 개발 오케스트레이션은 GPT-6 Astra ultra, 구현·검토는 GPT-6.1 Sol ultra를 사용하며 서비스 런타임 모델은 `gpt-6-luna`를 유지합니다.
 
@@ -22,7 +22,7 @@
 
 계약 원본은 [에이전트 타입](../../backend/app/agents/types.py)과 [드라이버](../../backend/app/agents/factory.py)입니다. `PreviousContext`는 가드 허용 후에만 호출하는 비동기 이전 자료 로더이며, `RecommendationGate`는 서비스가 후보·현재 권한 검증을 완료해야 반환합니다. 게이트 성공 전에는 어떤 텍스트도 게시하지 않습니다. 한 번 성공하면 후보·참조를 고정하고 같은 에이전트에서 도구를 제거한 최종 호출의 텍스트만 전달합니다. 고정 거절 안내도 빈 후보 게이트를 통과합니다. 기존 목적별 지원자 권한·일반 채팅 3카드·세션/자료 재검사와 저장 트랜잭션을 유지합니다.
 
-API 이벤트·DB schema 변경은 없으며 프론트 재배포를 요구하는 계약 변경도 없습니다. 이전 Planner/별도 Writer 선택은 이번 단일 ReAct 결정으로 대체합니다. 입력 가드 외 도구/답변 LLM 검사, 출력 전체/문장 버퍼링, 본인 비공개 프로필 개인화, 자동 쓰기·웹/포트폴리오 수집은 추가하지 않습니다. 운영 키를 개발에 사용하지 않고 실제 모델 호출 없이 fake 모델과 일회성 PostgreSQL로 검증합니다. 실제 제공자 통합·분류 품질·운영 배포는 완료로 주장하지 않습니다.
+API 이벤트·DB schema 변경은 없으며 프론트 재배포를 요구하는 계약 변경도 없습니다. 이전 Planner/별도 Writer 선택은 이번 단일 ReAct 결정으로 대체합니다. 입력 가드 외 도구/답변 LLM 검사, 출력 전체/문장 버퍼링, 본인 비공개 프로필 개인화, 자동 쓰기·웹/포트폴리오 수집은 추가하지 않습니다. 운영 키를 개발에 사용하지 않고 실제 모델 호출 없이 fake 모델과 일회성 PostgreSQL로 검증합니다. 실제 제공자 통합·분류 품질·운영 배포는 완료로 주장하지 않습니다. 구현 PR [#206](https://github.com/wejo-team/sku-dreamon/pull/206)에서 전체 백엔드 920개와 이후 추가 회귀 3개, 프론트 AI 영역 100개, 정적 검사·문서 빌드를 검증했습니다. 독립 Sol ultra 리뷰에서 불완전 제공자 응답의 성공 저장 문제를 수정하고 회귀를 추가했습니다.
 
 ## 결정과 적용 범위
 
