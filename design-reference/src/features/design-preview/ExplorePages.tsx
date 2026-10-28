@@ -28,7 +28,6 @@ import {
   contestDeadline,
   contestStatus,
   deadlineLabel,
-  deadlineNotice,
   isContestOpen,
   memberLimitLabel,
 } from './contest-state';
@@ -469,9 +468,6 @@ export function ContestPage() {
                 <dd>{contest.verifiedOn}</dd>
               </div>
             </dl>
-            {deadlineNotice(contest) && (
-              <p className="preview-muted">{deadlineNotice(contest)}</p>
-            )}
             <a
               className="preview-button"
               href={contest.officialUrl}

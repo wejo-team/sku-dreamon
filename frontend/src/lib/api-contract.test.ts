@@ -251,10 +251,14 @@ describe('endpoint requests match docs/api', () => {
     ],
     [
       'GET /teams/{teamId}/applicants',
-      () => applications.listTeamApplicants(ID, { status: 'reviewing' }),
+      () =>
+        applications.listTeamApplicants(ID, {
+          status: 'reviewing',
+          pendingOnly: true,
+        }),
       page([]),
       'GET',
-      `/api/v1/teams/${ID}/applicants?status=reviewing`,
+      `/api/v1/teams/${ID}/applicants?status=reviewing&pendingOnly=true`,
     ],
     [
       'GET /me/notifications',

@@ -687,8 +687,8 @@ describe('official reference public exploration', () => {
       screen.queryByRole('link', { name: '공식 공고 확인하기' }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(/접수 시작 시각이 없어.*00:00/),
-    ).toBeInTheDocument();
+      screen.queryAllByText(/원문에 (접수 시작|마감|시간대)/),
+    ).toHaveLength(0);
   });
 
   it('keeps an organizer link separate from whether its information was verified', async () => {

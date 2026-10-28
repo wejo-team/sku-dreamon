@@ -22,6 +22,113 @@ const teamUi = (
   </Routes>
 );
 describe('workspace boundary regressions', () => {
+  it('shows a truthful empty state when every application has been decided', async () => {
+    const db = recordsWithMyProfile({ isPublic: true });
+    db.applications = db.applications.map((application) => ({
+      ...application,
+      status: 'rejected',
+    }));
+    const view = renderWithApi(teamUi, {
+      path: `/teams/${demoIds.teams.greenwave}?view=applicants&page=99`,
+      signedIn: true,
+      db,
+    });
+    await settled(view.client);
+    expect(
+      screen.getByText('현재 지원 중인 지원자가 없어요.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('navigation', { name: '지원자 목록 페이지' }),
+    ).not.toBeInTheDocument();
+    const history = await listTeamApplicants(demoIds.teams.greenwave);
+    expect(history.data.length).toBeGreaterThan(0);
+  });
+
+  it('pages only ongoing applicants and returns to a valid page after a decision', async () => {
+    const db = recordsWithMyProfile({ isPublic: true });
+    const original = db.applications.find(
+      (item) => item.teamId === demoIds.teams.greenwave,
+    )!;
+    const profile = db.profiles.find(
+      (item) => item.accountId === original.applicantAccountId,
+    )!;
+    db.applications = db.applications.filter(
+      (item) => item.teamId !== demoIds.teams.greenwave,
+    );
+    const statuses = [
+      'submitted',
+      'reviewing',
+      'submitted',
+      'reviewing',
+      'submitted',
+      'reviewing',
+      'submitted',
+      'selected',
+      'rejected',
+      'canceled',
+      'discarded',
+    ] as const;
+    statuses.forEach((status, index) => {
+      const accountId = crypto.randomUUID();
+      db.profiles.push({
+        ...profile,
+        accountId,
+        realName: `지원상태후보${index}`,
+      });
+      db.applications.push({
+        ...original,
+        id: crypto.randomUUID(),
+        applicantAccountId: accountId,
+        status,
+        discardReason: status === 'discarded' ? 'selected_elsewhere' : null,
+        submittedAt: new Date(Date.UTC(2026, 9, 1, 0, index)).toISOString(),
+      });
+    });
+    const view = renderWithApi(teamUi, {
+      path: `/teams/${demoIds.teams.greenwave}?view=applicants&page=2`,
+      signedIn: true,
+      db,
+    });
+    await settled(view.client);
+    expect(
+      screen.getAllByRole('link', { name: /지원상태후보\d+ 지원서 검토/ }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByRole('link', { name: /지원상태후보0 지원서 검토/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('navigation', { name: '지원자 목록 페이지' }),
+    ).toHaveTextContent('전체 2페이지 중 2페이지');
+    const oldest = mockDb().applications.find(
+      (item) =>
+        item.teamId === demoIds.teams.greenwave &&
+        item.submittedAt === '2026-10-01T00:00:00.000Z',
+    )!;
+    oldest.status = 'rejected';
+    await act(async () => {
+      await view.client.invalidateQueries({
+        queryKey: ['applications', 'applicants', demoIds.teams.greenwave],
+      });
+    });
+    await settled(view.client);
+    expect(
+      screen.queryByRole('link', { name: /지원상태후보0 지원서 검토/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole('link', { name: /지원상태후보\d+ 지원서 검토/ }),
+    ).toHaveLength(6);
+    expect(
+      screen.queryByRole('navigation', { name: '지원자 목록 페이지' }),
+    ).not.toBeInTheDocument();
+    for (const index of [7, 8, 9, 10]) {
+      expect(
+        screen.queryByRole('link', {
+          name: new RegExp(`지원상태후보${index} 지원서 검토`),
+        }),
+      ).not.toBeInTheDocument();
+    }
+  });
+
   it('permits a new application after a discarded application and no current membership', async () => {
     const db = recordsWithMyProfile({ isPublic: true });
     const original = db.applications[0]!;

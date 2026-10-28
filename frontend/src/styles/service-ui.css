@@ -250,17 +250,29 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.dreamon-preview .preview-page-link {
-  width: 44px;
+.dreamon-preview .preview-pagination-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(44px, 1fr));
+  width: min(100%, 252px);
+  margin: 8px auto 0;
+}
+.dreamon-preview .preview-page-link,
+.dreamon-preview .preview-page-jump {
   min-width: 44px;
   height: 44px;
   padding: 0;
   font-variant-numeric: tabular-nums;
+}
+.dreamon-preview .preview-page-link {
+  width: 44px;
+}
+.dreamon-preview .preview-page-jump {
+  width: 100%;
 }
 .dreamon-preview .preview-page-link[aria-current='page'] {
   color: var(--primary-foreground);

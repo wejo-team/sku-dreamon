@@ -422,9 +422,16 @@ export function registerApplicationRoutes(router: MockRouter) {
         query.get('status'),
         'status',
       );
+      const pendingOnly = booleanQuery(query, 'pendingOnly');
       const items = db()
         .applications.filter((item) => item.teamId === team.id)
         .filter((item) => !status || item.status === status)
+        .filter(
+          (item) =>
+            !pendingOnly ||
+            item.status === 'submitted' ||
+            item.status === 'reviewing',
+        )
         .sort(
           (left, right) =>
             right.submittedAt.localeCompare(left.submittedAt) ||

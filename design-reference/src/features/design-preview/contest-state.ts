@@ -130,15 +130,6 @@ export function deadlineLabel(contest: Contest): string {
   return `${contest.deadline.slice(0, 10).replaceAll('-', '.')} ${contest.deadline.slice(11, 16)} (${zone})`;
 }
 
-export function deadlineNotice(contest: Contest): string | null {
-  const missingTime = !hasTime(contest.deadline);
-  const missingZone = !contest.deadlineTimeZone && !hasOffset(contest.deadline);
-  if (!missingTime && !missingZone) return null;
-  if (missingTime)
-    return `원문에 마감 시각이 없어 ${contest.deadlineTimeZone ?? '한국시간'} 기준 해당 날짜 끝까지 접수하고 다음 날 00:00부터 마감해요. ${missingZone ? '시간대도 한국시간으로 보완했어요. ' : ''}서비스 접수 기준이며 주최 기관의 정확한 마감 시각은 원문을 확인해 주세요.`;
-  return '원문에 시간대가 없어 한국시간을 서비스 접수 기준으로 적용했어요. 주최 기관의 정확한 시간대는 원문을 확인해 주세요.';
-}
-
 export function memberLimitLabel(contest: Contest): string {
   if (!hasConfirmedMemberLimit(contest)) return '미확인';
   if (contest.memberLimit === 'unlimited')

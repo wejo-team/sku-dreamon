@@ -1021,8 +1021,9 @@ describe('recruitment reopening and discarded history', () => {
     );
     expect(screen.getByText('검토 대기 1명')).toBeInTheDocument();
     expect(
-      screen.getByText('같은 공모전의 다른 팀에서 선발됨'),
-    ).toBeInTheDocument();
+      screen.queryByText('같은 공모전의 다른 팀에서 선발됨'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('폐기')).not.toBeInTheDocument();
     view.unmount();
     const { user } = await renderPage(
       `/applicants/${demoIds.applications.seoyeon}`,

@@ -118,6 +118,10 @@ export type ApplicationListQuery = {
   status?: ApplicationStatus;
 };
 
+export type ApplicantListQuery = ApplicationListQuery & {
+  pendingOnly?: boolean;
+};
+
 const applicationPath = (applicationId: string, suffix = '') =>
   `/applications/${encodeURIComponent(applicationId)}${suffix}`;
 
@@ -173,7 +177,7 @@ export async function cancelApplication(
 // [출처 1, 6] GET /teams/{teamId}/applicants → 200 Page<Applicant>
 export async function listTeamApplicants(
   teamId: string,
-  query: ApplicationListQuery = {},
+  query: ApplicantListQuery = {},
   signal?: AbortSignal,
 ) {
   return page(Applicant).parse(
