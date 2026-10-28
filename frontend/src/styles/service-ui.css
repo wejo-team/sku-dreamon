@@ -411,7 +411,7 @@
 }
 .dreamon-preview .preview-explore .preview-contest-card {
   display: grid;
-  grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+  grid-template-columns: clamp(80px, 24%, 104px) minmax(0, 1fr);
   align-items: stretch;
   gap: 0;
   padding: 0;
@@ -419,6 +419,7 @@
 }
 .dreamon-preview .preview-explore .preview-contest-card h3 {
   margin: 0;
+  font-size: 16px;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -474,8 +475,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  padding: 16px;
+  gap: 6px;
+  padding: 12px;
 }
 .dreamon-preview .preview-explore .preview-contest-copy .preview-muted {
   font-size: 12px;
@@ -487,7 +488,7 @@
   align-self: flex-end;
   gap: 6px;
   margin-top: auto;
-  padding-top: 8px;
+  padding-top: 4px;
   color: var(--accent-foreground);
   font-size: 14px;
   font-weight: 600;
@@ -499,6 +500,9 @@
 }
 .dreamon-preview .preview-explore-grid {
   gap: 32px;
+}
+.dreamon-preview .preview-explore .preview-explore-grid--contests {
+  gap: 12px;
 }
 .dreamon-preview .preview-card {
   --muted-foreground: var(--card-muted-foreground);

@@ -41,6 +41,10 @@
 - 프롬프트 요약: 스콘의 아이보리 호랑이 형태·녹색 전원 기호 얼굴·가슴 잎사귀·전선 꼬리를 유지하고, 작은 무지 포트폴리오를 든 중앙 구도. 옅은 세이지 배경, 부드러운 3D 질감과 접지 그림자, 작은 썸네일에서 알아볼 수 있는 얼굴, 글자·워터마크·추가 캐릭터 없음.
 - 적용: [ContestCover](../../design-reference/src/features/design-preview/ContestCover.tsx)가 빈 이미지와 로드 실패에 같은 기본값을 사용합니다. 탐색 카드, 공모전 선택 팝업, AI 공모전 추천 카드가 공유합니다. `local` 공모전은 이미지 없는 예시이며 다른 공모전의 기존 커버는 유지합니다.
 
+## 공모전 카드 검증 캡처
+
+`explore-before-compact-480.png`, `explore-compact-480.png`, `explore-compact-320.png`는 2026-10-28 실제 제품·개발 DB를 연결한 탐색 화면입니다. [카드 비교](tokens.md)의 UI 검증 근거입니다. 캡처에 보이는 포스터는 원본 공고의 대표 이미지입니다: [교육부 마음동행](https://linkareer.com/activity/353947), [국토연구원 주거실태조사](https://linkareer.com/activity/356514), [외국발 허위정보 대응](https://linkareer.com/activity/355254). 이미지 권리는 각 원저작자에게 있습니다.
+
 ## 홈페이지에서 참고한 색상
 
 [서경대학교 메인 홈페이지](https://www.skuniv.ac.kr/main)의 실제 CSS와 브라우저 계산값을 확인했습니다. 기본 주소는 입학 안내 인트로로 이동하므로 메인 경로를 기준으로 합니다. 원본은 [공식 테마 CSS](https://www.skuniv.ac.kr/wp-content/themes/_tw/theme/style.css?ver=1791945423)이며, 아래 값은 조회 시점의 웹사이트 스타일이지 별도 공식 브랜드 가이드로 간주하지 않습니다.

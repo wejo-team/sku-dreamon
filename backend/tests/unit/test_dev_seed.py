@@ -2,7 +2,8 @@
 
 import pytest
 
-from scripts.seed_dev_data import academic_paths, profile_input, validate_target
+from scripts.seed_content import profile_input
+from scripts.seed_dev_data import academic_paths, validate_target
 
 
 @pytest.mark.parametrize(
@@ -41,3 +42,76 @@ def test_academics_preserve_document_hierarchy_and_namesakes() -> None:
     assert ("미래융합대학", "자유전공학부", "AI소프트웨어전공") in paths
     assert not any("전공 미배정" in path for path in paths)
     assert all(len(path) == 1 or path[:-1] in paths for path in paths)
+
+
+def test_profiles_have_stable_visible_test_identifiers() -> None:
+    profiles = [profile_input(i, 1) for i in range(300)]
+    for i, profile in enumerate(profiles):
+        assert profile.real_name.endswith(f" [테스트 P{i + 1:03d}]")
+        assert len(profile.real_name) <= 50
+        if profile.portfolio:
+            assert str(profile.portfolio.url).startswith("https://example.com/")
+
+
+def test_legacy_profile_baseline_is_frozen_and_new_content_preserves_choices() -> None:
+    import hashlib
+    import json
+
+    from scripts.seed_content import legacy_profile_input
+
+    legacy = [legacy_profile_input(i, 1) for i in range(300)]
+    serialized = json.dumps(
+        [p.model_dump(mode="json") for p in legacy], ensure_ascii=False, sort_keys=True
+    )
+    # 변경 전 생성 함수의 실제 300개 출력. 비교 기준 변경은 명시적 검토가 필요하다.
+    assert hashlib.sha256(serialized.encode()).hexdigest() == (
+        "80a4713c3c59d00c2f2962db3ebf3ec7b84a68533db09d7bffca7964e6d2e42f"
+    )
+    for i, old in enumerate(legacy):
+        new = profile_input(i, 1)
+        excluded = {"real_name", "experience_body", "introduction", "portfolio"}
+        assert new.model_dump(exclude=excluded) == old.model_dump(exclude=excluded)
+        if old.portfolio:
+            assert new.portfolio and new.portfolio.url == old.portfolio.url
+            assert new.portfolio.title and "가상 프로젝트" in new.portfolio.title
+        if new.experience_body:
+            assert "가상 교내 프로젝트" in new.experience_body
+
+
+def test_team_names_are_unique_labeled_and_use_fictional_project_content() -> None:
+    from scripts.seed_content import team_content
+
+    content = [team_content(i, "가상 공모전") for i in range(100)]
+    assert len({name for name, _ in content}) == 100
+    for i, (name, body) in enumerate(content):
+        assert name.endswith(f" [테스트 T{i + 1:03d}]")
+        assert len(name) <= 40
+        assert "가상 프로젝트 팀" in body
+        assert len(body) <= 1000
+
+
+@pytest.mark.parametrize(
+    ("arguments", "refresh", "apply"),
+    [
+        ([], False, False),
+        (["--refresh-content"], True, False),
+        (["--refresh-content", "--apply"], True, True),
+    ],
+)
+def test_refresh_cli_is_explicit_and_dry_run_by_default(
+    monkeypatch: pytest.MonkeyPatch, arguments: list[str], refresh: bool, apply: bool
+) -> None:
+    from scripts import seed_dev_data as seed
+
+    seen = []
+
+    async def observe_run(
+        *, apply: bool, users_only: bool, refresh: bool
+    ) -> dict[str, object]:
+        seen.append((apply, users_only, refresh))
+        return {}
+
+    monkeypatch.setattr(seed, "run", observe_run)
+    monkeypatch.setattr("sys.argv", ["seed_dev_data", *arguments])
+    seed.main()
+    assert seen == [(apply, False, refresh)]

@@ -77,7 +77,8 @@ def test_fixture_ids_are_stable_while_dates_follow_the_run_reference() -> None:
     first = seed_e2e_data.build_contests(first_run)
     later = seed_e2e_data.build_contests(later_run)
     first_ids = {contest.contest_id for contest, _ in first}
-    assert len(first) == len(first_ids) == 8
+    # 제품 공모전 목록의 12개 경계 다음 페이지에도 결과가 있어야 한다.
+    assert len(first) == len(first_ids) == 13
     assert first_ids == {contest.contest_id for contest, _ in later}
     for reference, fixtures in [(first_run, first), (later_run, later)]:
         statuses = Counter(
@@ -88,7 +89,7 @@ def test_fixture_ids_are_stable_while_dates_follow_the_run_reference() -> None:
             )
             for contest, _ in fixtures
         )
-        assert statuses == {"open": 6, "closed": 1, "scheduled": 1}
+        assert statuses == {"open": 11, "closed": 1, "scheduled": 1}
         for contest, field in fixtures:
             assert field in FieldCode
             assert contest.member_limit_kind == "range"

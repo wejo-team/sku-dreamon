@@ -61,6 +61,8 @@ SCENARIOS = (
         starts_in_days=5,
         ends_in_days=35,
     ),
+    # 공모전 탐색의 12개 페이지와 마지막 1개 페이지를 실제 DB로 검증한다.
+    *(Scenario(f"pagination-{index}", f"페이지 이동 {index}") for index in range(1, 6)),
 )
 
 
@@ -132,7 +134,7 @@ def build_contests(now: datetime) -> list[tuple[Contest, str]]:
             created_at=now - timedelta(minutes=index),
             updated_at=now,
         )
-        fixtures.append((contest, list(FieldCode)[index].value))
+        fixtures.append((contest, list(FieldCode)[index % len(FieldCode)].value))
     return fixtures
 
 

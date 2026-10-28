@@ -28,15 +28,9 @@ from app.models.profiles import (
     ProfileSkill,
 )
 from app.models.teams import Team, TeamMembership, TeamRecruitmentRole
+from app.repositories.recruitment_locks import lock_accounts
 from app.repositories.team_create import insert_team
-from app.rules.catalogs import (
-    FieldCode,
-    GradeCode,
-    ProfileImageCode,
-    RoleCode,
-    SkillCode,
-    WeeklyAvailabilityCode,
-)
+from app.rules.catalogs import RoleCode
 from app.rules.contests import validate_team_capacity
 from app.rules.requests import request_fingerprint
 from app.schemas.application_create import ApplicationCreate
@@ -49,37 +43,22 @@ from app.services.application_review import change_review_status, select_applica
 from app.services.applications import cancel_application
 from app.services.catalogs import create_academic_unit
 from app.services.teams import close_recruitment
+from scripts.seed_content import (
+    TOPICS,
+    legacy_profile_input,
+    legacy_team_content,
+)
+from scripts.seed_content import (
+    profile_input as profile_input,
+)
+from scripts.seed_content import (
+    team_content as team_content,
+)
 
 # localhost의 개발 계정에만 쓰는 공개 예시 비밀번호다.
 DEV_PASSWORD = "WejoDev2026!Demo"
 ACADEMIC_SOURCE = (
     Path(__file__).resolve().parents[2] / "docs/specs/academic-structure.md"
-)
-FAMILY_NAMES = tuple(
-    "김 이 박 최 정 강 조 윤 장 임 한 오 서 신 권 황 안 송 전 홍".split()
-)
-GIVEN_NAMES = tuple(
-    "민준 서연 지호 하은 도윤 수아 예준 지우 시우 서윤 유진 하준 은서 준서 채원".split()
-)
-ROLE_SKILLS = (
-    ("service_planning", "document_writing", "market_research"),
-    ("ui_ux", "graphic_design", "presentation_design"),
-    ("programming", "data_analysis", "data_visualization"),
-    ("social_media_marketing", "content_planning", "video_editing"),
-    ("market_research", "data_analysis", "document_writing"),
-    ("public_speaking", "presentation_design", "content_planning"),
-)
-TOPICS = (
-    "캠퍼스 생활을 편리하게 만드는 서비스",
-    "지역 상권을 연결하는 플랫폼",
-    "일상 속 탄소 절감 프로젝트",
-    "누구나 쉽게 배우는 교육 콘텐츠",
-    "접근성을 고려한 모바일 경험",
-    "데이터로 찾는 지역 문제 해결책",
-    "청년의 건강한 생활 습관",
-    "문화와 기술을 연결하는 전시",
-    "작은 브랜드를 위한 콘텐츠",
-    "지역 사회에 도움이 되는 공공 서비스",
 )
 
 
@@ -92,83 +71,6 @@ def validate_target(url: str) -> None:
         or target.query
     ):
         raise ValueError("로컬 wejo_dev만 적재할 수 있습니다.")
-
-
-def profile_input(index: int, academic_id: int) -> ProfileWrite:
-    """실제 사람의 정보를 사용하지 않고 enum과 입력 DTO에 맞는 프로필을 만든다."""
-    rng = random.Random(20261026 + index)
-    role = list(RoleCode)[index % len(RoleCode)]
-    fields = rng.sample(list(FieldCode), 1 + index % 3)
-    roles = [role]
-    if index % 2:
-        roles.append(list(RoleCode)[(index + 1) % len(RoleCode)])
-    skills = list(ROLE_SKILLS[index % len(RoleCode)])
-    if index % 4 == 0:
-        skills = []
-    elif index % 3 == 0:
-        skills = list(dict.fromkeys([*skills, rng.choice(list(SkillCode)).value]))
-    state = (
-        "unspecified" if index % 10 == 9 else "none" if index % 3 == 0 else "provided"
-    )
-    status = (
-        "graduated"
-        if index % 12 == 10
-        else "on_leave"
-        if index % 12 == 11
-        else "enrolled"
-    )
-    sparse = index % 10 == 9
-    name = (
-        FAMILY_NAMES[index // len(GIVEN_NAMES)] + GIVEN_NAMES[index % len(GIVEN_NAMES)]
-    )
-    return ProfileWrite.model_validate(
-        {
-            "expectedVersion": "0",
-            "realName": name,
-            "profileImageCode": None
-            if sparse
-            else list(ProfileImageCode)[(index // 5) % 5].value,
-            "academicStatusCode": None if sparse else status,
-            "gradeCode": None
-            if sparse
-            else "not_applicable"
-            if status == "graduated"
-            else list(GradeCode)[index % 4].value,
-            "weeklyAvailabilityCode": None
-            if sparse
-            else list(WeeklyAvailabilityCode)[index % 4].value,
-            "academicUnitId": None if sparse else str(academic_id),
-            "experienceState": state,
-            "experienceBody": (
-                f"{TOPICS[index % 10]}를 주제로 팀 프로젝트에 참여했습니다. "
-                f"{role.display_name} 역할로 문제 정의부터 결과 발표까지 "
-                "진행하고 회고를 정리했습니다."
-            )
-            if state == "provided"
-            else None,
-            "introduction": None
-            if sparse
-            else (
-                f"{fields[0].display_name}에 관심이 있는 {name}입니다. "
-                f"{role.display_name} 역할로 {TOPICS[index % 10]}를 "
-                "함께 만들고 싶습니다. "
-                + (
-                    "주말 온라인 회의가 편합니다."
-                    if index % 2
-                    else "평일 저녁에 꾸준히 참여할 수 있습니다."
-                )
-            ),
-            "fieldCodes": [c.value for c in fields],
-            "roleCodes": [c.value for c in roles],
-            "skillCodes": skills,
-            "portfolio": None
-            if sparse or index % 3 == 0
-            else {
-                "url": f"https://example.com/portfolio/devuser{index + 1:03d}",
-                "title": f"{name}의 개발용 예시 포트폴리오",
-            },
-        }
-    )
 
 
 def academic_paths() -> list[tuple[str, ...]]:
@@ -193,7 +95,9 @@ def academic_paths() -> list[tuple[str, ...]]:
     return list(paths)
 
 
-async def seed_academics(session: AsyncSession) -> list[int]:
+async def seed_academics(
+    session: AsyncSession, *, create_missing: bool = True
+) -> list[int]:
     # 이 경로는 wejo_dev 전용이다. 문서의 검수 전 목록을 운영 원장으로 승인하지 않는다.
     ids: dict[tuple[str, ...], int] = {}
     for path in academic_paths():
@@ -209,6 +113,8 @@ async def seed_academics(session: AsyncSession) -> list[int]:
             raise ValueError(
                 "같은 학사 경로가 여러 개입니다. 기존 ID 대응을 확인해주세요."
             )
+        if not matches and not create_missing:
+            raise ValueError("기존 시드 학사 경로가 없어 콘텐츠 갱신을 중단합니다.")
         unit = (
             matches[0]
             if matches
@@ -317,24 +223,13 @@ async def seed_team(session: AsyncSession, index: int, contest: Contest) -> Team
         contest.registration_closes_at, now + timedelta(days=7 + index % 21)
     ).replace(microsecond=0)
     roles = [list(RoleCode)[index % 6].value, list(RoleCode)[(index + 1) % 6].value]
-    names = (
-        "드림메이커",
-        "캠퍼스랩",
-        "넥스트스텝",
-        "아이디어온",
-        "함께도전",
-        "그린웨이",
-    )
+    name, introduction = team_content(index, contest.title)
     body = TeamCreate.model_validate(
         {
             "requestId": str(uuid5(DEV_NAMESPACE, f"team-request:{index}")),
             "contestId": str(contest.contest_id),
-            "name": f"{names[index % 6]} {index + 1:02d}",
-            "introduction": (
-                f"[개발용 가상팀] {contest.title}에 함께 도전할 팀원을 찾습니다. "
-                f"{TOPICS[index % 10]}에 관심이 있습니다. "
-                "매주 진행 상황을 공유하고 역할별 결과물을 함께 검토합니다."
-            ),
+            "name": name,
+            "introduction": introduction,
             "capacity": str(capacity),
             "roleCodes": roles,
             "recruitmentDeadline": {
@@ -530,6 +425,206 @@ async def seed_teams(session: AsyncSession) -> int:
     return added
 
 
+PROFILE_FIELDS = (
+    "real_name",
+    "profile_image_code",
+    "academic_status_code",
+    "grade_code",
+    "weekly_availability_code",
+    "academic_unit_id",
+    "experience_state",
+    "experience_body",
+    "introduction",
+)
+
+
+async def _matches_profile(
+    session: AsyncSession, profile: Profile, index: int, expected: ProfileWrite
+) -> bool:
+    if profile.version != 1 or profile.is_public != (index % 5 != 4):
+        return False
+    values = expected.model_dump(by_alias=False)
+    values["academic_unit_id"] = (
+        int(expected.academic_unit_id) if expected.academic_unit_id else None
+    )
+    if any(getattr(profile, field) != values[field] for field in PROFILE_FIELDS):
+        return False
+    for model, column, codes in (
+        (ProfileInterest, ProfileInterest.field_code, expected.field_codes),
+        (ProfileDesiredRole, ProfileDesiredRole.role_code, expected.role_codes),
+        (ProfileSkill, ProfileSkill.skill_code, expected.skill_codes),
+    ):
+        stored = set(
+            await session.scalars(
+                select(column).where(model.account_id == profile.profile_id)
+            )
+        )
+        if stored != set(codes):
+            return False
+    portfolio = await session.scalar(
+        select(PortfolioLink)
+        .where(PortfolioLink.portfolio_link_id == profile.profile_id)
+        .execution_options(populate_existing=True)
+    )
+    if expected.portfolio is None:
+        return portfolio is None
+    return portfolio is not None and (portfolio.url, portfolio.title) == (
+        str(expected.portfolio.url),
+        expected.portfolio.title,
+    )
+
+
+async def _legacy_team_input(
+    session: AsyncSession, team: Team, index: int, contest_title: str
+) -> TeamCreate | None:
+    name, introduction = legacy_team_content(index, contest_title)
+    if (
+        team.request_id != uuid5(DEV_NAMESPACE, f"team-request:{index}")
+        or team.leader_account_id != DEV_ACCOUNT_IDS[index]
+        or team.name != name
+        or team.introduction != introduction
+    ):
+        return None
+    roles = [list(RoleCode)[index % 6].value, list(RoleCode)[(index + 1) % 6].value]
+    stored = set(
+        await session.scalars(
+            select(TeamRecruitmentRole.role_code).where(
+                TeamRecruitmentRole.team_id == team.team_id
+            )
+        )
+    )
+    if stored != set(roles):
+        return None
+    # 생성 시의 원문 해시로 정원·역할·기한 변경 여부도 확인한다.
+    original = TeamCreate.model_validate(
+        {
+            "requestId": str(team.request_id),
+            "contestId": str(team.contest_id),
+            "name": name,
+            "introduction": introduction,
+            "capacity": str(team.target_capacity),
+            "roleCodes": roles,
+            "recruitmentDeadline": {
+                "date": team.deadline_source_date.isoformat(),
+                "time": team.deadline_source_time.isoformat()
+                if team.deadline_source_time
+                else None,
+                "timeZone": team.deadline_source_timezone,
+            },
+        }
+    )
+    if team.request_fingerprint != request_fingerprint(
+        original.model_dump(mode="json", exclude={"request_id"})
+    ):
+        return None
+    return original
+
+
+async def refresh_content(
+    session: AsyncSession, *, users_only: bool = False
+) -> dict[str, int]:
+    """고정 시드의 구값이 그대로인 행만 교체한다. 생성·삭제·commit은 하지 않는다."""
+    result = {
+        "profilesUpdated": 0,
+        "profilesSkipped": 0,
+        "profilesMissing": 0,
+        "teamsUpdated": 0,
+        "teamsSkipped": 0,
+        "teamsMissing": 0,
+    }
+    # 서비스와 같은 계정 선점으로 프로필 저장/선발과 경쟁하지 않는다.
+    # NO KEY UPDATE는 알림 등 다른 업무의 계정 FK 참조를 막지 않는다.
+    await lock_accounts(session, DEV_ACCOUNT_IDS)
+    accounts = {
+        account.account_id: account.login_id_normalized
+        for account in await session.scalars(
+            select(Account)
+            .where(Account.account_id.in_(DEV_ACCOUNT_IDS))
+            .execution_options(populate_existing=True)
+        )
+    }
+    # 팀→프로필 순서로 잠그고 잠금 대기 중의 변경까지 다시 읽는다.
+    teams = (
+        []
+        if users_only
+        else list(
+            await session.scalars(
+                select(Team)
+                .where(Team.team_id.in_(DEV_TEAM_IDS))
+                .order_by(Team.team_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        )
+    )
+    profiles = {
+        profile.profile_id: profile
+        for profile in await session.scalars(
+            select(Profile)
+            .where(Profile.profile_id.in_(DEV_ACCOUNT_IDS))
+            .order_by(Profile.profile_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    }
+    academic_ids = (
+        await seed_academics(session, create_missing=False) if profiles else []
+    )
+    now = datetime.now(UTC)
+    for index, account_id in enumerate(DEV_ACCOUNT_IDS):
+        profile = profiles.get(account_id)
+        if profile is None:
+            result["profilesMissing"] += 1
+            continue
+        old = legacy_profile_input(index, academic_ids[index % len(academic_ids)])
+        if accounts.get(
+            account_id
+        ) != f"devuser{index + 1:03d}" or not await _matches_profile(
+            session, profile, index, old
+        ):
+            result["profilesSkipped"] += 1
+            continue
+        new = profile_input(index, academic_ids[index % len(academic_ids)])
+        profile.real_name = new.real_name
+        profile.experience_body = new.experience_body
+        profile.introduction = new.introduction
+        if new.portfolio is not None:
+            portfolio = await session.get(PortfolioLink, account_id)
+            assert portfolio is not None
+            portfolio.title = new.portfolio.title
+        profile.version += 1
+        profile.updated_at = now
+        result["profilesUpdated"] += 1
+    if not users_only:
+        result["teamsMissing"] = len(DEV_TEAM_IDS) - len(teams)
+    for team in teams:
+        index = DEV_TEAM_IDS.index(team.team_id)
+        title = await session.scalar(
+            select(Contest.title).where(Contest.contest_id == team.contest_id)
+        )
+        if (
+            accounts.get(DEV_ACCOUNT_IDS[index]) != f"devuser{index + 1:03d}"
+            or title is None
+        ):
+            result["teamsSkipped"] += 1
+            continue
+        original = await _legacy_team_input(session, team, index, title)
+        if original is None:
+            result["teamsSkipped"] += 1
+            continue
+        name, introduction = team_content(index, title)
+        payload = original.model_dump(mode="json", by_alias=True)
+        payload.update(name=name, introduction=introduction)
+        updated = TeamCreate.model_validate(payload)
+        team.name, team.introduction = updated.name, updated.introduction
+        team.version += 1
+        team.updated_at = now
+        # request_id/fingerprint는 최초 생성 재시도 계약이므로 재작성하지 않는다.
+        result["teamsUpdated"] += 1
+    await session.flush()
+    return result
+
+
 async def counts(session: AsyncSession) -> dict[str, int]:
     models = (
         AcademicUnit,
@@ -604,7 +699,9 @@ async def validate_seed(session: AsyncSession) -> None:
             raise ValueError(f"시드 무결성 검사 실패: {name}")
 
 
-async def run(*, apply: bool, users_only: bool) -> dict[str, object]:
+async def run(
+    *, apply: bool, users_only: bool, refresh: bool = False
+) -> dict[str, object]:
     url = str(Settings().database_url)
     validate_target(url)
     database = create_database(url)
@@ -626,9 +723,16 @@ async def run(*, apply: bool, users_only: bool) -> dict[str, object]:
                     join_transaction_mode="create_savepoint",
                 ) as session:
                     before = await counts(session)
-                    added = await seed_users(session)
-                    await session.commit()
-                    teams_added = 0 if users_only else await seed_teams(session)
+                    refreshed = None
+                    if refresh:
+                        refreshed = await refresh_content(
+                            session, users_only=users_only
+                        )
+                        added, teams_added = 0, 0
+                    else:
+                        added = await seed_users(session)
+                        await session.commit()
+                        teams_added = 0 if users_only else await seed_teams(session)
                     await validate_seed(session)
                     await session.commit()
                     after = await counts(session)
@@ -642,6 +746,7 @@ async def run(*, apply: bool, users_only: bool) -> dict[str, object]:
                     "before": before,
                     "after": after,
                     "usersOnly": users_only,
+                    "contentRefresh": refreshed,
                 }
     finally:
         await database.engine.dispose()
@@ -655,8 +760,15 @@ def main() -> None:
     parser.add_argument(
         "--users-only", action="store_true", help="사용자·프로필만 준비"
     )
+    parser.add_argument(
+        "--refresh-content",
+        action="store_true",
+        help="생성 없이 구시드 원문과 일치하는 프로필·팀만 갱신 (기본은 롤백)",
+    )
     args = parser.parse_args()
-    result = asyncio.run(run(apply=args.apply, users_only=args.users_only))
+    result = asyncio.run(
+        run(apply=args.apply, users_only=args.users_only, refresh=args.refresh_content)
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
