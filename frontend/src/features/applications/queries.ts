@@ -25,6 +25,7 @@ import {
   startApplicationReview,
   type ApplicationCreate,
   type ApplicationListQuery,
+  type ApplicantListQuery,
 } from '@/features/applications/api';
 import {
   invalidateParticipation,
@@ -49,7 +50,7 @@ export const applicationQueryOptions = (applicationId: string) =>
 
 export const applicantsQueryOptions = (
   teamId: string,
-  query: ApplicationListQuery = { pageSize: 100 },
+  query: ApplicantListQuery = { pageSize: 100 },
 ) =>
   queryOptions({
     queryKey: queryKeys.applicants(teamId, query),

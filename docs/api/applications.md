@@ -34,7 +34,7 @@
 | `GET /me/applications` | 본인, 페이지 조건·선택 `status` | 200 `Page<MyApplication>` | — |
 | `GET /applications/{applicationId}` | 지원 본인 또는 받은 팀장, 지원 UUID | 200 `Success<Application>` | 404 없음 또는 관계 밖 |
 | `PUT /applications/{applicationId}/cancellation` | 지원 본인, 지원 UUID·`VersionedAction` | 200 `Success<CancellationResult>` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
-| `GET /teams/{teamId}/applicants` | 해당 팀장, 팀 UUID·페이지 조건·선택 `status` | 200 `Page<Applicant>` | 403 권한, 404 팀 없음 |
+| `GET /teams/{teamId}/applicants` | 해당 팀장, 팀 UUID·페이지 조건·선택 `status`·`pendingOnly` | 200 `Page<Applicant>` | 403 권한, 404 팀 없음 |
 | `GET /applications/{applicationId}/applicant` | 받은 팀장, 지원 UUID | 200 `Success<Applicant>` | 403 행동 권한, 404 없음 또는 관계 밖 |
 | `PUT /applications/{applicationId}/review-start` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `Success<Application>` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
 | `PUT /applications/{applicationId}/rejection` | 받은 팀장, 지원 UUID·`VersionedAction` | 200 `Success<Application>` | 403 행동 권한, 404 없음 또는 관계 밖, 409 상태·버전 충돌 |
@@ -54,6 +54,7 @@
 | --- | --- | --- |
 | `page`, `pageSize` | 정수, 기본 1·20, 페이지 크기 최대 100 | 모든 페이지 목록. 범위·마지막 페이지 보정은 [공통 계약](conventions.md) |
 | `status` | `ApplicationStatus`, 생략 시 모든 상태 | 내 지원·팀장 지원자 목록 |
+| `pendingOnly` | boolean, 기본 false | 팀장 지원자 목록 전용. true면 `submitted`·`reviewing`만 조회·집계. `status`와 함께 지정하면 교집합. 관리 화면은 true로 요청하며, 생략한 기존 조회·내 지원 이력은 유지 |
 
 | 목록 | 검색 대상 | 안정 정렬 |
 | --- | --- | --- |

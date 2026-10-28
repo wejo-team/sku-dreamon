@@ -122,7 +122,14 @@ test('취소 후 새 지원·명시적 검토·미선발·재지원 제한과 �
     );
 
     const ownerPage = await leader.newPage();
-    await ownerPage.goto(`/applicants/${application.id}`);
+    await ownerPage.goto(`/teams/${team.id}?view=applicants`);
+    await expect(
+      ownerPage.locator(`a[href="/applicants/${application.id}"]`),
+    ).toBeVisible();
+    await expect(
+      ownerPage.locator(`a[href="/applicants/${first.id}"]`),
+    ).toHaveCount(0);
+    await ownerPage.locator(`a[href="/applicants/${application.id}"]`).click();
     await ownerPage
       .getByRole('button', { name: '검토 시작', exact: true })
       .click();
@@ -143,6 +150,14 @@ test('취소 후 새 지원·명시적 검토·미선발·재지원 제한과 �
       )
     ).data;
     expect(reviewing.status).toBe('reviewing');
+    await ownerPage
+      .getByRole('link', { name: '지원자 관리로', exact: true })
+      .click();
+    const pendingRow = ownerPage.locator(
+      `a[href="/applicants/${application.id}"]`,
+    );
+    await expect(pendingRow).toContainText('검토 중');
+    await pendingRow.click();
     const reviewedNotifications = await get<NotificationPage>(
       applicant.request,
       '/me/notifications',
@@ -196,6 +211,16 @@ test('취소 후 새 지원·명시적 검토·미선발·재지원 제한과 �
     await expect(
       ownerPage.getByText('미선발된 지원서예요.', { exact: true }),
     ).toBeVisible();
+    await ownerPage
+      .getByRole('link', { name: '지원자 관리로', exact: true })
+      .click();
+    await expect(
+      ownerPage.getByText('현재 지원 중인 지원자가 없어요.', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      ownerPage.locator(`a[href="/applicants/${application.id}"]`),
+    ).toHaveCount(0);
+    await ownerPage.goto(`/applicants/${application.id}`);
     const rejected = (
       await get<Data<Application>>(
         leader.request,

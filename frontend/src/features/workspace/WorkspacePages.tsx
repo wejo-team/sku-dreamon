@@ -809,9 +809,13 @@ function TeamSpaceView({
   const page = requestedPage(params);
   const { roleLabel } = useLabels();
   const { account } = useSession();
-  // [출처 8] 팀장이 받은 지원(서버의 최신 접수순)
+  // [출처 8] 접수·검토 중인 지원만 서버에서 필터링한 뒤 페이지를 계산한다.
   const applicants = useQuery({
-    ...applicantsQueryOptions(team.id, { page, pageSize: REFERENCE_PAGE_SIZE }),
+    ...applicantsQueryOptions(team.id, {
+      page,
+      pageSize: REFERENCE_PAGE_SIZE,
+      pendingOnly: true,
+    }),
     enabled: management && isLeader,
   });
   const { totalPages, hrefForPage, headingRef } = useListPage(
@@ -860,7 +864,7 @@ function TeamSpaceView({
             <Loading />
           ) : !applicants.data.data.length ? (
             <p className="preview-panel preview-muted">
-              아직 접수된 지원서가 없어요.
+              현재 지원 중인 지원자가 없어요.
             </p>
           ) : (
             <ul className="workspace-applicant-list">
@@ -883,14 +887,6 @@ function TeamSpaceView({
                       <p className="preview-muted">
                         {roleLabel(application.roleCode)} 지원
                       </p>
-                      {application.status === 'discarded' && (
-                        <p className="preview-muted">
-                          {application.discardReason ===
-                          'team_created_elsewhere'
-                            ? '같은 공모전에서 직접 팀을 만듦'
-                            : '같은 공모전의 다른 팀에서 선발됨'}
-                        </p>
-                      )}
                     </div>
                     <Badge>{applicationLabel(application.status)}</Badge>
                     <ChevronRight size={18} aria-hidden="true" />

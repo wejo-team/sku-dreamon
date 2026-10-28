@@ -179,6 +179,15 @@ test('팀 생성→지원→팀장 선발→알림 읽음→선발자 취소·�
     await ownerPage.getByRole('button', { name: '이 지원자 선발하기' }).click();
     await ownerPage.getByRole('button', { name: '선발하고 팀원 확정' }).click();
     await expect(ownerPage.getByText(/님이 팀원으로 확정됐어요/)).toBeVisible();
+    await ownerPage
+      .getByRole('link', { name: '지원자 관리로', exact: true })
+      .click();
+    await expect(
+      ownerPage.getByText('현재 지원 중인 지원자가 없어요.', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      ownerPage.locator(`a[href="/applicants/${application.id}"]`),
+    ).toHaveCount(0);
     await memberPage.goto(`/teams/${team.id}?view=space`);
     await expect(
       memberPage.getByRole('heading', { name: '확정된 팀원' }),

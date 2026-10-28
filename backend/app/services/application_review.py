@@ -277,6 +277,7 @@ async def list_applicants(
         session,
         team_id,
         status=query.status.value if query.status is not None else None,
+        pending_only=query.pending_only,
     )
     total_pages = (total + query.page_size - 1) // query.page_size
     page = min(query.page, max(total_pages, 1))
@@ -284,6 +285,7 @@ async def list_applicants(
         session,
         team_id,
         status=query.status.value if query.status is not None else None,
+        pending_only=query.pending_only,
         offset=(page - 1) * query.page_size,
         limit=query.page_size,
     )

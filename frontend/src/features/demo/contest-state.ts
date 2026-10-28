@@ -14,7 +14,6 @@
 import type {
   ContestDetail,
   ContestSummary,
-  ContestTiming,
   DeadlineInterpretation,
   ParticipationCapacity,
   RegistrationStatus,
@@ -201,23 +200,6 @@ export function summaryBadgeLabel(
   if (contest.registrationStatus === 'closed') return '접수 마감';
   const days = summaryDaysLeft(contest, now);
   return days <= 0 ? 'D-day' : `D−${days}`;
-}
-
-// [출처 2, 3] 서비스가 보완한 사실 안내
-export function deadlineNotice(closing: DeadlineInterpretation): string | null {
-  if (!closing.timeDefaulted && !closing.timeZoneDefaulted) return null;
-  if (closing.timeDefaulted)
-    return `원문에 마감 시각이 없어 ${closing.timeZoneDefaulted ? '한국시간' : zoneLabel(closing.effectiveTimeZone)} 기준 해당 날짜 끝까지 접수하고 다음 날 00:00부터 마감해요. ${closing.timeZoneDefaulted ? '시간대도 한국시간으로 보완했어요. ' : ''}서비스 접수 기준이며 주최 기관의 정확한 마감 시각은 원문을 확인해 주세요.`;
-  return '원문에 시간대가 없어 한국시간을 서비스 접수 기준으로 적용했어요. 주최 기관의 정확한 시간대는 원문을 확인해 주세요.';
-}
-
-// [출처 3] 시작 시각은 서버가 계산한 값과 보완 여부를 안내하며 재해석하지 않습니다.
-export function openingNotice(timing: ContestTiming): string | null {
-  if (timing.openTimeDefaulted)
-    return `원문에 접수 시작 시각이 없어 ${zoneLabel(timing.openEffectiveTimeZone)} 기준 시작일 00:00으로 계산했어요.${timing.openTimeZoneDefaulted ? ' 시간대도 한국시간으로 보완했어요.' : ''}`;
-  if (timing.openTimeZoneDefaulted)
-    return '원문에 접수 시작 시간대가 없어 한국시간을 적용했어요.';
-  return null;
 }
 
 // [출처 5] 공식 인원이 확인되었는지

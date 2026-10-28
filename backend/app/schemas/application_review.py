@@ -36,6 +36,13 @@ class ApplicantSearch(RequestDTO):
     status: ApplicationStatus | None = Field(
         default=None, description="조회할 지원 상태. 생략 시 모든 상태를 조회합니다."
     )
+    pending_only: bool = Field(
+        default=False,
+        description=(
+            "true이면 지원 완료·검토 중만 조회합니다. status를 함께 지정하면 "
+            "두 조건을 모두 적용합니다. 생략 시 종료된 지원도 포함합니다."
+        ),
+    )
 
 
 class ApplicantResponse(ResponseDTO):

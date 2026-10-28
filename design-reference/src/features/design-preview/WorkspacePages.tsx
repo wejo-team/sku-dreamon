@@ -641,11 +641,11 @@ function TeamSpace({
 }) {
   const { applicants, profile } = usePreview();
   const teamApplicants = applicants.filter(
-    (applicant) => applicant.teamId === team.id,
+    (applicant) =>
+      applicant.teamId === team.id &&
+      ['지원완료', '검토중'].includes(applicant.status),
   );
-  const waiting = teamApplicants.filter((applicant) =>
-    ['지원완료', '검토중'].includes(applicant.status),
-  ).length;
+  const waiting = teamApplicants.length;
   return (
     <div className="preview-detail preview-stack workspace-team-space">
       <BackLink to={from}>{returnLabel(from)}</BackLink>
@@ -682,7 +682,7 @@ function TeamSpace({
           </div>
           {!teamApplicants.length ? (
             <p className="preview-panel preview-muted">
-              아직 접수된 지원서가 없어요.
+              현재 지원 중인 지원자가 없어요.
             </p>
           ) : (
             <ul className="workspace-applicant-list">
@@ -699,11 +699,6 @@ function TeamSpace({
                       <div className="workspace-applicant-name">
                         <strong>{name}</strong>
                         <p className="preview-muted">{applicant.role} 지원</p>
-                        {applicant.status === '폐기' && (
-                          <p className="preview-muted">
-                            같은 공모전의 다른 팀에서 선발됨
-                          </p>
-                        )}
                       </div>
                       <Badge>{applicationLabel(applicant.status)}</Badge>
                       <ChevronRight size={18} aria-hidden="true" />

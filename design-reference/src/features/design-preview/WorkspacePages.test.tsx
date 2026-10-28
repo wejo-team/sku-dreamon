@@ -602,7 +602,7 @@ describe('recruitment reopening and discarded history', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('keeps factual AI review for discarded applicants while excluding waiting counts and selection', async () => {
+  it('hides discarded applicants from management while preserving direct historical review', async () => {
     const user = userEvent.setup();
     const state = previewState(lifecycleReferenceActivity());
     const view = renderPage(
@@ -611,8 +611,11 @@ describe('recruitment reopening and discarded history', () => {
     );
     expect(screen.getByText('검토 대기 1명')).toBeInTheDocument();
     expect(
-      screen.getByText('같은 공모전의 다른 팀에서 선발됨'),
-    ).toBeInTheDocument();
+      view.container.querySelector(
+        `a[href="${previewPath('/applicants/app-seoyeon')}"]`,
+      ),
+    ).toBeNull();
+    expect(screen.queryByText('폐기')).not.toBeInTheDocument();
     view.unmount();
     renderPage(previewPath('/applicants/app-seoyeon'), state);
     expect(screen.getByText('폐기')).toBeInTheDocument();

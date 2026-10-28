@@ -373,7 +373,7 @@ test('기존 시드 로그인: 팀·사람 탐색과 페이지·상세 조회, �
   });
 });
 
-test('실제 공고의 미확인 출처·시작 시각 보완·마감 상세', async ({
+test('실제 공고의 출처·확인일·마감은 유지하고 시각 보완 설명은 숨긴다', async ({
   page,
   resources,
 }) => {
@@ -429,10 +429,9 @@ test('실제 공고의 미확인 출처·시작 시각 보완·마감 상세', a
       await expect(
         page.getByText('공식 원문 미확인', { exact: true }),
       ).toBeVisible();
-    if (detail.timing.openTimeDefaulted)
-      await expect(
-        page.getByText(/원문에 접수 시작 시각이 없어/),
-      ).toBeVisible();
+    await expect(page.getByText(/원문에 (접수 시작|마감|시간대)/)).toHaveCount(
+      0,
+    );
     if (kind === 'closed')
       await expect(
         page

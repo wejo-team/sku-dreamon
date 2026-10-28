@@ -19,7 +19,7 @@
 | 워크스페이스 `/workspace` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access): 본인이 팀장이거나 현재 확정 팀원인 팀과 빈 상태. 내 팀·내 지원 콘텐츠 제목과 개수, 작업 아이콘을 한 줄에 배치하고 팀 카드 전체를 눌러 팀 공간 이동 |
 | 내 지원 `/workspace?view=applications` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-04·17~18](../specs/team-recruitment.md#acceptance-criteria): 현재 지원 상태·선발 후 취소·자리 반환·재지원, 다른 팀 선발에 따른 폐기 사유·이력 |
 | 팀 공간 `/teams/:teamId?view=space` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-09·13·20·25](../specs/team-recruitment.md#acceptance-criteria): 팀장·현재 팀원만 접근, 확정 인원·남은 자리·공고·모집 상태, 팀장 재개 확인·성공·불가 사유 |
-| 지원자 관리 `/teams/:teamId?view=applicants` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-05·14·16](../specs/team-recruitment.md#acceptance-criteria): 해당 팀장만 실제 지원자 검토·선발. 선발 성공 즉시 팀원 확정·같은 공모전의 다른 대기 지원 폐기. 폐기 지원은 이력에 남고 검토 대기 수에서 제외 |
+| 지원자 관리 `/teams/:teamId?view=applicants` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [팀 AC-05·14·16](../specs/team-recruitment.md#acceptance-criteria): 해당 팀장만 진행 중인 지원(지원 완료·검토 중)을 관리 목록에서 확인하고 검토·선발. 선발 성공 즉시 팀원 확정·같은 공모전의 다른 대기 지원 폐기. 폐기 지원은 이력에 남고 검토 대기 수에서 제외 |
 | 지원자 검토 `/applicants/:applicantId` | [WorkspacePages](../../design-reference/src/features/design-preview/WorkspacePages.tsx) | [프로필 공개 정책](../specs/profile.md#visibility), [팀 선발 정책](../specs/team-recruitment.md#membership-capacity): 지원한 팀장이 공개 상태와 관계없이 전체 현재 프로필을 확인. 일반 팀원은 이 예외를 갖지 않음 |
 | 내 프로필 `/profile` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx), [ProfileFields](../../design-reference/src/features/design-preview/ProfileFields.tsx) | [프로필 완료 조건](../specs/profile.md#acceptance-criteria): 학적·학년 선택, 이름/소개/경험/제목 길이·관심/역할 개수, 기타 제거, 주당 합산 시간 4구간 단일 선택, 전체 공개 전환 확인·기존 지원자 최신 프로필 검토, 선택형 마스코트 |
 | 본인 공개 화면 확인 `/profile/public` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx) | [사람 탐색과 공개 설정](../specs/profile.md#people-directory): 본인이 설정한 공개 결과 확인 |
@@ -34,7 +34,7 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 
 | 흐름 | 화면을 검토할 때 함께 확인할 것 |
 | --- | --- |
-| 탐색 → 상세 → 복귀 | 검색·선택한 탭·필터·정렬·페이지를 URL에 유지. 레퍼런스는 각 페이지 6개, 제품은 공모전 12개·팀/사람 6개. 이전/다음과 최대 3개 번호. 조건 변경 시 1페이지, 잘못된 페이지·결과 감소 보정. 페이지 이동 시 결과 제목으로 포커스/스크롤 이동. 레퍼런스는 메모리에서 조회하며, 제품의 조회·집계는 [API 페이지 계약](../api/conventions.md#pagination)을 따름. 이전 스크롤 위치 복원은 별도 |
+| 탐색 → 상세 → 복귀 | 검색·선택한 탭·필터·정렬·페이지를 URL에 유지. 레퍼런스는 각 페이지 6개, 제품은 공모전 12개·팀/사람 6개. 처음/이전/다음/마지막과 최대 5개 번호. 조건 변경 시 1페이지, 잘못된 페이지·결과 감소 보정. 페이지 이동 시 결과 제목으로 포커스/스크롤 이동. 레퍼런스는 메모리에서 조회하며, 제품의 조회·집계는 [API 페이지 계약](../api/conventions.md#pagination)을 따름. 이전 스크롤 위치 복원은 별도 |
 | 탐색 필터·정렬·초기화 | 필터 아이콘 → Drawer의 분야/역할 초안 선택 → 적용 시 URL 반영. 취소·Escape·바깥 닫기 시 미적용 선택 제거, 다시 열면 적용값 복원. 팀의 모집중만 조건, 정렬만 변경했을 때도 초기화 아이콘 표시·기본 조건 복원 |
 | 탐색 → AI | 공모전·팀·사람 세 탭 모두 검색창 오른쪽 안의 AI 아이콘으로 이동. 비로그인은 로그인 안내 후 이어가기. AI 진입과 검색어 지우기는 각각 독립된 44px 조작 영역·접근성 이름 제공 |
 | 워크스페이스 → 내 지원·팀 만들기 | 내 팀·내 지원 콘텐츠 제목과 개수 옆에 작업 아이콘 배치. 목록 아이콘의 접근성 이름·title은 `내 지원`, 더하기 아이콘은 `팀 만들기`. 각각 44px 조작 영역을 유지하고 팀 만들기는 녹색 주요 행동으로 표시. 내 지원 화면에서는 해당 아이콘의 `aria-current`·녹색 선택 상태와 `내 팀으로` 복귀 링크 확인 |
@@ -97,11 +97,11 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 - `/workspace?view=applications&scenario=team-lifecycle`: 로컬 스튜디오 폐기 이력·사유, 로컬 크루 선발 후 본인 지원 취소 시에도 폐기 이력 유지.
 - `/reference/notices/campus`, `/reference/portfolios/seoyeon`: 실제 기관·개인 사이트를 대신하는 로컬 링크 목적지.
 
-모든 경로에 `/design-preview` 접두사를 붙입니다. `scenario=team-lifecycle`은 페이지를 새로 로드할 때만 예시 상태를 구성하며 로그인 권한을 우회하지 않습니다. 이후 내부 화면 이동 중에는 같은 상태를 유지하고, 기본 예시로 돌아가려면 쿼리 없는 주소로 새로 로드합니다. 현재 시각은 재현을 위해 2026-10-18로 고정한 예시이며 실제 운영 시계가 아닙니다. 마감 계산은 원문 시각·시간대를 우선하고, 누락 시 한국시간·해당 날짜 종료(다음 날 00:00)를 사용하며 서비스 보완 안내를 표시합니다. 기존 지원자의 AI 검토 결과 확인·재요청은 마감/정원 충족 후에도 허용하고 신규 지원·정원 초과 선발 제한과 구분합니다. 마감 후 실제 추가 선발 허용 범위는 [2026-10-21 확정 정책](../specs/team-recruitment.md#selection-window)을 따르며 참고 화면 반영은 후속 작업입니다.
+모든 경로에 `/design-preview` 접두사를 붙입니다. `scenario=team-lifecycle`은 페이지를 새로 로드할 때만 예시 상태를 구성하며 로그인 권한을 우회하지 않습니다. 이후 내부 화면 이동 중에는 같은 상태를 유지하고, 기본 예시로 돌아가려면 쿼리 없는 주소로 새로 로드합니다. 현재 시각은 재현을 위해 2026-10-18로 고정한 예시이며 실제 운영 시계가 아닙니다. 마감 계산은 원문 시각·시간대를 우선하고, 누락 시 한국시간·해당 날짜 종료(다음 날 00:00)를 사용합니다. 상세의 날짜·정보 확인일·원문 링크는 유지하며 시각·시간대 보완 설명 문단은 표시하지 않습니다. 기존 지원자의 AI 검토 결과 확인·재요청은 마감/정원 충족 후에도 허용하고 신규 지원·정원 초과 선발 제한과 구분합니다. 마감 후 실제 추가 선발 허용 범위는 [2026-10-21 확정 정책](../specs/team-recruitment.md#selection-window)을 따르며 참고 화면 반영은 후속 작업입니다.
 
 ## 페이지 이동과 공모전별 팀 목록
 
-탐색의 세 탭은 [ListPagination](../../design-reference/src/features/design-preview/ListPagination.tsx)과 [useListPage](../../design-reference/src/features/design-preview/use-list-page.ts)를 함께 사용합니다. `page`로 번호를 유지하며 총결과 수는 현재 조건과 열람 범위를 적용한 수입니다. 비로그인의 사람 탭에는 결과 수·페이지 조작을 노출하지 않습니다. 검색·필터 적용·정렬·탭·초기화는 1페이지로 돌아갑니다. 0건이면 페이지 조작을 숨기고, 1페이지뿐이면 현재 번호와 비활성 이전/다음만 표시합니다. 제품 API·DB의 페이징/집계는 [API 계약](../api/conventions.md#pagination)과 [실제 통합 검증](../development/bug-bash.md)에서 확인합니다.
+탐색의 세 탭은 [ListPagination](../../design-reference/src/features/design-preview/ListPagination.tsx)과 [useListPage](../../design-reference/src/features/design-preview/use-list-page.ts)를 함께 사용합니다. `page`로 번호를 유지하며 총결과 수는 현재 조건과 열람 범위를 적용한 수입니다. 비로그인의 사람 탭에는 결과 수·페이지 조작을 노출하지 않습니다. 검색·필터 적용·정렬·탭·초기화는 1페이지로 돌아갑니다. 0건이면 페이지 조작을 숨기고, 1페이지뿐이면 현재 번호와 비활성 처음·이전·다음·마지막을 표시합니다. 번호는 현재 페이지를 중심으로 최대 5개이며 처음·이전·다음·마지막 이동은 다음 줄에 배치합니다. 제품 API·DB의 페이징/집계는 [API 계약](../api/conventions.md#pagination)과 [실제 통합 검증](../development/bug-bash.md)에서 확인합니다.
 
 공모전 상세의 `함께할 팀`에는 현재 공모전과 연결된 공개 팀을 직접 표시합니다. [TeamCard](../../design-reference/src/features/design-preview/TeamCard.tsx)를 탐색과 공유하고, 상세 안에서는 중복 공모전명을 생략합니다. 팀이 6개를 넘으면 `teamPage`로 페이지를 나누고 팀 모집글에서 복귀할 때 원래 공모전·팀 페이지·탐색 복귀 경로를 유지합니다. 모집 중 표시는 모집 중/지원자 검토 상태이면서 공고·팀 모집 기한 안에 있고 잔여 정원이 있는 경우로 판단합니다. 이 판정은 탐색 필터와 카드 상태에 공통 적용하며 개인 참가 자격 충족을 뜻하지 않습니다. 공모전 카드의 연결 팀 수는 이 모집 판정으로 줄이지 않습니다.
 

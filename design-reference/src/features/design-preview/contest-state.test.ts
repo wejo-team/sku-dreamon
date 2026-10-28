@@ -6,7 +6,6 @@ import {
   contestDaysLeft,
   contestStatus,
   deadlineLabel,
-  deadlineNotice,
   memberLimitLabel,
   referenceNow,
 } from './contest-state';
@@ -20,15 +19,12 @@ describe('contest registration and closing policies', () => {
     expect(contestStatus(contest, boundary - 1)).toBe('open');
     expect(contestStatus(contest, boundary)).toBe('closed');
     expect(contestBadgeLabel(contest, referenceNow)).toBe('D-day');
-    expect(deadlineNotice(contest)).toContain('서비스 접수 기준');
   });
   it('honors original times and zones and defaults only missing information', () => {
     const timed = { ...base, deadline: '2026-10-18T17:30:00' };
     expect(contestDeadline(timed)).toBe(Date.parse('2026-10-18T08:30:00Z'));
-    expect(deadlineNotice(timed)).toContain('시간대가 없어 한국시간');
     const zoned = { ...timed, deadlineTimeZone: 'America/New_York' };
     expect(contestDeadline(zoned)).toBe(Date.parse('2026-10-18T21:30:00Z'));
-    expect(deadlineNotice(zoned)).toBeNull();
     expect(
       contestDeadline({
         ...base,

@@ -45,9 +45,7 @@ import {
 } from '@/features/teams/queries';
 import {
   deadlineLabel,
-  deadlineNotice,
   memberLimitLabel,
-  openingNotice,
   summaryBadgeLabel,
   summaryDaysLeft,
 } from '@/features/demo/contest-state';
@@ -550,14 +548,6 @@ export function ContestPage() {
                 </dd>
               </div>
             </dl>
-            {openingNotice(contest.timing) && (
-              <p className="preview-muted">{openingNotice(contest.timing)}</p>
-            )}
-            {deadlineNotice(contest.timing.closing) && (
-              <p className="preview-muted">
-                {deadlineNotice(contest.timing.closing)}
-              </p>
-            )}
             <a
               className="preview-button"
               href={contest.officialUrl ?? contest.sourceUrl}

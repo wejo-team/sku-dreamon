@@ -257,11 +257,17 @@ async def get_applicant_team(session: AsyncSession, team_id: UUID) -> Team | Non
 
 
 async def count_applicants(
-    session: AsyncSession, team_id: UUID, *, status: str | None
+    session: AsyncSession,
+    team_id: UUID,
+    *,
+    status: str | None,
+    pending_only: bool = False,
 ) -> int:
     conditions = [Application.team_id == team_id]
     if status is not None:
         conditions.append(Application.status == status)
+    if pending_only:
+        conditions.append(Application.status.in_(("submitted", "reviewing")))
     count = await session.scalar(
         select(func.count()).select_from(Application).where(*conditions)
     )
@@ -270,11 +276,19 @@ async def count_applicants(
 
 
 async def list_applicant_records(
-    session: AsyncSession, team_id: UUID, *, status: str | None, offset: int, limit: int
+    session: AsyncSession,
+    team_id: UUID,
+    *,
+    status: str | None,
+    offset: int,
+    limit: int,
+    pending_only: bool = False,
 ) -> list[ApplicantRecord]:
     conditions = [Application.team_id == team_id]
     if status is not None:
         conditions.append(Application.status == status)
+    if pending_only:
+        conditions.append(Application.status.in_(("submitted", "reviewing")))
     rows = (
         await session.execute(
             _applicant_statement()
