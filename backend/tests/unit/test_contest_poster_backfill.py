@@ -22,10 +22,40 @@ SOURCE = "https://linkareer.com/activity/123"
 POSTER = "https://api.linkareer.com/attachments/456"
 
 
+def headline(title: str) -> str:
+    return (
+        '<header class="ActivityInformationHeader__StyledWrapper-sc-test">'
+        f"<h1>{title}</h1></header>"
+    )
+
+
+def test_body_heading_does_not_override_the_matching_activity_header() -> None:
+    html = (
+        f'<link rel="canonical" href="{SOURCE}">{headline("제목")}'
+        f'<img class="card-image" alt="제목" src="{POSTER}">'
+        '<article id="DETAIL"><h1>상세 본문의 다른 제목</h1></article>'
+    )
+    assert parse_poster(html, SOURCE, "제목") == POSTER
+
+
+@pytest.mark.parametrize("activity_header", ["", headline("변경된 제목")])
+def test_body_or_site_heading_cannot_replace_the_activity_header(
+    activity_header: str,
+) -> None:
+    html = (
+        f'<link rel="canonical" href="{SOURCE}">{activity_header}'
+        '<header class="SiteHeader"><h1>제목</h1></header>'
+        '<article id="DETAIL"><h1>제목</h1></article>'
+        f'<img class="card-image" alt="제목" src="{POSTER}">'
+    )
+    with pytest.raises(BackfillError, match="headline_mismatch"):
+        parse_poster(html, SOURCE, "제목")
+
+
 def test_poster_uses_matching_title_and_canonical_not_social_or_recommendations() -> (
     None
 ):
-    html = f'''<link rel="canonical" href="{SOURCE}"><h1>공고 &amp; 제목</h1>
+    html = f'''<link rel="canonical" href="{SOURCE}">{headline("공고 &amp; 제목")}
     <meta property="og:image" content="https://api.linkareer.com/attachments/999">
     <img alt="다른 공고" src="https://api.linkareer.com/attachments/888">
     <img class="card-image" alt="공고 &amp; 제목" src="{POSTER}">
@@ -36,15 +66,15 @@ def test_poster_uses_matching_title_and_canonical_not_social_or_recommendations(
 @pytest.mark.parametrize(
     "html",
     [
-        f'<link rel="canonical" href="{SOURCE}"><h1>제목</h1>'
+        f'<link rel="canonical" href="{SOURCE}">{headline("제목")}'
         f'<img class="card-image" alt="다른 제목" src="{POSTER}">',
         '<link rel="canonical" href="https://linkareer.com/activity/999">'
-        f'<h1>제목</h1><img class="card-image" alt="제목" src="{POSTER}">',
-        f'<h1>제목</h1><img class="card-image" alt="제목" src="{POSTER}">',
-        f'<link rel="canonical" href="{SOURCE}"><h1>제목</h1>'
+        f'{headline("제목")}<img class="card-image" alt="제목" src="{POSTER}">',
+        f'{headline("제목")}<img class="card-image" alt="제목" src="{POSTER}">',
+        f'<link rel="canonical" href="{SOURCE}">{headline("제목")}'
         f'<img class="card-image" alt="제목" src="{POSTER}">'
         '<img class="card-image" alt="제목" src="https://api.linkareer.com/attachments/789">',
-        f'<link rel="canonical" href="{SOURCE}"><h1>변경된 제목</h1>'
+        f'<link rel="canonical" href="{SOURCE}">{headline("변경된 제목")}'
         f'<img class="card-image" alt="제목" src="{POSTER}">',
     ],
 )
@@ -133,7 +163,7 @@ async def test_image_must_have_a_supported_type_and_bounded_size(
     expected: str,
 ) -> None:
     html = (
-        f'<link rel="canonical" href="{SOURCE}"><h1>제목</h1>'
+        f'<link rel="canonical" href="{SOURCE}">{headline("제목")}'
         f'<img class="card-image" alt="제목" src="{POSTER}">'
     )
     fetcher = StubFetcher(

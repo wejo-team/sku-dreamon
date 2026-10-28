@@ -112,9 +112,17 @@ class PosterHTML(HTMLParser):
         self.images: list[tuple[str, str, set[str]]] = []
         self.headings: set[str] = set()
         self.heading_parts: list[str] | None = None
+        self.activity_headers: list[bool] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = dict(attrs)
+        if tag == "header":
+            self.activity_headers.append(
+                any(
+                    name.startswith("ActivityInformationHeader__")
+                    for name in (values.get("class") or "").split()
+                )
+            )
         if tag == "link" and values.get("rel") == "canonical":
             self.canonicals.add(values.get("href") or "")
         if tag == "img":
@@ -125,7 +133,7 @@ class PosterHTML(HTMLParser):
                     set((values.get("class") or "").split()),
                 )
             )
-        if tag == "h1":
+        if tag == "h1" and any(self.activity_headers):
             self.heading_parts = []
 
     def handle_data(self, data: str) -> None:
@@ -136,6 +144,8 @@ class PosterHTML(HTMLParser):
         if tag == "h1" and self.heading_parts is not None:
             self.headings.add(normalized_title("".join(self.heading_parts)))
             self.heading_parts = None
+        if tag == "header" and self.activity_headers:
+            self.activity_headers.pop()
 
 
 def parse_poster(html: str, source: str, title: str) -> str:
