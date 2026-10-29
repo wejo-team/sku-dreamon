@@ -287,7 +287,6 @@ class Runtime:
             not root.is_absolute()
             or not data.is_absolute()
             or not mount.is_absolute()
-            or mount == Path("/")
             or not data.is_relative_to(mount)
             or data == mount
             or root.resolve().is_relative_to(checkout.resolve())

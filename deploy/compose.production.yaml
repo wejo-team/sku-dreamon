@@ -93,12 +93,16 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres-bootstrap-password
       POSTGRES_FILESYSTEM_UUID: ${POSTGRES_FILESYSTEM_UUID:?required}
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=trust
-    devices:
-      - /dev/disk/by-uuid/${POSTGRES_FILESYSTEM_UUID:?required}:/run/db-filesystem-device:r
     networks: [database]
     volumes:
+      # 장치 번호만 조회하며 device cgroup의 원시 디스크 읽기 권한은 추가하지 않는다.
       - type: bind
-        source: ${POSTGRES_DATA_DIR:?required mounted filesystem}
+        source: /dev/disk/by-uuid/${POSTGRES_FILESYSTEM_UUID:?required}
+        target: /run/db-filesystem-device
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${POSTGRES_DATA_DIR:?required data directory on verified filesystem}
         target: /var/lib/postgresql/data
         bind: {create_host_path: false}
       - type: bind

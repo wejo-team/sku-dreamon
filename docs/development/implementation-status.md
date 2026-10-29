@@ -14,7 +14,7 @@ AWS·실제 EBS 부착/보존 설정·공개 인증서 발급·S3/CloudFront·EC
 
 [DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 production 설정 검증·전역 credentialed CORS·Host/단일 trusted proxy 경계·검증 TLS/DB 예산·readiness·SSE 종료/지연 정리를 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. [배포 기반 계획](../development-plans/deployment-foundation.md)과 [health API](../api/health.md)가 계약을 설명합니다. 이 작업에서 실제 키·운영 DB·모델 제공자 호출은 사용하지 않았습니다.
 
-초기 MVP/PoC의 배포 방향은 **단일 EC2의 별도 Nginx·FastAPI·PostgreSQL 컨테이너 + DB용 EBS + Alembic**으로 합의했습니다. 프론트는 S3·CloudFront를 유지합니다. production DB의 자체 CA·서비스 호스트명 검증 TLS와 앱 교체 시 DB/EBS 보존을 계획에 반영했으며 PoC 재구성·실제 데이터 MVP의 dump/복원 수준은 제안 단계입니다. 컨테이너 실행·전환은 위 DEP-03 경로에서 다루며, AWS·실제 EBS 연결·CD·백업/복원 자동화·운영 스케줄은 미배포입니다. DEP-01의 월 3만 원 미만 목표 전체 견적·도메인/리전/용량/복구 기준/담당자 결정과 DEP-04~07은 후속입니다.
+초기 MVP/PoC의 배포 방향은 **단일 EC2의 별도 Nginx·FastAPI·PostgreSQL 컨테이너 + 기존 루트 EBS의 DB 데이터 + Alembic**으로 합의했습니다. OS·Docker·DB 데이터에 루트 EBS 하나를 사용하며 별도 DB EBS도 선택할 수 있습니다. 프론트는 S3·CloudFront를 유지합니다. production DB의 자체 CA·서비스 호스트명 검증 TLS와 앱 교체 시 DB/EBS 보존을 계획에 반영했으며 PoC 재구성·실제 데이터 MVP의 dump/복원 수준은 제안 단계입니다. 컨테이너 실행·전환은 위 DEP-03 경로에서 다루며, AWS·실제 호스트의 EBS 식별/보존 검증·CD·백업/복원 자동화·운영 스케줄은 미배포입니다. DEP-01의 월 3만 원 미만 목표 전체 견적·도메인/리전/용량/복구 기준/담당자 결정과 DEP-04~07은 후속입니다.
 
 ## 2026-10-28 AI 제품 화면 연결
 
