@@ -41,6 +41,7 @@ ALLOWED = {
 HTTP_ADAPTERS = {
     "main.py",
     "core/http/dependencies.py",
+    "core/http/deployment.py",
     "core/http/handlers.py",
     "core/http/routers.py",
 }
