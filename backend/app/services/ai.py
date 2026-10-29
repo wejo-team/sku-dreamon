@@ -3,9 +3,9 @@
 import asyncio
 import hmac
 import logging
+import sys
 import time
-from collections.abc import AsyncGenerator, Awaitable
-from contextlib import suppress
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Literal, cast
 from uuid import UUID
@@ -22,6 +22,7 @@ from app.schemas.ai import (
     AiEvent,
     AiPurpose,
     AiResult,
+    AiStatus,
     ApplicantRecommendation,
     ApplicantRecommendationResult,
     ApplicantReviewResult,
@@ -134,6 +135,42 @@ def build_result(
 LiteralCardKind = Literal["contest", "team", "person"]
 
 
+class CleanupTimeout(TimeoutError):
+    """생성 제한과 별개인 스트림 정리 예산을 소진했다."""
+
+
+class StreamCleanup:
+    """모델 종료·상태 저장·전송 종료가 하나의 정리 deadline을 공유한다.
+
+    취소에 협조하는 작업과 유한한 드라이버/DB I/O를 전제로 한다.
+    취소를 무시하는 외부 코드를 asyncio에서 강제 종료할 수는 없다.
+    """
+
+    def __init__(self, timeout_seconds: float = 5) -> None:
+        self.timeout_seconds = timeout_seconds
+        self.deadline: float | None = None
+        self.finish_attempted = False
+
+    def start(self) -> float:
+        if self.deadline is None:
+            self.deadline = asyncio.get_running_loop().time() + self.timeout_seconds
+        return self.deadline
+
+    async def run[T](self, operation: Callable[[], Awaitable[T]]) -> T:
+        deadline = self.start()
+        try:
+            # 기한이 지났어도 aclose/취소 대기를 시작해야 열린 생성기·잠금을
+            # 남기지 않는다. 첫 비동기 대기에서 즉시 취소를 전달한다.
+            async with asyncio.timeout_at(deadline):
+                result = await operation()
+        except TimeoutError:
+            raise CleanupTimeout() from None
+        # 취소를 처리한 작업도 소진된 예산을 새 예산으로 바꾸지 못한다.
+        if asyncio.get_running_loop().time() >= deadline:
+            raise CleanupTimeout()
+        return result
+
+
 class AiService:
     def __init__(
         self, database: Database, settings: Settings, driver: AgentDriver | None
@@ -182,7 +219,7 @@ class AiService:
             ) from None
 
     async def _await_active[T](
-        self, execution: Execution, operation: Awaitable[T]
+        self, execution: Execution, operation: Awaitable[T], cleanup: StreamCleanup
     ) -> T:
         task = asyncio.ensure_future(operation)
         try:
@@ -192,8 +229,17 @@ class AiService:
             return task.result()
         finally:
             if not task.done():
+                interrupted = isinstance(
+                    sys.exception(), (asyncio.CancelledError, GeneratorExit)
+                )
                 task.cancel()
-                await asyncio.gather(task, return_exceptions=True)
+                try:
+                    await cleanup.run(
+                        lambda: asyncio.gather(task, return_exceptions=True)
+                    )
+                except Exception:
+                    if not interrupted:
+                        raise
 
     async def previous_context(
         self, execution: Execution, sources: SourceTools
@@ -223,7 +269,10 @@ class AiService:
                 values.append(current.model_input())
         return values
 
-    async def stream(self, execution: Execution) -> AsyncGenerator[bytes]:
+    async def stream(
+        self, execution: Execution, *, cleanup: StreamCleanup | None = None
+    ) -> AsyncGenerator[bytes]:
+        cleanup = cleanup or StreamCleanup(self.settings.ai_cleanup_timeout_seconds)
         sequence = 0
         terminal = False
         started_at = time.monotonic()
@@ -294,7 +343,9 @@ class AiService:
                 try:
                     while True:
                         try:
-                            delta = await self._await_active(execution, anext(response))
+                            delta = await self._await_active(
+                                execution, anext(response), cleanup
+                            )
                         except StopAsyncIteration:
                             break
                         if plan is None:
@@ -311,7 +362,16 @@ class AiService:
                 finally:
                     close = getattr(response, "aclose", None)
                     if close is not None:
-                        await close()
+                        interrupted = isinstance(
+                            sys.exception(), (asyncio.CancelledError, GeneratorExit)
+                        )
+                        try:
+                            await cleanup.run(close)
+                        except Exception:
+                            # 종료 신호를 실패 이벤트로 바꾸면 aclose가 끝나지
+                            # 않거나 끊긴 전송에 새 프레임을 보낼 수 있다.
+                            if not interrupted:
+                                raise
                 if plan is None or not text.strip():
                     raise ValueError("Empty model answer")
                 result = build_result(execution, plan, selected, text)
@@ -326,12 +386,14 @@ class AiService:
                     result_hash=fingerprint(result.model_dump(mode="json")),
                     answer=text,
                 )
+                cleanup.finish_attempted = True
                 async with self.runs.publishing(execution, refs, completed=True):
                     # 완료는 커밋됐지만 클라이언트의 수신 성공까지 보장하지 않는다.
                     yield event("result", result=result.model_dump(mode="json"))
                     yield event("done", status=status)
                 terminal = True
         except RunCanceled:
+            cleanup.finish_attempted = True
             yield event("canceled")
             terminal = True
         except (ContextChanged, AppError) as error:
@@ -341,8 +403,11 @@ class AiService:
                 404,
                 409,
             ):
-                await self.runs.finish(
-                    execution, status="failed", failure_code="temporary_failure"
+                await self.close_stream(
+                    execution,
+                    cleanup=cleanup,
+                    status="failed",
+                    failure_code="temporary_failure",
                 )
                 yield event(
                     "error",
@@ -351,14 +416,20 @@ class AiService:
                     ),
                 )
             else:
-                await self.runs.finish(
-                    execution, status="failed", failure_code="context_changed"
+                await self.close_stream(
+                    execution,
+                    cleanup=cleanup,
+                    status="failed",
+                    failure_code="context_changed",
                 )
                 yield event("invalidated", reason="context_changed")
             terminal = True
         except TimeoutError:
-            await self.runs.finish(
-                execution, status="failed", failure_code="temporary_failure"
+            await self.close_stream(
+                execution,
+                cleanup=cleanup,
+                status="failed",
+                failure_code="temporary_failure",
             )
             yield event(
                 "error",
@@ -368,8 +439,11 @@ class AiService:
             )
             terminal = True
         except ToolBudgetExceeded:
-            await self.runs.finish(
-                execution, status="failed", failure_code="limit_exceeded"
+            await self.close_stream(
+                execution,
+                cleanup=cleanup,
+                status="failed",
+                failure_code="limit_exceeded",
             )
             yield event(
                 "error",
@@ -390,8 +464,9 @@ class AiService:
                 execution.request_id,
                 type(error).__name__,
             )
-            with suppress(Exception):
-                await self.runs.finish(execution, status="failed", failure_code=code)
+            await self.close_stream(
+                execution, cleanup=cleanup, status="failed", failure_code=code
+            )
             yield event(
                 "error",
                 failure=failure(code, execution.attempt).model_dump(mode="json"),
@@ -408,13 +483,29 @@ class AiService:
                 round((time.monotonic() - started_at) * 1000),
             )
             if not terminal:
-                with suppress(Exception):
-                    await self.runs.finish(execution, status="canceled")
+                await self.close_stream(execution, cleanup=cleanup)
 
-    async def close_stream(self, execution: Execution) -> None:
+    async def close_stream(
+        self,
+        execution: Execution,
+        *,
+        cleanup: StreamCleanup | None = None,
+        status: AiStatus = "canceled",
+        failure_code: str | None = None,
+    ) -> None:
+        cleanup = cleanup or StreamCleanup(self.settings.ai_cleanup_timeout_seconds)
+        if cleanup.finish_attempted:
+            return
+        # 예외·finally·on_close에서 같은 저장을 다시 기다리지 않는다.
+        cleanup.finish_attempted = True
         try:
-            async with asyncio.timeout(5):
-                await self.runs.finish(execution, status="canceled")
+            if asyncio.get_running_loop().time() >= cleanup.start():
+                raise CleanupTimeout()
+            await cleanup.run(
+                lambda: self.runs.finish(
+                    execution, status=status, failure_code=failure_code
+                )
+            )
         except Exception as error:
             logger.warning(
                 "AI cleanup deferred: request_id=%s error_type=%s",

@@ -73,3 +73,8 @@ class PasswordBlocklist:
     def contains(self, password: str) -> bool:
         """일부 단어의 포함 여부가 아니라 NFC를 적용한 전체 값만 비교한다."""
         return unicodedata.normalize("NFC", password) in self._passwords
+
+    @property
+    def entry_count(self) -> int:
+        """준비 검사에서 원문 목록을 노출하지 않고 실제 로드 여부를 확인한다."""
+        return len(self._passwords)

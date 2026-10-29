@@ -1,6 +1,7 @@
 """인증된 AI 요청을 실행하고 전송 완료까지 스트림·자원을 정리한다."""
 
 import asyncio
+import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Annotated, cast
 from uuid import UUID
@@ -26,7 +27,7 @@ from app.schemas.ai import (
     TargetStart,
     ValidateResult,
 )
-from app.services.ai import AgentDriver, AiService
+from app.services.ai import AgentDriver, AiService, StreamCleanup
 from app.services.ai_runs import Execution, view
 
 router = APIRouter(
@@ -45,6 +46,9 @@ def get_ai_service(request: Request) -> AiService:
 
 
 Service = Annotated[AiService, Depends(get_ai_service)]
+logger = logging.getLogger(__name__)
+SEND_TIMEOUT_SECONDS = 3
+TRANSPORT_ALLOWANCE_SECONDS = 9
 
 
 class AiStreamResponse(StreamingResponse):
@@ -58,9 +62,13 @@ class AiStreamResponse(StreamingResponse):
         status_code: int = 200,
         *,
         on_close: Callable[[], Awaitable[None]] | None = None,
+        cleanup: StreamCleanup | None = None,
+        timeout_seconds: float | None = None,
     ) -> None:
         self.events = events
         self.on_close = on_close
+        self.cleanup = cleanup or StreamCleanup()
+        self.timeout_seconds = timeout_seconds
         super().__init__(
             events,
             status_code=status_code,
@@ -79,40 +87,60 @@ class AiStreamResponse(StreamingResponse):
         streaming = asyncio.create_task(self.stream_response(send))
         disconnected = asyncio.create_task(watch_disconnect())
         try:
-            await asyncio.wait(
-                {streaming, disconnected}, return_when=asyncio.FIRST_COMPLETED
-            )
-            if streaming.done():
-                await streaming
+            # 헤더·초기 프레임·실패 프레임까지 포함한 응답 전체의 실행 예산.
+            async with asyncio.timeout(self.timeout_seconds):
+                await asyncio.wait(
+                    {streaming, disconnected}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if streaming.done():
+                    await streaming
         finally:
+            self.cleanup.start()
             for task in (streaming, disconnected):
                 if not task.done():
                     task.cancel()
-            await asyncio.gather(streaming, disconnected, return_exceptions=True)
-            await self.events.aclose()
-            if self.on_close is not None:
-                await self.on_close()
+            try:
+                await self.cleanup.run(
+                    lambda: asyncio.gather(
+                        streaming, disconnected, return_exceptions=True
+                    )
+                )
+                await self.cleanup.run(self.events.aclose)
+            except Exception as error:
+                logger.warning(
+                    "AI transport cleanup deferred: error_type=%s",
+                    type(error).__name__,
+                )
+            finally:
+                if self.on_close is not None:
+                    # close_stream은 같은 deadline과 이미 시도한 저장을 사용한다.
+                    try:
+                        await self.cleanup.run(self.on_close)
+                    except Exception as error:
+                        logger.warning(
+                            "AI close callback deferred: error_type=%s",
+                            type(error).__name__,
+                        )
         if self.background is not None:
             await self.background()
 
     async def stream_response(self, send: Send) -> None:
-        await send(
-            {
-                "type": "http.response.start",
-                "status": self.status_code,
-                "headers": self.raw_headers,
-            }
-        )
+        async with asyncio.timeout(SEND_TIMEOUT_SECONDS):
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": self.status_code,
+                    "headers": self.raw_headers,
+                }
+            )
         send_lock = asyncio.Lock()
 
         async def write(body: bytes) -> None:
             async with send_lock:
-                await asyncio.wait_for(
-                    send(
+                async with asyncio.timeout(SEND_TIMEOUT_SECONDS):
+                    await send(
                         {"type": "http.response.body", "body": body, "more_body": True}
-                    ),
-                    timeout=3,
-                )
+                    )
 
         async def heartbeat() -> None:
             while True:
@@ -127,14 +155,28 @@ class AiStreamResponse(StreamingResponse):
                         await write(chunk)
                 finally:
                     pulse.cancel()
-            await send({"type": "http.response.body", "body": b"", "more_body": False})
+            async with asyncio.timeout(SEND_TIMEOUT_SECONDS):
+                await send(
+                    {"type": "http.response.body", "body": b"", "more_body": False}
+                )
         finally:
-            await self.events.aclose()
+            try:
+                await self.cleanup.run(self.events.aclose)
+            except Exception as error:
+                logger.warning(
+                    "AI generator cleanup deferred: error_type=%s",
+                    type(error).__name__,
+                )
 
 
 def stream_response(service: AiService, execution: Execution) -> AiStreamResponse:
+    cleanup = StreamCleanup(service.settings.ai_cleanup_timeout_seconds)
     return AiStreamResponse(
-        service.stream(execution), on_close=lambda: service.close_stream(execution)
+        service.stream(execution, cleanup=cleanup),
+        on_close=lambda: service.close_stream(execution, cleanup=cleanup),
+        cleanup=cleanup,
+        timeout_seconds=service.settings.ai_timeout_seconds
+        + TRANSPORT_ALLOWANCE_SECONDS,
     )
 
 

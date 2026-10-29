@@ -4,11 +4,11 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import Connection, pool
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy import Connection
 
 from app.core.config import Settings
 from app.core.db.base import Base
+from app.core.db.session import create_engine
 from app.models import academic_units as catalog_models  # noqa: F401 -- 학사 모델 등록
 from app.models import ai_chat as ai_chat_models  # noqa: F401 -- AI 대화 저장
 from app.models import ai_runs as ai_models  # noqa: F401 -- AI 실행 메타데이터
@@ -49,7 +49,7 @@ def run_migrations(connection: Connection) -> None:
 
 
 async def run_migrations_online() -> None:
-    engine = create_async_engine(str(Settings().database_url), poolclass=pool.NullPool)
+    engine = create_engine(Settings(), pooled=False)
     try:
         async with engine.connect() as connection:
             await connection.run_sync(run_migrations)

@@ -9,12 +9,13 @@ from app.services.ai_runs import RunService
 
 async def cleanup() -> None:
     settings = Settings()
-    database = create_database(str(settings.database_url))
+    database = create_database(str(settings.database_url), settings=settings)
     try:
         await RunService(database, settings).clean_expired()
         print("AI 실행 메타데이터 정리를 완료했습니다.")
     finally:
-        await database.engine.dispose()
+        async with asyncio.timeout(settings.shutdown_timeout_seconds):
+            await database.engine.dispose()
 
 
 if __name__ == "__main__":

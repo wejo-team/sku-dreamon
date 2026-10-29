@@ -30,7 +30,8 @@ async def run(path: Path, *, apply: bool) -> dict[str, str]:
     data = ContestImport.model_validate_json(source)
     if not apply:
         return {"status": "validated"}
-    database = create_database(str(Settings().database_url))
+    settings = Settings()
+    database = create_database(str(settings.database_url), settings=settings)
     try:
         async with database.session() as session:
             contest_id = await import_contest(session, data)
@@ -40,7 +41,8 @@ async def run(path: Path, *, apply: bool) -> dict[str, str]:
         # CLI에서는 DB 단계의 내부 예외·접속 정보를 그대로 출력하지 않는다.
         raise DatabaseImportError from error
     finally:
-        await database.engine.dispose()
+        async with asyncio.timeout(settings.shutdown_timeout_seconds):
+            await database.engine.dispose()
 
 
 def main() -> int:
