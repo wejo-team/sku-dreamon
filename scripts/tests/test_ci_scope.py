@@ -9,7 +9,7 @@ from pathlib import Path
 from scripts.ci_scope import classify_paths
 
 SCRIPT = Path(__file__).resolve().parents[1] / "ci_scope.py"
-ALL = {"frontend", "backend", "docs"}
+ALL = {"frontend", "backend", "docs", "deployment"}
 
 
 class ScopeRulesTests(unittest.TestCase):
@@ -37,6 +37,11 @@ class ScopeRulesTests(unittest.TestCase):
             ),
             (["frontend/package-lock.json", "frontend/src/app/App.tsx"], {"frontend"}),
             (["backend/uv.lock", "backend/app/core/config.py"], {"backend"}),
+            (["backend/Dockerfile"], {"backend", "deployment"}),
+            (["deploy/release.py"], ALL),
+            (["deploy/compose.production.yaml"], ALL),
+            (["deploy/tests/test_release.py"], ALL),
+            ([".dockerignore"], ALL),
             (["backend/app/api/health.py"], {"backend"}),
             (["backend/app/schemas/account.py"], {"backend"}),
             (["backend/app/main.py"], {"backend"}),
