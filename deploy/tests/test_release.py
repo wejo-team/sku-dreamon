@@ -202,6 +202,32 @@ class ConfigTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.value = settings(Path(self.temporary.name) / "runtime")
 
+    def test_data_directory_must_be_strictly_below_explicit_filesystem_mount(
+        self,
+    ) -> None:
+        for mount, data, valid in (
+            ("/", "/var/lib/sku-dreamon/postgres/pgdata", True),
+            ("/srv/sku-dreamon-db", "/srv/sku-dreamon-db/pgdata", True),
+            ("/", "/", False),
+            ("/srv/sku-dreamon-db", "/srv/sku-dreamon-db", False),
+            ("/srv/sku-dreamon-db", "/srv/sku-dreamon-db-other/pgdata", False),
+            (None, "/var/lib/sku-dreamon/postgres/pgdata", False),
+        ):
+            value = copy.deepcopy(self.value)
+            value["postgres_data_dir"] = data
+            if mount is None:
+                del value["postgres_mount_path"]
+            else:
+                value["postgres_mount_path"] = mount
+            with self.subTest(mount=mount, data=data):
+                if valid:
+                    runtime = Runtime.parse(value, DEPLOY.parent)
+                    self.assertEqual(str(runtime.mount_path), mount)
+                    self.assertEqual(str(runtime.data_dir), data)
+                else:
+                    with self.assertRaises(ReleaseError):
+                        Runtime.parse(value, DEPLOY.parent)
+
     def test_raw_env_preserves_dollar_quotes_and_shell_text(self) -> None:
         literal = "dollar$HOME'double\"back\\$(not-a-command)#tail"
         self.assertEqual(

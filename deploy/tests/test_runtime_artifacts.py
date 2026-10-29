@@ -181,13 +181,13 @@ class NginxRendererTests(unittest.TestCase):
 
 
 class PostgresMountTests(unittest.TestCase):
-    def test_both_uuid_and_actual_device_must_match(self) -> None:
+    def test_actual_device_must_match_uuid_selected_node(self) -> None:
         cases = [
-            ((UUID, UUID, "259:1", "259:1"), True),
-            ((UUID, "other", "259:1", "259:1"), False),
-            ((UUID, UUID, "259:1", "8:1"), False),
-            (("", "", "259:1", "259:1"), False),
-            ((UUID, UUID, "", ""), False),
+            (("259:1", "259:1"), True),
+            (("259:1", "8:1"), False),
+            (("", "259:1"), False),
+            (("259:1", ""), False),
+            (("", ""), False),
         ]
         for args, expected in cases:
             with self.subTest(args=args):
@@ -202,13 +202,26 @@ class PostgresMountTests(unittest.TestCase):
                 self.assertNotIn(UUID, result.stderr)
 
     def check_host(
-        self, *, actual_uuid: str = UUID, nested: bool = False, missing: bool = False
+        self,
+        *,
+        actual_uuid: str = UUID,
+        nested: bool = False,
+        missing: bool = False,
+        root_mount: bool = False,
+        data_at_mount: bool = False,
+        symlink_data: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            mount = root / "db"
-            data = mount / "pgdata"
+            mount = Path("/") if root_mount else root / "db"
+            data = root / "pgdata" if root_mount else mount / "pgdata"
             data.mkdir(parents=True)
+            if symlink_data:
+                link = data.with_name("linked-pgdata")
+                link.symlink_to(data, target_is_directory=True)
+                data = link
+            if data_at_mount:
+                data = mount
             fake = root / "bin"
             fake.mkdir()
             findmnt = fake / "findmnt"
@@ -238,18 +251,24 @@ class PostgresMountTests(unittest.TestCase):
                 check=False,
             )
 
-    def test_host_checks_fail_for_missing_wrong_or_nested_filesystem(self) -> None:
-        self.assertEqual(self.check_host().returncode, 0)
-        for overrides in (
-            {"actual_uuid": "wrong"},
-            {"nested": True},
-            {"missing": True},
-        ):
-            with self.subTest(overrides=overrides):
-                result = self.check_host(**overrides)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(result.stdout, "")
-                self.assertNotIn(UUID, result.stderr)
+    def test_host_allows_root_and_separate_filesystems_with_the_same_guards(
+        self,
+    ) -> None:
+        for root_mount in (False, True):
+            with self.subTest(root_mount=root_mount):
+                self.assertEqual(self.check_host(root_mount=root_mount).returncode, 0)
+            for overrides in (
+                {"actual_uuid": "wrong"},
+                {"nested": True},
+                {"missing": True},
+                {"data_at_mount": True},
+                {"symlink_data": True},
+            ):
+                with self.subTest(root_mount=root_mount, overrides=overrides):
+                    result = self.check_host(root_mount=root_mount, **overrides)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, "")
+                    self.assertNotIn(UUID, result.stderr)
 
     def test_container_guard_refuses_missing_contract_before_postgres(self) -> None:
         result = subprocess.run(
@@ -347,9 +366,7 @@ class ComposeContractTests(unittest.TestCase):
                 self.assertEqual(probe[1:3], ["python", "-c"])
                 self.assertIn("127.0.0.1", probe[3])
                 self.assertIn("8000", probe[3])
-                self.assertNotIn(
-                    "HTTP_TRUSTED_PROXIES", services[name]["environment"]
-                )
+                self.assertNotIn("HTTP_TRUSTED_PROXIES", services[name]["environment"])
             postgres_probe = services["postgres"]["healthcheck"]["test"]
             self.assertEqual(postgres_probe[1], "pg_isready")
             self.assertEqual(
@@ -372,7 +389,15 @@ class ComposeContractTests(unittest.TestCase):
             self.assertEqual(set(services["postgres"]["networks"]), {"database"})
             self.assertEqual(set(services["migrate"]["networks"]), {"database"})
             postgres = services["postgres"]
-            self.assertEqual(postgres["devices"][0]["permissions"], "r")
+            self.assertNotIn("devices", postgres)
+            identity_mount = next(
+                volume
+                for volume in postgres["volumes"]
+                if volume["target"] == "/run/db-filesystem-device"
+            )
+            self.assertEqual(identity_mount["type"], "bind")
+            self.assertEqual(identity_mount["source"], f"/dev/disk/by-uuid/{UUID}")
+            self.assertTrue(identity_mount["read_only"])
             for service in services.values():
                 for volume in service.get("volumes", []):
                     self.assertFalse(

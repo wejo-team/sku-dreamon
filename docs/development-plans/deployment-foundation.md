@@ -4,17 +4,17 @@
 
 ## 기준과 범위
 
-초기 MVP/PoC는 **비공개 S3·CloudFront 정적 프론트 + 단일 public EC2의 별도 Nginx·FastAPI·PostgreSQL 컨테이너 + DB용 EBS + Alembic 변경 이력**으로 진행합니다. 평소에는 FastAPI 컨테이너 하나를 실행하고, 배포 중에만 이전·새 API 컨테이너 두 개를 함께 유지한 뒤 이전 요청을 드레인하고 종료합니다. PostgreSQL 컨테이너와 DB 데이터는 앱 교체와 분리해 유지합니다. 먼저 가상 데이터를 쓰는 공동 검증 환경에서 인증·배포 중 스트리밍·복구를 검증합니다.
+초기 MVP/PoC는 **비공개 S3·CloudFront 정적 프론트 + 단일 public EC2의 별도 Nginx·FastAPI·PostgreSQL 컨테이너 + 기존 루트 EBS의 DB 데이터 + Alembic 변경 이력**으로 진행합니다. OS·Docker·PostgreSQL 데이터에 루트 EBS 하나를 사용하며 별도 DB EBS는 선택 사항입니다. 평소에는 FastAPI 컨테이너 하나를 실행하고, 배포 중에만 이전·새 API 컨테이너 두 개를 함께 유지한 뒤 이전 요청을 드레인하고 종료합니다. PostgreSQL 컨테이너와 DB 데이터는 앱 교체와 분리해 유지합니다. 먼저 가상 데이터를 쓰는 공동 검증 환경에서 인증·배포 중 스트리밍·복구를 검증합니다.
 
 | 구분 | 내용 |
 | --- | --- |
-| 사용자와 합의한 방향 | AWS 전용 호스팅, 프론트는 S3·CloudFront, 단일 EC2에서 Nginx·FastAPI·PostgreSQL을 별도 컨테이너로 실행. DB용 EBS와 Alembic 사용. 소유할 같은 등록 도메인의 `www`·`api` 사용 |
+| 사용자와 합의한 방향 | AWS 전용 호스팅, 프론트는 S3·CloudFront, 단일 EC2에서 Nginx·FastAPI·PostgreSQL을 별도 컨테이너로 실행. 기존 루트 EBS 하나에 DB 데이터를 보관하고 Alembic 사용. 별도 DB EBS는 선택 가능. 소유할 같은 등록 도메인의 `www`·`api` 사용 |
 | 이 문서의 세부 제안 | GitHub Actions·OIDC·SSM 배포, Docker Compose 실행 관리, API의 Let's Encrypt·Certbot TLS, PostgreSQL 자체 CA·서비스 호스트명 검증 TLS, 서울 리전 후보. 백업 수준은 아래 PoC/MVP 구분에 따라 검토 |
 | 사용자 규모·예산 제약 | 초기 사용자 100명 미만, 월 3만 원 미만 목표. DB 호스팅 방향은 확정했으며 자원 크기·전체 비용·운영 책임은 [DEP-01 #210](https://github.com/wejo-team/sku-dreamon/issues/210)에서 확인 |
 | 아직 결정하지 않은 사항 | 실제 도메인·AWS 계정·리전·자원 크기, 자산·인증서 보관과 운영 담당자, 데이터 보존·복구 목표 |
 | 현재 구현 | 앱 CI·문서 Pages, 로컬 HTTPS 통합 검사, 서버 세션·CSRF, AI SSE와 중단·복구 UI. DEP-02 운영 앱 계약 구현, 구현·검증 근거 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217) |
 | 컨테이너 실행 기반 | production Dockerfile·운영 Compose/Nginx/PostgreSQL·검증 TLS·마운트 guard·배포 lock/journal·worker 드레인·복구·인증서 명령. 기본 healthcheck와 격리 수동 컨테이너 11개 검증을 완료했으며, 소스 커밋·실행 범위는 [컨테이너 검증 기록](../development/container-deployment.md#verification) 참조. AWS 실환경은 미검증 |
-| 아직 없는 기반 | 실제 EBS 연결·배포 workflow·AWS 리소스·백업/복원 자동화·외부 scheduler/알림 설치 |
+| 아직 없는 기반 | 실제 호스트의 EBS 식별·보존 설정 검증·배포 workflow·AWS 리소스·백업/복원 자동화·외부 scheduler/알림 설치 |
 
 초기 구성에는 ALB·Kubernetes를 추가하지 않습니다. **GitHub Actions는 배포 순서를 조정하고, Docker Compose는 컨테이너 실행을 관리하며, 계속 실행되는 별도 Nginx 컨테이너는 TLS와 요청 경로를 담당합니다.** 평소 Compose 기동은 활성 앱 슬롯만 선택하고, 배포 때 비활성 슬롯을 추가로 기동하는 계약으로 두 앱의 상시 실행을 피합니다. Compose 자체가 readiness 확인·트래픽 전환·스트림 드레인을 자동 보장하지 않으므로 배포 절차를 별도로 구현합니다. 호스트 장애 대응이 필요해지면 ECS·ALB·복수 task와 RDS Multi-AZ의 비용·운영 범위를 비교합니다.
 
@@ -42,7 +42,11 @@ EC2는 ECR·SSM·로그·시크릿·모델 API에 필요한 HTTPS egress를 사�
 
 PostgreSQL은 현재 개발·CI의 17 계열과 맞추며 지원 마이너 버전·패치 절차를 준비합니다. DB 컨테이너와 데이터 볼륨은 API 두 슬롯과 별도 수명으로 관리합니다. 앱 릴리스에서는 API 슬롯만 교체하고 DB 재생성·DB 볼륨 삭제를 실행하지 않습니다. 운영 배포·철거 경로에서 `docker compose down -v`나 DB 볼륨 prune처럼 영속 데이터를 지우는 작업을 제외합니다. PostgreSQL 버전 갱신은 앱 교체와 별도 작업으로 백업·호환성·복원 확인 후 수행합니다.
 
-DB 데이터 디렉터리는 **암호화된 별도 EBS 볼륨을 호스트에 실제 마운트한 파일시스템**에 연결합니다. 일반 Docker named volume을 선언하는 것만으로 별도 EBS가 연결되지는 않습니다. 파일시스템 UUID를 기준으로 재부팅 후에도 마운트하며 기존 데이터 볼륨은 재포맷하지 않습니다. 호스트 bootstrap과 DB 기동 전 검사에서 예상 볼륨·마운트·쓰기 권한을 확인하고, 마운트가 없거나 다른 파일시스템이면 기동을 중단합니다. 빈 호스트 디렉터리에 새 DB를 초기화해 정상 기동으로 오인하지 않게 합니다. DB용 EBS의 `DeleteOnTermination=false`를 명시하고 생성 결과를 확인합니다. 이 설정은 EC2 종료 시 보존을 위한 것이며 백업을 대신하지 않습니다. [EBS 연결과 마운트](https://docs.aws.amazon.com/ebs/latest/userguide/ebs-using-volumes.html), [Docker volume 저장 위치](https://docs.docker.com/engine/storage/volumes/), [EC2 종료 시 EBS 보존](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/preserving-volumes-on-termination.html), [EBS 암호화](https://docs.aws.amazon.com/ebs/latest/userguide/ebs-encryption.html)
+DB 데이터는 **기존 루트 EBS의 파일시스템**에 보관합니다. [단일 EBS 경로 #223](https://github.com/wejo-team/sku-dreamon/issues/223)의 계약은 `postgres_mount_path=/`, `postgres_data_dir=/var/lib/sku-dreamon/postgres/pgdata`를 명시하고 실제 루트 파일시스템 UUID를 공급하는 것입니다. 호스트 검사는 정확한 mountpoint·UUID·실제 장치·쓰기 권한과 엄격한 하위 데이터 경로를 확인합니다. 컨테이너는 원시 디스크 읽기 없이 장치 메타데이터와 DB 데이터 마운트의 일치를 확인합니다. 재부팅 후에도 같은 루트 파일시스템과 DB 데이터를 인식하는지 확인하며 기존 디스크 포맷·신규 EBS 생성·`fstab` 변경은 이 경로에 필요하지 않습니다. 설정·준비 명령의 원본은 [컨테이너 실행 가이드](../development/container-deployment.md#host-prerequisites)입니다.
+
+별도 DB EBS는 용량 관리·DB 데이터의 분리 복원·다른 호스트로의 이동이 필요할 때 선택할 수 있습니다. 같은 EC2에 연결한 볼륨을 나누어도 호스트 장애를 견디는 HA가 되지는 않습니다. 별도 볼륨을 쓰면 해당 파일시스템의 정확한 mountpoint와 UUID를 공급하고 재부팅 후 영속 마운트를 확인합니다. 마운트가 없거나 다른 파일시스템이면 DB를 중단하며 빈 호스트 디렉터리에 새 DB를 초기화하지 않습니다. 일반 Docker named volume 선언만으로 별도 EBS가 연결되지는 않습니다. [EBS 연결과 마운트](https://docs.aws.amazon.com/ebs/latest/userguide/ebs-using-volumes.html), [Docker volume 저장 위치](https://docs.docker.com/engine/storage/volumes/)
+
+실제 호스트의 EBS 암호화 상태와 DB를 저장하는 볼륨의 `DeleteOnTermination=false`를 확인합니다. 루트 EBS는 기본적으로 EC2 종료 시 삭제되므로 루트 볼륨의 연결 속성도 확인해야 합니다. 이 속성은 EC2 종료 시 디스크 보존만 다루며 호스트 밖의 백업·복원 확인을 대신하지 않습니다. 예를 들어 루트 EBS가 40 GiB라면 OS·Docker 이미지/캐시·로그·DB/WAL·백업 임시 파일이 용량과 I/O를 공유하므로 남은 공간·증가량·알림 기준을 함께 관리합니다. 이 크기는 일반 예시이며 운영 자원 크기를 확정하지 않습니다. [EC2 종료 시 루트 EBS 보존](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configure-root-volume-delete-on-termination.html), [EBS 암호화](https://docs.aws.amazon.com/ebs/latest/userguide/ebs-encryption.html)
 
 EC2 크기는 **두 API 슬롯·PostgreSQL·Nginx·OS·로그 에이전트**와 migration·백업 작업이 동시에 동작할 수 있는 최대 메모리·CPU·디스크 I/O를 측정해 정합니다. 가장 작은 인스턴스를 미리 확정하지 않습니다. DB 연결 수도 두 슬롯·각 프로세스의 pool, migration·백업·정리·관리 작업을 합산해 PostgreSQL의 연결·메모리 예산 안으로 제한합니다. 초기에는 슬롯당 Uvicorn 프로세스 하나를 제안하며, 프로세스 증가는 부하 검사와 함께 재산정합니다.
 
@@ -162,6 +166,8 @@ GitHub Actions는 AWS OIDC로 단기 역할을 얻습니다. `aud=sts.amazonaws.
 
 SSM은 임의 shell 문자열을 넘기는 통로보다 root 소유 배포 스크립트를 호출하는 제한된 document를 제안합니다. 이미지 digest·release SHA 입력 형식을 검증하고 허용 ECR·저장소를 확인합니다. 대상 선택·문서 수정 권한까지 제한해야 합니다. EC2의 Docker 관리 권한은 호스트 관리자 권한으로 취급합니다. [ECR push 권한](https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-push-iam.html), [SSM Run Command 설정](https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command-setting-up.html)
 
+<a id="poc-mvp-recovery"></a>
+
 ### PoC와 실제 데이터 MVP의 복구 제안
 
 초기 복구 수준은 데이터의 성격에 따라 정합니다. 아래는 **제안이며 백업 자동화·복원 시험을 수행한 상태가 아닙니다.** 보존 기간·허용 손실·담당자는 DEP-01에서 확정합니다.
@@ -188,7 +194,7 @@ AI 실행 메타데이터 정리는 기존 `python -m app.cli.ai_runs`를 **활�
 ### [DEP-01 #210](https://github.com/wejo-team/sku-dreamon/issues/210): 배포 대상과 비용·운영 책임 확정
 
 - 수정 범위: 이 문서와 #165·#98·#164의 관련 결정 기록. 인프라 코드는 아직 생성하지 않음.
-- 확정: 단일 EC2에서 별도 Nginx·FastAPI·PostgreSQL 컨테이너, DB용 EBS와 Alembic 사용. DB 호스팅을 다시 비교하는 작업은 아님.
+- 확정: 단일 EC2에서 별도 Nginx·FastAPI·PostgreSQL 컨테이너, 기존 루트 EBS 하나에 OS·Docker·DB 데이터 보관과 Alembic 사용. 별도 DB EBS는 선택 가능하며 루트 경로는 [#223](https://github.com/wejo-team/sku-dreamon/issues/223)에서 다룸. DB 호스팅을 다시 비교하는 작업은 아님.
 - 입력: 소유할 도메인과 `www`·`api` DNS, AWS 계정/리전·예산·자원 용량, 검증 환경과 운영 환경의 수명, 데이터·프론트 자산·인증서 보관과 운영 담당자.
 - 출력: PostgreSQL과 두 API 슬롯을 포함한 자원별 비용표·용량/연결 예산·환경 구분·DNS/TLS·CA/키·알림·백업 담당자. 앱의 서울 `ap-northeast-2`는 후보값으로, CloudFront viewer 인증서의 `us-east-1` 요구와 구분.
 - 완료 조건 **DEP-AC01**: 월 3만 원 미만 목표의 전체 비용 충족 여부·운영 책임과 같은 도메인 인증·검증 환경 격리·PoC/MVP 복구 수준을 결정. 공개 기록에는 가상 예시만 사용하고 실제 계정 식별자·IP·도메인·비밀값·운영 데이터·로컬 절대경로를 노출하지 않음.
@@ -204,16 +210,16 @@ AI 실행 메타데이터 정리는 기존 `python -m app.cli.ai_runs`를 **활�
 
 - 구현: `backend/Dockerfile`, `.dockerignore`, `deploy/compose.production.yaml`, `deploy/nginx/`, `deploy/release.sh`·`release.py`·`config.py`, PostgreSQL 기동·TLS/데이터 마운트 검사, Certbot 최초 발급·갱신·dry-run 명령과 검사. 기존 개발 `compose.yaml`은 운영 DB로 전환하지 않음. [실행 가이드](../development/container-deployment.md) 참조.
 - 선행: DEP-02. 입력은 image digest·SHA·설정 버전·전용 Docker 네트워크의 서비스 이름·timeout·API/DB 인증서 런타임 저장소·DB 데이터 마운트 계약, 출력은 DB를 유지한 활성/이전 API 슬롯과 전환·드레인 결과.
-- 완료 조건 **DEP-AC03**: 별도 Nginx·PostgreSQL을 유지하고 평소 활성 FastAPI 하나만 선택 기동·배포 중 비활성 API 슬롯을 추가해 둘 실행. 비root 앱·고정 의존성·신호 전달·앱/DB 포트 비공개와 서비스 이름 해석 확인. DB 데이터 마운트 누락 시 기동 차단, 자체 CA·서비스 호스트명 검증 TLS, 앱 교체 시 DB/볼륨 보존과 destructive volume 삭제 방지. 잘못된 readiness는 기존 슬롯 유지. fake provider SSE 중 reload에서 구 요청이 끝나고 새 요청은 새 슬롯 사용. 배포 lock·재실행·실패 복구 확인.
+- 완료 조건 **DEP-AC03**: 별도 Nginx·PostgreSQL을 유지하고 평소 활성 FastAPI 하나만 선택 기동·배포 중 비활성 API 슬롯을 추가해 둘 실행. 비root 앱·고정 의존성·신호 전달·앱/DB 포트 비공개와 서비스 이름 해석 확인. 명시한 루트 EBS 또는 선택한 별도 EBS의 UUID·실제 장치·엄격한 하위 데이터 경로 확인과 별도 DB 마운트 누락 시 기동 차단, 자체 CA·서비스 호스트명 검증 TLS, 앱 교체 시 DB/볼륨 보존과 destructive volume 삭제 방지. 잘못된 readiness는 기존 슬롯 유지. fake provider SSE 중 reload에서 구 요청이 끝나고 새 요청은 새 슬롯 사용. 배포 lock·재실행·실패 복구 확인.
 - 검증: host unit은 설정·마운트 거부 계약·중단·drift·worker identity·단일 job·실패 복구와 최대 timeout 계산을 검사. 실제 이미지·Nginx·PostgreSQL·HTTP bootstrap·단일 자체 서명 SAN 인증서·앱 교체/롤백·DB 보존·짧은 fixture SSE는 별도 수동 스크립트로 검사하며 전체 실행 성공은 미확인. 가상 계정·데이터만 사용하고, 이번 배포 기반 PR은 기존 앱 CI를 유지하며 CI 변경은 별도 PR로 분리.
 - 최초 운영 검증 후속: 실제 도메인의 HTTP-01 발급·Certbot/Nginx 재생성 후 갱신 dry-run·실제 갱신과 새 인증서 적용·알림 수신, 최대 300초 설정의 벽시계 스트리밍과 DB 지연/잠금·강제 장애/종료 조합. dry-run이나 계산 unit만으로 실제 발급·적용·최대 시간 실행을 입증하지 않음. 별도 로컬 ACME 서버를 CI 필수 경로에 추가하지 않으며 실행 근거는 #212에 기록.
 
 ### [DEP-04 #213](https://github.com/wejo-team/sku-dreamon/issues/213): 재현 가능한 AWS 기반과 접근 권한 준비
 
 - 생성 예정: `infra/`의 IaC와 환경 예제, 호스트 bootstrap·SSM document, 운영 runbook. 도구는 Terraform 후보로 두고 팀 운영 방식과 state 암호화·잠금·권한을 DEP-01에서 확정.
-- 선행: DEP-01·DEP-03. 입력은 확정한 계정/리전·자원 용량·네트워크·역할, 출력은 S3·CloudFront·OAC·ACM·VPC·EC2·DB용 EBS·ECR·시크릿 경로·OIDC 역할 참조와 DNS/TLS 경로.
-- 완료 조건 **DEP-AC04**: S3 public access 차단·REST origin·OAC, CloudFront viewer의 DNS 검증 ACM 인증서, EC2 최소 SG·SSM 운영·secret 권한·예산/알림을 확인. DB용 별도 EBS의 암호화·`DeleteOnTermination=false`·UUID 기반 영속 마운트·기존 데이터 재포맷 금지·마운트 누락 기동 차단과 PostgreSQL 내부 포트·자체 CA TLS 적용. 초기 RDS·private DB subnet·ALB·Kubernetes 없음. CI·검증 환경에서 운영 데이터 복제 없음. 검증용 자원의 비용·철거 방법과 보존할 DB 볼륨 구분 기록.
-- 검증: IaC 정적 검사/계획 검토 후 정해진 검증 환경에서 S3 직접 접근 거부·CloudFront 접근 허용, ACM 리전·DNS와 API HTTP-01 port 80, 최소 역할 권한·EBS 재부팅 후 마운트·누락 기동 차단·DB 포트 외부 차단·호스트 재구축 후 데이터 연결을 시험. 리소스 생성은 별도 실행 작업이며 현재 문서 수정에 포함되지 않음.
+- 선행: DEP-01·DEP-03. 입력은 확정한 계정/리전·자원 용량·네트워크·역할, 출력은 S3·CloudFront·OAC·ACM·VPC·EC2·기존 루트 EBS와 선택적 DB EBS·ECR·시크릿 경로·OIDC 역할 참조와 DNS/TLS 경로.
+- 완료 조건 **DEP-AC04**: S3 public access 차단·REST origin·OAC, CloudFront viewer의 DNS 검증 ACM 인증서, EC2 최소 SG·SSM 운영·secret 권한·예산/알림을 확인. DB를 보관하는 루트 또는 별도 EBS의 암호화·`DeleteOnTermination=false`·UUID/실제 장치 확인·기존 데이터 재포맷 금지와 PostgreSQL 내부 포트·자체 CA TLS 적용. 루트 구성은 재부팅 후 같은 파일시스템/DB 인식·공유 디스크 여유 공간 감시를 확인하고, 별도 EBS를 선택하면 UUID 기반 영속 마운트·마운트 누락 기동 차단도 확인. 초기 RDS·private DB subnet·ALB·Kubernetes 없음. CI·검증 환경에서 운영 데이터 복제 없음. 검증용 자원의 비용·철거 방법과 보존할 DB 볼륨 구분 기록.
+- 검증: IaC 정적 검사/계획 검토 후 정해진 검증 환경에서 S3 직접 접근 거부·CloudFront 접근 허용, ACM 리전·DNS와 API HTTP-01 port 80, 최소 역할 권한·재부팅 후 루트/DB 데이터 인식·볼륨 보존 속성·별도 EBS 선택 시 마운트 누락 기동 차단·DB 포트 외부 차단·호스트 재구축 후 데이터 복원을 시험. 리소스 생성은 별도 실행 작업이며 현재 문서 수정에 포함되지 않음.
 
 ### [DEP-05 #214](https://github.com/wejo-team/sku-dreamon/issues/214): migration과 앱 롤백 검증
 
@@ -241,6 +247,6 @@ AI 실행 메타데이터 정리는 기존 `python -m app.cli.ai_runs`를 **활�
 
 DEP-02는 기존 제품 endpoint·SSE 이벤트·쿠키·CSRF 계약을 유지하면서 readiness·credentialed CORS·검증 TLS·유한한 DB/SSE 정리 예산을 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. DB 업무 schema 변경은 없으며 실제 운영 호스트의 권한·원격 비밀값 공급·배포 검증은 후속입니다. 컨테이너의 단일 migration·전환 실행 경로는 DEP-03에서 분리해 다룹니다. 로그·세션·대화의 삭제/보존 정책은 자동 확정하지 않고 기존 운영 이슈에서 검토합니다.
 
-**단일 EC2의 Nginx·FastAPI·PostgreSQL, DB용 EBS와 Alembic 방향은 합의했습니다.** 구현 전에 정할 세부 사항은 AWS 계정/앱 리전, 월 3만 원 미만 목표의 전체 비용 충족 여부, 도메인, 검증 환경 격리 수준, PostgreSQL·배포 중 두 API를 포함한 자원/연결 용량, 프론트 자산·API/DB 인증서·데이터의 보관/복구 기준과 운영 담당자입니다. 서울 앱 리전은 후보이며 CloudFront viewer 인증서는 `us-east-1`에 둡니다. 서버 크기와 월 비용은 견적·부하 측정으로 정하고, 팀 검증을 운영 공개보다 먼저 진행해 실제 사용자 데이터가 들어오기 전 정책을 확정합니다.
+**단일 EC2의 Nginx·FastAPI·PostgreSQL, 기존 루트 EBS의 DB 데이터와 Alembic 방향은 합의했습니다.** 별도 DB EBS는 선택 사항입니다. 구현 전에 정할 세부 사항은 AWS 계정/앱 리전, 월 3만 원 미만 목표의 전체 비용 충족 여부, 도메인, 검증 환경 격리 수준, PostgreSQL·배포 중 두 API를 포함한 자원/연결 용량, 프론트 자산·API/DB 인증서·데이터의 보관/복구 기준과 운영 담당자입니다. 서울 앱 리전은 후보이며 CloudFront viewer 인증서는 `us-east-1`에 둡니다. 서버 크기와 월 비용은 견적·부하 측정으로 정하고, 팀 검증을 운영 공개보다 먼저 진행해 실제 사용자 데이터가 들어오기 전 정책을 확정합니다.
 
 DB 운영 부담이나 복구·가용성 요구가 커지면 관리형 RDS를 후속 확장 대안으로 검토합니다. EC2 장애까지 감당해야 하면 ECS·ALB·복수 task와 RDS Multi-AZ도 별도 비교하며 추가 비용과 migration·connection draining·DB 호환성을 검증합니다. 서비스 가이드와 pgvector는 배포 기반과 운영 관측을 갖춘 뒤 별도 요구에 따라 검토합니다.
