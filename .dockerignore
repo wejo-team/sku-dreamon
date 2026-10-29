@@ -1,0 +1,21 @@
+# 명시한 운영 소스만 빌드 컨텍스트로 보낸다.
+**
+!backend/
+!backend/Dockerfile
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/alembic.ini
+!backend/app/
+!backend/app/**
+!backend/alembic/
+!backend/alembic/**
+!deploy/
+!deploy/nginx/
+!deploy/nginx/Dockerfile
+!deploy/postgres/
+!deploy/postgres/**
+**/__pycache__
+**/*.pyc
+**/.env*
+**/*.key
+**/*.pem

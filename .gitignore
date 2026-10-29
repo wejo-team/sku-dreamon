@@ -27,3 +27,8 @@ docs/.vitepress/cache/
 .DS_Store
 Thumbs.db
 *.log
+
+# Private production runtime and local deployment evidence
+/deploy/runtime/
+/deploy/.runtime/
+/deploy/test-results/

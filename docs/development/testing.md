@@ -48,6 +48,8 @@ uv run pytest tests/integration/test_dev_seed.py
 | DB 모델 도입 | 위 검사에 실제 모델의 migration 적용·조회 테스트 추가 |
 | 제품 브라우저 통합 | 앱 변경과 main에서 `Integration E2E`: HTTPS·실제 API·격리 DB, 데스크톱/320px Chromium. 로컬도 별도 fixture 또는 개발 DB의 `*_e2e` 복제본에서만 실행 |
 
+운영 컨테이너의 이미지·TLS·앱 교체·DB 보존·짧은 SSE는 [별도 수동 스크립트](container-deployment.md#verification)로 검사합니다. 배포 기반 PR은 기존 앱 CI를 유지하며 새 필수 컨테이너 job을 추가하지 않습니다. CI 변경은 별도 PR로 다룹니다.
+
 - 프론트 검사 명령은 package.json scripts, Python 도구 설정은 pyproject.toml에 모읍니다. README·로컬 실행·CI가 같은 명령을 사용하도록 맞춥니다.
 - DB 통합 테스트의 데이터베이스는 운영 환경과 분리합니다. Alembic 적용 후 모델을 실제로 조회할 수 있는지 확인합니다.
 - 런타임·도구 버전을 고정하고 lockfile 기반으로 설치합니다. CI에서 의존성을 임의 갱신하지 않습니다.
