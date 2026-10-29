@@ -4,7 +4,7 @@
 
 [DEP-03 #212](https://github.com/wejo-team/sku-dreamon/issues/212)의 production 이미지·별도 Nginx/PostgreSQL·선택 앱 슬롯·비공개 JSON·배포 lock/journal·후보 readiness·설정 검사·worker 드레인·복구·롤백·인증서 실행 경로를 구현했습니다. [운영 가이드](container-deployment.md)가 이미지·설정·권한·명령과 실패 시 동작의 원본입니다. DB는 앱 교체에서 재생성하거나 downgrade하지 않으며 UUID·실제 장치를 확인한 데이터 mount와 검증 TLS를 사용합니다.
 
-검증은 host unit·정적 계약과 수동 컨테이너 실행을 구분합니다. host unit은 통과했고 단일 SAN 인증서 패턴은 Python 3.13의 엄격한 TLS handshake로 별도 확인했습니다. 일반 단위 검사에서는 인증서를 생성하지 않으며 실제 컨테이너 전체 성공은 미확인입니다. 앞선 실행은 합성 CA의 keyUsage 누락으로 첫 migration의 인증서 검증에 실패했습니다. 현재 수동 스크립트는 기존 DB TLS 테스트와 같은 단일 자체 서명 SAN 인증서를 명시적으로 신뢰하도록 단순화했고, 수정 후 실제 전체 재실행은 수행하지 않았습니다. 이미지·HTTP bootstrap·앱 교체/롤백·DB 보존·짧은 fixture SSE는 [수동 검사](container-deployment.md#검증과-범위) 범위입니다. 기존 앱 CI는 유지하며 CI 변경은 별도 PR로 다룹니다.
+검증은 host unit·정적 계약과 수동 컨테이너 실행을 구분합니다. host unit은 통과했고 단일 SAN 인증서 패턴은 Python 3.13의 엄격한 TLS handshake로 별도 확인했습니다. 일반 단위 검사에서는 인증서를 생성하지 않으며 실제 컨테이너 전체 성공은 미확인입니다. 앞선 실행은 합성 CA의 keyUsage 누락으로 첫 migration의 인증서 검증에 실패했습니다. 현재 수동 스크립트는 기존 DB TLS 테스트와 같은 단일 자체 서명 SAN 인증서를 명시적으로 신뢰하도록 단순화했고, 수정 후 실제 전체 재실행은 수행하지 않았습니다. 이미지·HTTP bootstrap·앱 교체/롤백·DB 보존·짧은 fixture SSE는 [수동 검사](container-deployment.md#verification) 범위입니다. 기존 앱 CI는 유지하며 CI 변경은 별도 PR로 다룹니다.
 
 실제 도메인의 ACME 발급/갱신·최대 300초 벽시계·DB 지연 종료 종합은 최초 운영 검증 후속입니다. 소스·unit·계산한 timeout만으로 실제 실행을 완료했다고 판단하지 않습니다.
 

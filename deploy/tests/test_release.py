@@ -500,6 +500,53 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ReleaseError, "recover"):
             self.release.certificate("renew")
 
+    def test_failed_certificate_job_preserves_and_applies_its_installation_event(
+        self,
+    ) -> None:
+        chain = (
+            self.release.root
+            / "acme/letsencrypt/live"
+            / self.release.runtime.api_host
+            / "fullchain.pem"
+        )
+        atomic_write(chain, "unit-only-new-certificate\n")
+        atomic_write(chain.with_name("privkey.pem"), "unit-only-key\n")
+        installed = fingerprint(chain)
+        atomic_write(self.release.root / "state/certbot/installed", installed + "\n")
+        self.release.state.update(
+            phase="certificate_failed",
+            certificate={
+                "mode": "renew",
+                "stage": "job_failed",
+                "prior_phase": "stable",
+                "name": "synthetic-certificate-job",
+                "nginx": self.release.nginx.copy(),
+                "workers": [],
+                "old_marker": "1" * 64,
+                "budgets": self.release.state["slots"]["app_blue"]["budgets"],
+            },
+        )
+        self.release.worker_plan = [["10:100"], []]
+        exited_job = {"State": {"Running": False, "ExitCode": 137, "OOMKilled": True}}
+        with (
+            patch.object(
+                self.release, "certificate_container", return_value=exited_job
+            ),
+            patch.object(self.release, "verify_certificate") as verify_certificate,
+        ):
+            self.release.recover()
+        reload_event = "docker:exec nginx-original nginx -s reload"
+        self.assertEqual(self.release.events.count(reload_event), 1)
+        verify_certificate.assert_called_once()
+        self.assertEqual(self.release.state["certificate_digest"], installed)
+        self.assertEqual(self.release.state["last_failure"], "certificate_job_failed")
+        self.assertEqual(self.release.state["phase"], "stable")
+        self.assertNotIn("certificate", self.release.state)
+        self.assertIn("workers:", self.release.events)
+        with patch.object(self.release, "wait_certificate"):
+            self.release.certificate("renew")
+        self.assertEqual(self.release.events.count(reload_event), 1)
+
     def test_child_command_failure_never_exposes_secret_arguments_or_output(
         self,
     ) -> None:

@@ -123,6 +123,8 @@ Certbot의 `/etc/letsencrypt` 전체와 webroot·work·logs는 런타임에 남�
 
 호스트 scheduler·실패 통보 수신자·인증서 만료 감시는 후속 운영 설정입니다. scheduler는 이 명령의 nonzero exit와 안전한 실패 코드에 알림을 연결하고, 실패 후에는 같은 job을 무한 반복하지 않아야 합니다. 이 저장소에 외부 알림 전송이나 운영 cron 설치가 완료되었다고 해석하지 않습니다.
 
+<a id="verification"></a>
+
 ## 검증과 범위
 
 ```bash

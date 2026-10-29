@@ -1203,8 +1203,10 @@ class Release:
                 )
             if not container or container["State"].get("ExitCode") != 0:
                 self.state["last_failure"] = "certificate_job_failed"
-                self.clear_certificate(certificate)
-                return
+                # job 실패 전에 저장한 설치 이벤트도 검증·적용을 끝내야 한다.
+                if self.certificate_marker() == certificate["old_marker"]:
+                    self.clear_certificate(certificate)
+                    return
             certificate["stage"] = "issued"
             self.save()
         if certificate["stage"] == "draining":
