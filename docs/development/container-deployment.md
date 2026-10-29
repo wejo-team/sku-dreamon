@@ -167,6 +167,8 @@ sudo python3.13 deploy/tests/container_e2e.py
 
 이 배포 기반 PR은 기존 앱 CI를 유지하며 새 필수 컨테이너 job을 추가하지 않습니다. CI 변경은 별도 PR로 다룹니다. 수동 실행 결과는 실행한 SHA와 `deploy/test-results/container-e2e.json`의 안전한 JSON으로 확인합니다. 소스 파일 존재·unit 통과·이전 SHA의 결과로 현재 SHA의 실제 실행을 대신하지 않습니다. AWS의 실제 EBS 부착·재부팅·복원·공개 ACME·운영 부하·비용·모델 제공자 검증은 포함하지 않습니다.
 
+2026-10-30에 [단일 EBS 지원 코드 커밋](https://github.com/wejo-team/sku-dreamon/commit/c381b023c4f6aefe73453016e2d199330691df34)의 루트 경로 선택·별도 마운트 회귀·Compose 해석을 포함한 단위/정적 검사 41개와 격리 Docker-in-Docker의 production Compose·PostgreSQL guard 수동 검사 8개를 통과했습니다. 수동 검사는 합성 loop 장치 두 개로 정상 기동·SQL·장치 메타데이터 조회, 컨테이너 root와 postgres 사용자의 원시 디스크 읽기 차단, 다른 loop 데이터 마운트 거부, UUID 장치 경로 제거 후 재시작 거부를 확인했습니다. 단일 루트 EBS 경로는 설정/호스트 단위 검사로 확인했으며 실제 장치 연결 검사는 합성 loop 대상입니다. AWS·AL2023·실제 루트 EBS의 실행 검증과 운영 배포는 수행하지 않았습니다. 새 CI job·외부 모델·공개 ACME 호출은 추가하지 않았으며, 문서 원본 67개 링크/앵커·사이트 빌드·생성 링크 검사도 통과했습니다. 후속 실행 기록은 [#223](https://github.com/wejo-team/sku-dreamon/issues/223)에서 확인합니다.
+
 2026-10-30에 [검증한 코드 커밋](https://github.com/wejo-team/sku-dreamon/commit/fb7d25b449447baee5630c9e47a338b3aa370021)의 배포 단위·정적 검사 40개와 전체 수동 컨테이너 검사 11개를 통과했습니다. 수동 검사는 기존 호스트 데이터나 Docker socket을 공유하지 않는 임시 Docker-in-Docker 환경에서 합성 loopback 디스크·인증서·계정으로 실행했습니다. Docker 29.8.0·Compose 5.5.1·검사 호스트 Python 3.14.10을 사용했고, 제품 이미지는 Dockerfile의 Python 3.13.14를 유지합니다. 전체 실행은 100.75초, 짧은 인증 SSE와 앱 전환 관측 구간은 14.95초였습니다. 이는 해당 격리 실행의 기록이며 운영 성능 기준은 아닙니다.
 
 인증서 없는 HTTP 기동, PostgreSQL 검증 TLS와 migration, 제품 HTTPS·CORS·전달 헤더 경계, 앱 교체·롤백 중 DB 데이터와 컨테이너·Nginx 유지, 실패 후보의 기존 경로 보존과 recover를 확인했습니다. 후보 컨테이너의 TCP health가 `healthy`여도 `/ready` 실패로 전환이 차단됐고, 새 요청이 새 슬롯에 도달한 뒤 기존 SSE와 Nginx worker가 종료되어 이전 앱이 중지되는 것을 확인했습니다. 수동 실패 fixture는 FastAPI의 지연된 included router보다 앞에서 `/ready` 503을 반환하도록 구성합니다.

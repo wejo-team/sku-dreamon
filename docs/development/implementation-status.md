@@ -1,5 +1,9 @@
 # 구현 현황과 다음 작업
 
+## 2026-10-30 단일 EBS 지원
+
+[단일 EBS 경로 #223](https://github.com/wejo-team/sku-dreamon/issues/223)에서 기존 루트 EBS 하나에 OS·Docker·PostgreSQL 데이터를 보관하도록 명시적인 `/` mountpoint와 하위 데이터 경로를 지원했습니다. UUID·실제 장치 검증과 선택적 별도 EBS의 마운트 누락 거부를 유지하며 PostgreSQL 컨테이너에 원시 디스크 읽기 권한을 추가하지 않습니다. 단위/정적 검사 41개와 합성 loop 장치 두 개를 사용한 수동 컨테이너 검사 8개를 통과했고, 소스 커밋과 범위는 [컨테이너 검증 기록](container-deployment.md#verification)에서 확인합니다. 루트 경로는 설정/호스트 단위 검사로 확인했으며 AWS·AL2023·실제 루트 EBS 검증과 운영 배포는 수행하지 않았습니다.
+
 ## 2026-10-29 컨테이너 실행·앱 교체 기반
 
 [DEP-03 #212](https://github.com/wejo-team/sku-dreamon/issues/212)의 production 이미지·별도 Nginx/PostgreSQL·선택 앱 슬롯·비공개 JSON·배포 lock/journal·후보 readiness·설정 검사·worker 드레인·복구·롤백·인증서 실행 경로를 구현했습니다. [운영 가이드](container-deployment.md)가 이미지·설정·권한·명령과 실패 시 동작의 원본입니다. DB는 앱 교체에서 재생성하거나 downgrade하지 않으며 UUID·실제 장치를 확인한 데이터 mount와 검증 TLS를 사용합니다.
