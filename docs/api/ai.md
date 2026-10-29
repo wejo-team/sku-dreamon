@@ -77,6 +77,16 @@ SSE 자동 재연결·이벤트 재생은 제공하지 않습니다. 연결이 �
 
 정상 순서는 `started → progress* → answer.delta* → result → done`입니다. `done`을 받기 전 부분 답변이나 연결 단절을 완료로 표시하지 않습니다. 이전 대화·요청·시도의 늦은 이벤트는 반영하지 않습니다. 스트림 시작 전 오류는 공통 JSON HTTP 오류이며, 시작 후에는 HTTP 상태를 바꾸지 않고 종료 이벤트로 실패를 전달합니다.
 
+<a id="termination"></a>
+
+## 응답 종료와 지연 정리
+
+[DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)는 [AiStreamResponse](../../backend/app/routers/ai.py)와 [StreamCleanup](../../backend/app/services/ai.py)에 유한한 실행·정리 예산을 적용했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. 헤더를 보내기 전부터 응답 실행을 `AI_TIMEOUT_SECONDS + 9초`로 제한하며, 헤더·heartbeat·본문·최종 프레임의 각 전송은 3초 안에 끝나야 합니다. provider `aclose`·실패 상태 저장·generator 종료·`on_close`는 첫 정리 때 시작한 단일 `AI_CLEANUP_TIMEOUT_SECONDS` deadline을 공유하고 새 예산을 시작하지 않습니다. 기본 정리는 5초, 허용 범위는 0.1~30초이며 상태 저장은 한 번만 시도합니다.
+
+협조적 취소와 유한한 DB·driver I/O 아래 응답은 `AI_TIMEOUT_SECONDS + 9초 + AI_CLEANUP_TIMEOUT_SECONDS`와 스케줄링 여유 안에 끝납니다. 취소를 무시하는 임의 외부 코드를 강제로 종료한다는 보장은 아닙니다. 열려 있는 producer를 분리해 계속 실행하는 방식은 사용하지 않습니다. timeout·닫기 실패를 완료 저장·가짜 `result`/`done`으로 바꾸지 않으며 기존 성공/빈 결과의 commit 경계를 유지합니다. 전송이 이미 막혔으면 실패 이벤트도 전달되지 않을 수 있어 상태 조회로 확인합니다.
+
+DB 실패·잠금 등으로 종료 상태 저장을 마치지 못하면 `pending`과 원래 `deadline_at`·`expires_at`을 유지합니다. 실행 기한 이후 상태 조회 또는 기존 `python -m app.cli.ai_runs`가 `failed`·`temporary_failure`로 회수하고, 접근 만료 뒤 물리 삭제합니다. 이전 시도의 늦은 정리가 새 시도나 이미 종료한 상태를 덮어쓰지 않습니다. 이 CLI는 대화·메시지를 삭제하는 보존 정책이 아닙니다. 실제 프록시 드레인·checkpoint·SSE 재생은 구현하지 않았으며 [배포 계획](../development-plans/deployment-foundation.md)에서 별도 검증합니다.
+
 <a id="result-fields"></a>
 
 ## 결과와 근거
@@ -106,4 +116,4 @@ SSE 자동 재연결·이벤트 재생은 제공하지 않습니다. 연결이 �
 
 기존 실행 메타데이터에는 본문 대신 소유권·상태·시도·해시·근거 참조를 저장합니다. 실행 메타데이터는 기본 24시간 뒤 접근이 만료됩니다. 신규 실행과 운영 정리 명령이 만료 행을 삭제하며, 유휴 시간의 물리 삭제는 운영 스케줄에서 해당 명령을 호출해야 합니다.
 
-기본 실행 한도와 실제 OpenAI 수동 검사·정리 명령은 [AI 로컬 실행](../development/local-development.md#ai-backend)에 둡니다. API 키가 없으면 AI 생성 경로는 503 `AI_NOT_CONFIGURED`이며 다른 모델로 자동 전환하지 않습니다. 운영 HTTPS·프록시 스트리밍·정리 스케줄·비용/품질 평가는 배포 환경에서 별도로 검증해야 합니다.
+기본 실행 한도와 실제 OpenAI 수동 검사·정리 명령은 [AI 로컬 실행](../development/local-development.md#ai-backend)에 둡니다. 기본 `AI_REQUIRED=false`에서는 API 키가 없으면 AI 생성 경로가 503 `AI_NOT_CONFIGURED`입니다. AI 제공 배포는 `AI_REQUIRED=true`로 키 누락을 기동 실패로 처리하며 다른 모델로 자동 전환하지 않습니다. 운영 HTTPS·프록시 스트리밍·정리 스케줄·비용/품질 평가는 배포 환경에서 별도로 검증해야 합니다.

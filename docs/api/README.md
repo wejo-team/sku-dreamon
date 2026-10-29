@@ -6,6 +6,7 @@
 
 | 문서 | 현재 구현 범위 | 남은 범위 |
 | --- | --- | --- |
+| [Health·readiness API](health.md) | liveness 유지, DEP-02 DB·보안 자원·로컬 AI 준비 검사 구현. 구현·검증 근거 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217) | 실제 Nginx·배포 경로 검증 |
 | [공통 계약](conventions.md) | DTO·성공 응답·페이지·오류·인증 의존성 | 후속 API에 같은 기반 적용 |
 | [계정·인증 API](auth.md) | 가입·로그인·아이디 확인·CSRF·본인 계정·로그아웃·공유 시도 제한 | 실제 차단 목록·origin·키와 운영 설정 |
 | [프로필 API](profiles.md) | 본인 프로필·공개 사람 조회, 전체 저장·수정·공개 전환 | 실서버 브라우저 회귀·운영 검증 |
@@ -64,7 +65,7 @@ FastAPI의 기본 제공 경로는 `/docs`(Swagger UI), `/redoc`(ReDoc), `/opena
 
 ## 후속 구현에 남은 결정
 
-인증은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다. 구현된 CSRF 필드·쿠키 속성·실패 처리는 [인증 DTO](../../backend/app/schemas/auth.py), [쿠키 처리](../../backend/app/routers/auth_cookies.py), [CSRF 검사](../../backend/app/dependencies/csrf.py)가 원본이며 전송 계약은 [병합된 PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)와 [공통 계약](conventions.md#csrf-transport)을 따릅니다. 가입·로그인·아이디 확인과 공유 시도 제한은 구현했습니다. 운영 origin·키·차단 목록 설정, 운영 CORS·도메인은 후속 범위이며 로컬 HTTPS 검증은 [bug bash](../development/bug-bash.md)를 따릅니다.
+인증은 [서버 세션 정책](../specs/authentication.md#session-policy)을 따릅니다. 구현된 CSRF 필드·쿠키 속성·실패 처리는 [인증 DTO](../../backend/app/schemas/auth.py), [쿠키 처리](../../backend/app/routers/auth_cookies.py), [CSRF 검사](../../backend/app/dependencies/csrf.py)가 원본이며 전송 계약은 [병합된 PR #124](https://github.com/wejo-team/sku-dreamon/pull/124)와 [공통 계약](conventions.md#csrf-transport)을 따릅니다. 가입·로그인·아이디 확인과 공유 시도 제한은 구현했습니다. 운영 origin·키·차단 목록·도메인의 실제 공급은 후속 범위입니다. credentialed CORS·Host/proxy·readiness는 [DEP-02](../development-plans/deployment-foundation.md)에서 구현했으며 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. 로컬 HTTPS 검증은 [bug bash](../development/bug-bash.md)를 따릅니다.
 
 일반 텍스트 NFC·코드 포인트, 팀 생성의 필수 프로필·공개 불필요 조건, 공고 목록 전체 상태 기본값과 인증 시도 제한·로컬 차단 목록 공급 방식은 2026-10-24 결정으로 확정했습니다. 실제 차단 목록/운영 설정 배포·종료 세션 정리와 보존, 학사 시드 원장의 범위, 공고 입력·갱신 운영 절차는 후속 결정으로 남습니다. AI는 `create_agent`·OpenAI Luna·실시간 답변을 선택했으며 백엔드 전송·실행·메타데이터 저장은 [SDD](../development-plans/ai-agent.md)에 따라 로컬 구현했습니다. 프론트 연결·운영 정리/보존·비용/품질 평가는 후속 작업입니다. 모집 정보·지원 메시지 편집과 공고 변경 영향도 [공통 계약의 보류 목록](conventions.md#deferred) 및 각 기능 명세를 따릅니다. 확정된 모집·지원 전이는 [모집 상태 변경](teams.md#transitions)과 [지원 상태 변경](applications.md#transitions)을 참조합니다. [계정 복구](../specs/authentication.md#account-recovery)는 MVP 범위 밖이며 현재 인증 구현의 선행 조건이 아닙니다.
 

@@ -1,5 +1,9 @@
 # 구현 현황과 다음 작업
 
+## 2026-10-29 앱 운영 준비 계약 구현
+
+[DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 production 설정 검증·전역 credentialed CORS·Host/단일 trusted proxy 경계·검증 TLS/DB 예산·readiness·SSE 종료/지연 정리를 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. [배포 기반 계획](../development-plans/deployment-foundation.md)과 [health API](../api/health.md)가 계약을 설명합니다. 이 작업에서 실제 키·운영 DB·모델 제공자 호출은 사용하지 않았습니다. AWS·Docker/Nginx·CD·드레인·운영 스케줄은 미구현·미배포이며, 월 3만 원 미만 목표의 DB 비용 비교·도메인/리전/담당자 결정과 DEP-01·03~07은 후속입니다.
+
 ## 2026-10-28 AI 제품 화면 연결
 
 [AI 화면 연결 #163](https://github.com/wejo-team/sku-dreamon/issues/163)의 [구현 PR #192](https://github.com/wejo-team/sku-dreamon/pull/192)에서 일반 대화·팀장의 지원자 검토·팀 지원자 추천을 기존 실제 API에 연결했습니다. `VITE_API_MOCK=false`는 POST SSE를 사용하고, 명시적인 모의 모드에서만 예시 답변을 만듭니다. 준비·생성·완료·빈 결과·실패·취소, 원입력 재시도와 실행 상태 확인을 구분합니다.

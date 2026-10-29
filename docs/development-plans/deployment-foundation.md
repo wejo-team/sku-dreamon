@@ -1,6 +1,6 @@
 # 제품 배포 기반 설계안
 
-**상태: AWS 배포 방향 합의 · 세부 설계 검토안 · 미구현 · 미배포.** 2026-10-29에 갱신했으며, 코드 확인 기준은 `main` [3fa1f8b](https://github.com/wejo-team/sku-dreamon/commit/3fa1f8b)입니다. 사용자가 합의한 배포 방향과 이 문서가 제안하는 세부값을 구분합니다. 인프라 생성, 비밀값 설정, 제품 배포나 운영 검증은 아직 수행하지 않았습니다.
+**상태: AWS 배포 방향 합의 · DEP-02 앱 계약 구현 · 인프라 미구현 · 미배포.** 2026-10-29 기준 [DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 운영 설정·CORS·DB TLS·readiness·SSE 종료 계약을 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)에서 확인합니다. 인프라 생성·운영 비밀값 설정·제품 배포·실제 모델 호출은 수행하지 않았습니다. 나머지 DEP 작업은 예정입니다.
 
 ## 기준과 범위
 
@@ -10,9 +10,10 @@
 | --- | --- |
 | 사용자와 합의한 방향 | AWS 전용 호스팅, 프론트는 S3·CloudFront, API는 단일 EC2의 Nginx·FastAPI, DB는 RDS. 소유할 같은 등록 도메인의 `www`·`api` 사용 |
 | 이 문서의 세부 제안 | RDS Single-AZ, GitHub Actions·OIDC·SSM 배포, Docker Compose 실행 관리, API의 Let's Encrypt·Certbot TLS, 서울 리전 후보 |
-| 아직 결정하지 않은 사항 | 실제 도메인·AWS 계정·리전·월 예산·자원 크기, 자산·인증서 보관과 운영 담당자, 데이터 보존·복구 목표 |
-| 현재 구현 | 앱 CI·문서 Pages, 로컬 HTTPS 통합 검사, 서버 세션·CSRF, AI SSE와 중단·복구 UI |
-| 아직 없는 기반 | 제품 Dockerfile·배포 workflow·운영 Nginx·CORS·DB readiness·AWS 리소스·배포 드레인·운영 정리 스케줄 |
+| 사용자 규모·예산 제약 | 초기 사용자 100명 미만, 월 3만 원 미만 목표. 장기 비용과 운영 책임을 [DEP-01 #210](https://github.com/wejo-team/sku-dreamon/issues/210)에서 비교하며 자원 크기·DB 호스팅은 미정 |
+| 아직 결정하지 않은 사항 | 실제 도메인·AWS 계정·리전·자원 크기, 자산·인증서 보관과 운영 담당자, 데이터 보존·복구 목표 |
+| 현재 구현 | 앱 CI·문서 Pages, 로컬 HTTPS 통합 검사, 서버 세션·CSRF, AI SSE와 중단·복구 UI. DEP-02 운영 앱 계약 구현, 구현·검증 근거 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217) |
+| 아직 없는 기반 | 제품 Dockerfile·배포 workflow·운영 Nginx·AWS 리소스·배포 드레인·운영 정리 스케줄 |
 
 초기 구성에는 ALB·Kubernetes를 추가하지 않습니다. **GitHub Actions는 배포 순서를 조정하고, Docker Compose는 컨테이너 실행을 관리하며, 계속 실행되는 별도 Nginx 컨테이너는 TLS와 요청 경로를 담당합니다.** 평소 Compose 기동은 활성 앱 슬롯만 선택하고, 배포 때 비활성 슬롯을 추가로 기동하는 계약으로 두 앱의 상시 실행을 피합니다. Compose 자체가 readiness 확인·트래픽 전환·스트림 드레인을 자동 보장하지 않으므로 배포 절차를 별도로 구현합니다. 호스트 장애 대응이 필요해지면 ECS·ALB·복수 task와 RDS Multi-AZ의 비용·운영 범위를 비교합니다.
 
@@ -26,8 +27,8 @@
 
 | 경로 | 담당 | 배포 경계 |
 | --- | --- | --- |
-| 브라우저 → `https://www.<owned-domain>` | CloudFront → 비공개 S3의 `frontend/dist` | HTML·JS·CSS와 허용된 SPA 경로. CloudFront OAC로 S3 REST origin 접근 |
-| 브라우저 → `https://api.<owned-domain>/api/v1` | EC2의 Nginx → 활성 FastAPI 컨테이너 | JSON과 POST SSE 모두 브라우저에서 직접 호출. Nginx에서 TLS 종료 |
+| 브라우저 → `https://www.example.com` | CloudFront → 비공개 S3의 `frontend/dist` | HTML·JS·CSS와 허용된 SPA 경로. CloudFront OAC로 S3 REST origin 접근 |
+| 브라우저 → `https://api.example.com/api/v1` | EC2의 Nginx → 활성 FastAPI 컨테이너 | JSON과 POST SSE 모두 브라우저에서 직접 호출. Nginx에서 TLS 종료 |
 | FastAPI → RDS endpoint | 같은 VPC의 private DB subnet | EC2 SG에서 DB SG의 5432만 허용, 인증서·호스트명 검증 TLS |
 | FastAPI → 모델 제공자 | EC2 outbound HTTPS | 운영 런타임에서만 사용. 기존 `gpt-6-luna` 유지 |
 | GitHub Actions → ECR·SSM·S3·CloudFront | OIDC로 얻은 단기 AWS 권한 | 같은 SHA의 이미지·정적 산출물 게시, API 전환, CDN 무효화와 결과 확인 |
@@ -36,15 +37,21 @@ EC2는 public subnet의 고정 public IPv4와 Internet Gateway 경로를 사용�
 
 EC2는 ECR·SSM·로그·시크릿·모델 API에 필요한 HTTPS egress를 사용하므로 초기 구성에 NAT Gateway를 추가하지 않습니다. public EC2의 방화벽·패치·프록시 운영 책임을 포함합니다. 오픈소스 Nginx 자체의 라이선스료나 EC2의 컨테이너별 별도 요금은 없으며, 같은 EC2 유형·실행시간을 유지하면 컨테이너 추가 자체로 기본 컴퓨트 요금이 바뀌지는 않습니다. 다만 부하 증가에 따른 인스턴스 크기 확대, burstable 인스턴스의 Unlimited CPU credit과 네트워크·로그·스토리지는 별도 비용 항목입니다. [AWS Internet Gateway](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html), [NGINX Open Source](https://nginx.org/en/), [EC2 온디맨드와 CPU credit 요금](https://aws.amazon.com/ec2/pricing/on-demand/)
 
-운영 PostgreSQL은 EC2의 컨테이너로 실행하지 않습니다. RDS는 `PubliclyAccessible=false`, 암호화된 스토리지, EC2 보안 그룹만 허용하는 인바운드 규칙을 사용합니다. Single-AZ 인스턴스라도 DB subnet group에는 서로 다른 AZ의 private subnet 두 개를 준비합니다. subnet 두 개가 DB 이중화를 제공하는 것은 아닙니다. PostgreSQL은 현재 개발·CI의 17 계열과 맞추되, 서울 리전의 지원 마이너 버전과 유지보수 정책을 생성 전에 확인합니다. [RDS VPC 구성](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html)
+현재 기준안은 RDS이며, EC2의 PostgreSQL 동시 실행은 아래 비용 비교 후보입니다. DB 호스팅 전환을 결정하거나 배포한 상태는 아닙니다. RDS는 `PubliclyAccessible=false`, 암호화된 스토리지, EC2 보안 그룹만 허용하는 인바운드 규칙을 사용합니다. Single-AZ 인스턴스라도 DB subnet group에는 서로 다른 AZ의 private subnet 두 개를 준비합니다. subnet 두 개가 DB 이중화를 제공하는 것은 아닙니다. PostgreSQL은 현재 개발·CI의 17 계열과 맞추되, 서울 리전의 지원 마이너 버전과 유지보수 정책을 생성 전에 확인합니다. [RDS VPC 구성](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html)
 
 EC2 크기는 두 앱 슬롯, Nginx, OS·로그 에이전트가 동시에 동작하는 최대 메모리와 CPU를 측정해 정합니다. 가장 작은 인스턴스를 미리 확정하지 않습니다. DB 연결 수도 두 슬롯·각 프로세스의 pool과 migration·정리 작업을 합산해 RDS 한도 안으로 제한합니다. 초기에는 슬롯당 Uvicorn 프로세스 하나를 제안하며, 프로세스 증가는 부하 검사와 함께 재산정합니다.
 
+### 예산과 DB 호스팅 비교 후보
+
+월 3만 원 미만 목표에서는 RDS의 상시 비용이 부담이 될 수 있어 [DEP-01 #210](https://github.com/wejo-team/sku-dreamon/issues/210)에서 공식 요금·계정 혜택·리전·저장량을 대조합니다. 기한이 있는 무료 체험을 장기 무료로 계산하지 않으며, 원화 총액은 보장하지 않습니다. 기존 RDS 기준안은 결정 전까지 유지합니다.
+
+같은 EC2에 PostgreSQL을 두는 후보는 평소 Nginx·API·DB를 실행하고, 앱 배포 때 **API 이전·새 슬롯만 교체**하는 방식입니다. DB의 영속 볼륨을 유지하며 앱 릴리스마다 DB 컨테이너를 교체하지 않습니다. DB 비용을 줄일 수 있지만 백업·복원 시험·패치·모니터링을 직접 맡고 호스트 장애를 앱과 공유합니다. 두 API 슬롯과 DB의 최대 메모리·연결 수·디스크 예산도 함께 측정해야 합니다. 아래 앱의 검증 TLS는 RDS 전용이 아니므로 자체 CA와 PostgreSQL 서비스 호스트명에도 적용할 수 있습니다. 이 비교는 후보 검토이며 DB 호스팅 확정이나 평문 DB 연결 허용을 뜻하지 않습니다.
+
 ## S3·CloudFront 프론트와 TLS
 
-S3 버킷은 public access를 차단하고, 해당 CloudFront 배포만 읽을 수 있는 bucket policy와 OAC를 적용합니다. **S3 REST origin을 사용하며 website endpoint를 사용하지 않습니다.** OAC의 항상 서명하는 설정으로 CloudFront→S3도 HTTPS를 사용합니다. 브라우저의 API 요청은 CloudFront를 거치지 않고 `api.<owned-domain>`으로 직접 보냅니다. [CloudFront OAC와 S3 origin](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html)
+S3 버킷은 public access를 차단하고, 해당 CloudFront 배포만 읽을 수 있는 bucket policy와 OAC를 적용합니다. **S3 REST origin을 사용하며 website endpoint를 사용하지 않습니다.** OAC의 항상 서명하는 설정으로 CloudFront→S3도 HTTPS를 사용합니다. 브라우저의 API 요청은 CloudFront를 거치지 않고 `api.example.com`으로 직접 보냅니다. [CloudFront OAC와 S3 origin](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html)
 
-Actions runner에서 `.nvmrc`·`package.json`의 고정 도구와 잠금 파일로 `frontend`의 `npm ci`·`npm run build`를 실행하고 **`frontend/dist`**를 릴리스 산출물로 보존합니다. 빌드 시 `VITE_API_MOCK=false`, `VITE_API_BASE_URL=https://api.<owned-domain>/api/v1`을 명시합니다. `VITE_*`는 공개 번들 값이므로 비밀값을 넣지 않습니다. 실제 변수 사용처는 [API 클라이언트](../../frontend/src/lib/api.ts), 현재 개발 프록시는 [Vite 설정](../../frontend/vite.config.ts)에 있습니다.
+Actions runner에서 `.nvmrc`·`package.json`의 고정 도구와 잠금 파일로 `frontend`의 `npm ci`·`npm run build`를 실행하고 **`frontend/dist`**를 릴리스 산출물로 보존합니다. 빌드 시 `VITE_API_MOCK=false`, `VITE_API_BASE_URL=https://api.example.com/api/v1`을 명시합니다. `VITE_*`는 공개 번들 값이므로 비밀값을 넣지 않습니다. 실제 변수 사용처는 [API 클라이언트](../../frontend/src/lib/api.ts), 현재 개발 프록시는 [Vite 설정](../../frontend/vite.config.ts)에 있습니다.
 
 | 대상 | 게시·캐시 계약 |
 | --- | --- |
@@ -59,8 +66,8 @@ SPA 직접 URL·새로고침은 **허용한 navigation route만 단일 `/index.h
 
 | TLS 구간 | 인증서와 운영 계약 |
 | --- | --- |
-| 브라우저 → CloudFront | `www.<owned-domain>`의 DNS 검증 ACM 인증서를 **`us-east-1`**에 준비하고 CloudFront viewer에 연결. 앱 리전 후보와 구분하며 DNS 검증 레코드 유지·갱신 상태 감시 |
-| 브라우저 → EC2 Nginx | `api.<owned-domain>`에 Let's Encrypt·Certbot HTTP-01 사용. public DNS가 EC2를 가리키고 port 80의 challenge 경로에 접근 가능해야 함 |
+| 브라우저 → CloudFront | `www.example.com`의 DNS 검증 ACM 인증서를 **`us-east-1`**에 준비하고 CloudFront viewer에 연결. 앱 리전 후보와 구분하며 DNS 검증 레코드 유지·갱신 상태 감시 |
+| 브라우저 → EC2 Nginx | `api.example.com`에 Let's Encrypt·Certbot HTTP-01 사용. public DNS가 EC2를 가리키고 port 80의 challenge 경로에 접근 가능해야 함 |
 | Nginx → FastAPI | 같은 호스트의 전용 Docker 네트워크에서만 plain HTTP. 공개 앱 포트·다른 호스트 구간으로 확대하지 않음 |
 | FastAPI·Alembic → RDS | RDS CA와 endpoint hostname을 검증하는 TLS. 인증서·호스트명 오류 때 접속 실패 |
 
@@ -68,43 +75,31 @@ API 최초 기동은 **port 80의 challenge만 처리하는 Nginx 설정 → Cer
 
 ## 인증·프록시·환경설정
 
-`www.<owned-domain>`과 `api.<owned-domain>`은 HTTPS에서 same-site이지만 origin은 다릅니다. API 호스트 전용 `__Host-*` 쿠키의 `Secure`·`HttpOnly`·`SameSite=Lax`·`Path=/`를 유지하고 `Domain`을 추가하지 않습니다. 프론트는 이미 `credentials: include`를 사용하며, `/auth/csrf` 응답의 토큰을 메모리에 두고 상태 변경에 `X-CSRF-Token`으로 보냅니다. 프론트 도메인에서 API 쿠키를 직접 읽을 필요가 없습니다. [쿠키 구현](../../backend/app/routers/auth_cookies.py), [SameSite·host-only 설명](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie)
+`www.example.com`과 `api.example.com`은 HTTPS에서 same-site이지만 origin은 다릅니다. API 호스트 전용 `__Host-*` 쿠키의 `Secure`·`HttpOnly`·`SameSite=Lax`·`Path=/`를 유지하고 `Domain`을 추가하지 않습니다. 프론트는 이미 `credentials: include`를 사용하며, `/auth/csrf` 응답의 토큰을 메모리에 두고 상태 변경에 `X-CSRF-Token`으로 보냅니다. 프론트 도메인에서 API 쿠키를 직접 읽을 필요가 없습니다. [쿠키 구현](../../backend/app/routers/auth_cookies.py), [SameSite·host-only 설명](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie)
 
-현재 [앱 생성 코드](../../backend/app/main.py)에는 CORS가 없습니다. 구현 시 `AUTH_ALLOWED_ORIGINS`의 정확한 HTTPS origin 목록을 CORS에도 사용하고, credentials를 허용합니다. 사용할 메서드와 `Content-Type`·`X-CSRF-Token` 등 실제 요청 헤더만 허용하며 wildcard origin·임의 origin 반사를 사용하지 않습니다. OPTIONS preflight는 인증 없이 CORS 경계에서 처리하되 업무 요청의 세션·CSRF 검사는 그대로 수행합니다. 401·403·500과 SSE 응답에도 허용된 origin의 CORS 헤더가 보이는지 검증하며, 클라이언트가 읽는 `X-Request-ID`·`Retry-After` 등은 필요한 것만 expose합니다. CORS 헤더는 앱에서 한 번 발급하고 Nginx에서 중복 추가하지 않습니다. 같은 등록 도메인의 다른 하위 도메인이라도 자동 신뢰하지 않습니다. [CSRF 의존성](../../backend/app/dependencies/csrf.py), [FastAPI CORS](https://fastapi.tiangolo.com/tutorial/cors/)
+[앱 생성 코드](../../backend/app/main.py)와 [HTTP 경계](../../backend/app/core/http/deployment.py)는 `AUTH_ALLOWED_ORIGINS`의 정확한 HTTPS origin만 credentialed CORS로 허용합니다. `Content-Type`·`X-CSRF-Token`과 실제 메서드 목록을 허용하며 `X-Request-ID`·`Retry-After`를 노출합니다. CORS는 최외곽 오류 처리까지 감싸므로 허용 origin의 401·403·500·SSE에도 적용됩니다. 세션·CSRF·제품 응답·쿠키 계약은 유지하며 Nginx에서 CORS를 중복 발급하지 않습니다.
 
-현재 [인증 시도 제한](../../backend/app/dependencies/auth_attempts.py)은 `request.client.host`를 사용합니다. 단일 Nginx 경계에서 외부의 전달 헤더를 덮어쓰고 실제 연결 IP와 HTTPS 정보를 전달하며, Uvicorn은 전용 Docker 네트워크에 고정해 검증한 Nginx 주소만 trusted proxy로 설정합니다. 임의 `X-Forwarded-For`를 신뢰하거나 모든 사용자를 Docker bridge IP 하나로 기록하는 구성을 금지합니다. 컨테이너 재생성 후에도 이 신뢰 경계를 확인하고, Host 허용 목록·예상하지 않은 호스트의 기본 거부를 함께 설정합니다.
+**앱이 전달 헤더를 해석하는 유일한 경계입니다.** 운영은 `python -m app.cli.serve`로 실행하거나 Uvicorn의 `--no-proxy-headers`와 동등한 설정을 사용합니다. 이 실행기는 `proxy_headers=False`, `forwarded_allow_ips=""`를 고정합니다. Nginx는 외부 전달 헤더를 제거하고 `X-Forwarded-For`를 실제 연결 IP 하나로, `X-Forwarded-Proto`를 `https`로 덮어써야 합니다. `Forwarded`·`X-Forwarded-Host` 등 추가 전달 헤더는 허용하지 않습니다. 앱은 원래 TCP peer가 `HTTP_TRUSTED_PROXIES`의 정확한 IP·좁은 CIDR에 속하는지, Host가 `HTTP_ALLOWED_HOSTS`와 일치하는지 CORS보다 먼저 검사합니다. OPTIONS도 같은 경계를 통과해야 하며, 위조 전달 IP·허용되지 않은 Host로 preflight를 우회할 수 없습니다. 실제 Nginx 컨테이너·고정 peer 구성의 증명은 [DEP-03 #212](https://github.com/wejo-team/sku-dreamon/issues/212)에서 수행합니다.
 
-| 설정·자원 | 공급과 검증 제안 |
-| --- | --- |
-| `DATABASE_URL` | 서버 전용. RDS CA와 hostname을 검증하는 SSL context를 asyncpg에 전달하도록 DB 연결 설정 확장. 잘못된 CA·호스트명은 실패해야 함 |
-| DB 계정 | 앱은 필요한 DML 권한, migration은 제한된 별도 DDL 계정. RDS 관리자 계정으로 앱을 실행하지 않음 |
-| `CSRF_SIGNING_KEY` | 32바이트 이상, 같은 DB를 쓰는 이전·새 슬롯에 동일 버전 공급. 배포와 동시에 임의 교체하지 않음. 회전 시 기존 세션·토큰 영향 별도 검토 |
-| `AUTH_ALLOWED_ORIGINS` | 환경별 정확한 `https://www.<owned-domain>` 목록. 운영·검증 환경 분리 |
-| `PASSWORD_BLOCKLIST_PATH`·`PASSWORD_BLOCKLIST_VERSION` | 실제 운영용 목록의 공급·버전·읽기 가능 여부 확인. bug bash의 가상 목록을 운영 목록으로 대체 취급하지 않음 |
-| `OPENAI_API_KEY`·`AI_MODEL` | AI를 제공하는 배포에만 런타임 키 공급, 모델은 `gpt-6-luna`. 개발·CI에 운영 키를 복사하지 않음 |
-| `AI_TIMEOUT_SECONDS` | 현재 기본 90, 허용 10~300. 드레인·프록시·프로세스 종료 제한을 이 값에서 계산 |
-| 릴리스 식별 | Git SHA·이미지 digest·공개 빌드/런타임 설정 버전·migration revision·프론트 manifest와 보관 위치·CloudFront invalidation ID 기록. 비밀값은 기록하지 않음 |
+[Settings](../../backend/app/core/config.py)와 [환경변수 예시](../../backend/.env.example)가 설정 이름·기본값·허용 범위의 원본입니다. 운영 공통 설정은 명시적인 비로컬 PostgreSQL URL과 검증용 CA를 요구하며 URL query parameter는 금지합니다. HTTP 앱은 추가로 CSRF 키·정확한 origin·차단 목록 경로/버전·Host·trusted proxy를 요구합니다. CLI·Alembic은 별도의 DB 전용 운영 환경과 DDL 자격증명으로 실행할 수 있어 HTTP·AI 비밀값을 나눠 줄 수 있습니다. 검사를 피하려고 `APP_ENV=development`로 실행하지 않습니다.
 
-현재 [DB 엔진 생성](../../backend/app/core/db/session.py)은 `pool_pre_ping`만 지정하고 [Alembic 환경](../../backend/alembic/env.py)도 별도 엔진을 만듭니다. 앱·CLI와 migration 양쪽에 RDS TLS 검증을 적용해야 합니다. 연결 예산은 `슬롯 수 × 프로세스 수 × (pool size + overflow) + migration/정리 작업 + 관리 여유`로 산정합니다. TLS·pool budget·계정 분리는 추가 구현 대상입니다. [RDS PostgreSQL TLS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL.Concepts.General.SSL.html)
+[공통 DB 엔진](../../backend/app/core/db/session.py)은 앱·CLI·[Alembic](../../backend/alembic/env.py)에 CA·호스트명 검증 TLS와 유한한 연결·쿼리·잠금 예산을 적용합니다. RDS와 자체 CA PostgreSQL 모두 대상이며 인증서 실패 때 평문으로 전환하지 않습니다. migration은 `NullPool`, 앱은 프로세스별 제한 pool을 사용합니다. 기본값과 수명 정리 계약은 [백엔드 운영 계약](../development/backend.md#deployment-runtime)을 참조합니다. 연결 예산은 `슬롯 수 × 프로세스 수 × (pool size + overflow) + migration/정리 작업 + 관리 여유`로 산정하며, 기본 pool 값만으로 운영 DB 수용량을 보장하지 않습니다. 앱 DML 역할·migration DDL 역할과 필요한 권한의 실제 준비는 후속 운영 작업입니다.
 
-초기 비밀값 저장소는 Parameter Store `SecureString`을 제안합니다. 자동 회전 요구가 있으면 Secrets Manager와 그 비용을 비교합니다. EC2 instance role이 정해진 환경 경로와 필요한 KMS 키만 읽게 하고, root 전용 런타임 파일 등 접근을 제한한 방식으로 주입합니다. 이미지·Git·프론트 번들·SSM 명령 인자·배포 로그에 값을 포함하지 않습니다. `docker inspect` 접근도 운영 관리자 권한으로 취급합니다. 운영 설정이 없는데 개발 DB·비어 있는 허용 origin으로 시작하는 일이 없도록 배포용 시작 검증을 추가합니다. [SecureString](https://docs.aws.amazon.com/systems-manager/latest/userguide/secure-string-parameter-kms-encryption.html)
+AI 키의 비어 있지 않은 값에서 `ai_enabled`를 계산하며 기본 `AI_REQUIRED=false`는 기존 비AI 실행을 유지합니다. **AI를 제공하는 배포는 `AI_REQUIRED=true`를 명시**하여 키 누락을 설정 오류로 막습니다. 로컬 AI client 미초기화·종료 상태도 ready 실패입니다. 모델은 `gpt-6-luna`를 유지하고 키 유효성·외부 가용성·할당량은 ready에서 검사하지 않습니다.
+
+초기 비밀값 저장소는 Parameter Store `SecureString`을 제안합니다. 자동 회전 요구가 있으면 Secrets Manager와 비용을 비교합니다. EC2 instance role이 정해진 환경 경로·필요한 KMS 키만 읽도록 하고 접근을 제한한 런타임 파일로 주입합니다. 같은 DB의 구/신 슬롯에는 같은 CSRF 키 버전을 공급하며 임의 동시 회전을 피합니다. [SecureString](https://docs.aws.amazon.com/systems-manager/latest/userguide/secure-string-parameter-kms-encryption.html)
+
+공개 저장소의 코드·예시·문서·테스트·PR에는 설정 이름과 합성 자리표시자만 둡니다. 실제 도메인·IP·DB endpoint·계정 ID·ARN·자격증명·사용자 자료는 비공개 Secrets와 접근 제한 운영 기록으로 관리합니다. 이미지·Git·프론트 번들·SSM 인자·배포 로그에 비밀값을 넣지 않으며 `docker inspect` 접근도 운영 관리자 권한으로 취급합니다.
 
 ## 헬스 검사와 전환 조건
 
-현재 `GET /api/v1/health`는 고정 정상 응답인 liveness입니다. DB 연결을 확인하지 않으므로 이 응답만으로 트래픽을 전환하지 않습니다. [현재 라우터](../../backend/app/routers/health.py)
+`GET /api/v1/health`는 기존 `{"status":"ok"}` liveness를 유지합니다. `GET /api/v1/ready`는 DB·호환 revision·로드된 차단 목록·현재 보안 설정·필요한 로컬 AI client를 확인하고 200 `{"status":"ready"}` 또는 503 `{"status":"unavailable"}`만 반환합니다. `Cache-Control: no-store`이며 상세 오류·버전·비밀값을 노출하지 않습니다. 외부 모델 요청은 발생하지 않습니다. 상세 동작은 [health·readiness API](../api/health.md), 원본은 [라우터](../../backend/app/routers/health.py)·[검사 서비스](../../backend/app/services/health.py)입니다. 릴리스 SHA·설정 버전 식별 endpoint는 아직 없으므로 readiness 성공과 배포할 image digest·SHA 확인을 구분합니다.
 
-다음은 **생성 예정인 운영 계약**입니다. 구현 시 health 문서·DTO·테스트에 확정합니다.
+운영 전환 전 검사는 **trusted Nginx 컨테이너의 고정 네트워크 peer에서 후보 Docker 서비스 이름으로** 요청합니다. 예상 API Host와 `X-Forwarded-For`의 실제 검사 client IP 하나, `X-Forwarded-Proto: https`를 사용합니다. API 컨테이너 안·호스트 localhost에서 직접 호출하면 운영 프록시 경계가 의도적으로 거부하므로 그 요청을 readiness 성공 조건으로 쓰지 않습니다. 내부 rollout·monitor probe는 직렬화합니다. 이미 진행·취소 정리 중인 검사 한 개가 있으면 다른 probe는 즉시 503이며 동시 요청의 200은 보장하지 않습니다. Nginx 기반의 실제 경로 검증과 외부 공개 차단은 DEP-03 후속입니다.
 
-| 계약 | 제안 동작 |
-| --- | --- |
-| `GET /api/v1/ready` | 제한 시간 내 DB 연결·간단한 쿼리, 해당 릴리스가 허용하는 Alembic revision, 실제 로드된 blocklist·버전·유효 항목과 CSRF/origin 설정 확인. 모두 통과하면 200, 그 외 503 |
-| AI 준비 여부 | 배포가 AI 제공을 요구하면 driver 생성·키 존재·모델 설정을 검사. 실제 모델 API를 호출하지 않으며, 외부 제공자 정상 동작의 증거로 쓰지 않음 |
-| 응답·공개 범위 | 내부 슬롯에서 검사. Nginx는 외부 접근을 막거나 최소 상태만 노출. 상세 DB 오류·설정값·비밀값은 응답하지 않음 |
-| 릴리스 확인 | 내부 검사 결과에 예상 SHA·설정 버전과 일치하는지 확인할 식별값 제공. readiness의 성공과 실제 새 버전 응답 확인을 분리 |
+DB 검사는 제한 시간 안의 `SELECT 1`과 단일 Alembic revision을 사용합니다. 릴리스의 [COMPATIBLE_SCHEMA_REVISIONS](../../backend/app/core/db/revisions.py)는 현재 `20261026_09`이며 소스 리뷰·테스트로만 확장합니다. 환경변수로 임의 revision을 허용하지 않습니다. 새 revision을 허용하는 **이전 앱의 호환 릴리스부터** 기존 schema에 배포한 뒤 safe expand·새 앱 전환을 진행해야 이전 슬롯을 재기동할 수 있습니다.
 
-기동 전 설정 실패, 잘못된 DB 인증·CA, schema 불일치, blocklist 누락이면 새 슬롯을 활성화하지 않습니다. schema를 무조건 현재 image의 `head`와 같다고만 판단하면 expand 이후 이전 슬롯을 재기동할 수 없으므로, 릴리스마다 테스트한 허용 revision과 롤백 호환 범위를 명시합니다.
-
-`SELECT 1`은 테이블·sequence 권한을 증명하지 않습니다. 앱 역할의 필요한 읽기/쓰기 권한은 배포 전 점검과 격리된 smoke에서 검사하고, 반복 readiness에 사용자 생성·로그인·지속적인 DB 쓰기를 넣지 않습니다.
+`SELECT 1`은 테이블·sequence의 DML 권한을 증명하지 않습니다. 앱 역할의 필요한 읽기/쓰기 권한은 배포 전 점검과 격리된 smoke에서 검사하고 반복 readiness에 사용자 생성·로그인·지속 DB 쓰기를 넣지 않습니다.
 
 ## 배포·스트림 드레인·롤백
 
@@ -114,7 +109,7 @@ API 최초 기동은 **port 80의 challenge만 처리하는 Nginx 설정 → Cer
 2. 그 SHA를 checkout해 고정 도구·잠금 파일로 백엔드 이미지와 프론트 `dist`를 빌드합니다. ECR에 변경 불가능한 SHA tag와 digest를 기록하고, 프론트 산출물·manifest·공개 빌드 설정도 같은 릴리스에 보존합니다. 백엔드는 digest로 배포하며 `latest`나 EC2에서의 `git pull`·빌드를 사용하지 않습니다. [ECR 태그 불변성](https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-tag-mutability.html)
 3. **백엔드 전환부터 프론트 게시·invalidation·외부 smoke·실패 복원까지 전체 workflow를 직렬화**하고 EC2 배포 lock을 함께 사용합니다. 오래된 재실행은 변경 시작 전 최신 main SHA 검사로 건너뜁니다. 트래픽·HTML 활성화 직전에도 최신 SHA를 확인하며, 중간에 제외할 릴리스가 이미 변경을 수행했다면 안전한 복원 절차 후 종료합니다. 새 push로 진행 중인 배포를 강제 취소하지 않습니다. 장애 롤백은 별도 명시적 절차로 직전 검증 릴리스를 선택합니다.
 4. 현재 슬롯·이전 digest·설정 버전·DB revision·프론트 HTML/manifest를 기록하고, 두 앱이 함께 동작할 메모리·디스크·연결 여유를 확인합니다. migration 필요 시 배포 lock 안에서 아래 DB 절차를 한 번 실행합니다.
-5. 같은 DB·CSRF key를 사용하는 비활성 슬롯에 새 digest를 기동해 readiness와 내부 smoke를 통과시킵니다. 실패하면 새 슬롯만 정리하고 기존 트래픽은 유지합니다.
+5. 같은 DB·CSRF key를 사용하는 비활성 슬롯에 새 digest를 기동해 trusted Nginx peer의 직렬 readiness와 내부 smoke를 통과시킵니다. 실패하면 새 슬롯만 정리하고 기존 트래픽은 유지합니다.
 6. 준비된 새 Docker 서비스 이름을 upstream으로 선택하고, 현재 컨테이너 주소 해석과 **새 upstream 후보 설정을 대상으로 한 `nginx -t` 성공**을 확인한 뒤 설정을 원자적으로 활성화·reload합니다. 새 연결은 새 슬롯으로, 이미 처리 중인 요청은 기존 worker와 기존 슬롯에서 끝나게 합니다. 전환 실패 시 기존 설정으로 복원합니다. [Nginx reload 동작](https://nginx.org/en/docs/control.html)
 7. 실제 HTTPS 경로에서 버전·인증·API smoke를 수행합니다. SSE 전송·전환 검사는 먼저 격리된 fake provider 환경에서 같은 이미지/프록시 기반으로 통과시킵니다. 운영의 실제 모델 smoke는 #164에서 키·호출 예산을 정한 별도 단계이며 자동 배포 검사에 무조건 포함하지 않습니다. 실패 시 schema 호환이 확인된 이전 슬롯으로 reload하고, 새 슬롯에 이미 열린 스트림도 같은 원칙으로 정리합니다.
 8. 이전 Nginx worker가 종료되어 이전 upstream으로 가는 요청이 없음을 확인한 뒤 이전 앱 컨테이너를 정상 종료합니다. 상태·로그·전환 시각을 기록하고 직전 이미지는 보존합니다. 드레인이 실패하면 완료로 표시하지 않고 다음 슬롯 재사용을 막습니다.
@@ -126,15 +121,15 @@ API 최초 기동은 **port 80의 challenge만 처리하는 Nginx 설정 → Cer
 
 현재 [AiStreamResponse](../../backend/app/routers/ai.py)는 10초 heartbeat를 보내며, 연결이 끊기면 생성 작업을 취소합니다. [AiService](../../backend/app/services/ai.py)는 설정된 실행 제한시간과 종료 정리를 적용합니다. 실행은 API 프로세스 안에 있고 checkpoint나 다른 프로세스로의 스트림 인계가 없습니다. 강제 종료 뒤 재연결로 같은 답변을 이어받을 수 없습니다.
 
-드레인 제안값은 `D = max(이전 슬롯 AI_TIMEOUT_SECONDS, 새 슬롯 AI_TIMEOUT_SECONDS, 일반 요청 최대 처리시간) + 30초`입니다. 30초는 응답 전송·DB 정리·관측 여유의 초기 제안이며 실제 시험으로 조정합니다. 일반 요청의 최대 처리시간도 쿼리·외부 호출 한도와 함께 정해야 합니다. 90초를 하드코딩하지 않고, 300초 설정의 경계도 검사합니다.
+앱의 SSE 응답 상한은 협조적 취소와 유한한 DB·driver I/O를 전제로 `AI_TIMEOUT_SECONDS + 9초 + AI_CLEANUP_TIMEOUT_SECONDS`에 스케줄링 여유를 더한 값입니다. 헤더 전송 전부터 실행 예산을 측정하며 각 전송은 3초, 예외 상태 저장·provider/generator 종료·`on_close`는 첫 정리 때 시작한 하나의 deadline을 공유합니다. 기본 정리 예산은 5초이며 경로마다 초기화하지 않습니다. 시간 초과·닫기 실패는 성공 결과·`done`으로 위장하지 않고 기존 완료 commit 경계를 유지합니다. 취소를 무시하는 임의 외부 코드의 강제 종료를 보장하지 않습니다. 구현과 지연 정리의 상태 전이는 [AI 종료 계약](../api/ai.md#termination)을 따릅니다.
 
-현재 `AiService.stream`의 예외·`finally`에서 실행하는 DB 정리는 AI 실행 timeout 밖에 있고, `close_stream`에만 별도 5초 제한이 있습니다. 따라서 **현재 코드에서 D라는 전체 종료 상한이 보장되는 것은 아닙니다.** 스트림 예외·`finally`·`on_close` 전체에 DB 연결·row lock·쿼리·정리 시간 제한을 적용하는 작업을 선행합니다. 한도를 넘으면 지연 정리 대상으로 남겨 기존 상태 조회·정리 작업이 회수하게 하고, 드레인 실패를 기록하며 성공 완료로 처리하지 않습니다. 느리거나 잠긴 DB에서 이 경계를 검증해야 합니다.
+드레인 제안값은 `D = max(구/신 슬롯의 전체 AI 응답 상한, 일반 요청 처리 상한) + 운영 여유`입니다. 일반 요청 상한·운영 여유는 실제 프록시·부하·DB 잠금 시험으로 정합니다. 앱 lifespan의 readiness probe·로컬 AI client·DB engine 종료는 **자원별** `SHUTDOWN_TIMEOUT_SECONDS`를 각각 사용하므로 기본 총 30초, 설정 최대 총 90초의 별도 정리 예산도 Uvicorn·Docker의 전체 종료 유예에 반영합니다. 앱의 유한한 정리 계약과 Nginx 드레인 구현·검증은 구분합니다.
 
 | 계층 | 제안 조건과 검증 |
 | --- | --- |
 | Nginx 프록시 | SSE `proxy_buffering off`·cache 비활성, 압축·변환으로 chunk를 모으지 않음. POST/스트림의 upstream 자동 재시도 금지. `proxy_read_timeout`은 heartbeat 간격보다 충분히 크고 초기에는 D 이상으로 설정. 응답 전체 제한과 유휴 제한을 혼동하지 않음 |
 | Nginx 이전 worker | reload 이전 worker를 식별해 종료를 관측. `worker_shutdown_timeout`을 D보다 여유 있게 설정해 정상 요청을 먼저 끝냄. 한도 도달에 의한 강제 연결 종료는 실패로 기록 |
-| Uvicorn·Docker | exec 방식으로 신호를 전달하고 `--timeout-graceful-shutdown`과 `stop_grace_period`를 D 이상의 일관된 예산으로 설정. Docker 강제 종료가 앱의 정상 정리보다 먼저 발생하지 않게 추가 여유를 둠 |
+| Uvicorn·Docker | exec 방식으로 신호를 전달하고 `--timeout-graceful-shutdown`과 `stop_grace_period`에 D와 자원별 lifespan 정리 합산 예산·추가 여유를 반영. Docker 강제 종료가 앱 정리보다 먼저 발생하지 않게 실제 종료 순서를 검증 |
 | 배포 스크립트 | reload 직후 `docker stop`하지 않음. 이전 worker 종료를 기다리고, 대기 초과·취소·SSM 연결 유실에도 활성 버전·미완료 드레인을 복구 가능한 상태 파일로 남김 |
 | 브라우저 | 구 연결의 최종 `done`까지 수신. 실제 네트워크·프로세스 장애는 기존 상태 조회·재시도 UI로 복구하며 성공으로 위장하거나 POST를 자동 재전송하지 않음 |
 
@@ -142,7 +137,7 @@ Nginx의 buffering 설정, worker 종료 한도, Docker 종료 유예는 각각 
 
 ### DB와 프론트 호환성
 
-Alembic migration은 컨테이너마다 시작 시 실행하지 않습니다. 배포 lock 안의 단일 작업이 새 이미지의 migration을 별도 DDL 계정으로 실행합니다. **이전 앱이 서비스 중인 상태에서 안전한 expand 변경 → 새 앱 readiness·전환 → 관찰 기간 후 contract 변경** 순서를 사용합니다. migration 실패·잠금 대기 초과면 전환하지 않습니다. 오래 걸리는 backfill과 인덱스 작업은 실행 시간·잠금 영향을 따로 검증합니다.
+Alembic migration은 컨테이너마다 시작 시 실행하지 않습니다. 배포 lock 안의 단일 작업이 새 이미지의 migration을 별도 DDL 계정으로 실행합니다. **이전 앱의 구/신 revision 호환 릴리스 배포 → 안전한 expand 변경 → 새 앱 readiness·전환 → 관찰 기간 후 contract 변경** 순서를 사용합니다. migration 실패·잠금 대기 초과면 전환하지 않습니다. 오래 걸리는 backfill과 인덱스 작업은 실행 시간·잠금 영향을 따로 검증합니다.
 
 N과 N−1 앱·schema 호환성을 테스트하고 릴리스에 기록합니다. 컬럼 삭제·이름 변경·필수값 강제 같은 contract 작업은 이전 앱·열린 브라우저·진행 중 스트림의 사용이 끝난 후 별도 릴리스로 수행합니다. 즉시 파괴적 migration이 필요한 변경은 이 교체 절차로 실행하지 않고 점검 시간을 계획합니다.
 
@@ -176,51 +171,51 @@ AI 실행 메타데이터 정리는 기존 `python -m app.cli.ai_runs`를 **활�
 
 ## 구현 작업과 완료 조건
 
-아래 작업은 모두 **예정**입니다. 새 경로는 생성 예정이며, 이번 문서 작성에서 구현하지 않습니다. 조건·설정을 확정한 뒤 별도 구현 계획/이슈에서 소유 범위를 나누고, 공통 계약을 먼저 맞춥니다.
+[DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 앱 계약을 구현했으며 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. DEP-01과 DEP-03~07은 **예정**이며 인프라·운영 배포는 수행하지 않았습니다. 아래 이슈를 상태·검증 기록의 원본으로 사용합니다.
 
-### DEP-01: 배포 대상과 비용·운영 책임 확정
+### [DEP-01 #210](https://github.com/wejo-team/sku-dreamon/issues/210): 배포 대상과 비용·운영 책임 확정
 
 - 수정 범위: 이 문서와 #165·#98·#164의 관련 결정 기록. 인프라 코드는 아직 생성하지 않음.
 - 입력: 소유할 도메인과 `www`·`api` DNS, AWS 계정/리전·예산·자원 용량, 검증 환경과 운영 환경의 수명, 데이터·프론트 자산·인증서 보관과 운영 담당자.
 - 출력: 자원별 비용표·환경 구분·DNS/TLS·알림·백업 담당자. 앱의 서울 `ap-northeast-2`는 후보값으로, CloudFront viewer 인증서의 `us-east-1` 요구와 구분.
 - 완료 조건 **DEP-AC01**: AWS 전용 방향의 자원별 비용·책임과 같은 도메인 인증·검증 환경 격리·운영 보존/복구 목표를 결정. 계정 식별자·비밀값은 문서에 노출하지 않음.
 
-### DEP-02: 앱의 운영 준비 계약 구현
+### [DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211): 앱의 운영 준비 계약 구현
 
 - 수정 범위: `backend/app/main.py`, `core/config.py`, `core/db/session.py`, `routers/health.py`, `services/ai.py`, `backend/alembic/env.py`, 관련 schema·tests. 운영 설정·readiness·CORS·DB TLS/pool과 스트림 정리 제한. `docs/api/`·`docs/development/`의 해당 계약도 갱신.
-- 선행: DEP-01의 origin·DB 연결·AI 제공 여부. 입력은 기존 `Settings`와 런타임 설정, 출력은 위의 `/api/v1/ready`와 실패 시 503 계약.
+- 상태: 앱 계약 구현. 구현·검증 근거 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217). 운영 origin·DB·AI 제공 여부를 합성 설정으로 검증하며 실제 값 공급·배포는 후속. 입력은 `Settings`, 출력은 `/api/v1/ready`의 200/503와 기존 전송 계약.
 - 완료 조건 **DEP-AC02**: 정상 origin의 쿠키/CSRF·preflight·오류 응답 성공, 악성/preview origin·위조 전달 IP 거부, DB/schema/설정 실패 때 ready 불가. health 검사로 모델 요청 0회.
 - 검증: 새 CORS/readiness 단위·DB 통합 검사, TLS·설정 실패 검사, DB 연결 지연·row lock 중 스트림 예외/종료의 시간 제한·지연 정리 회수. 동작에 맞는 기존 backend CI 및 프론트 인증 계약 검사.
 
-### DEP-03: 실행 이미지·프록시·드레인 절차 구현
+### [DEP-03 #212](https://github.com/wejo-team/sku-dreamon/issues/212): 실행 이미지·프록시·드레인 절차 구현
 
 - 생성 예정: `backend/Dockerfile`, `.dockerignore`, `deploy/compose.production.yaml`, `deploy/nginx/`, `deploy/release.sh`, Certbot 기동·갱신 설정과 테스트. 기존 개발 `compose.yaml`은 운영 DB로 전환하지 않음.
 - 선행: DEP-02. 입력은 image digest·SHA·설정 버전·전용 Docker 네트워크의 서비스 이름·timeout·인증서 런타임 저장소, 출력은 활성/이전 슬롯과 전환·드레인 결과.
 - 완료 조건 **DEP-AC03**: 별도 Nginx를 유지하고 평소 활성 FastAPI 하나만 선택 기동·배포 중 비활성 슬롯을 추가해 둘 실행. 비root 앱·고정 의존성·신호 전달·앱 포트 비공개와 서비스 이름 해석 확인. 잘못된 readiness는 기존 슬롯 유지. fake provider SSE 중 reload에서 구 요청이 끝나고 새 요청은 새 슬롯 사용. 배포 lock·재실행·실패 복구 확인.
 - 검증: 실제 Nginx·앱 컨테이너로 기본/최대 실행시간·중단·정상 종료·강제 장애와 DB 지연/잠금 중 종료를 구분. 컨테이너 재생성 후 upstream 해석·trusted proxy, 인증서 없는 최초 HTTP-01 기동·HTTPS 전환·자동 갱신·실패 경보 확인. Certbot·Nginx 재시작·재생성 후 영속 상태를 이용한 renewal dry-run과, 성공한 인증서 적용·새 후보 설정 검사/reload smoke를 각각 검증하며 dry-run만으로 인증서 적용을 입증하지 않음. TLS/proxy fixture에는 가상 계정·데이터만 사용.
 
-### DEP-04: 재현 가능한 AWS 기반과 접근 권한 준비
+### [DEP-04 #213](https://github.com/wejo-team/sku-dreamon/issues/213): 재현 가능한 AWS 기반과 접근 권한 준비
 
 - 생성 예정: `infra/`의 IaC와 환경 예제, 호스트 bootstrap·SSM document, 운영 runbook. 도구는 Terraform 후보로 두고 팀 운영 방식과 state 암호화·잠금·권한을 DEP-01에서 확정.
 - 선행: DEP-01·DEP-03. 입력은 확정한 계정/리전·자원 용량·네트워크·역할, 출력은 S3·CloudFront·OAC·ACM·VPC·EC2·RDS·ECR·시크릿 경로·OIDC 역할 참조와 DNS/TLS 경로.
-- 완료 조건 **DEP-AC04**: S3 public access 차단·REST origin·OAC, CloudFront viewer의 DNS 검증 ACM 인증서, DB private·SG 최소 접근·TLS·암호화·SSM 운영·secret 권한·예산/알림 확인. 초기 ALB·Kubernetes·운영 DB 컨테이너 없음. CI·검증 환경에서 운영 데이터 복제 없음. 검증용 자원의 비용·철거 방법 기록.
+- 완료 조건 **DEP-AC04**: S3 public access 차단·REST origin·OAC, CloudFront viewer의 DNS 검증 ACM 인증서, DB private·SG 최소 접근·TLS·암호화·SSM 운영·secret 권한·예산/알림 확인. 초기 ALB·Kubernetes 없음. RDS 기준안과 자체 PostgreSQL 후보 중 DEP-01에서 결정한 DB 구성 적용. CI·검증 환경에서 운영 데이터 복제 없음. 검증용 자원의 비용·철거 방법 기록.
 - 검증: IaC 정적 검사/계획 검토 후 정해진 검증 환경에서 S3 직접 접근 거부·CloudFront 접근 허용, ACM 리전·DNS와 API HTTP-01 port 80, 최소 역할 권한·백업·호스트 재구축을 시험. 리소스 생성은 별도 실행 작업이며 현재 문서 수정에 포함되지 않음.
 
-### DEP-05: migration과 앱 롤백 검증
+### [DEP-05 #214](https://github.com/wejo-team/sku-dreamon/issues/214): migration과 앱 롤백 검증
 
 - 수정/생성 예정: `backend/alembic/`의 필요한 호환 변경, `deploy/`의 단일 migration·rollback 절차와 통합 테스트.
 - 선행: DEP-03·DEP-04. 입력은 N/N−1 image·호환 schema 목록·백업 상태, 출력은 migration 기록·전환 가능 여부·검증된 rollback 대상.
 - 완료 조건 **DEP-AC05**: N−1 요청을 처리하면서 expand 성공, 실패/잠금 초과 때 전환 차단, N·N−1 검증 통과 후 이전 digest로 복귀. 자동 파괴적 downgrade 없음.
 - 검증: 버전 간 DB 통합 테스트·진행 중 SSE에서 migration·롤백·중복 migration 방지. 별도 복구 연습에서는 snapshot/PITR 새 endpoint의 데이터와 인증·API를 확인.
 
-### DEP-06: CI와 프론트·백엔드 배포 연결
+### [DEP-06 #215](https://github.com/wejo-team/sku-dreamon/issues/215): CI와 프론트·백엔드 배포 연결
 
 - 생성 예정: `.github/workflows/deploy.yml`, `deploy/frontend/`의 게시·캐시·SPA rewrite·복원 설정과 release 검사 스크립트. 기존 필수 CI 이름과 문서 GitHub Pages workflow 책임 유지.
 - 선행: DEP-01~05. 입력은 검증된 main SHA·image digest·동일 SHA의 `frontend/dist`와 manifest·S3/CloudFront 참조, 출력은 백엔드/프론트 릴리스 식별과 invalidation·배포 결과.
 - 완료 조건 **DEP-AC06**: 정확한 SHA의 세 필수 검사 성공 때만 배포, 실패·대기·과거 rerun·fork는 거부. OIDC/환경 제한·전체 배포 직렬화·host lock·mock false·API 직접 호출 확인. 백엔드 전환/드레인 후 자산 우선·HTML 최종 게시, HTML Minimum TTL 0·해시 자산 immutable·구 자산 보존, 제한된 navigation rewrite, invalidation 완료와 외부 smoke까지 검증.
 - 검증: 실패한 CI/오래된 SHA/동시 push, 백엔드 우선 전환과 이전 탭·동적 import 호환, 없는 자산의 오류 유지, HTML/자산 캐시 헤더와 직접 URL 재검증. 자산 업로드·HTML 게시·invalidation·smoke 단계별 실패를 주입해 이전 HTML/자산 복원·재무효화·완료 확인과 개별 롤백을 시험. 권한 시험은 정해진 검증 환경에서 수행.
 
-### DEP-07: 공동 HTTPS 검증과 운영 준비 판정
+### [DEP-07 #216](https://github.com/wejo-team/sku-dreamon/issues/216): 공동 HTTPS 검증과 운영 준비 판정
 
 - 수정/생성 예정: 기존 `frontend/e2e/`·검증 runner의 원격 합성 데이터 경로, `docs/development/bug-bash.md`, 생성 예정 운영 runbook과 정리 스케줄. 로컬 전용 AI fixture의 DB·빈 키 제한을 완화하지 않음.
 - 선행: DEP-06. 원격 fake provider 검사는 운영 이미지·운영 환경과 분리한 테스트 배포로 수행하며, 원격에서도 기본 업무 권한·쿠키 계약은 유지.
@@ -230,8 +225,8 @@ AI 실행 메타데이터 정리는 기존 `python -m app.cli.ai_runs`를 **활�
 
 ## API·DB 영향과 다음 결정
 
-기존 제품 endpoint·SSE 이벤트·쿠키·CSRF 계약을 유지하면서, 운영 readiness와 credentialed CORS를 추가할 계획입니다. DB 업무 schema를 이 설계만으로 바꾸지 않으며 RDS 접속·TLS·pool·권한·migration 실행 방식을 정비합니다. 로그·세션·대화의 삭제/보존 정책은 자동 확정하지 않고 기존 운영 이슈에서 검토합니다.
+DEP-02는 기존 제품 endpoint·SSE 이벤트·쿠키·CSRF 계약을 유지하면서 readiness·credentialed CORS·검증 TLS·유한한 DB/SSE 정리 예산을 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. DB 업무 schema 변경은 없으며 운영 권한·migration 실행·배포 경로 검증은 후속입니다. 로그·세션·대화의 삭제/보존 정책은 자동 확정하지 않고 기존 운영 이슈에서 검토합니다.
 
-AWS 전용 호스팅 방향은 합의했으며, 구현 전에 정할 세부 사항은 **AWS 계정/앱 리전과 월 예산, 도메인, 검증 환경 격리 수준, 자원 용량, 프론트 자산·인증서·데이터의 보관/복구 기준과 운영 담당자**입니다. 초기 제안은 서울 앱 리전·단일 EC2·Single-AZ RDS이며 CloudFront viewer 인증서는 `us-east-1`에 둡니다. 서버 크기와 월 비용은 견적·부하 측정으로 정하고, 팀 검증을 운영 공개보다 먼저 진행해 실제 사용자 데이터가 들어오기 전 정책을 확정합니다.
+AWS 전용 호스팅 방향은 합의했으며, 구현 전에 정할 세부 사항은 **AWS 계정/앱 리전, 월 3만 원 미만 목표의 비용 충족 여부와 DB 호스팅, 도메인, 검증 환경 격리 수준, 자원 용량, 프론트 자산·인증서·데이터의 보관/복구 기준과 운영 담당자**입니다. 초기 제안은 서울 앱 리전·단일 EC2·Single-AZ RDS이며 CloudFront viewer 인증서는 `us-east-1`에 둡니다. 서버 크기와 월 비용은 견적·부하 측정으로 정하고, 팀 검증을 운영 공개보다 먼저 진행해 실제 사용자 데이터가 들어오기 전 정책을 확정합니다.
 
 EC2 장애까지 감당해야 하거나 인스턴스 운영 부담이 커지면 ECS·ALB·복수 task와 RDS Multi-AZ를 별도 비교합니다. 그때도 connection draining·task 종료 유예·DB 호환성 검증이 필요하고 ALB·추가 task·Multi-AZ 비용이 늘어납니다. 서비스 가이드와 pgvector는 배포 기반과 운영 관측을 갖춘 뒤 별도 요구에 따라 검토합니다.
