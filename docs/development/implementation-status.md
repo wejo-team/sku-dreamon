@@ -2,7 +2,9 @@
 
 ## 2026-10-29 앱 운영 준비 계약 구현
 
-[DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 production 설정 검증·전역 credentialed CORS·Host/단일 trusted proxy 경계·검증 TLS/DB 예산·readiness·SSE 종료/지연 정리를 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. [배포 기반 계획](../development-plans/deployment-foundation.md)과 [health API](../api/health.md)가 계약을 설명합니다. 이 작업에서 실제 키·운영 DB·모델 제공자 호출은 사용하지 않았습니다. AWS·Docker/Nginx·CD·드레인·운영 스케줄은 미구현·미배포이며, 월 3만 원 미만 목표의 DB 비용 비교·도메인/리전/담당자 결정과 DEP-01·03~07은 후속입니다.
+[DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 production 설정 검증·전역 credentialed CORS·Host/단일 trusted proxy 경계·검증 TLS/DB 예산·readiness·SSE 종료/지연 정리를 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. [배포 기반 계획](../development-plans/deployment-foundation.md)과 [health API](../api/health.md)가 계약을 설명합니다. 이 작업에서 실제 키·운영 DB·모델 제공자 호출은 사용하지 않았습니다.
+
+초기 MVP/PoC의 배포 방향은 **단일 EC2의 별도 Nginx·FastAPI·PostgreSQL 컨테이너 + DB용 EBS + Alembic**으로 합의했습니다. 프론트는 S3·CloudFront를 유지합니다. production DB의 자체 CA·서비스 호스트명 검증 TLS와 앱 교체 시 DB/EBS 보존을 계획에 반영했으며 PoC 재구성·실제 데이터 MVP의 dump/복원 수준은 제안 단계입니다. AWS·운영 Docker/Nginx/PostgreSQL·EBS 연결·CD·드레인·백업/복원 자동화·운영 스케줄은 미구현·미배포입니다. DEP-01의 월 3만 원 미만 목표 전체 견적·도메인/리전/용량/복구 기준/담당자 결정과 DEP-03~07 구현은 후속입니다.
 
 ## 2026-10-28 AI 제품 화면 연결
 
