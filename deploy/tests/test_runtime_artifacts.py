@@ -299,7 +299,16 @@ class ComposeContractTests(unittest.TestCase):
             self.assertEqual(postgres["devices"][0]["permissions"], "r")
             for service in services.values():
                 for volume in service.get("volumes", []):
-                    self.assertFalse(volume["bind"]["create_host_path"])
+                    self.assertFalse(
+                        volume.get("bind", {}).get("create_host_path", False)
+                    )
+            # 일부 Compose 버전은 false를 정규화 결과에서 생략한다. 원본의
+            # 명시적 false도 확인해 원본 생략에 따른 기본 자동 생성을 막는다.
+            source = (DEPLOY / "compose.production.yaml").read_text()
+            self.assertEqual(
+                source.count("- type: bind"),
+                source.count("bind: {create_host_path: false}"),
+            )
 
 
 if __name__ == "__main__":

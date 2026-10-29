@@ -127,6 +127,16 @@ jobs:
         run: docker build --file deploy/nginx/Dockerfile --tag dreamon-nginx:test deploy/nginx
       - name: Build the guarded PostgreSQL image
         run: docker build --file deploy/postgres/Dockerfile --tag dreamon-postgres:test .
+      - name: Verify real container replacement and persistence
+        run: sudo python3 deploy/tests/container_e2e.py
+      - name: Save synthetic container verification results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: container-deployment
+          path: deploy/test-results/container-e2e.json
+          retention-days: 1
+          if-no-files-found: error
 
   integration:
     name: Integration E2E
