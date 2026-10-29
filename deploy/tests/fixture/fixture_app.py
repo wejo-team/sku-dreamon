@@ -10,6 +10,7 @@ from app.agents.types import PreviousContext, RecommendationGate, Recommendation
 from app.core.config import Settings
 from app.fixture_guard import require_fixture
 from fastapi import FastAPI, Request
+from fastapi.routing import APIRoute
 from pydantic import ValidationError
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -87,15 +88,14 @@ def create_app() -> FastAPI:
         }
 
     if os.environ.get("DEP03_READY_FAIL") == "1":
-        application.router.routes = [
-            route
-            for route in application.router.routes
-            if getattr(route, "path", None) != "/api/v1/ready"
-        ]
 
-        @application.get("/api/v1/ready")
         async def not_ready() -> JSONResponse:
             return JSONResponse({"status": "unavailable"}, status_code=503)
+
+        # include_router가 지연된 라우터를 보관해도 실패 fixture가 먼저 일치한다.
+        application.router.routes.insert(
+            0, APIRoute("/api/v1/ready", not_ready, methods=["GET"])
+        )
 
     return application
 

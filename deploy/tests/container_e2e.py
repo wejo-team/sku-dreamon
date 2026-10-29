@@ -335,6 +335,19 @@ class Harness:
     def status(self) -> dict[str, Any]:
         return json.loads(self.release("status").stdout)
 
+    def wait_healthy(self, service: str, seconds: float = 90) -> None:
+        """Docker의 로컬 생존 검사와 별도의 production readiness를 구분한다."""
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            container = self.container(service)
+            state = container["State"]
+            if not state["Running"]:
+                raise CheckFailed("healthcheck container is not running")
+            if state.get("Health", {}).get("Status") == "healthy":
+                return
+            time.sleep(0.5)
+        raise CheckFailed("Docker healthcheck did not become healthy")
+
     def http(
         self,
         path: str,
@@ -484,6 +497,22 @@ class Harness:
         self.phase = "bootstrap_http_and_postgres"
         self.release("bootstrap")
         self.wait_pg()
+        for service in ("postgres", "nginx"):
+            self.wait_healthy(service)
+        assert (
+            self.docker(
+                "exec",
+                self.container("nginx")["Id"],
+                "curl",
+                "--fail",
+                "--silent",
+                "--max-time",
+                "2",
+                "http://127.0.0.1:8080/health",
+            )
+            == "ok"
+        )
+        self.mark("postgres_and_certificate_free_nginx_docker_healthchecks")
         code, _, _ = self.http("/", tls=False)
         assert code == 308
         challenge = self.runtime / "acme/webroot/.well-known/acme-challenge"
@@ -522,6 +551,13 @@ class Harness:
         assert headers["x-release-slot"] == "app_blue"
         assert self.http("/api/v1/ready")[0] == 404
         assert self.http("/api/v1/ready/")[0] == 404
+        for service in ("postgres", "nginx", "app_blue"):
+            self.wait_healthy(service)
+        self.observations["baseline_docker_health"] = {
+            service: self.container(service)["State"]["Health"]["Status"]
+            for service in ("postgres", "nginx", "app_blue")
+        }
+        self.mark("production_app_liveness_and_private_readiness_are_separate")
         assert (
             self.http(
                 "/api/v1/health", headers=("Host: bad.example.com",), success=False
@@ -607,7 +643,13 @@ class Harness:
             "deploy", "--image", self.images["bad"], "--sha", GREEN_SHA, success=False
         )
         assert bad.returncode != 0
+        assert self.status()["failure_code"] == "candidate_not_ready"
+        self.wait_healthy("app_green")
+        self.observations["failed_candidate_docker_health"] = self.container(
+            "app_green"
+        )["State"]["Health"]["Status"]
         assert self.http("/api/v1/health")[1]["x-release-slot"] == "app_blue"
+        self.mark("candidate_liveness_does_not_bypass_production_readiness_gate")
         self.release("recover")
         assert self.status()["phase"] == "stable"
         self.mark("failed_candidate_readiness_keeps_previous_route_and_recovers")
@@ -750,6 +792,12 @@ done"""
         )
         assert self.container("postgres")["Id"] == self.pg_id
         self.observations["short_sse_seconds"] = round(time.monotonic() - started, 2)
+        for service in ("postgres", "nginx", "app_blue"):
+            self.wait_healthy(service)
+        self.observations["final_docker_health"] = {
+            service: self.container(service)["State"]["Health"]["Status"]
+            for service in ("postgres", "nginx", "app_blue")
+        }
         self.mark(
             "authenticated_sse_new_slot_before_old_done_then_old_worker_and_app_stop"
         )
@@ -806,8 +854,15 @@ def main() -> int:
         success = False
         failure = None
         try:
-            harness.docker("info", "--format", "{{.ServerVersion}}")
+            harness.observations["docker_version"] = harness.docker(
+                "info", "--format", "{{.ServerVersion}}"
+            )
+            harness.observations["compose_version"] = harness.docker(
+                "compose", "version", "--short"
+            )
+            harness.observations["python_version"] = sys.version.split()[0]
             harness.build_images()
+            harness.observations["image_ids"] = dict(harness.images)
             harness.prepare_runtime()
             harness.bootstrap()
             harness.baseline()

@@ -92,6 +92,15 @@ class NginxRendererTests(unittest.TestCase):
         self.assertIn("add_header X-Release-Slot app_green always;", config)
         self.assertIn("proxy_hide_header X-Release-ID", config)
 
+    def test_nginx_liveness_is_loopback_only_in_bootstrap_and_tls(self) -> None:
+        for tls in (False, True):
+            with self.subTest(tls=tls):
+                config = self.render(tls=tls)
+                self.assertIn("listen 127.0.0.1:8080;", config)
+                self.assertNotIn("listen 8080", config)
+                self.assertIn("location = /health {", config)
+                self.assertIn('return 200 "ok\\n";', config)
+
     def test_proxy_drops_unlisted_headers_and_preserves_browser_contract(self) -> None:
         config = self.render()
         self.assertIn("proxy_pass_request_headers off;", config)
@@ -271,7 +280,7 @@ class PostgresMountTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("docker"), "Docker Compose CLI is required")
 class ComposeContractTests(unittest.TestCase):
-    def test_parse_preserves_literal_credentials_and_isolates_services(self) -> None:
+    def test_parse_preserves_credentials_isolation_and_runtime_health(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = Path(directory)
             private = runtime / "private"
@@ -325,6 +334,33 @@ class ComposeContractTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             services = json.loads(result.stdout)["services"]
+            for name in ("app_blue", "app_green", "postgres", "nginx"):
+                health = services[name]["healthcheck"]
+                self.assertEqual(health["interval"], "30s")
+                self.assertEqual(health["timeout"], "3s")
+                self.assertEqual(health["retries"], 3)
+                self.assertEqual(health["start_period"], "30s")
+                self.assertEqual(health["test"][0], "CMD")
+                self.assertNotIn("/ready", " ".join(health["test"]))
+            for name in ("app_blue", "app_green"):
+                probe = services[name]["healthcheck"]["test"]
+                self.assertEqual(probe[1:3], ["python", "-c"])
+                self.assertIn("127.0.0.1", probe[3])
+                self.assertIn("8000", probe[3])
+                self.assertNotIn(
+                    "HTTP_TRUSTED_PROXIES", services[name]["environment"]
+                )
+            postgres_probe = services["postgres"]["healthcheck"]["test"]
+            self.assertEqual(postgres_probe[1], "pg_isready")
+            self.assertEqual(
+                postgres_probe[postgres_probe.index("--host") + 1], "127.0.0.1"
+            )
+            nginx_probe = services["nginx"]["healthcheck"]["test"]
+            self.assertEqual(nginx_probe[1], "curl")
+            self.assertIn("--fail", nginx_probe)
+            self.assertIn("http://127.0.0.1:8080/health", nginx_probe)
+            self.assertNotIn("healthcheck", services["migrate"])
+            self.assertNotIn("healthcheck", services["certbot"])
             for name in ("app_blue", "app_green", "postgres", "migrate"):
                 self.assertNotIn("ports", services[name])
                 # config 출력은 재입력 시 보간을 피하도록 $를 $$로 직렬화한다.

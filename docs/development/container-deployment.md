@@ -16,6 +16,22 @@
 
 앱은 `--no-proxy-headers`로 실행합니다. Nginx는 외부 전달 헤더를 버리고 실제 연결 IP 하나와 `https`만 설정합니다. `HTTP_TRUSTED_PROXIES`는 고정된 Nginx IP 하나, `HTTP_ALLOWED_HOSTS`는 정확한 API Host 하나입니다. credentialed CORS·쿠키·CSRF는 기존 제품 앱이 처리하며 Nginx에서 중복 설정하지 않습니다.
 
+## 상태 확인과 실행 순서
+
+운영 Compose는 계속 실행되는 서비스에 30초 간격의 `healthcheck`를 설정합니다. 시작 유예는 30초, 검사 제한은 3초, 연속 실패 기준은 3회입니다. 일회성 `migrate`·`certbot`은 작업 종료 상태를 배포 엔진이 확인합니다.
+
+| 서비스 | 주기적으로 확인하는 범위 |
+| --- | --- |
+| `postgres` | TCP `127.0.0.1:5432`의 `pg_isready`. 초기화 중 임시 Unix socket 서버는 성공으로 판단하지 않으며 앱 계정의 인증·쿼리 권한까지 검증하지 않음 |
+| `app_blue`, `app_green` | 컨테이너 내부 TCP `127.0.0.1:8000` 연결. HTTP 처리·DB·이벤트 루프의 정상 동작까지 검증하지 않음 |
+| `nginx` | 컨테이너 loopback에만 열린 `127.0.0.1:8080/health`의 HTTP 응답. 앱·DB·인증서 상태와 독립적이며 해당 포트는 외부에 게시하지 않음 |
+
+앱의 직접 localhost HTTP 호출은 기존 production 프록시 경계에서 거부됩니다. 주기 검사 때문에 trusted proxy를 넓히거나 `/ready`를 외부에 공개하지 않습니다. 새 앱의 실제 준비 여부는 배포 엔진이 trusted Nginx peer에서 `/api/v1/ready`를 직렬 호출해 검사하고, 전환 후 HTTPS 응답을 추가 확인합니다.
+
+`depends_on` 대신 배포 엔진이 DB 기동 대기·필요한 migration·후보 앱 기동·readiness·Nginx 전환 순서를 제어합니다. 앱 교체는 `--no-deps`로 후보 슬롯만 재생성합니다. 이 절차는 EC2 재부팅 시 Docker의 자동 재시작 순서를 제어하지 않으며, 실제 호스트의 재부팅·EBS 재마운트·서비스 복구는 [AWS 기반 작업](https://github.com/wejo-team/sku-dreamon/issues/213)에서 확인합니다.
+
+`docker compose ps`와 컨테이너의 `State.Health`로 상태를 확인할 수 있습니다. `unhealthy` 판정만으로 컨테이너가 재시작되거나 Nginx 경로가 바뀌지는 않습니다. `restart: unless-stopped`는 컨테이너 종료에 대응하며, 주기 상태 확인과 알림·복구 연결은 별도 운영 설정입니다.
+
 ## 호스트 준비와 권한
 
 호스트에는 Python 3.13 이상, 로컬 Docker daemon, Compose v2의 `env_file.format: raw` 지원, `findmnt`·`realpath`가 필요합니다. Docker 관리와 파일시스템 검사는 호스트 관리자 권한입니다. 수동 검사 스크립트는 새 임시 loopback 파일시스템에만 root 권한을 사용합니다. 운영 파일시스템을 포맷하거나 Docker 사용자의 권한을 자동 변경하는 스크립트는 없습니다.
