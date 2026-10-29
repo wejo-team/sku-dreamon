@@ -10,7 +10,7 @@ import sys
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
-AREAS = ("frontend", "backend", "docs")
+AREAS = ("frontend", "backend", "docs", "deployment")
 DOC_FILES = {
     "README.md",
     "AGENTS.md",
@@ -37,6 +37,8 @@ def classify_paths(paths: Iterable[str]) -> set[str]:
             selected.add("frontend")
         elif path.startswith("backend/"):
             selected.add("backend")
+            if path == "backend/Dockerfile":
+                selected.add("deployment")
         else:
             # New/shared tooling has no established isolation guarantee.
             return set(AREAS)
