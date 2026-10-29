@@ -1,0 +1,181 @@
+# 앱 슬롯만 교체하며 PostgreSQL·Nginx와 운영 파일은 별도 수명으로 유지한다.
+name: sku-dreamon
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+x-app: &app
+  restart: unless-stopped
+  environment:
+    APP_ENV: production
+    DATABASE_TLS_CA_FILE: /run/config/db-ca.crt
+    PASSWORD_BLOCKLIST_PATH: /run/config/password-blocklist.txt
+  networks: [edge, database]
+  volumes:
+    - type: bind
+      source: ${RUNTIME_DIR:?required}/private/db-ca.crt
+      target: /run/config/db-ca.crt
+      read_only: true
+      bind: {create_host_path: false}
+    - type: bind
+      source: ${RUNTIME_DIR:?required}/private/password-blocklist.txt
+      target: /run/config/password-blocklist.txt
+      read_only: true
+      bind: {create_host_path: false}
+  logging: *logging
+
+services:
+  app_blue:
+    <<: *app
+    image: ${APP_BLUE_IMAGE:?required immutable image}
+    profiles: [blue]
+    env_file:
+      - path: ${APP_BLUE_ENV_FILE:?required}
+        format: raw
+    command: [uvicorn, app.main:app, --host, 0.0.0.0, --port, "8000", --workers, "1", --no-proxy-headers, --timeout-graceful-shutdown, "${APP_BLUE_UVICORN_GRACE_SECONDS:-450}"]
+    stop_grace_period: ${APP_BLUE_STOP_GRACE_SECONDS:-480}s
+
+  app_green:
+    <<: *app
+    image: ${APP_GREEN_IMAGE:?required immutable image}
+    profiles: [green]
+    env_file:
+      - path: ${APP_GREEN_ENV_FILE:?required}
+        format: raw
+    command: [uvicorn, app.main:app, --host, 0.0.0.0, --port, "8000", --workers, "1", --no-proxy-headers, --timeout-graceful-shutdown, "${APP_GREEN_UVICORN_GRACE_SECONDS:-450}"]
+    stop_grace_period: ${APP_GREEN_STOP_GRACE_SECONDS:-480}s
+
+  migrate:
+    image: ${MIGRATION_IMAGE:?required immutable image}
+    profiles: [tools]
+    env_file:
+      - path: ${MIGRATION_ENV_FILE:?required}
+        format: raw
+    environment:
+      APP_ENV: production
+      DATABASE_TLS_CA_FILE: /run/config/db-ca.crt
+    command: [alembic, upgrade, head]
+    networks: [database]
+    volumes:
+      - type: bind
+        source: ${RUNTIME_DIR:?required}/private/db-ca.crt
+        target: /run/config/db-ca.crt
+        read_only: true
+        bind: {create_host_path: false}
+    logging: *logging
+
+  postgres:
+    image: ${POSTGRES_IMAGE:?required guarded PostgreSQL image}
+    restart: unless-stopped
+    env_file:
+      - path: ${POSTGRES_ENV_FILE:?required}
+        format: raw
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-bootstrap-password
+      POSTGRES_FILESYSTEM_UUID: ${POSTGRES_FILESYSTEM_UUID:?required}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=trust
+    devices:
+      - /dev/disk/by-uuid/${POSTGRES_FILESYSTEM_UUID:?required}:/run/db-filesystem-device:r
+    networks: [database]
+    volumes:
+      - type: bind
+        source: ${POSTGRES_DATA_DIR:?required mounted filesystem}
+        target: /var/lib/postgresql/data
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${RUNTIME_DIR:?required}/private/postgres.crt
+        target: /run/config/postgres.crt
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${RUNTIME_DIR:?required}/private/postgres.key
+        target: /run/config/postgres.key
+        read_only: true
+        bind: {create_host_path: false}
+    secrets: [postgres-bootstrap-password, app-password, migration-password]
+    stop_grace_period: 60s
+    logging: *logging
+
+  nginx:
+    image: ${NGINX_IMAGE:?required probe-enabled Nginx image}
+    restart: unless-stopped
+    networks:
+      edge:
+        ipv4_address: ${NGINX_PROXY_IP:-172.30.0.2}
+    ports:
+      - "${NGINX_BIND_IP:-0.0.0.0}:${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_BIND_IP:-0.0.0.0}:${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - type: bind
+        source: ${RUNTIME_DIR:?required}/nginx
+        target: /etc/nginx/runtime
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${RUNTIME_DIR:?required}/acme/letsencrypt
+        target: /etc/letsencrypt
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${RUNTIME_DIR:?required}/acme/webroot
+        target: /var/www/acme
+        read_only: true
+        bind: {create_host_path: false}
+    stop_grace_period: 480s
+    logging: *logging
+
+  certbot:
+    image: ${CERTBOT_IMAGE:-certbot/certbot:v5.8.0}
+    profiles: [tools]
+    volumes:
+      - type: bind
+        source: ${RUNTIME_DIR:?required}/acme/letsencrypt
+        target: /etc/letsencrypt
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${RUNTIME_DIR:?required}/acme/webroot
+        target: /var/www/acme
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${RUNTIME_DIR:?required}/acme/work
+        target: /var/lib/letsencrypt
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${RUNTIME_DIR:?required}/acme/logs
+        target: /var/log/letsencrypt
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${RUNTIME_DIR:?required}/state/certbot
+        target: /run/certbot-events
+        bind: {create_host_path: false}
+    configs:
+      - source: certbot-install-hook
+        target: /opt/certbot/mark-installed.sh
+    logging: *logging
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: ${APP_NETWORK_SUBNET:-172.30.0.0/24}
+  database:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${DB_NETWORK_SUBNET:-172.31.0.0/24}
+
+secrets:
+  postgres-bootstrap-password:
+    file: ${RUNTIME_DIR:?required}/private/postgres-bootstrap-password
+  app-password:
+    file: ${RUNTIME_DIR:?required}/private/app-password
+  migration-password:
+    file: ${RUNTIME_DIR:?required}/private/migration-password
+
+configs:
+  certbot-install-hook:
+    file: ./certbot/mark-installed.sh
