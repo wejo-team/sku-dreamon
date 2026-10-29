@@ -154,6 +154,10 @@ sudo python3 deploy/tests/container_e2e.py
 
 이 배포 기반 PR은 기존 앱 CI를 유지하며 새 필수 컨테이너 job을 추가하지 않습니다. CI 변경은 별도 PR로 다룹니다. 수동 실행 결과는 실행한 SHA와 `deploy/test-results/container-e2e.json`의 안전한 JSON으로 확인합니다. 소스 파일 존재·unit 통과·이전 SHA의 결과로 현재 SHA의 실제 실행을 대신하지 않습니다. AWS의 실제 EBS 부착·재부팅·복원·공개 ACME·운영 부하·비용·모델 제공자 검증은 포함하지 않습니다.
 
-host unit은 통과했고, 단일 SAN 인증서 패턴은 Python 3.13의 strict X.509·hostname 검증 TLS handshake로 별도 확인했습니다. 일반 단위 검사에서는 인증서를 생성하지 않습니다. 실제 컨테이너 전체 성공은 미확인입니다. 초기 실행은 합성 CA의 keyUsage 누락으로 첫 migration의 TLS 검증에 실패했습니다. 단일 자체 서명 SAN 인증서로 단순화한 뒤 전체 컨테이너 재실행은 수행하지 않았습니다.
+2026-10-30에 [검증한 코드 커밋](https://github.com/wejo-team/sku-dreamon/commit/fb7d25b449447baee5630c9e47a338b3aa370021)의 배포 단위·정적 검사 40개와 전체 수동 컨테이너 검사 11개를 통과했습니다. 수동 검사는 기존 호스트 데이터나 Docker socket을 공유하지 않는 임시 Docker-in-Docker 환경에서 합성 loopback 디스크·인증서·계정으로 실행했습니다. Docker 29.8.0·Compose 5.5.1·검사 호스트 Python 3.14.10을 사용했고, 제품 이미지는 Dockerfile의 Python 3.13.14를 유지합니다. 전체 실행은 100.75초, 짧은 인증 SSE와 앱 전환 관측 구간은 14.95초였습니다. 이는 해당 격리 실행의 기록이며 운영 성능 기준은 아닙니다.
+
+인증서 없는 HTTP 기동, PostgreSQL 검증 TLS와 migration, 제품 HTTPS·CORS·전달 헤더 경계, 앱 교체·롤백 중 DB 데이터와 컨테이너·Nginx 유지, 실패 후보의 기존 경로 보존과 recover를 확인했습니다. 후보 컨테이너의 TCP health가 `healthy`여도 `/ready` 실패로 전환이 차단됐고, 새 요청이 새 슬롯에 도달한 뒤 기존 SSE와 Nginx worker가 종료되어 이전 앱이 중지되는 것을 확인했습니다. 수동 실패 fixture는 FastAPI의 지연된 included router보다 앞에서 `/ready` 503을 반환하도록 구성합니다.
+
+로컬 실행 근거는 Git에서 제외한 `deploy/test-results/container-e2e.json`과 소스 커밋·파일 hash를 담은 `container-e2e-source.json`에 보관합니다. 이미지의 blue/green 릴리스 표식은 합성 값이며 실제 검사 소스 커밋과 구분합니다. 임시 컨테이너·볼륨·loopback 자원은 정리했습니다. 일반 단위 검사와 CI에는 인증서 생성·수동 컨테이너 검사를 추가하지 않았습니다.
 
 실제 도메인의 HTTP-01 최초 발급·재생성 후 갱신과 새 인증서 적용, 최대 300초 AI 설정의 전체 벽시계 스트리밍, DB 지연·행 잠금·종료 조합의 종합 검증은 최초 운영 환경 확인으로 남깁니다. 배포·인증서 명령과 timeout unit이 있다는 사실로 이 검증을 완료 처리하지 않습니다. 후속 실행 결과는 [DEP-03 #212](https://github.com/wejo-team/sku-dreamon/issues/212)에 기록합니다.
