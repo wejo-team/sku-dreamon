@@ -9,6 +9,14 @@ x-logging: &logging
 
 x-app: &app
   restart: unless-stopped
+  # production HTTP는 trusted Nginx peer만 허용하므로 로컬 TCP listener만 검사한다.
+  # DB·설정 준비 상태는 release.py가 Nginx에서 /ready로 직렬 검사한다.
+  healthcheck:
+    test: [CMD, python, -c, "import socket; socket.create_connection(('127.0.0.1', 8000), timeout=2).close()"]
+    interval: 30s
+    timeout: 3s
+    retries: 3
+    start_period: 30s
   environment:
     APP_ENV: production
     DATABASE_TLS_CA_FILE: /run/config/db-ca.crt
@@ -70,6 +78,13 @@ services:
   postgres:
     image: ${POSTGRES_IMAGE:?required guarded PostgreSQL image}
     restart: unless-stopped
+    # initdb의 임시 Unix socket server를 준비 완료로 오인하지 않는다.
+    healthcheck:
+      test: [CMD, pg_isready, --host, 127.0.0.1, --port, "5432", --username, postgres, --dbname, postgres, --timeout, "2"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
     env_file:
       - path: ${POSTGRES_ENV_FILE:?required}
         format: raw
@@ -103,6 +118,12 @@ services:
   nginx:
     image: ${NGINX_IMAGE:?required probe-enabled Nginx image}
     restart: unless-stopped
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --show-error, --max-time, "2", --output, /dev/null, http://127.0.0.1:8080/health]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
     networks:
       edge:
         ipv4_address: ${NGINX_PROXY_IP:-172.30.0.2}

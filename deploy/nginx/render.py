@@ -42,6 +42,17 @@ http {{
     client_body_timeout 60s;
     keepalive_timeout 10s;
     gzip off;
+    # Nginx 자체 HTTP liveness. 앱·DB·인증서 준비 여부와 별도로 관측한다.
+    server {{
+        listen 127.0.0.1:8080;
+        server_name localhost;
+        access_log off;
+        location = /health {{
+            default_type text/plain;
+            return 200 "ok\\n";
+        }}
+        location / {{ return 404; }}
+    }}
     server {{ listen 80 default_server; server_name _; return 444; }}
     server {{
         listen 80;

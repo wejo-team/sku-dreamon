@@ -13,7 +13,7 @@
 | 사용자 규모·예산 제약 | 초기 사용자 100명 미만, 월 3만 원 미만 목표. DB 호스팅 방향은 확정했으며 자원 크기·전체 비용·운영 책임은 [DEP-01 #210](https://github.com/wejo-team/sku-dreamon/issues/210)에서 확인 |
 | 아직 결정하지 않은 사항 | 실제 도메인·AWS 계정·리전·자원 크기, 자산·인증서 보관과 운영 담당자, 데이터 보존·복구 목표 |
 | 현재 구현 | 앱 CI·문서 Pages, 로컬 HTTPS 통합 검사, 서버 세션·CSRF, AI SSE와 중단·복구 UI. DEP-02 운영 앱 계약 구현, 구현·검증 근거 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217) |
-| 컨테이너 실행 기반 | production Dockerfile·운영 Compose/Nginx/PostgreSQL·검증 TLS·마운트 guard·배포 lock/journal·worker 드레인·복구·인증서 명령. 수동 실행 스크립트가 있으며 전체 실행 성공은 미확인 |
+| 컨테이너 실행 기반 | production Dockerfile·운영 Compose/Nginx/PostgreSQL·검증 TLS·마운트 guard·배포 lock/journal·worker 드레인·복구·인증서 명령. 기본 healthcheck와 격리 수동 컨테이너 11개 검증을 완료했으며, 소스 커밋·실행 범위는 [컨테이너 검증 기록](../development/container-deployment.md#verification) 참조. AWS 실환경은 미검증 |
 | 아직 없는 기반 | 실제 EBS 연결·배포 workflow·AWS 리소스·백업/복원 자동화·외부 scheduler/알림 설치 |
 
 초기 구성에는 ALB·Kubernetes를 추가하지 않습니다. **GitHub Actions는 배포 순서를 조정하고, Docker Compose는 컨테이너 실행을 관리하며, 계속 실행되는 별도 Nginx 컨테이너는 TLS와 요청 경로를 담당합니다.** 평소 Compose 기동은 활성 앱 슬롯만 선택하고, 배포 때 비활성 슬롯을 추가로 기동하는 계약으로 두 앱의 상시 실행을 피합니다. Compose 자체가 readiness 확인·트래픽 전환·스트림 드레인을 자동 보장하지 않으므로 배포 절차를 별도로 구현합니다. 호스트 장애 대응이 필요해지면 ECS·ALB·복수 task와 RDS Multi-AZ의 비용·운영 범위를 비교합니다.
