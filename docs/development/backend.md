@@ -17,6 +17,20 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 - 환경설정은 `core/config.py`에서 검증합니다. 모듈 import만으로 DB 쿼리·외부 API 호출·테이블 생성이 실행되지 않게 합니다.
 - async DB나 비동기 외부 I/O를 호출하는 경로는 `async def`와 `await`로 연결합니다. 비동기 경로에서 동기 DB·HTTP 호출로 이벤트 루프를 막지 않습니다.
 
+<a id="deployment-runtime"></a>
+
+## 운영 설정과 HTTP 수명
+
+[DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 앱 운영 계약을 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)이며 실제 Nginx·AWS 인프라는 미구현·미배포입니다. 설정 이름·기본값·허용 범위는 [Settings](../../backend/app/core/config.py)·[환경변수 예시](../../backend/.env.example)가 원본입니다.
+
+`APP_ENV`는 `development`·`test`·`production`입니다. production 공통 설정은 명시적인 비로컬 단일 PostgreSQL URL과 `DATABASE_TLS_CA_FILE`을 요구하며, DB URL의 query parameter는 금지합니다. HTTP 앱 생성과 readiness는 `require_http_configuration()`으로 CSRF 키·정확한 HTTPS origin·차단 목록 경로/버전·정확한 Host·trusted proxy를 추가 검사합니다. CLI·Alembic에는 DB 전용 운영 환경과 별도 DDL 자격증명만 공급할 수 있습니다. HTTP·AI 비밀값을 공유하거나 검증을 피하려고 development로 실행하지 않습니다. `ai_enabled`는 비어 있지 않은 키에서 계산하며 AI 제공 배포는 `AI_REQUIRED=true`를 명시합니다. 기본 false는 기존 비AI 동작을 유지합니다.
+
+[HTTP 경계](../../backend/app/core/http/deployment.py)는 원래 TCP peer와 Host를 OPTIONS까지 CORS보다 먼저 검사합니다. `HTTP_TRUSTED_PROXIES`에는 정확한 IP·좁은 CIDR만, `HTTP_ALLOWED_HOSTS`에는 wildcard 없는 정확한 host만 지정합니다. Nginx는 외부 전달 헤더를 제거하고 실제 client IP 하나의 `X-Forwarded-For`와 `X-Forwarded-Proto: https`만 새로 전달합니다. `Forwarded`·`X-Forwarded-Host` 등 추가 전달 헤더는 거부합니다. 앱이 유일한 해석자가 되도록 [운영 실행기](../../backend/app/cli/serve.py)의 `proxy_headers=False`·`forwarded_allow_ips=""` 또는 동등한 `--no-proxy-headers` 설정을 유지합니다. CORS는 FastAPI 인터페이스를 보존하면서 최외곽 오류 처리를 감싸고, 정확한 `AUTH_ALLOWED_ORIGINS`에 credentials·허용 메서드·`Content-Type`·`X-CSRF-Token`, 노출 헤더 `X-Request-ID`·`Retry-After`를 적용합니다. 세션·CSRF 검사는 그대로 수행합니다.
+
+[readiness](../api/health.md)는 앱 소유 DB 검사 task를 최대 하나만 유지합니다. 진행·취소 정리 중인 probe가 있으면 다음 요청은 즉시 503이므로 운영 검사 요청을 직렬화합니다. production은 trusted Nginx peer·예상 API Host·단일 전달 IP·HTTPS 헤더를 요구하며 API 컨테이너·localhost 직접 probe는 거부합니다. 실제 Nginx 토폴로지는 [DEP-03 #212](https://github.com/wejo-team/sku-dreamon/issues/212)에서 검증합니다.
+
+앱 lifespan은 readiness probe 취소·로컬 AI client 닫기·DB engine dispose를 모두 시도하고 각 자원에 `SHUTDOWN_TIMEOUT_SECONDS`를 따로 적용합니다. 기본은 자원별 10초로 합계 30초, 허용 최대 설정은 합계 90초이며 협조적 취소·유한 I/O를 전제로 합니다. SSE 응답 자체의 실행·정리 예산은 [AI 종료 계약](../api/ai.md#termination)이며 프로세스 종료 유예에는 이 수명 정리 합계도 별도로 반영합니다.
+
 <a id="api-core"></a>
 
 ## 공통 API 기반의 책임
@@ -177,6 +191,8 @@ ORM 모델은 `models`, SQL 읽기·쓰기와 DB 반영은 `repositories`에 둡
 - `create_async_engine`과 `async_sessionmaker`를 사용합니다. engine·session factory는 앱 수명에 맞춰 구성하고 종료 시 engine을 dispose합니다.
 - `AsyncSession`은 요청 또는 독립 작업 단위로 생성·종료합니다. 전역 Session, 요청 사이의 Session 공유, 하나의 Session을 여러 동시 task에서 공유하는 코드를 만들지 않습니다.
 - [DB 세션 기반](../../backend/app/core/db/session.py)의 `Database`·`create_database`는 HTTP 요청을 알지 않습니다. `Database.session()`은 세션을 생성하고 context 종료 시 정리하므로 HTTP·배치·CLI에서 함께 사용할 수 있습니다. [HTTP 의존성](../../backend/app/core/http/dependencies.py)의 `get_session`·`DatabaseSession`은 이 context를 요청에 연결합니다. context 종료 시 자동으로 commit하지 않습니다.
+- 공통 `create_engine(Settings)`가 앱·DB CLI·Alembic에 같은 TLS·유한 I/O 예산을 제공합니다. CA를 지정하면 `CERT_REQUIRED`·호스트명 검증을 적용하며 production에는 CA가 필수입니다. RDS뿐 아니라 자체 CA·PostgreSQL 서비스 호스트명도 지원하고 실패 시 TLS를 끄지 않습니다. Alembic은 `pooled=False`로 `NullPool`을 사용합니다.
+- 앱 pool 기본은 프로세스당 size 3·overflow 2, acquire/connect 3초, command/statement 10초, lock 2초, idle transaction 15초입니다. 전체 연결 수는 구/신 슬롯·프로세스·CLI·migration까지 합산하며 기본값을 운영 수용량으로 해석하지 않습니다. 정확한 설정 범위는 위 `Settings`가 원본입니다.
 - 기본 세션 설정은 `expire_on_commit=False`로 합니다. 이것이 모든 지연 로딩을 비동기로 안전하게 만드는 것은 아닙니다.
 - 응답 직렬화 중 암묵적 쿼리가 발생하지 않도록 필요한 관계를 명시적으로 조회합니다. 관계 조회는 `selectinload` 등의 eager loading을 우선 검토합니다.
 - 종료된 세션에 붙어 있던 객체에서 새 DB 조회가 필요한 속성을 읽지 않습니다. background task에는 기존 요청 Session을 넘기지 않습니다.

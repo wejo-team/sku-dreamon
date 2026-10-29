@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from uuid import UUID
 
 from fastapi import FastAPI
+from pydantic import ValidationError
 from sqlalchemy.engine import make_url
 
 from app.agents.tools import SourceTools
@@ -94,7 +95,10 @@ class FixtureDriver:
 
 
 def create_app() -> FastAPI:
-    settings = Settings()
+    try:
+        settings = Settings()
+    except ValidationError:
+        raise RuntimeError("AI E2E requires valid isolated settings") from None
     try:
         explicit = make_url(os.environ["DATABASE_URL"])
     except (KeyError, ValueError):
