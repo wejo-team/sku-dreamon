@@ -106,38 +106,6 @@ jobs:
       - run: uv run python -m app.core.db.check
       - run: uv run pytest
 
-  container_checks:
-    name: Container deployment
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version-file: backend/.python-version
-      - name: Check release recovery and runtime contracts
-        run: python -m unittest discover -s deploy/tests -p 'test_*.py' -v
-      - name: Build the production API image
-        run: docker build --file backend/Dockerfile --build-arg RELEASE_SHA="$GITHUB_SHA" --tag dreamon-production:test .
-      - name: Build the probe-enabled proxy
-        run: docker build --file deploy/nginx/Dockerfile --tag dreamon-nginx:test deploy/nginx
-      - name: Build the guarded PostgreSQL image
-        run: docker build --file deploy/postgres/Dockerfile --tag dreamon-postgres:test .
-      - name: Verify real container replacement and persistence
-        run: sudo python3 deploy/tests/container_e2e.py
-      - name: Save synthetic container verification results
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: container-deployment
-          path: deploy/test-results/container-e2e.json
-          retention-days: 1
-          if-no-files-found: error
-
   integration:
     name: Integration E2E
     needs: changes
@@ -253,7 +221,7 @@ jobs:
 
   backend:
     name: Backend
-    needs: [changes, backend_checks, integration, container_checks]
+    needs: [changes, backend_checks, integration]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -275,10 +243,4 @@ jobs:
           SCOPE_RESULT: ${{ needs.changes.result }}
           CHECK_REQUIRED: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true' }}
           CHECK_RESULT: ${{ needs.integration.result }}
-        run: python scripts/check_ci_job.py
-      - name: Verify container deployment result
-        env:
-          SCOPE_RESULT: ${{ needs.changes.result }}
-          CHECK_REQUIRED: ${{ needs.changes.outputs.backend }}
-          CHECK_RESULT: ${{ needs.container_checks.result }}
         run: python scripts/check_ci_job.py

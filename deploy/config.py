@@ -73,6 +73,10 @@ class ReleaseError(Exception):
                 "certificate job failed; active routing was preserved",
                 "certificate_job_failed",
             ),
+            (
+                "host configuration changed outside an infrastructure procedure",
+                "host_configuration_changed",
+            ),
         )
         return dict(codes).get(str(self), "release_blocked")
 
@@ -202,6 +206,31 @@ class Runtime:
     @property
     def budgets(self) -> Budgets:
         return Budgets.derive(self.app_env, self.normal_seconds, self.margin_seconds)
+
+    @property
+    def host_identity(self) -> str:
+        # 앱 설정과 구분해 호스트·DB·프록시 변경을 앱 교체로 적용하지 않는다.
+        compose = {
+            "NGINX_PROXY_IP": "172.30.0.2",
+            "APP_NETWORK_SUBNET": "172.30.0.0/24",
+            "DB_NETWORK_SUBNET": "172.31.0.0/24",
+            "NGINX_HTTP_PORT": "80",
+            "NGINX_HTTPS_PORT": "443",
+            "NGINX_BIND_IP": "0.0.0.0",
+            **self.compose,
+        }
+        value = {
+            "root": str(self.root),
+            "project": self.project,
+            "api_host": self.api_host,
+            "data_dir": str(self.data_dir),
+            "mount": str(self.mount_path),
+            "filesystem_uuid": self.filesystem_uuid,
+            "images": self.images,
+            "postgres_env": self.postgres_env,
+            "compose": compose,
+        }
+        return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
     @classmethod
     def read(cls, path: Path, checkout: Path) -> Runtime:

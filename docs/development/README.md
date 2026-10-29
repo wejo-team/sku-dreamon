@@ -28,6 +28,7 @@
 | [backend.md](backend.md) | 비동기 DB, 트랜잭션, API·설정·마이그레이션 |
 | [DB 설계](../database/README.md) · [API 명세](../api/README.md) | 물리 ERD·테이블·요청/응답 계약을 검토하거나 구현할 때 |
 | [testing.md](testing.md) | 테스트 범위, CI 단계, 완료 기준 |
+| [컨테이너 실행과 앱 교체](container-deployment.md) | 비공개 런타임 JSON, DB 마운트·TLS, 최초 인증서, 드레인·복구·롤백과 수동 검증 |
 | [통합테스트와 bug bash](bug-bash.md) | 격리 HTTPS 환경·실제 브라우저 E2E·수동 시나리오·실행 결과 |
 | [documentation.md](documentation.md) | 문서 원본·인덱스 관리 규칙과 VitePress 자동 게시 운영 |
 

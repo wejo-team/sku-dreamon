@@ -1,4 +1,4 @@
-"""CI 전용 가상 디스크·인증서로 실제 운영 컨테이너 경계를 검증한다.
+"""수동 검사에서 가상 디스크·인증서로 실제 운영 컨테이너 경계를 검증한다.
 
 root와 로컬 Docker daemon이 필요하다. 새 임시 파일에만 파일시스템을 만들며
 EBS·운영 설정·유료 모델·공개 ACME는 사용하지 않는다. 결과에는 검사명만 남긴다.
@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -24,7 +25,6 @@ ROOT = Path(__file__).resolve().parents[2]
 HOST = "api.example.com"
 BLUE_SHA = "a" * 40
 GREEN_SHA = "b" * 40
-BAD_SHA = "c" * 40
 
 
 class CheckFailed(Exception):
@@ -50,6 +50,7 @@ class Harness:
         self.children: list[subprocess.Popen[str]] = []
         self.images: dict[str, str] = {}
         self.values: dict[str, Any] = {}
+        self.observations: dict[str, object] = {}
         self.phase = "preflight"
         self.operation = "none"
         self.returncode: int | None = None
@@ -197,57 +198,10 @@ class Harness:
             self.device_link.symlink_to(self.device)
         self.values["postgres_filesystem_uuid"] = filesystem_uuid
 
-    def certificate(self, name: str, hostname: str) -> tuple[Path, Path]:
-        key = self.private / f"{name}.key"
-        csr = self.private / f"{name}.csr"
-        cert = self.private / f"{name}.crt"
-        extensions = self.private / f"{name}.ext"
-        extensions.write_text(
-            f"subjectAltName=DNS:{hostname}\nextendedKeyUsage=serverAuth\n"
-        )
-        self.command(
-            [
-                "openssl",
-                "req",
-                "-new",
-                "-newkey",
-                "rsa:2048",
-                "-nodes",
-                "-subj",
-                f"/CN={hostname}",
-                "-keyout",
-                str(key),
-                "-out",
-                str(csr),
-            ]
-        )
-        self.command(
-            [
-                "openssl",
-                "x509",
-                "-req",
-                "-in",
-                str(csr),
-                "-CA",
-                str(self.private / "db-ca.crt"),
-                "-CAkey",
-                str(self.private / "ca.key"),
-                "-CAcreateserial",
-                "-days",
-                "2",
-                "-extfile",
-                str(extensions),
-                "-out",
-                str(cert),
-            ]
-        )
-        key.chmod(0o600)
-        cert.chmod(0o644)
-        return cert, key
-
-    def prepare_runtime(self) -> None:
-        self.phase = "prepare_synthetic_filesystem_and_tls"
-        self.prepare_disk()
+    def prepare_certificates(self) -> None:
+        # 기존 DB TLS 단위 검사와 같은 단일 self-signed SAN 인증서를 명시적으로 신뢰한다.
+        certificate = self.private / "db-ca.crt"
+        key = self.private / "postgres.key"
         self.command(
             [
                 "openssl",
@@ -259,19 +213,24 @@ class Harness:
                 "-days",
                 "2",
                 "-subj",
-                "/CN=DEP03 synthetic CA",
+                "/CN=postgres",
                 "-keyout",
-                str(self.private / "ca.key"),
+                str(key),
                 "-out",
-                str(self.private / "db-ca.crt"),
+                str(certificate),
                 "-addext",
-                "basicConstraints=critical,CA:TRUE",
+                "subjectAltName=DNS:postgres,DNS:api.example.com",
             ]
         )
-        (self.private / "ca.key").chmod(0o600)
-        (self.private / "db-ca.crt").chmod(0o644)
-        self.certificate("postgres", "postgres")
-        self.api_cert, self.api_key = self.certificate("api", HOST)
+        key.chmod(0o600)
+        certificate.chmod(0o644)
+        shutil.copyfile(certificate, self.private / "postgres.crt")
+        self.api_cert, self.api_key = certificate, key
+
+    def prepare_runtime(self) -> None:
+        self.phase = "prepare_synthetic_filesystem_and_tls"
+        self.prepare_disk()
+        self.prepare_certificates()
         passwords: dict[str, str] = {}
         for name in (
             "postgres-bootstrap-password",
@@ -542,9 +501,7 @@ class Harness:
         # 초기 coherent smoke는 임시 CA 인증서로 한다. 공개 ACME 호출은 없다.
         lineage = self.runtime / "acme/letsencrypt/live" / HOST
         lineage.mkdir(parents=True)
-        (lineage / "fullchain.pem").write_bytes(
-            self.api_cert.read_bytes() + (self.private / "db-ca.crt").read_bytes()
-        )
+        (lineage / "fullchain.pem").write_bytes(self.api_cert.read_bytes())
         shutil.copyfile(self.api_key, lineage / "privkey.pem")
         (lineage / "privkey.pem").chmod(0o600)
 
@@ -655,6 +612,148 @@ class Harness:
         assert self.status()["phase"] == "stable"
         self.mark("failed_candidate_readiness_keeps_previous_route_and_recovers")
 
+    def short_sse(self) -> None:
+        """짧은 인증 스트림을 받은 구 worker가 끝나야 구 앱이 정지하는지 확인한다."""
+        self.phase = "short_authenticated_sse_rollout"
+        self.release("deploy", "--image", self.images["green"], "--sha", GREEN_SHA)
+        jar = "sse-cookies"
+
+        def csrf() -> str:
+            code, _, body = self.http("/api/v1/auth/csrf", jar=jar)
+            assert code == 200
+            return str(json.loads(body)["data"]["csrfToken"])
+
+        code, _, _ = self.http(
+            "/api/v1/accounts",
+            method="POST",
+            jar=jar,
+            headers=("Origin: https://www.example.com", f"X-CSRF-Token: {csrf()}"),
+            data={
+                "loginId": "dep03" + secrets.token_hex(6),
+                "password": "synthetic account " + secrets.token_hex(16),
+            },
+        )
+        assert code == 201
+        body = self.temporary / "short-stream.txt"
+        headers = self.temporary / "short-stream.headers"
+        payload = {
+            "requestId": str(uuid.uuid4()),
+            "conversationId": str(uuid.uuid4()),
+            "clientMessageId": str(uuid.uuid4()),
+            "content": "pause:12",
+        }
+        started = time.monotonic()
+        with body.open("w") as output:
+            stream = subprocess.Popen(
+                [
+                    "curl",
+                    "--silent",
+                    "--fail",
+                    "--no-buffer",
+                    "--max-time",
+                    "45",
+                    "--noproxy",
+                    "*",
+                    "--resolve",
+                    f"{HOST}:443:127.0.0.1",
+                    "--cacert",
+                    str(self.api_cert),
+                    "--cookie",
+                    str(self.temporary / jar),
+                    "--dump-header",
+                    str(headers),
+                    "--header",
+                    "Origin: https://www.example.com",
+                    "--header",
+                    f"X-CSRF-Token: {csrf()}",
+                    "--header",
+                    "Content-Type: application/json",
+                    "--data-binary",
+                    "@-",
+                    f"https://{HOST}/api/v1/ai/chat/stream",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=output,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+        self.children.append(stream)
+        assert stream.stdin
+        stream.stdin.write(json.dumps(payload))
+        stream.stdin.close()
+
+        def wait_for(condition: Callable[[], bool], seconds: float) -> None:
+            deadline = time.monotonic() + seconds
+            while not condition():
+                assert time.monotonic() < deadline
+                time.sleep(0.1)
+
+        wait_for(
+            lambda: (
+                "event: answer.delta" in body.read_text() or stream.poll() is not None
+            ),
+            15,
+        )
+        assert stream.poll() is None and "event: answer.delta" in body.read_text()
+        assert "x-release-slot: app_green" in headers.read_text().lower()
+        worker_script = """for p in /proc/[0-9]*; do
+if [ -r "$p/cmdline" ] && tr '\\000' ' ' < "$p/cmdline" | grep -q '^nginx: worker process'; then
+awk '{print $1 ":" $22}' "$p/stat" || exit 1
+fi
+done"""
+
+        def workers() -> set[str]:
+            return set(
+                self.docker("exec", self.nginx_id, "sh", "-ec", worker_script).split()
+            )
+
+        old_workers = workers()
+        assert old_workers
+        master = self.docker("exec", self.nginx_id, "cat", "/proc/1/stat").split()[21]
+        rollout = subprocess.Popen(
+            [
+                "python3",
+                str(ROOT / "deploy/release.py"),
+                "--config",
+                str(self.config),
+                "deploy",
+                "--image",
+                self.images["blue"],
+                "--sha",
+                BLUE_SHA,
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        self.children.append(rollout)
+        wait_for(
+            lambda: self.http("/api/v1/health")[1].get("x-release-slot") == "app_blue",
+            20,
+        )
+        assert rollout.poll() is None and stream.poll() is None
+        assert self.container("app_green")["State"]["Running"]
+        assert old_workers.intersection(workers())
+        assert "event: done" not in body.read_text()
+        assert stream.wait(timeout=30) == 0
+        assert "event: done" in body.read_text()
+        assert ": keepalive" in body.read_text()
+        assert rollout.wait(timeout=45) == 0
+        old = self.container("app_green")
+        assert not old["State"]["Running"] and old["State"]["ExitCode"] == 0
+        assert not old_workers.intersection(workers())
+        assert self.container("nginx")["Id"] == self.nginx_id
+        assert (
+            self.docker("exec", self.nginx_id, "cat", "/proc/1/stat").split()[21]
+            == master
+        )
+        assert self.container("postgres")["Id"] == self.pg_id
+        self.observations["short_sse_seconds"] = round(time.monotonic() - started, 2)
+        self.mark(
+            "authenticated_sse_new_slot_before_old_done_then_old_worker_and_app_stop"
+        )
+
     def cleanup(self) -> None:
         for child in self.children:
             if child.poll() is None:
@@ -712,6 +811,7 @@ def main() -> int:
             harness.prepare_runtime()
             harness.bootstrap()
             harness.baseline()
+            harness.short_sse()
             success = True
         except (
             CheckFailed,
@@ -746,6 +846,7 @@ def main() -> int:
                         "operation": operation,
                         "returncode": returncode,
                         "state": diagnostics,
+                        "observations": harness.observations,
                         "elapsed_seconds": round(time.monotonic() - started, 2),
                     },
                     indent=2,

@@ -27,7 +27,7 @@ FastAPI, uv, Pydantic, pydantic-settings, SQLAlchemy 2 비동기 API, asyncpg, P
 
 [HTTP 경계](../../backend/app/core/http/deployment.py)는 원래 TCP peer와 Host를 OPTIONS까지 CORS보다 먼저 검사합니다. `HTTP_TRUSTED_PROXIES`에는 정확한 IP·좁은 CIDR만, `HTTP_ALLOWED_HOSTS`에는 wildcard 없는 정확한 host만 지정합니다. Nginx는 외부 전달 헤더를 제거하고 실제 client IP 하나의 `X-Forwarded-For`와 `X-Forwarded-Proto: https`만 새로 전달합니다. `Forwarded`·`X-Forwarded-Host` 등 추가 전달 헤더는 거부합니다. 앱이 유일한 해석자가 되도록 [운영 실행기](../../backend/app/cli/serve.py)의 `proxy_headers=False`·`forwarded_allow_ips=""` 또는 동등한 `--no-proxy-headers` 설정을 유지합니다. CORS는 FastAPI 인터페이스를 보존하면서 최외곽 오류 처리를 감싸고, 정확한 `AUTH_ALLOWED_ORIGINS`에 credentials·허용 메서드·`Content-Type`·`X-CSRF-Token`, 노출 헤더 `X-Request-ID`·`Retry-After`를 적용합니다. 세션·CSRF 검사는 그대로 수행합니다.
 
-[readiness](../api/health.md)는 앱 소유 DB 검사 task를 최대 하나만 유지합니다. 진행·취소 정리 중인 probe가 있으면 다음 요청은 즉시 503이므로 운영 검사 요청을 직렬화합니다. production은 trusted Nginx peer·예상 API Host·단일 전달 IP·HTTPS 헤더를 요구하며 API 컨테이너·localhost 직접 probe는 거부합니다. 실제 Nginx 토폴로지는 [DEP-03 #212](https://github.com/wejo-team/sku-dreamon/issues/212)에서 검증합니다.
+[readiness](../api/health.md)는 앱 소유 DB 검사 task를 최대 하나만 유지합니다. 진행·취소 정리 중인 probe가 있으면 다음 요청은 즉시 503이므로 운영 검사 요청을 직렬화합니다. production은 trusted Nginx peer·예상 API Host·단일 전달 IP·HTTPS 헤더를 요구하며 API 컨테이너·localhost 직접 probe는 거부합니다. [운영 Compose·배포 엔진](container-deployment.md)은 고정된 Nginx peer에서 후보의 readiness를 직렬 검사하고 외부 readiness를 차단합니다. 실제 컨테이너 경로는 별도 수동 검사 대상으로, 현재 전체 실행 성공은 미확인입니다.
 
 앱 lifespan은 readiness probe 취소·로컬 AI client 닫기·DB engine dispose를 모두 시도하고 각 자원에 `SHUTDOWN_TIMEOUT_SECONDS`를 따로 적용합니다. 기본은 자원별 10초로 합계 30초, 허용 최대 설정은 합계 90초이며 협조적 취소·유한 I/O를 전제로 합니다. SSE 응답 자체의 실행·정리 예산은 [AI 종료 계약](../api/ai.md#termination)이며 프로세스 종료 유예에는 이 수명 정리 합계도 별도로 반영합니다.
 

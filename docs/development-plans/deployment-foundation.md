@@ -1,6 +1,6 @@
 # 제품 배포 기반 설계안
 
-**상태: 단일 EC2·PostgreSQL·EBS·Alembic 방향 합의 · DEP-02 앱 계약 구현 · 인프라 미구현 · 미배포.** 2026-10-29 기준 [DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 운영 설정·CORS·DB TLS·readiness·SSE 종료 계약을 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)에서 확인합니다. 인프라 생성·운영 비밀값 설정·제품 배포·실제 모델 호출은 수행하지 않았습니다. 나머지 DEP 작업은 아래 계획에 따라 진행합니다.
+**상태: 단일 EC2·PostgreSQL·EBS·Alembic 방향 합의 · DEP-02 앱 계약·DEP-03 컨테이너 실행 기반 구현 · AWS 미구현 · 미배포.** 2026-10-29 기준 [DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 운영 설정·CORS·DB TLS·readiness·SSE 종료 계약을 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)에서 확인합니다. 인프라 생성·운영 비밀값 설정·제품 배포·실제 모델 호출은 수행하지 않았습니다. DEP-03의 소스·운영 명령·수동 컨테이너 검증 범위와 상태는 [컨테이너 실행과 앱 교체](../development/container-deployment.md)를 참조합니다. 나머지 DEP 작업은 아래 계획에 따라 진행합니다.
 
 ## 기준과 범위
 
@@ -13,7 +13,8 @@
 | 사용자 규모·예산 제약 | 초기 사용자 100명 미만, 월 3만 원 미만 목표. DB 호스팅 방향은 확정했으며 자원 크기·전체 비용·운영 책임은 [DEP-01 #210](https://github.com/wejo-team/sku-dreamon/issues/210)에서 확인 |
 | 아직 결정하지 않은 사항 | 실제 도메인·AWS 계정·리전·자원 크기, 자산·인증서 보관과 운영 담당자, 데이터 보존·복구 목표 |
 | 현재 구현 | 앱 CI·문서 Pages, 로컬 HTTPS 통합 검사, 서버 세션·CSRF, AI SSE와 중단·복구 UI. DEP-02 운영 앱 계약 구현, 구현·검증 근거 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217) |
-| 아직 없는 기반 | 제품 Dockerfile·운영 Compose/Nginx/PostgreSQL·EBS 연결·배포 workflow·AWS 리소스·배포 드레인·백업/복원 자동화·운영 정리 스케줄 |
+| 컨테이너 실행 기반 | production Dockerfile·운영 Compose/Nginx/PostgreSQL·검증 TLS·마운트 guard·배포 lock/journal·worker 드레인·복구·인증서 명령. 수동 실행 스크립트가 있으며 전체 실행 성공은 미확인 |
+| 아직 없는 기반 | 실제 EBS 연결·배포 workflow·AWS 리소스·백업/복원 자동화·외부 scheduler/알림 설치 |
 
 초기 구성에는 ALB·Kubernetes를 추가하지 않습니다. **GitHub Actions는 배포 순서를 조정하고, Docker Compose는 컨테이너 실행을 관리하며, 계속 실행되는 별도 Nginx 컨테이너는 TLS와 요청 경로를 담당합니다.** 평소 Compose 기동은 활성 앱 슬롯만 선택하고, 배포 때 비활성 슬롯을 추가로 기동하는 계약으로 두 앱의 상시 실행을 피합니다. Compose 자체가 readiness 확인·트래픽 전환·스트림 드레인을 자동 보장하지 않으므로 배포 절차를 별도로 구현합니다. 호스트 장애 대응이 필요해지면 ECS·ALB·복수 task와 RDS Multi-AZ의 비용·운영 범위를 비교합니다.
 
@@ -85,7 +86,7 @@ API 최초 기동은 **port 80의 challenge만 처리하는 Nginx 설정 → Cer
 
 [Settings](../../backend/app/core/config.py)와 [환경변수 예시](../../backend/.env.example)가 설정 이름·기본값·허용 범위의 원본입니다. 운영 공통 설정은 명시적인 비로컬 PostgreSQL URL과 검증용 CA를 요구하며 URL query parameter는 금지합니다. HTTP 앱은 추가로 CSRF 키·정확한 origin·차단 목록 경로/버전·Host·trusted proxy를 요구합니다. CLI·Alembic은 별도의 DB 전용 운영 환경과 DDL 자격증명으로 실행할 수 있어 HTTP·AI 비밀값을 나눠 줄 수 있습니다. 검사를 피하려고 `APP_ENV=development`로 실행하지 않습니다.
 
-[공통 DB 엔진](../../backend/app/core/db/session.py)은 앱·CLI·[Alembic](../../backend/alembic/env.py)에 CA·호스트명 검증 TLS와 유한한 연결·쿼리·잠금 예산을 적용합니다. 운영의 `verify-full`에 해당하는 검증과 CA 필수 조건을 같은 호스트에서도 유지합니다. PostgreSQL에 자체 CA로 발급한 서비스 호스트명 인증서를 준비하고 앱·Alembic에 신뢰할 CA를 제공하며, 인증서 실패 때 평문으로 전환하지 않습니다. CA 발급·갱신·키 보관과 런타임 공급은 후속 구현이며 실제 인증서·키·접속 값은 공개 저장소·문서·이슈·PR에 넣지 않습니다. migration은 `NullPool`, 앱은 프로세스별 제한 pool을 사용합니다. 기본값과 수명 정리 계약은 [백엔드 운영 계약](../development/backend.md#deployment-runtime)을 참조합니다. 연결 예산은 `슬롯 수 × 프로세스 수 × (pool size + overflow) + migration/백업/정리 작업 + 관리 여유`로 산정하며, 기본 pool 값만으로 운영 DB 수용량을 보장하지 않습니다. 앱 DML 역할·migration DDL 역할과 필요한 권한의 실제 준비는 후속 운영 작업입니다.
+[공통 DB 엔진](../../backend/app/core/db/session.py)은 앱·CLI·[Alembic](../../backend/alembic/env.py)에 CA·호스트명 검증 TLS와 유한한 연결·쿼리·잠금 예산을 적용합니다. 운영의 `verify-full`에 해당하는 검증과 CA 필수 조건을 같은 호스트에서도 유지합니다. PostgreSQL에 자체 CA로 발급한 서비스 호스트명 인증서를 준비하고 앱·Alembic에 신뢰할 CA를 제공하며, 인증서 실패 때 평문으로 전환하지 않습니다. CA 발급·갱신 정책·실제 비밀값 공급은 후속 운영 작업이며 실제 인증서·키·접속 값은 공개 저장소·문서·이슈·PR에 넣지 않습니다. migration은 `NullPool`, 앱은 프로세스별 제한 pool을 사용합니다. 기본값과 수명 정리 계약은 [백엔드 운영 계약](../development/backend.md#deployment-runtime)을 참조합니다. 연결 예산은 `슬롯 수 × 프로세스 수 × (pool size + overflow) + migration/백업/정리 작업 + 관리 여유`로 산정하며, 기본 pool 값만으로 운영 DB 수용량을 보장하지 않습니다. 컨테이너 최초 초기화는 고정된 DML·DDL 역할과 기본 권한을 준비합니다. 기존 운영 DB에 필요한 권한·비밀값 공급과 검증은 후속 운영 작업입니다.
 
 AI 키의 비어 있지 않은 값에서 `ai_enabled`를 계산하며 기본 `AI_REQUIRED=false`는 기존 비AI 실행을 유지합니다. **AI를 제공하는 배포는 `AI_REQUIRED=true`를 명시**하여 키 누락을 설정 오류로 막습니다. 로컬 AI client 미초기화·종료 상태도 ready 실패입니다. 모델은 `gpt-6-luna`를 유지하고 키 유효성·외부 가용성·할당량은 ready에서 검사하지 않습니다.
 
@@ -97,7 +98,7 @@ AI 키의 비어 있지 않은 값에서 `ai_enabled`를 계산하며 기본 `AI
 
 `GET /api/v1/health`는 기존 `{"status":"ok"}` liveness를 유지합니다. `GET /api/v1/ready`는 DB·호환 revision·로드된 차단 목록·현재 보안 설정·필요한 로컬 AI client를 확인하고 200 `{"status":"ready"}` 또는 503 `{"status":"unavailable"}`만 반환합니다. `Cache-Control: no-store`이며 상세 오류·버전·비밀값을 노출하지 않습니다. 외부 모델 요청은 발생하지 않습니다. 상세 동작은 [health·readiness API](../api/health.md), 원본은 [라우터](../../backend/app/routers/health.py)·[검사 서비스](../../backend/app/services/health.py)입니다. 릴리스 SHA·설정 버전 식별 endpoint는 아직 없으므로 readiness 성공과 배포할 image digest·SHA 확인을 구분합니다.
 
-운영 전환 전 검사는 **trusted Nginx 컨테이너의 고정 네트워크 peer에서 후보 Docker 서비스 이름으로** 요청합니다. 예상 API Host와 `X-Forwarded-For`의 실제 검사 client IP 하나, `X-Forwarded-Proto: https`를 사용합니다. API 컨테이너 안·호스트 localhost에서 직접 호출하면 운영 프록시 경계가 의도적으로 거부하므로 그 요청을 readiness 성공 조건으로 쓰지 않습니다. 내부 rollout·monitor probe는 직렬화합니다. 이미 진행·취소 정리 중인 검사 한 개가 있으면 다른 probe는 즉시 503이며 동시 요청의 200은 보장하지 않습니다. Nginx 기반의 실제 경로 검증과 외부 공개 차단은 DEP-03 후속입니다.
+운영 전환 전 검사는 **trusted Nginx 컨테이너의 고정 네트워크 peer에서 후보 Docker 서비스 이름으로** 요청합니다. 예상 API Host와 `X-Forwarded-For`의 실제 검사 client IP 하나, `X-Forwarded-Proto: https`를 사용합니다. API 컨테이너 안·호스트 localhost에서 직접 호출하면 운영 프록시 경계가 의도적으로 거부하므로 그 요청을 readiness 성공 조건으로 쓰지 않습니다. 내부 rollout·monitor probe는 직렬화합니다. 이미 진행·취소 정리 중인 검사 한 개가 있으면 다른 probe는 즉시 503이며 동시 요청의 200은 보장하지 않습니다. Nginx 기반의 실제 경로·외부 공개 차단은 [DEP-03 수동 컨테이너 검사](../development/container-deployment.md#검증과-범위)에서 검사합니다.
 
 DB 검사는 제한 시간 안의 `SELECT 1`과 단일 Alembic revision을 사용합니다. 릴리스의 [COMPATIBLE_SCHEMA_REVISIONS](../../backend/app/core/db/revisions.py)는 현재 `20261026_09`이며 소스 리뷰·테스트로만 확장합니다. 환경변수로 임의 revision을 허용하지 않습니다. 새 revision을 허용하는 **이전 앱의 호환 릴리스부터** 기존 schema에 배포한 뒤 safe expand·새 앱 전환을 진행해야 이전 슬롯을 재기동할 수 있습니다.
 
@@ -139,7 +140,7 @@ Nginx의 buffering 설정, worker 종료 한도, Docker 종료 유예는 각각 
 
 ### DB와 프론트 호환성
 
-Alembic은 schema의 DDL과 필요한 데이터 변경 DML의 revision 이력을 관리하며 사용자 데이터 백업을 대신하지 않습니다. migration은 앱 컨테이너마다 시작 시 실행하지 않습니다. 필요할 때 배포 lock 안의 단일 작업이 검증된 이미지의 migration을 별도 DDL 계정으로 실행합니다. 이 배포 절차와 자동화는 아직 미구현입니다. **이전 앱의 구/신 revision 호환 릴리스 배포 → 안전한 expand 변경 → 새 앱 readiness·전환 → 관찰 기간 후 contract 변경** 순서를 사용합니다. migration 실패·잠금 대기 초과면 전환하지 않습니다. 오래 걸리는 backfill과 인덱스 작업은 실행 시간·잠금 영향을 따로 검증합니다. PostgreSQL 서버/컨테이너의 버전 upgrade는 이 schema migration과 구분하여 앱 배포와 별도 절차로 수행합니다.
+Alembic은 schema의 DDL과 필요한 데이터 변경 DML의 revision 이력을 관리하며 사용자 데이터 백업을 대신하지 않습니다. migration은 앱 컨테이너마다 시작 시 실행하지 않습니다. 필요할 때 배포 lock 안의 단일 작업이 검증된 이미지의 migration을 별도 DDL 계정으로 실행합니다. [배포 엔진](../../deploy/release.py)은 명시적 `--migrate`에서 이름과 실제 job 종료 상태를 기록하고 CLI 중단 후에도 실행 중인 job과 재시도가 겹치지 않게 차단합니다. 실제 schema의 expand-contract·N/N−1 호환 migration·백업 연습은 DEP-05 범위입니다. **이전 앱의 구/신 revision 호환 릴리스 배포 → 안전한 expand 변경 → 새 앱 readiness·전환 → 관찰 기간 후 contract 변경** 순서를 사용합니다. migration 실패·잠금 대기 초과면 전환하지 않습니다. 오래 걸리는 backfill과 인덱스 작업은 실행 시간·잠금 영향을 따로 검증합니다. PostgreSQL 서버/컨테이너의 버전 upgrade는 이 schema migration과 구분하여 앱 배포와 별도 절차로 수행합니다.
 
 N과 N−1 앱·schema 호환성을 테스트하고 릴리스에 기록합니다. 컬럼 삭제·이름 변경·필수값 강제 같은 contract 작업은 이전 앱·열린 브라우저·진행 중 스트림의 사용이 끝난 후 별도 릴리스로 수행합니다. 즉시 파괴적 migration이 필요한 변경은 이 교체 절차로 실행하지 않고 점검 시간을 계획합니다.
 
@@ -182,7 +183,7 @@ AI 실행 메타데이터 정리는 기존 `python -m app.cli.ai_runs`를 **활�
 
 ## 구현 작업과 완료 조건
 
-[DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 앱 계약을 구현했으며 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. DEP-01의 DB 호스팅 방향은 **단일 EC2의 PostgreSQL·EBS·Alembic으로 확정**, 나머지 결정과 DEP-03~07 구현은 **예정**입니다. 인프라·운영 배포는 수행하지 않았습니다. 아래 이슈를 상태·검증 기록의 원본으로 사용합니다.
+[DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 앱 계약을 구현했으며 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. DEP-01의 DB 호스팅 방향은 **단일 EC2의 PostgreSQL·EBS·Alembic으로 확정**, 나머지 운영 결정과 DEP-04~07은 **예정**입니다. DEP-03 실행 기반은 소스·host unit·수동 컨테이너 검사로 구분하며 검증 결과는 해당 구현 PR의 SHA별 기록으로 판단합니다. 인프라·운영 배포는 수행하지 않았습니다. 아래 이슈를 상태·검증 기록의 원본으로 사용합니다.
 
 ### [DEP-01 #210](https://github.com/wejo-team/sku-dreamon/issues/210): 배포 대상과 비용·운영 책임 확정
 
@@ -201,10 +202,11 @@ AI 실행 메타데이터 정리는 기존 `python -m app.cli.ai_runs`를 **활�
 
 ### [DEP-03 #212](https://github.com/wejo-team/sku-dreamon/issues/212): 실행 이미지·프록시·드레인 절차 구현
 
-- 생성 예정: `backend/Dockerfile`, `.dockerignore`, `deploy/compose.production.yaml`, `deploy/nginx/`, `deploy/release.sh`, PostgreSQL 기동·TLS/데이터 마운트 검사, Certbot 기동·갱신 설정과 테스트. 기존 개발 `compose.yaml`은 운영 DB로 전환하지 않음.
+- 구현: `backend/Dockerfile`, `.dockerignore`, `deploy/compose.production.yaml`, `deploy/nginx/`, `deploy/release.sh`·`release.py`·`config.py`, PostgreSQL 기동·TLS/데이터 마운트 검사, Certbot 최초 발급·갱신·dry-run 명령과 검사. 기존 개발 `compose.yaml`은 운영 DB로 전환하지 않음. [실행 가이드](../development/container-deployment.md) 참조.
 - 선행: DEP-02. 입력은 image digest·SHA·설정 버전·전용 Docker 네트워크의 서비스 이름·timeout·API/DB 인증서 런타임 저장소·DB 데이터 마운트 계약, 출력은 DB를 유지한 활성/이전 API 슬롯과 전환·드레인 결과.
 - 완료 조건 **DEP-AC03**: 별도 Nginx·PostgreSQL을 유지하고 평소 활성 FastAPI 하나만 선택 기동·배포 중 비활성 API 슬롯을 추가해 둘 실행. 비root 앱·고정 의존성·신호 전달·앱/DB 포트 비공개와 서비스 이름 해석 확인. DB 데이터 마운트 누락 시 기동 차단, 자체 CA·서비스 호스트명 검증 TLS, 앱 교체 시 DB/볼륨 보존과 destructive volume 삭제 방지. 잘못된 readiness는 기존 슬롯 유지. fake provider SSE 중 reload에서 구 요청이 끝나고 새 요청은 새 슬롯 사용. 배포 lock·재실행·실패 복구 확인.
-- 검증: 실제 Nginx·앱·PostgreSQL 컨테이너로 기본/최대 실행시간·중단·정상 종료·강제 장애와 DB 지연/잠금 중 종료를 구분. 앱 재배포 후 DB 데이터 보존·DB 포트 비공개·DB TLS 실패·마운트 누락 기동 차단을 확인. 컨테이너 재생성 후 upstream 해석·trusted proxy, 인증서 없는 최초 HTTP-01 기동·HTTPS 전환·자동 갱신·실패 경보 확인. Certbot·Nginx 재시작·재생성 후 영속 상태를 이용한 renewal dry-run과, 성공한 인증서 적용·새 후보 설정 검사/reload smoke를 각각 검증하며 dry-run만으로 인증서 적용을 입증하지 않음. TLS/proxy fixture에는 가상 계정·데이터만 사용.
+- 검증: host unit은 설정·마운트 거부 계약·중단·drift·worker identity·단일 job·실패 복구와 최대 timeout 계산을 검사. 실제 이미지·Nginx·PostgreSQL·HTTP bootstrap·단일 자체 서명 SAN 인증서·앱 교체/롤백·DB 보존·짧은 fixture SSE는 별도 수동 스크립트로 검사하며 전체 실행 성공은 미확인. 가상 계정·데이터만 사용하고, 이번 배포 기반 PR은 기존 앱 CI를 유지하며 CI 변경은 별도 PR로 분리.
+- 최초 운영 검증 후속: 실제 도메인의 HTTP-01 발급·Certbot/Nginx 재생성 후 갱신 dry-run·실제 갱신과 새 인증서 적용·알림 수신, 최대 300초 설정의 벽시계 스트리밍과 DB 지연/잠금·강제 장애/종료 조합. dry-run이나 계산 unit만으로 실제 발급·적용·최대 시간 실행을 입증하지 않음. 별도 로컬 ACME 서버를 CI 필수 경로에 추가하지 않으며 실행 근거는 #212에 기록.
 
 ### [DEP-04 #213](https://github.com/wejo-team/sku-dreamon/issues/213): 재현 가능한 AWS 기반과 접근 권한 준비
 
@@ -237,7 +239,7 @@ AI 실행 메타데이터 정리는 기존 `python -m app.cli.ai_runs`를 **활�
 
 ## API·DB 영향과 다음 결정
 
-DEP-02는 기존 제품 endpoint·SSE 이벤트·쿠키·CSRF 계약을 유지하면서 readiness·credentialed CORS·검증 TLS·유한한 DB/SSE 정리 예산을 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. DB 업무 schema 변경은 없으며 운영 권한·migration 실행·배포 경로 검증은 후속입니다. 로그·세션·대화의 삭제/보존 정책은 자동 확정하지 않고 기존 운영 이슈에서 검토합니다.
+DEP-02는 기존 제품 endpoint·SSE 이벤트·쿠키·CSRF 계약을 유지하면서 readiness·credentialed CORS·검증 TLS·유한한 DB/SSE 정리 예산을 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. DB 업무 schema 변경은 없으며 실제 운영 호스트의 권한·원격 비밀값 공급·배포 검증은 후속입니다. 컨테이너의 단일 migration·전환 실행 경로는 DEP-03에서 분리해 다룹니다. 로그·세션·대화의 삭제/보존 정책은 자동 확정하지 않고 기존 운영 이슈에서 검토합니다.
 
 **단일 EC2의 Nginx·FastAPI·PostgreSQL, DB용 EBS와 Alembic 방향은 합의했습니다.** 구현 전에 정할 세부 사항은 AWS 계정/앱 리전, 월 3만 원 미만 목표의 전체 비용 충족 여부, 도메인, 검증 환경 격리 수준, PostgreSQL·배포 중 두 API를 포함한 자원/연결 용량, 프론트 자산·API/DB 인증서·데이터의 보관/복구 기준과 운영 담당자입니다. 서울 앱 리전은 후보이며 CloudFront viewer 인증서는 `us-east-1`에 둡니다. 서버 크기와 월 비용은 견적·부하 측정으로 정하고, 팀 검증을 운영 공개보다 먼저 진행해 실제 사용자 데이터가 들어오기 전 정책을 확정합니다.
 

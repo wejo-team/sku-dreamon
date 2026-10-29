@@ -366,6 +366,7 @@ class Release:
         raise ReleaseError("HTTPS traffic did not reach the expected release")
 
     def reconcile(self) -> None:
+        self.verify_host()
         if self.state["transaction"] or self.state["phase"] not in {
             "stable",
             "bootstrap",
@@ -386,6 +387,12 @@ class Release:
             actual = self.container(slot)
             if slot != active and actual and actual["State"]["Running"]:
                 raise ReleaseError("inactive slot is unexpectedly running")
+
+    def verify_host(self) -> None:
+        if self.state.get("host_identity") != self.runtime.host_identity:
+            raise ReleaseError(
+                "host configuration changed outside an infrastructure procedure"
+            )
 
     def render(self, slot: str | None, destination: Path, worker_seconds: int) -> None:
         args = [
@@ -428,7 +435,9 @@ class Release:
                 raise ReleaseError("bootstrap refuses preexisting unmanaged containers")
         self.render(None, self.active_config, self.runtime.budgets.drain)
         self.state.update(
-            phase="bootstrap_pending", config_hash=fingerprint(self.active_config)
+            phase="bootstrap_pending",
+            config_hash=fingerprint(self.active_config),
+            host_identity=self.runtime.host_identity,
         )
         self.save()
         self.compose(
@@ -733,6 +742,7 @@ class Release:
 
     def recover(self) -> None:
         self.mount()
+        self.verify_host()
         if self.state.get("certificate"):
             self.recover_certificate()
             return

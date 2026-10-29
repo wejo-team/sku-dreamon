@@ -1,10 +1,20 @@
 # 구현 현황과 다음 작업
 
+## 2026-10-29 컨테이너 실행·앱 교체 기반
+
+[DEP-03 #212](https://github.com/wejo-team/sku-dreamon/issues/212)의 production 이미지·별도 Nginx/PostgreSQL·선택 앱 슬롯·비공개 JSON·배포 lock/journal·후보 readiness·설정 검사·worker 드레인·복구·롤백·인증서 실행 경로를 구현했습니다. [운영 가이드](container-deployment.md)가 이미지·설정·권한·명령과 실패 시 동작의 원본입니다. DB는 앱 교체에서 재생성하거나 downgrade하지 않으며 UUID·실제 장치를 확인한 데이터 mount와 검증 TLS를 사용합니다.
+
+검증은 host unit·정적 계약과 수동 컨테이너 실행을 구분합니다. host unit은 통과했고 단일 SAN 인증서 패턴은 Python 3.13의 엄격한 TLS handshake로 별도 확인했습니다. 일반 단위 검사에서는 인증서를 생성하지 않으며 실제 컨테이너 전체 성공은 미확인입니다. 앞선 실행은 합성 CA의 keyUsage 누락으로 첫 migration의 인증서 검증에 실패했습니다. 현재 수동 스크립트는 기존 DB TLS 테스트와 같은 단일 자체 서명 SAN 인증서를 명시적으로 신뢰하도록 단순화했고, 수정 후 실제 전체 재실행은 수행하지 않았습니다. 이미지·HTTP bootstrap·앱 교체/롤백·DB 보존·짧은 fixture SSE는 [수동 검사](container-deployment.md#검증과-범위) 범위입니다. 기존 앱 CI는 유지하며 CI 변경은 별도 PR로 다룹니다.
+
+실제 도메인의 ACME 발급/갱신·최대 300초 벽시계·DB 지연 종료 종합은 최초 운영 검증 후속입니다. 소스·unit·계산한 timeout만으로 실제 실행을 완료했다고 판단하지 않습니다.
+
+AWS·실제 EBS 부착/보존 설정·공개 인증서 발급·S3/CloudFront·ECR/SSM/OIDC CD·운영 용량과 비용·백업/복원·외부 scheduler/알림 수신자 설치는 후속 DEP-01·04~07 범위입니다. 제품 운영 배포와 실제 모델 호출은 수행하지 않았습니다.
+
 ## 2026-10-29 앱 운영 준비 계약 구현
 
 [DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)의 production 설정 검증·전역 credentialed CORS·Host/단일 trusted proxy 경계·검증 TLS/DB 예산·readiness·SSE 종료/지연 정리를 구현했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. [배포 기반 계획](../development-plans/deployment-foundation.md)과 [health API](../api/health.md)가 계약을 설명합니다. 이 작업에서 실제 키·운영 DB·모델 제공자 호출은 사용하지 않았습니다.
 
-초기 MVP/PoC의 배포 방향은 **단일 EC2의 별도 Nginx·FastAPI·PostgreSQL 컨테이너 + DB용 EBS + Alembic**으로 합의했습니다. 프론트는 S3·CloudFront를 유지합니다. production DB의 자체 CA·서비스 호스트명 검증 TLS와 앱 교체 시 DB/EBS 보존을 계획에 반영했으며 PoC 재구성·실제 데이터 MVP의 dump/복원 수준은 제안 단계입니다. AWS·운영 Docker/Nginx/PostgreSQL·EBS 연결·CD·드레인·백업/복원 자동화·운영 스케줄은 미구현·미배포입니다. DEP-01의 월 3만 원 미만 목표 전체 견적·도메인/리전/용량/복구 기준/담당자 결정과 DEP-03~07 구현은 후속입니다.
+초기 MVP/PoC의 배포 방향은 **단일 EC2의 별도 Nginx·FastAPI·PostgreSQL 컨테이너 + DB용 EBS + Alembic**으로 합의했습니다. 프론트는 S3·CloudFront를 유지합니다. production DB의 자체 CA·서비스 호스트명 검증 TLS와 앱 교체 시 DB/EBS 보존을 계획에 반영했으며 PoC 재구성·실제 데이터 MVP의 dump/복원 수준은 제안 단계입니다. 컨테이너 실행·전환은 위 DEP-03 경로에서 다루며, AWS·실제 EBS 연결·CD·백업/복원 자동화·운영 스케줄은 미배포입니다. DEP-01의 월 3만 원 미만 목표 전체 견적·도메인/리전/용량/복구 기준/담당자 결정과 DEP-04~07은 후속입니다.
 
 ## 2026-10-28 AI 제품 화면 연결
 

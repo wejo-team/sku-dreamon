@@ -89,6 +89,7 @@ class FakeRelease(Release):
             previous=None,
             config_hash=fingerprint(self.active_config),
             postgres_id="database-original",
+            host_identity=runtime.host_identity,
             slots={"app_blue": self.record(IMAGE, SHA, env)},
         )
         self.actual["app_blue"] = self.app_container("app_blue")
@@ -554,6 +555,14 @@ class ReleaseTests(unittest.TestCase):
                 for event in self.release.events
             )
         )
+
+    def test_changed_infrastructure_is_rejected_before_any_candidate_start(
+        self,
+    ) -> None:
+        self.release.runtime.images["certbot"] = NEW_IMAGE
+        with self.assertRaisesRegex(ReleaseError, "host configuration"):
+            self.deploy()
+        self.assertNotIn("app_green", self.release.actual)
 
 
 if __name__ == "__main__":
