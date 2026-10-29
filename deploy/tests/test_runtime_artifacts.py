@@ -21,6 +21,46 @@ SHA = "a" * 40
 UUID = "00000000-0000-4000-8000-000000000001"
 
 
+class FixtureGuardTests(unittest.TestCase):
+    def test_fixture_requires_explicit_isolation_and_an_empty_key(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "fixture_guard", DEPLOY / "tests/fixture/guard.py"
+        )
+        assert spec and spec.loader
+        guard = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(guard)
+        valid = {
+            "DEP03_CONTAINER_E2E": "1",
+            "APP_ENV": "production",
+            "OPENAI_API_KEY": "",
+            "DATABASE_URL": "postgresql+asyncpg://synthetic:synthetic@postgres:5432/dep03_e2e",
+        }
+        guard.require_fixture(valid)
+        for overrides in (
+            {"DEP03_CONTAINER_E2E": "0"},
+            {"APP_ENV": "test"},
+            {"OPENAI_API_KEY": "synthetic-private-key"},
+            {
+                "DATABASE_URL": valid["DATABASE_URL"].replace(
+                    "postgres:5432", "127.0.0.1:5432"
+                )
+            },
+            {
+                "DATABASE_URL": valid["DATABASE_URL"].replace(
+                    "dep03_e2e", "ordinary_database"
+                )
+            },
+            {"DATABASE_URL": valid["DATABASE_URL"] + "?sslmode=disable"},
+            {"DATABASE_URL": "postgresql+asyncpg://synthetic-private-key@["},
+        ):
+            with (
+                self.subTest(overrides=overrides),
+                self.assertRaises(RuntimeError) as error,
+            ):
+                guard.require_fixture({**valid, **overrides})
+            self.assertNotIn("synthetic-private-key", str(error.exception))
+
+
 class NginxRendererTests(unittest.TestCase):
     def render(self, **overrides: object) -> str:
         args = {

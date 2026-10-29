@@ -23,7 +23,8 @@ from config import IMAGE, SHA, ReleaseError, Runtime, atomic_write, environment
 
 SLOTS = ("app_blue", "app_green")
 WORKERS = r"""for p in /proc/[0-9]*; do
- if [ -r "$p/cmdline" ] && tr '\000' ' ' < "$p/cmdline" | grep -q '^nginx: worker process'; then
+ if [ -r "$p/cmdline" ] &&
+    tr '\000' ' ' < "$p/cmdline" | grep -q '^nginx: worker process'; then
   awk '{print $1 ":" $22}' "$p/stat" || exit 1
  fi
 done"""
@@ -41,8 +42,7 @@ def execute(arguments: list[str], timeout: float = 60) -> str:
     try:
         result = subprocess.run(
             arguments,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=timeout,
             check=True,
@@ -135,7 +135,7 @@ class Release:
         )
 
     def compose_environment(self) -> None:
-        # 모든 슬롯은 각 릴리스의 불변 파일을 참조한다. 새 config로 구 앱을 재생성하지 않는다.
+        # 각 슬롯은 자기 릴리스의 불변 파일을 참조한다.
         slots = self.state["slots"]
         fallback = next(iter(slots.values()), None)
         if fallback is None:
@@ -257,7 +257,12 @@ class Release:
         environment_values = dict(
             item.split("=", 1) for item in container["Config"]["Env"] if "=" in item
         )
-        # 제품 timeout의 실제 입력까지 확인해야 설정 감소 후에도 구 슬롯 예산이 보존된다.
+        for key, value in self.read_environment(Path(record["env_file"])).items():
+            if environment_values.get(key) != value:
+                raise ReleaseError(
+                    "actual app configuration differs from the release record"
+                )
+        # 실제 timeout 입력을 확인해 구 슬롯의 예산을 보존한다.
         for key, value in record["timeout_env"].items():
             if environment_values.get(key) != value:
                 raise ReleaseError("actual app timeouts differ from the release record")
@@ -267,7 +272,8 @@ class Release:
                 container["Id"],
                 "python",
                 "-c",
-                "import json; from app.core.config import Settings; s=Settings(_env_file=None); "
+                "import json; from app.core.config import Settings; "
+                "s=Settings(_env_file=None); "
                 "print(json.dumps({'AI_TIMEOUT_SECONDS': s.ai_timeout_seconds, "
                 "'AI_CLEANUP_TIMEOUT_SECONDS': s.ai_cleanup_timeout_seconds, "
                 "'SHUTDOWN_TIMEOUT_SECONDS': s.shutdown_timeout_seconds}))",
@@ -317,36 +323,47 @@ class Release:
     def smoke(self, slot: str) -> None:
         nginx = self.nginx_identity()
         host = self.runtime.api_host
-        response = (
-            self.docker(
-                "exec",
-                nginx["id"],
-                "curl",
-                "--fail",
-                "--silent",
-                "--show-error",
-                "--max-time",
-                "10",
-                "--http1.1",
-                "-H",
-                "Connection: close",
-                "--cacert",
-                f"/etc/letsencrypt/live/{host}/fullchain.pem",
-                "--resolve",
-                f"{host}:443:127.0.0.1",
-                "--dump-header",
-                "-",
-                f"https://{host}/api/v1/health",
-                timeout=12,
-            )
-            .lower()
-            .splitlines()
-        )
-        if (
-            f"x-release-id: {self.state['slots'][slot]['sha']}" not in response
-            or f"x-release-slot: {slot}" not in response
-        ):
-            raise ReleaseError("HTTPS traffic did not reach the expected release")
+        deadline = time.monotonic() + 10
+        for attempt in range(12):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                response = (
+                    self.docker(
+                        "exec",
+                        nginx["id"],
+                        "curl",
+                        "--fail",
+                        "--silent",
+                        "--show-error",
+                        "--max-time",
+                        str(min(2, remaining)),
+                        "--http1.1",
+                        "-H",
+                        "Connection: close",
+                        "--cacert",
+                        f"/etc/letsencrypt/live/{host}/fullchain.pem",
+                        "--resolve",
+                        f"{host}:443:127.0.0.1",
+                        "--dump-header",
+                        "-",
+                        f"https://{host}/api/v1/health",
+                        timeout=min(3, remaining + 0.5),
+                    )
+                    .lower()
+                    .splitlines()
+                )
+                if (
+                    f"x-release-id: {self.state['slots'][slot]['sha']}" in response
+                    and f"x-release-slot: {slot}" in response
+                ):
+                    return
+            except ReleaseError:
+                pass
+            if attempt < 11:
+                time.sleep(min(0.5, max(0, deadline - time.monotonic())))
+        raise ReleaseError("HTTPS traffic did not reach the expected release")
 
     def reconcile(self) -> None:
         if self.state["transaction"] or self.state["phase"] not in {
@@ -489,7 +506,7 @@ class Release:
         self.reconcile()
         old = self.state["active"]
         if old:
-            # DB 이동과 CSRF key rotation은 동시 구/신 요청의 호환성을 깨므로 별도 절차가 필요하다.
+            # DB 이동·CSRF key rotation은 별도 절차로 수행한다.
             prior_env = self.read_environment(
                 Path(self.state["slots"][old]["env_file"])
             )
@@ -508,7 +525,7 @@ class Release:
         previous = self.state["previous"]
         if previous not in SLOTS or previous == self.state["active"]:
             raise ReleaseError("no compatible previous release is recorded")
-        # production readiness는 코드에 고정된 호환 revision을 검사한다. downgrade는 없다.
+        # readiness는 코드에 고정된 호환 revision을 검사한다.
         self.begin(previous, self.state["slots"][previous], False)
 
     def begin(self, slot: str, record: dict[str, Any], migrate: bool) -> None:
@@ -578,9 +595,10 @@ class Release:
             transaction["stage"] = "reload_pending"
             self.save()
             self.reload_and_drain()
-        except ReleaseError:
+        except ReleaseError as error:
             # config 설치 여부가 모호한 구간은 recover가 hash와 실제 worker를 대조한다.
             self.state["phase"] = "failed"
+            self.state["failure_code"] = error.code
             self.save()
             raise
 
@@ -600,7 +618,7 @@ class Release:
         transaction = self.state["transaction"]
         slot = transaction["target"]
         nginx = transaction["nginx"]
-        # reload 명령 직후 중단해도 현재 모든 worker를 다시 기록한 뒤 안전하게 재시도한다.
+        # 재시도 전에도 현재 모든 worker를 기록한다.
         transaction["workers"] = sorted(
             set(transaction["workers"]) | set(self.workers(nginx))
         )
@@ -688,27 +706,23 @@ class Release:
     def restore_previous(self) -> None:
         transaction = self.state["transaction"]
         old = transaction["old"]
-        if not old:
-            raise ReleaseError(
-                "first release failed after switch; explicit recover required"
-            )
-        self.ready(old, attempts=1)
+        if old:
+            self.ready(old, attempts=1)
         self.test_config(Path(transaction["backup"]))
         transaction["workers"] = sorted(
             set(transaction["workers"]) | set(self.workers(transaction["nginx"]))
         )
         transaction["stage"] = "restore_intent"
+        transaction["deadline"] = time.time() + transaction["budgets"]["drain"]
         self.save()
         atomic_write(self.active_config, Path(transaction["backup"]).read_text())
         self.docker(
             "exec", transaction["nginx"]["id"], "nginx", "-s", "reload", timeout=15
         )
-        transaction.update(
-            stage="restore_draining",
-            deadline=time.time() + transaction["budgets"]["drain"],
-        )
+        transaction["stage"] = "restore_draining"
         self.save()
-        self.smoke(old)
+        if old:
+            self.smoke(old)
         self.drain(transaction)
         actual = self.container(transaction["target"])
         if actual and actual["State"]["Running"]:
@@ -758,7 +772,7 @@ class Release:
         if stage in {"prepared", "candidate_started"} or (
             stage == "config_intent" and actual_hash == transaction["old_hash"]
         ):
-            # 전환 전 실패한 migration은 사람이 DB 상태를 확인한 후 별도 release로 재시도한다.
+            # migration 실패는 DB 확인 후 별도 release로 재시도한다.
             actual = self.container(transaction["target"])
             if actual and actual["State"]["Running"]:
                 self.stop(transaction["target"])
@@ -773,7 +787,9 @@ class Release:
             if stage != "restored":
                 self.restore_previous()
             self.restore_target_record(transaction)
-            self.state.update(phase="stable", transaction=None)
+            self.state.update(
+                phase="stable" if transaction["old"] else "bootstrap", transaction=None
+            )
             self.state.pop("target", None)
             self.save()
             return
@@ -980,8 +996,9 @@ class Release:
             self.save()
             self.wait_certificate(certificate)
             self.apply_certificate(certificate)
-        except ReleaseError:
+        except ReleaseError as error:
             self.state["phase"] = "certificate_failed"
+            self.state["failure_code"] = error.code
             self.save()
             raise
 
@@ -1202,6 +1219,7 @@ class Release:
         return {
             "phase": self.state["phase"],
             "last_failure": self.state.get("last_failure"),
+            "failure_code": self.state.get("failure_code"),
             "active": self.state["active"],
             "previous": self.state["previous"],
             "releases": {
@@ -1248,11 +1266,16 @@ def main() -> int:
             else:
                 getattr(release, arguments.action)()
         return 0
-    except (ReleaseError, OSError):
-        # subprocess 원문·환경·SQL·인증서를 출력하지 않는다.
+    except ReleaseError as error:
+        # 오류는 고정된 안전 문구만 포함하며 하위 명령 원문은 포함하지 않는다.
         print(
-            "Release blocked. Inspect the safe status and recover the pending phase.",
+            f"Release blocked ({error.code}). Inspect status before recovery.",
             file=sys.stderr,
+        )
+        return 1
+    except OSError:
+        print(
+            "Release blocked: a private runtime file is unavailable.", file=sys.stderr
         )
         return 1
 

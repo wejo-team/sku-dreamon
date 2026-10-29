@@ -22,7 +22,7 @@ from config import (  # noqa: E402
     environment,
     private_path,
 )
-from release import Release, fingerprint  # noqa: E402
+from release import Release, execute, fingerprint  # noqa: E402
 
 IMAGE = "sha256:" + "1" * 64
 NEW_IMAGE = "sha256:" + "2" * 64
@@ -394,6 +394,166 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn("DATABASE_URL", result)
         self.assertNotIn("synthetic-signing-key", result)
         self.assertNotIn(str(self.release.root), result)
+
+    def test_smoke_retries_until_new_workers_serve_the_expected_release(self) -> None:
+        old = (
+            "HTTP/1.1 200 OK\r\nX-Release-ID: old\r\n"
+            "X-Release-Slot: app_green\r\n\r\n{}"
+        )
+        expected = (
+            f"HTTP/1.1 200 OK\r\nX-Release-ID: {SHA}\r\n"
+            "X-Release-Slot: app_blue\r\n\r\n{}"
+        )
+        with patch.object(
+            self.release, "docker", side_effect=[old, expected]
+        ) as docker:
+            with patch("release.time.sleep"):
+                Release.smoke(self.release, "app_blue")
+        self.assertEqual(docker.call_count, 2)
+        for call in docker.call_args_list:
+            self.assertIn("Connection: close", call.args)
+
+    def test_actual_container_environment_drift_is_rejected(self) -> None:
+        actual = self.release.actual["app_blue"]
+        actual["Config"]["Env"] = [
+            f"{key}={value}" for key, value in self.release.runtime.app_env.items()
+        ]
+        actual["Config"]["Env"] = [
+            item
+            if not item.startswith("CSRF_SIGNING_KEY=")
+            else "CSRF_SIGNING_KEY=changed"
+            for item in actual["Config"]["Env"]
+        ]
+        selected = {
+            key: float(value)
+            for key, value in self.release.state["slots"]["app_blue"][
+                "timeout_env"
+            ].items()
+        }
+        with patch.object(self.release, "docker", return_value=json.dumps(selected)):
+            with self.assertRaisesRegex(ReleaseError, "configuration"):
+                Release.verify_slot(self.release, "app_blue")
+
+    def test_expired_unobserved_drain_preserves_failure_even_when_workers_are_gone(
+        self,
+    ) -> None:
+        transaction = {
+            "nginx": self.release.nginx,
+            "workers": ["10:100"],
+            "budgets": {"drain": 30},
+            "deadline": 0,
+        }
+        self.release.worker_plan = [[]]
+        with self.assertRaisesRegex(ReleaseError, "unproven"):
+            self.release.drain(transaction)
+        self.assertEqual(
+            self.release.state["last_failure"], "worker_drain_deadline_exceeded"
+        )
+        self.release.drain(transaction, recovering=True)
+        self.assertEqual(transaction["failure"], "worker_drain_deadline_exceeded")
+
+    def test_host_lock_loads_the_latest_journal_and_rejects_overlap(self) -> None:
+        another = Release(self.release.runtime, DEPLOY.parent)
+        with patch("config.private_path"):
+            with another.lock():
+                self.assertEqual(another.state["active"], "app_blue")
+                with self.assertRaisesRegex(ReleaseError, "host lock"):
+                    with self.release.lock():
+                        self.fail("overlapping lock was acquired")
+
+    def test_dry_run_does_not_reload_or_claim_a_certificate_installation(self) -> None:
+        with patch.object(self.release, "wait_certificate"):
+            self.release.certificate("dry-run")
+        self.assertEqual(self.release.state["phase"], "stable")
+        self.assertNotIn("certificate_digest", self.release.state)
+        self.assertFalse(any("reload" in event for event in self.release.events))
+
+    def test_dry_run_marker_mutation_is_a_failure_and_blocks_a_new_deploy(self) -> None:
+        def unexpected_install(certificate: dict[str, object]) -> None:
+            marker = self.release.root / "state/certbot/installed"
+            atomic_write(marker, "1" * 64 + "\n")
+
+        with patch.object(
+            self.release, "wait_certificate", side_effect=unexpected_install
+        ):
+            with self.assertRaisesRegex(ReleaseError, "dry-run"):
+                self.release.certificate("dry-run")
+        self.assertEqual(self.release.state["phase"], "certificate_failed")
+        self.assertEqual(self.release.active_config.read_text(), "old full config\n")
+        with self.assertRaisesRegex(ReleaseError, "recover"):
+            self.deploy()
+
+    def test_running_certificate_job_blocks_recovery_and_renewal_retry(self) -> None:
+        with patch.object(
+            self.release, "wait_certificate", side_effect=ReleaseError("still running")
+        ):
+            with self.assertRaises(ReleaseError):
+                self.release.certificate("renew")
+        with patch.object(
+            self.release,
+            "certificate_container",
+            return_value={"State": {"Running": True}},
+        ):
+            with self.assertRaisesRegex(ReleaseError, "still running"):
+                self.release.recover()
+        with self.assertRaisesRegex(ReleaseError, "recover"):
+            self.release.certificate("renew")
+
+    def test_child_command_failure_never_exposes_secret_arguments_or_output(
+        self,
+    ) -> None:
+        import subprocess
+
+        error = subprocess.CalledProcessError(
+            1, ["child", "synthetic-secret"], stderr="synthetic-secret"
+        )
+        with patch("release.subprocess.run", side_effect=error):
+            with self.assertRaises(ReleaseError) as caught:
+                execute(["child", "synthetic-secret"])
+        self.assertNotIn("synthetic-secret", str(caught.exception))
+
+    def test_first_post_switch_failure_restores_http_bootstrap(self) -> None:
+        self.release.state.update(
+            phase="bootstrap", active=None, previous=None, slots={}
+        )
+        self.release.actual.pop("app_blue")
+        self.release.fail_smoke = "app_blue"
+        self.release.worker_plan = [[]]
+        with self.assertRaisesRegex(ReleaseError, "restored"):
+            self.deploy()
+        self.assertEqual(self.release.active_config.read_text(), "old full config\n")
+        self.assertIsNone(self.release.state["active"])
+        self.assertFalse(self.release.actual["app_blue"]["State"]["Running"])
+        self.release.recover()
+        self.assertEqual(self.release.state["phase"], "bootstrap")
+
+    def test_timeout_decrease_still_drains_using_the_old_release_bound(self) -> None:
+        prior = dict(self.release.runtime.app_env)
+        prior.update(
+            AI_TIMEOUT_SECONDS="300",
+            AI_CLEANUP_TIMEOUT_SECONDS="30",
+            SHUTDOWN_TIMEOUT_SECONDS="30",
+        )
+        path = self.release.runtime.immutable_environment(prior, "old-release")
+        old = self.release.state["slots"]["app_blue"]
+        old.update(
+            env_file=str(path),
+            env_hash=fingerprint(path),
+            budgets=asdict(Budgets.derive(prior, 30, 10)),
+        )
+        self.release.worker_plan = [[]]
+        self.deploy()
+        self.assertIn("render:app_green:349", self.release.events)
+        self.assertEqual(
+            self.release.state["slots"]["app_blue"]["budgets"]["drain"], 349
+        )
+        self.assertIn("AI_TIMEOUT_SECONDS=300", path.read_text())
+        self.assertFalse(
+            any(
+                event.startswith("compose:up") and "postgres" in event
+                for event in self.release.events
+            )
+        )
 
 
 if __name__ == "__main__":

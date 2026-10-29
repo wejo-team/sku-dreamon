@@ -8,9 +8,11 @@ from contextlib import asynccontextmanager
 from app.agents.tools import SourceTools
 from app.agents.types import PreviousContext, RecommendationGate, RecommendationPlan
 from app.core.config import Settings
-from app.product_main import create_app as create_product_app
+from app.fixture_guard import require_fixture
 from fastapi import FastAPI, Request
+from pydantic import ValidationError
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 from starlette.responses import JSONResponse
 
 
@@ -40,22 +42,23 @@ class FixtureDriver:
 
 
 def create_app() -> FastAPI:
-    settings = Settings(_env_file=None)
-    explicit = make_url(os.environ.get("DATABASE_URL", ""))
-    if (
-        os.environ.get("DEP03_CONTAINER_E2E") != "1"
-        or settings.app_env != "production"
-        or explicit != make_url(str(settings.database_url))
-        or explicit.drivername != "postgresql+asyncpg"
-        or explicit.host != "postgres"
-        or explicit.query
-        or not (explicit.database or "").endswith("_e2e")
-        or settings.openai_api_key
-        or os.environ.get("OPENAI_API_KEY", "")
-    ):
+    require_fixture(os.environ)
+    try:
+        settings = Settings(_env_file=None)
+        explicit = make_url(os.environ["DATABASE_URL"])
+        valid = (
+            explicit == make_url(str(settings.database_url)) and not settings.ai_enabled
+        )
+    except (ValidationError, ArgumentError, ValueError, KeyError):
+        raise RuntimeError(
+            "Container fixture requires valid isolated settings"
+        ) from None
+    if not valid:
         raise RuntimeError(
             "Container fixture requires opt-in, postgres *_e2e and no key"
         )
+    from app.product_main import create_app as create_product_app
+
     application = create_product_app(settings)
     product_lifespan = application.router.lifespan_context
 

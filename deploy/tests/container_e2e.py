@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -49,6 +50,9 @@ class Harness:
         self.children: list[subprocess.Popen[str]] = []
         self.images: dict[str, str] = {}
         self.values: dict[str, Any] = {}
+        self.phase = "preflight"
+        self.operation = "none"
+        self.returncode: int | None = None
 
     def command(
         self,
@@ -58,6 +62,30 @@ class Harness:
         timeout: float = 60,
         success: bool = True,
     ) -> subprocess.CompletedProcess[str]:
+        self.operation = Path(args[0]).name
+        if self.operation == "docker":
+            self.operation = "docker:" + next(
+                (
+                    part
+                    for part in args[1:]
+                    if part
+                    in {
+                        "build",
+                        "image",
+                        "pull",
+                        "run",
+                        "exec",
+                        "inspect",
+                        "compose",
+                        "network",
+                        "ps",
+                        "rm",
+                        "info",
+                    }
+                ),
+                "operation",
+            )
+        self.returncode = None
         try:
             result = subprocess.run(
                 args,
@@ -75,6 +103,7 @@ class Harness:
         except (OSError, subprocess.SubprocessError):
             raise CheckFailed("bounded child operation failed") from None
         if success and result.returncode:
+            self.returncode = result.returncode
             raise CheckFailed("child operation failed")
         return result
 
@@ -96,6 +125,7 @@ class Harness:
         return self.docker("image", "inspect", tag, "--format", "{{.Id}}")
 
     def build_images(self) -> None:
+        self.phase = "build_production_images"
         self.images["product_blue"] = self.build(
             "product-blue", "backend/Dockerfile", ROOT, f"RELEASE_SHA={BLUE_SHA}"
         )
@@ -216,6 +246,7 @@ class Harness:
         return cert, key
 
     def prepare_runtime(self) -> None:
+        self.phase = "prepare_synthetic_filesystem_and_tls"
         self.prepare_disk()
         self.command(
             [
@@ -321,7 +352,7 @@ class Harness:
         return self.docker(
             "compose",
             "--project-directory",
-            str(ROOT),
+            str(ROOT / "deploy"),
             "--env-file",
             str(self.private / "compose.env"),
             "--project-name",
@@ -421,6 +452,8 @@ class Harness:
                     "exec",
                     self.container("postgres")["Id"],
                     "pg_isready",
+                    "--host",
+                    "postgres",
                     "--username",
                     "postgres",
                     "--dbname",
@@ -433,7 +466,63 @@ class Harness:
             time.sleep(1)
         raise CheckFailed("PostgreSQL did not initialize")
 
+    def safe_diagnostics(self) -> dict[str, object]:
+        """명시한 journal 상태와 소유한 migration의 종료 상태만 추출한다."""
+        result: dict[str, object] = {}
+        try:
+            journal = json.loads((self.runtime / "state/release.json").read_text())
+            transaction = journal.get("transaction") or {}
+            migration = transaction.get("migration") or {}
+            for key, value in (
+                ("journal_phase", journal.get("phase")),
+                ("failure_code", journal.get("failure_code")),
+                ("transaction_stage", transaction.get("stage")),
+                (
+                    "migration_status",
+                    migration.get("status")
+                    if isinstance(migration, dict)
+                    else migration,
+                ),
+            ):
+                if isinstance(value, str) and re.fullmatch(r"[a-z0-9_]{1,64}", value):
+                    result[key] = value
+            name = migration.get("name") if isinstance(migration, dict) else None
+            if isinstance(name, str) and re.fullmatch(
+                re.escape(self.project) + r"-migrate-[a-z0-9-]+", name
+            ):
+                inspected = self.docker(
+                    "inspect", "--format", "{{json .State}}", name, success=False
+                )
+                if inspected:
+                    state = json.loads(inspected)
+                    result["migration_running"] = bool(state.get("Running"))
+                    result["migration_exit_code"] = state.get("ExitCode")
+                    result["migration_oom_killed"] = bool(state.get("OOMKilled"))
+                    logs = self.command(
+                        ["docker", "logs", "--tail", "100", name], success=False
+                    )
+                    known_exceptions = (
+                        "InvalidPasswordError",
+                        "SSLCertVerificationError",
+                        "InsufficientPrivilegeError",
+                        "ModuleNotFoundError",
+                        "PermissionError",
+                        "OperationalError",
+                        "FileNotFoundError",
+                        "InvalidAuthorizationSpecificationError",
+                        "ConnectionRefusedError",
+                    )
+                    result["migration_exception_classes"] = [
+                        known
+                        for known in known_exceptions
+                        if re.search(r"\b" + known + r"\b", logs.stdout + logs.stderr)
+                    ]
+        except (CheckFailed, OSError, ValueError, AttributeError):
+            result["diagnostic_unavailable"] = True
+        return result
+
     def bootstrap(self) -> None:
+        self.phase = "bootstrap_http_and_postgres"
         self.release("bootstrap")
         self.wait_pg()
         code, _, _ = self.http("/", tls=False)
@@ -460,6 +549,7 @@ class Harness:
         (lineage / "privkey.pem").chmod(0o600)
 
     def baseline(self) -> None:
+        self.phase = "production_api_migration_tls_and_https"
         self.release(
             "deploy",
             "--image",
@@ -486,6 +576,7 @@ class Harness:
         self.pg_id = self.container("postgres")["Id"]
         self.nginx_id = self.container("nginx")["Id"]
         self.mark("production_image_real_postgres_migration_verified_tls_and_https")
+        self.phase = "production_cors_preflight"
         code, headers, _ = self.http(
             "/api/v1/auth/csrf",
             method="OPTIONS",
@@ -501,6 +592,7 @@ class Harness:
         )
         assert headers["access-control-allow-credentials"] == "true"
         self.mark("cors_preflight_survives_proxy_allowlist")
+        self.phase = "replace_application_and_verify_proxy"
         self.docker(
             "exec",
             self.pg_id,
@@ -538,6 +630,7 @@ class Harness:
         self.mark(
             "forged_forwarding_headers_are_replaced_without_rejecting_good_requests"
         )
+        self.phase = "rollback_and_database_preservation"
         self.release("rollback")
         assert self.http("/api/v1/health")[1]["x-release-slot"] == "app_blue"
         assert "synthetic-preserved" in self.docker(
@@ -552,6 +645,7 @@ class Harness:
             "SELECT value FROM public.deployment_fixture",
         )
         self.mark("app_replacement_and_rollback_preserve_database_and_nginx")
+        self.phase = "failed_readiness_and_recovery"
         bad = self.release(
             "deploy", "--image", self.images["bad"], "--sha", GREEN_SHA, success=False
         )
@@ -619,13 +713,28 @@ def main() -> int:
             harness.bootstrap()
             harness.baseline()
             success = True
-        except (CheckFailed, AssertionError, OSError, ValueError, KeyError) as error:
+        except (
+            CheckFailed,
+            AssertionError,
+            OSError,
+            ValueError,
+            KeyError,
+            subprocess.SubprocessError,
+        ) as error:
             failure = type(error).__name__
             print(
-                f"FAIL container verification ({failure}); private child output withheld",
+                f"FAIL {harness.phase}: {harness.operation} "
+                f"returncode={harness.returncode} ({failure})",
                 flush=True,
             )
         finally:
+            phase, operation, returncode = (
+                harness.phase,
+                harness.operation,
+                harness.returncode,
+            )
+            diagnostics = harness.safe_diagnostics()
+            print("SAFE_STATE " + json.dumps(diagnostics, sort_keys=True), flush=True)
             harness.cleanup()
             report.write_text(
                 json.dumps(
@@ -633,6 +742,10 @@ def main() -> int:
                         "success": success,
                         "checks": harness.checks,
                         "failure_category": failure,
+                        "phase": phase,
+                        "operation": operation,
+                        "returncode": returncode,
+                        "state": diagnostics,
                         "elapsed_seconds": round(time.monotonic() - started, 2),
                     },
                     indent=2,

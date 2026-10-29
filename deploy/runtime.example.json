@@ -1,0 +1,50 @@
+{
+  "runtime_dir": "/var/lib/sku-dreamon",
+  "project": "sku-dreamon",
+  "api_host": "api.example.com",
+  "postgres_mount_path": "/srv/sku-dreamon-db",
+  "postgres_data_dir": "/srv/sku-dreamon-db/pgdata",
+  "postgres_filesystem_uuid": "00000000-0000-0000-0000-000000000000",
+  "config_revision": "replace-with-private-config-revision",
+  "normal_request_seconds": 30,
+  "operational_margin_seconds": 10,
+  "app_env": {
+    "APP_ENV": "production",
+    "DATABASE_URL": "postgresql+asyncpg://dreamon_app:REPLACE_WITH_URL_ENCODED_APP_PASSWORD@postgres/dreamon",
+    "DATABASE_TLS_CA_FILE": "/run/config/db-ca.crt",
+    "DATABASE_POOL_SIZE": "3",
+    "DATABASE_MAX_OVERFLOW": "2",
+    "HTTP_ALLOWED_HOSTS": "[\"api.example.com\"]",
+    "HTTP_TRUSTED_PROXIES": "[\"172.30.0.2\"]",
+    "AUTH_ALLOWED_ORIGINS": "[\"https://www.example.com\"]",
+    "CSRF_SIGNING_KEY": "REPLACE_WITH_PRIVATE_RANDOM_VALUE_AT_LEAST_32_BYTES",
+    "PASSWORD_BLOCKLIST_PATH": "/run/config/password-blocklist.txt",
+    "PASSWORD_BLOCKLIST_VERSION": "REPLACE_WITH_VALIDATED_BLOCKLIST_VERSION",
+    "AI_REQUIRED": "false",
+    "AI_TIMEOUT_SECONDS": "90",
+    "AI_CLEANUP_TIMEOUT_SECONDS": "5",
+    "SHUTDOWN_TIMEOUT_SECONDS": "10"
+  },
+  "migration_env": {
+    "APP_ENV": "production",
+    "DATABASE_URL": "postgresql+asyncpg://dreamon_migration:REPLACE_WITH_URL_ENCODED_MIGRATION_PASSWORD@postgres/dreamon",
+    "DATABASE_TLS_CA_FILE": "/run/config/db-ca.crt"
+  },
+  "postgres_env": {
+    "POSTGRES_USER": "postgres",
+    "POSTGRES_DB": "dreamon"
+  },
+  "images": {
+    "nginx": "registry.example.com/sku-dreamon-nginx@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "postgres": "registry.example.com/sku-dreamon-postgres@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "certbot": "certbot/certbot@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "compose": {
+    "NGINX_PROXY_IP": "172.30.0.2",
+    "APP_NETWORK_SUBNET": "172.30.0.0/24",
+    "DB_NETWORK_SUBNET": "172.31.0.0/24",
+    "NGINX_BIND_IP": "0.0.0.0",
+    "NGINX_HTTP_PORT": "80",
+    "NGINX_HTTPS_PORT": "443"
+  }
+}

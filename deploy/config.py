@@ -17,6 +17,65 @@ from urllib.parse import unquote, urlsplit
 class ReleaseError(Exception):
     """비밀값이나 실행 명령을 포함하지 않는 운영 오류."""
 
+    @property
+    def code(self) -> str:
+        # 고정 문구만 공개 코드로 바꾸며 임의 예외 문장은 출력하지 않는다.
+        codes = (
+            (
+                "bounded host operation failed",
+                "host_operation_failed",
+            ),
+            (
+                "migration failed; explicit recovery is required",
+                "migration_failed",
+            ),
+            (
+                "migration is still running; recovery must observe its exit",
+                "migration_running",
+            ),
+            (
+                "migration is still running; no retry or new deployment is allowed",
+                "migration_running",
+            ),
+            (
+                "candidate did not become production ready",
+                "candidate_not_ready",
+            ),
+            (
+                "HTTPS traffic did not reach the expected release",
+                "https_release_mismatch",
+            ),
+            (
+                "image revision does not match the requested release",
+                "image_identity_mismatch",
+            ),
+            (
+                "image digest does not match the requested release",
+                "image_identity_mismatch",
+            ),
+            (
+                "app image or running identity differs from the journal",
+                "image_identity_mismatch",
+            ),
+            (
+                "actual app configuration differs from the release record",
+                "config_identity_mismatch",
+            ),
+            (
+                "drain deadline passed; graceful completion is unproven",
+                "drain_deadline_exceeded",
+            ),
+            (
+                "Nginx container or master changed during drain",
+                "nginx_identity_mismatch",
+            ),
+            (
+                "certificate job failed; active routing was preserved",
+                "certificate_job_failed",
+            ),
+        )
+        return dict(codes).get(str(self), "release_blocked")
+
 
 IMAGE = re.compile(r"(?:[a-zA-Z0-9][a-zA-Z0-9./_:-]*@)?sha256:[0-9a-f]{64}\Z")
 SHA = re.compile(r"[0-9a-f]{40}\Z")
