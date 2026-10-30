@@ -4,6 +4,7 @@ from ipaddress import ip_address, ip_network
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import (
     Field,
@@ -43,6 +44,11 @@ class Settings(BaseSettings):
     http_allowed_hosts: tuple[str, ...] = ()
     http_trusted_proxies: tuple[str, ...] = ()
     openai_api_key: SecretStr | None = Field(default=None, repr=False)
+    langsmith_tracing: bool = False
+    langsmith_api_key: SecretStr | None = Field(default=None, repr=False)
+    langsmith_project: str = Field(default="sku-dreamon", min_length=1, max_length=100)
+    langsmith_endpoint: HttpUrl = HttpUrl("https://api.smith.langchain.com")
+    langsmith_workspace_id: UUID | None = None
     ai_required: bool = False
     ai_model: Literal["gpt-6-luna"] = "gpt-6-luna"
     ai_reasoning_effort: Literal["low", "medium", "high"] = "low"
@@ -67,6 +73,27 @@ class Settings(BaseSettings):
     @property
     def ai_enabled(self) -> bool:
         return bool(self.openai_api_key and self.openai_api_key.get_secret_value())
+
+    @field_validator("langsmith_project")
+    @classmethod
+    def require_tracing_project(cls, value: str) -> str:
+        value = value.strip()
+        if not value or any(ord(character) < 32 for character in value):
+            raise ValueError("LangSmith project must be a nonempty single line")
+        return value
+
+    @field_validator("langsmith_endpoint")
+    @classmethod
+    def require_tracing_endpoint(cls, value: HttpUrl) -> HttpUrl:
+        if (
+            value.scheme != "https"
+            or value.username is not None
+            or value.password is not None
+            or value.query is not None
+            or value.fragment is not None
+        ):
+            raise ValueError("LangSmith endpoint requires HTTPS without credentials")
+        return value
 
     @field_validator("http_allowed_hosts")
     @classmethod
@@ -102,6 +129,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def require_production_settings(self) -> "Settings":
+        if self.langsmith_tracing and not (
+            self.langsmith_api_key and self.langsmith_api_key.get_secret_value().strip()
+        ):
+            raise ValueError("LangSmith tracing requires an explicit API key")
         if self.ai_required and not self.ai_enabled:
             raise ValueError("AI_REQUIRED requires a configured runtime API key")
         if self.app_env != "production":
