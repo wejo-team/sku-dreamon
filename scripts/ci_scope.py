@@ -89,8 +89,12 @@ def detect_scope(environment: Mapping[str, str]) -> tuple[set[str], str]:
     event = environment.get("GITHUB_EVENT_NAME", "")
     if event == "workflow_dispatch":
         return set(AREAS), "Manual run: all areas."
-    if event == "push" and environment.get("GITHUB_REF") == "refs/heads/main":
-        return set(AREAS), "Push to main: all areas."
+    if event == "push" and environment.get("GITHUB_REF") in {
+        "refs/heads/develop",
+        "refs/heads/main",
+    }:
+        branch = environment["GITHUB_REF"].removeprefix("refs/heads/")
+        return set(AREAS), f"Push to {branch}: all areas."
     if event == "pull_request":
         paths = pr_changed_paths(environment.get("GITHUB_EVENT_PATH", ""))
         reason = (

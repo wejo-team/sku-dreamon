@@ -1,0 +1,26 @@
+# DB·런타임 백업은 root 소유 설정과 EC2 instance role만 사용한다.
+[Unit]
+Description=SKU DreamOn PostgreSQL and runtime backup
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/etc/sku-dreamon/backup.env
+WorkingDirectory=/opt/sku-dreamon/current
+ExecStart=/usr/bin/python3.13 /opt/sku-dreamon/current/deploy/backup.py --config /etc/sku-dreamon/runtime.json
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sku-dreamon
+

@@ -148,6 +148,8 @@ sudo python3.13 deploy/release.py --config /etc/sku-dreamon/runtime.json certifi
 
 발급·갱신도 동일 host lock과 이름을 기록한 단일 Certbot job을 사용합니다. 성공한 deploy hook만 인증서 파일 hash 이벤트를 남깁니다. 실제 갱신 이벤트가 생기면 전체 후보 설정 검사·reload·새 HTTPS 인증서 fingerprint와 슬롯 확인·기존 worker 드레인까지 진행합니다. dry-run은 실제 발급 상태나 적용 성공으로 계산하지 않으며 reload하지 않습니다. 실패나 살아 있는 job을 자동 재실행하지 않고 `status`·`recover`로 상태를 확인합니다.
 
+갱신·dry-run은 `--no-random-sleep-on-renew`로 Certbot 내부 무작위 대기를 끕니다. 이 대기가 host lock을 잡은 채 300초 작업 제한을 초과하지 않도록, scheduler의 systemd timer에 `RandomizedDelaySec`를 설정해 lock 획득 전에 실행 시각을 분산합니다. 최초 `certonly` 발급에는 이 갱신 전용 옵션을 넣지 않습니다.
+
 Certbot의 `/etc/letsencrypt` 전체와 webroot·work·logs는 런타임에 남습니다. Nginx에는 인증서 상태를 읽기 전용으로 전달합니다. webroot는 Nginx worker가 읽을 수 있게 0755이며 계정·키 저장소는 root 전용입니다. 별도 ACME 서버를 명시적으로 선택할 때는 HTTPS `--server`와 root 전용 `--ca-file`로 해당 신뢰 CA를 공급할 수 있습니다. 이 옵션의 존재를 실제 ACME 발급·갱신 검증 완료로 계산하지 않습니다. 인증서 검증을 끄는 옵션은 제공하지 않습니다.
 
 호스트 scheduler·실패 통보 수신자·인증서 만료 감시는 후속 운영 설정입니다. scheduler는 이 명령의 nonzero exit와 안전한 실패 코드에 알림을 연결하고, 실패 후에는 같은 job을 무한 반복하지 않아야 합니다. 이 저장소에 외부 알림 전송이나 운영 cron 설치가 완료되었다고 해석하지 않습니다.

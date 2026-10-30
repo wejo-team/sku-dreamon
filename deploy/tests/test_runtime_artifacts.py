@@ -210,6 +210,7 @@ class PostgresMountTests(unittest.TestCase):
         root_mount: bool = False,
         data_at_mount: bool = False,
         symlink_data: bool = False,
+        shell: str = "sh",
     ) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -239,7 +240,7 @@ class PostgresMountTests(unittest.TestCase):
             findmnt.chmod(0o755)
             return subprocess.run(
                 [
-                    "sh",
+                    shell,
                     str(DEPLOY / "postgres/check-mount.sh"),
                     str(mount),
                     UUID,
@@ -254,21 +255,27 @@ class PostgresMountTests(unittest.TestCase):
     def test_host_allows_root_and_separate_filesystems_with_the_same_guards(
         self,
     ) -> None:
-        for root_mount in (False, True):
-            with self.subTest(root_mount=root_mount):
-                self.assertEqual(self.check_host(root_mount=root_mount).returncode, 0)
-            for overrides in (
-                {"actual_uuid": "wrong"},
-                {"nested": True},
-                {"missing": True},
-                {"data_at_mount": True},
-                {"symlink_data": True},
-            ):
-                with self.subTest(root_mount=root_mount, overrides=overrides):
-                    result = self.check_host(root_mount=root_mount, **overrides)
-                    self.assertNotEqual(result.returncode, 0)
-                    self.assertEqual(result.stdout, "")
-                    self.assertNotIn(UUID, result.stderr)
+        for shell in ("sh", "bash"):
+            for root_mount in (False, True):
+                with self.subTest(shell=shell, root_mount=root_mount):
+                    result = self.check_host(root_mount=root_mount, shell=shell)
+                    self.assertEqual(result.returncode, 0)
+                for overrides in (
+                    {"actual_uuid": "wrong"},
+                    {"nested": True},
+                    {"missing": True},
+                    {"data_at_mount": True},
+                    {"symlink_data": True},
+                ):
+                    with self.subTest(
+                        shell=shell, root_mount=root_mount, overrides=overrides
+                    ):
+                        result = self.check_host(
+                            root_mount=root_mount, shell=shell, **overrides
+                        )
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertEqual(result.stdout, "")
+                        self.assertNotIn(UUID, result.stderr)
 
     def test_container_guard_refuses_missing_contract_before_postgres(self) -> None:
         result = subprocess.run(

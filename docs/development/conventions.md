@@ -59,13 +59,13 @@ Python 모델 필드·ORM 속성·DB 컬럼은 snake_case, API JSON의 요청·�
 
 ## Git과 PR
 
-- 기본 브랜치는 `main`입니다. 일반 개발은 작업 브랜치와 PR로 진행합니다.
+- 기본 브랜치는 `develop`입니다. 최신 `develop`에서 작업 브랜치를 만들고 PR도 `develop`으로 보냅니다. `main`은 같은 저장소의 `develop`에서 오는 릴리스 PR만 받는 운영 브랜치입니다.
 - 사람과 에이전트 모두 `<type>/<작업-내용>` 형식을 사용합니다. type은 `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci` 중 작업 목적에 맞게 고르고, 작업 내용은 소문자 영문·숫자·하이픈으로 적습니다. 예: `feat/recruitment-form`, `fix/login-redirect`, `docs/branch-naming`.
 - 에이전트·도구 이름을 나타내는 접두사(`codex/`, `claude/`, `agent/` 등)는 붙이지 않습니다. 도구가 브랜치 이름을 자동 제안해도 같은 규칙을 적용합니다.
 - 커밋과 PR 제목은 `type(scope): 설명`을 기본으로 합니다. 예: `feat(frontend): 모집글 작성 폼 추가`, `docs: 개발 가이드 정리`.
-- 타입은 `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`를 사용합니다. PR 제목 형식은 `PR conventions` 검사로 확인합니다.
+- 타입은 `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`를 사용합니다. `PR conventions`는 기존 PR 제목 형식과 작업·릴리스·동기화 PR의 브랜치 방향을 함께 검사합니다. 릴리스·동기화 제목은 `chore(release): 설명`으로 쓸 수 있습니다.
 - 하나의 PR은 설명할 수 있는 한 목적을 갖습니다. PR에는 문제·변경 결과·검증 방법을 적습니다.
-- PR 병합은 Squash merge만 사용합니다. 작업 브랜치의 작은 커밋은 유지하되 `main`에는 PR 하나를 커밋 하나로 남깁니다. PR 제목과 설명이 병합 커밋의 기본 제목·본문이므로 최종 결과에 맞게 정리합니다.
+- 작업 PR은 Squash merge로 `develop`에 반영합니다. `develop` → `main` 릴리스와 `main` → `develop` 동기화는 Merge commit을 사용해 공통 이력을 보존합니다. 동기화가 늦어진 경우의 `develop` 기반 `chore/sync-main-<sha>` PR도 Merge commit 예외입니다. 두 장기 브랜치는 삭제·강제 푸시하지 않습니다. 병합 방향·CI·배포·동기화 순서는 [팀 작업 흐름](workflow.md)을 따릅니다.
 - 변경 요청이 남은 PR은 일반 팀원이 병합할 수 없고, 프로젝트 리더는 예외 권한을 사용할 수 있습니다. 적용 범위와 재검토 절차는 [팀 작업 흐름](workflow.md)을 따릅니다.
 - 의존성을 변경하면 해당 lockfile도 함께 변경합니다. 같은 프론트에 npm·pnpm·Yarn lockfile을 섞지 않습니다.
 - 승인된 기능 범위의 변경과 관련 문서를 함께 갱신합니다. 이 문서 자체는 사용자에게 매번 추가 승인을 요구하는 규정이 아닙니다.

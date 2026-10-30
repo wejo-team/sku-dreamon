@@ -1,6 +1,6 @@
 # 테스트·CI 기준
 
-문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `main`에 병합된 뒤에는 전체를 검사합니다. unit·HTTP·PostgreSQL 검사와 제품 Playwright E2E를 실행합니다. 실제 프론트·서버·DB 실행은 [통합테스트와 bug bash](bug-bash.md), 일반 앱 실행은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 공식 디자인 앱은 필요할 때 아래 [수동 확인](#design-reference)을 수행합니다.
+문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `develop`과 `main`에 병합된 뒤에는 전체를 검사합니다. `develop`은 CI만 실행하며, 운영 CD는 `main`의 같은 SHA에서 필요한 CI가 성공한 뒤 실행합니다. unit·HTTP·PostgreSQL 검사와 제품 Playwright E2E를 실행합니다. 실제 프론트·서버·DB 실행은 [통합테스트와 bug bash](bug-bash.md), 일반 앱 실행은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 공식 디자인 앱은 필요할 때 아래 [수동 확인](#design-reference)을 수행합니다.
 
 ## 의미 있는 테스트
 
@@ -47,7 +47,7 @@ uv run pytest tests/integration/test_dev_seed.py
 | 비동기 DB 기반 | PostgreSQL에서 `alembic upgrade head`, `alembic check`, 연결 검사, 세션 분리·commit·rollback·종료 정리 통합 테스트 |
 | 배포 정적 계약 | `Deployment static checks`: 표준 라이브러리 `deploy/tests/test_*.py` 단위 검사와 daemon 없이 Compose 설정 해석. 별도 의존성 설치 없음 |
 | DB 모델 도입 | 위 검사에 실제 모델의 migration 적용·조회 테스트 추가 |
-| 제품 브라우저 통합 | 앱 변경과 main에서 `Integration E2E`: HTTPS·실제 API·격리 DB, 데스크톱/320px Chromium. 로컬도 별도 fixture 또는 개발 DB의 `*_e2e` 복제본에서만 실행 |
+| 제품 브라우저 통합 | 앱 변경 PR과 `develop`·`main` push에서 `Integration E2E`: HTTPS·실제 API·격리 DB, 데스크톱/320px Chromium. 로컬도 별도 fixture 또는 개발 DB의 `*_e2e` 복제본에서만 실행 |
 
 운영 컨테이너의 이미지·TLS·앱 교체·DB 보존·짧은 SSE는 [별도 수동 스크립트](container-deployment.md#verification)로 검사합니다. 배포 기반 PR은 기존 앱 CI를 유지하며 새 필수 컨테이너 job을 추가하지 않습니다. CI 변경은 별도 PR로 다룹니다.
 
@@ -76,21 +76,23 @@ uv run pytest tests/integration/test_dev_seed.py
 | 루트 `package.json`·`package-lock.json`·`.nvmrc` | 문서 전체 검사; 현재 이 파일들은 문서 도구 전용 |
 | CI workflow·분류기·공통 설정 등 위 규칙에 없는 경로 | 전체 검사 |
 
-- PR 제목 검사와 Python CI·문서 도구 테스트, 문서 원본 링크 검사는 모든 PR에서 실행합니다. 코드 파일 삭제·이동으로도 문서 링크가 깨질 수 있기 때문입니다.
+- `PR conventions`의 제목·브랜치 방향 검사와 Python CI·문서 도구 테스트, 문서 원본 링크 검사는 모든 PR에서 실행합니다. 코드 파일 삭제·이동으로도 문서 링크가 깨질 수 있기 때문입니다. [브랜치 검사](../../scripts/check_pr_branch.py)는 작업 PR의 `develop` 대상, 같은 저장소의 `develop` → `main` 릴리스와 `main` → `develop` 동기화를 허용하고 다른 방향은 거부합니다.
 - 문서 전체 검사가 선택된 경우에만 Node 의존성 설치·VitePress 빌드·생성 HTML의 링크·앵커·자산 검사를 추가합니다.
 - API·스키마 등의 이름에 따른 예외는 두지 않습니다. `backend/` 아래 파일은 백엔드, `frontend/` 아래 파일은 프론트 검사 대상으로 처리합니다. 앱 한쪽만 바뀌어도 브라우저 통합 검사를 실행해 주요 API 계약을 함께 검증합니다. 공통 코드·도구 의존성이 생겨 분류 기준을 바꾸면 규칙과 테스트도 함께 갱신합니다.
 - 빈 diff는 보수적으로 전체 검사합니다. 이벤트·커밋·공통 조상을 확인할 수 없는 경우에는 판별을 실패시킵니다. 외부 PR의 파일명·본문을 셸 명령으로 실행하지 않습니다.
-- 배포 정적 검사는 배포·공통 설정 변경과 main에서 실행합니다. 일반 프론트·백엔드 업무 코드나 문서만 바뀌면 생략합니다. 이미지 build·loopback mount·실제 컨테이너 교체·ACME·긴 SSE는 수동 검증으로 관리합니다.
+- 배포 정적 검사는 배포·공통 설정 변경 PR과 `develop`·`main` push에서 실행합니다. 일반 프론트·백엔드 업무 코드나 문서만 바뀐 PR에서는 생략합니다. 이미지 build·loopback mount·실제 컨테이너 교체·ACME·긴 SSE의 수동 검사 범위는 [컨테이너 검증](container-deployment.md#verification), 운영 이미지 build·배포 경로는 [운영 CD](continuous-deployment.md)에서 구분합니다.
 
-## 필수 검사와 main 검증
+## 필수 검사와 develop·main 검증
 
 - 병합 필수 검사 이름 `Frontend`, `Backend`, `Validate docs`를 유지합니다. `Frontend tests`·`Backend tests`·`Integration E2E`가 실제 검사를 수행하고, 기존 이름의 job은 해당 영역과 브라우저 통합의 최종 결과를 확인합니다. 통합 실패·취소·예상 밖 생략은 두 필수 앱 검사 모두 실패로 처리합니다.
 - 앱 필수 검사는 항상 실행해 [check_ci_job.py](../../scripts/check_ci_job.py)로 **범위 판별 성공 + 필요한 검사 성공** 또는 **범위 판별 성공 + 영향 없음에 따른 명시적 생략**만 허용합니다. 판별 실패·취소·출력 누락·필요한 검사의 예상 밖 생략은 성공으로 취급하지 않습니다.
 - `Backend`는 선택된 `Deployment static checks` 결과도 확인합니다. 실패·취소·예상 밖 생략·범위 출력 누락은 차단합니다. 배포 테스트 디렉터리 누락이나 테스트 0개를 성공으로 처리하지 않습니다.
 - `Validate docs`는 같은 분류기를 job 안에서 실행하므로 판별 실패도 필수 검사 실패가 됩니다. 보호 규칙을 해제하거나 이름을 변경할 필요가 없습니다.
-- `main`의 push는 변경 경로와 관계없이 프론트·백엔드·문서 전체 검사를 실행합니다. 수동 문서 workflow도 전체 문서 검사를 실행합니다.
-- PR의 새 실행은 오래된 실행을 취소합니다. `main` 검사는 커밋별 concurrency 그룹을 사용해 다른 병합의 검사와 취소·대기 슬롯을 공유하지 않습니다. PR의 대상 브랜치 변경도 다시 판별하도록 `edited` 이벤트를 처리하므로 제목·본문 수정 시에도 재검사합니다.
-- `main` 검사는 병합 **후** 검증입니다. 최신 기본 브랜치 반영과 PR 필수 검사 조건은 유지하며, 병합 직전 전체 조합 검증을 보장하는 Merge Queue는 이번 범위에 포함하지 않습니다.
+- `PR conventions`도 두 보호 브랜치의 필수 검사입니다. 기존 제목 형식과 함께 PR 이벤트의 base·head 이름 및 저장소 ID를 검사합니다. fork의 `develop`으로 `main`에 보내거나, 작업 브랜치를 `main`에 직접 보내는 PR은 실패합니다. 이 검사에는 AWS 권한이나 운영 비밀값이 필요하지 않습니다.
+- `develop`과 `main`의 push는 변경 경로와 관계없이 프론트·백엔드·문서·배포 정적 검사를 모두 실행합니다. 수동 문서 workflow도 전체 문서 검사를 실행합니다. Pages 게시와 운영 CD는 `main`만 허용합니다.
+- PR의 새 실행은 오래된 실행을 취소합니다. 두 장기 브랜치의 push 검사는 커밋별 concurrency 그룹을 사용해 다른 커밋의 검사와 취소·대기 슬롯을 공유하지 않습니다. PR의 대상 브랜치 변경도 다시 판별하도록 `edited` 이벤트를 처리하므로 제목·본문 수정 시에도 재검사합니다.
+- 두 브랜치의 push 검사는 병합 **후** 검증입니다. 최신 대상 브랜치 반영과 PR 필수 검사 조건은 유지하며, 병합 직전 전체 조합 검증을 보장하는 Merge Queue는 이번 범위에 포함하지 않습니다.
+- 운영 CD는 `ci.yml`의 `main` push 실행에서 `Frontend`·`Backend` 성공 뒤 재사용 workflow를 호출하며, 배포 도구가 동일 SHA의 `Validate docs` 성공도 확인합니다. AWS OIDC는 `production` environment를 사용하고 이 환경은 `main`만 허용합니다. PR·`develop` 검사에는 운영 배포 권한을 연결하지 않습니다. [운영 CD](continuous-deployment.md)의 실행·검증·복구 범위를 따릅니다.
 
 <a id="design-reference"></a>
 
@@ -112,7 +114,7 @@ npm test
 
 포맷·정적 검사는 `npm run format:check`, `npm run lint`, `npm run typecheck`로 실행합니다. 모바일 브라우저 흐름을 다시 확인하려면 5174 개발 서버를 실행한 상태에서 `npx playwright install chromium` 후 `npm run check:ui`를 실행합니다. 자세한 범위는 [디자인 개발 인계](../design/handoff.md)를 따릅니다.
 
-설치에는 이 폴더의 `.nvmrc`·package manager 버전·lockfile을 사용합니다. 모의 UI 확인을 제품 인증·API·LLM·동시성 검증의 완료 근거로 사용하지 않습니다. 기존 `Frontend`·`Backend`·`Validate docs` 필수 검사와 `main`의 전체 검사 정책은 유지합니다.
+설치에는 이 폴더의 `.nvmrc`·package manager 버전·lockfile을 사용합니다. 모의 UI 확인을 제품 인증·API·LLM·동시성 검증의 완료 근거로 사용하지 않습니다. 기존 `Frontend`·`Backend`·`Validate docs`와 `PR conventions` 필수 검사, `develop`·`main`의 전체 검사 정책은 유지합니다.
 
 ## PR 완료 확인
 

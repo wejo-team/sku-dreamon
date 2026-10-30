@@ -5,7 +5,7 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, edited]
   push:
-    branches: [main]
+    branches: [main, develop]
 
 permissions:
   contents: read
@@ -278,3 +278,15 @@ jobs:
           CHECK_REQUIRED: ${{ needs.changes.outputs.deployment }}
           CHECK_RESULT: ${{ needs.deployment_checks.result }}
         run: python scripts/check_ci_job.py
+
+  production:
+    name: Production CD
+    needs: [frontend, backend]
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      vars.PRODUCTION_CD_ENABLED == 'true'
+    permissions:
+      contents: read
+      checks: read
+      id-token: write
+    uses: ./.github/workflows/cd.yml
