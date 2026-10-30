@@ -25,3 +25,5 @@ jobs:
           python-version: "3.13"
       - name: Validate the current PR title
         run: python scripts/check_pr_title.py
+      - name: Validate PR source and target branches
+        run: python scripts/check_pr_branch.py

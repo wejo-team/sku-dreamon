@@ -4,11 +4,19 @@
 ## 관련 이슈
 <!-- 해당하는 이슈, 기획 문서·기능 명세, 선행 PR, 개발 계획 링크 작성 -->
 
+## 브랜치와 병합
+<!-- 작업 PR: <type>/<작업-내용> → develop, Squash merge.
+릴리스 PR: 같은 저장소 develop → main, Merge commit.
+릴리스 후 동기화 PR: 같은 저장소 main → develop, Merge commit.
+지연 동기화: develop 기반 chore/sync-main-<sha>에 main을 merge한 뒤 develop 대상 PR, Merge commit.
+develop/main은 삭제하거나 강제 푸시하지 않습니다. 해당하는 방향과 병합 방식을 적습니다. -->
+- 방향 / 병합 방식:
+
 ## 주요 변경
 <!-- 리뷰에 필요한 핵심 변경과 해당 방식을 선택한 이유.
 명세 PR은 합의할 범위·정책·남은 질문을 작성합니다.
 구현 Draft PR은 담당 완료 조건·수정 범위·작업 순서·검증 계획을 적고, 완료 시 실제 변경에 맞게 갱신합니다.
-계획이 필요할 때 참고할 양식: https://github.com/wejo-team/sku-dreamon/blob/main/docs/templates/development-plan.md -->
+계획이 필요할 때 참고할 양식: https://github.com/wejo-team/sku-dreamon/blob/develop/docs/templates/development-plan.md -->
 -
 
 ## 변경 전후
@@ -33,6 +41,7 @@
 
 ## 리뷰 참고
 <!-- 집중해서 봐야 할 부분, 호환성 영향, 배포 시 필요한 작업, 남은 제약.
+릴리스 PR은 포함한 변경·마이그레이션·복구 영향을 적습니다. main 병합/CI 성공과 운영 CD 성공을 구분합니다.
 API/DB 변경이 있으면 계약 원본과 영향을 받는 호출자, 호환성·마이그레이션 영향을 작성합니다.
 해당 없으면 이 섹션 삭제.
-작업 절차: https://github.com/wejo-team/sku-dreamon/blob/main/docs/development/workflow.md -->
+작업 절차: https://github.com/wejo-team/sku-dreamon/blob/develop/docs/development/workflow.md -->

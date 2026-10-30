@@ -949,17 +949,17 @@ export function ProfilePage() {
               )}
             </section>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="preview-button"
-            disabled={logout.isPending}
-            onClick={() => logout.mutate()}
-          >
-            로그아웃
-          </Button>
         </>
       )}
+      <Button
+        type="button"
+        variant="outline"
+        className="preview-button"
+        disabled={logout.isPending}
+        onClick={() => logout.mutate()}
+      >
+        로그아웃
+      </Button>
     </div>
   );
 }

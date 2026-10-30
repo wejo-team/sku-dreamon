@@ -28,7 +28,8 @@
 - 실제 프론트·서버·DB를 함께 검증할 때: [통합테스트와 bug bash](development/bug-bash.md)
 - 제품 화면을 구현할 때: [공식 디자인 레퍼런스](design/README.md)
 - DB와 서버 인터페이스를 검토할 때: [DB 설계](database/README.md) → [API 명세](api/README.md)
-- 명세·계획·PR을 검토할 때: [팀 작업 흐름](development/workflow.md)
+- 명세·계획·PR과 `작업 브랜치 → develop → main` 릴리스를 검토할 때: [팀 작업 흐름](development/workflow.md)
+- `main` CI 이후 운영 배포를 확인할 때: [운영 CD](development/continuous-deployment.md)
 - 공식 모바일 디자인을 참고할 때: [디자인 실행 안내](design/README.md)과 [버전·검증 기록](specs/prototype-alignment.md)
 - 현재 프로토타입과 기능 명세를 대조할 때: [디자인 기능·명세 대조](specs/prototype-alignment.md)
 - 문서를 추가하거나 게시할 때: [문서 관리](development/documentation.md)
@@ -39,4 +40,4 @@
 2. 연결된 문서를 모두 재귀적으로 읽지 않습니다. 작업 범위가 넓어지거나 모르는 계약이 나올 때만 추가로 읽습니다.
 3. 문서가 실제 파일·설정과 다르면 차이를 확인하고 해당 변경에서 함께 정리합니다.
 
-원본은 저장소의 `docs/`입니다. [문서 사이트](https://wejo-team.github.io/sku-dreamon/)는 `main` 병합 후 갱신됩니다. 검토 중인 변경은 PR에서 확인하며, 명세의 구현 여부는 각 명세의 상태와 연결된 PR로 구분합니다. 템플릿은 실제 서비스 명세가 아닙니다.
+원본은 저장소의 `docs/`이며 기본 브랜치는 `develop`입니다. [문서 사이트](https://wejo-team.github.io/sku-dreamon/)는 릴리스가 `main`에 병합되고 문서 검증을 통과한 뒤 갱신됩니다. `develop`의 변경과 검토 중인 PR은 저장소에서 확인하며, 명세의 구현 여부는 각 명세의 상태와 연결된 PR로 구분합니다. 템플릿은 실제 서비스 명세가 아닙니다.

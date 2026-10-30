@@ -964,7 +964,7 @@ class Release:
                 email or "",
             ]
             if mode == "issue"
-            else ["renew"]
+            else ["renew", "--no-random-sleep-on-renew"]
         )
         command.extend(
             [

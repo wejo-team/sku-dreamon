@@ -213,17 +213,18 @@ class ScopeGitIntegrationTests(unittest.TestCase):
     def test_empty_diff_runs_all(self):
         self.assert_success(self.run_scope(), ALL)
 
-    def test_main_push_and_manual_run_need_no_pr_payload(self):
+    def test_develop_main_push_and_manual_run_need_no_pr_payload(self):
         for event, ref in [
+            ("push", "refs/heads/develop"),
             ("push", "refs/heads/main"),
             ("workflow_dispatch", "refs/heads/feature"),
         ]:
-            with self.subTest(event=event):
+            with self.subTest(event=event, ref=ref):
                 self.assert_success(
                     self.run_scope(event_name=event, event={}, ref=ref), ALL
                 )
 
-    def test_unsupported_event_or_non_main_push_fails_without_outputs(self):
+    def test_unsupported_event_or_work_branch_push_fails_without_outputs(self):
         for event, ref in [
             ("pull_request_target", "refs/heads/main"),
             ("push", "refs/heads/feature"),

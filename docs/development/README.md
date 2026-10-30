@@ -29,6 +29,8 @@
 | [DB 설계](../database/README.md) · [API 명세](../api/README.md) | 물리 ERD·테이블·요청/응답 계약을 검토하거나 구현할 때 |
 | [testing.md](testing.md) | 테스트 범위, CI 단계, 완료 기준 |
 | [컨테이너 실행과 앱 교체](container-deployment.md) | 비공개 런타임 JSON, DB 마운트·TLS, 최초 인증서, 드레인·복구·롤백과 수동 검증 |
+| [운영 CD](continuous-deployment.md) | `develop` 검증과 `main` 릴리스, 같은 SHA의 CI 확인·AWS OIDC·운영 배포 |
+| [운영 백업과 격리 복원](production-backups.md) | PostgreSQL·복구 설정의 암호화 S3 백업, 일일 실행, 모델 키 재주입과 복원 확인 |
 | [통합테스트와 bug bash](bug-bash.md) | 격리 HTTPS 환경·실제 브라우저 E2E·수동 시나리오·실행 결과 |
 | [documentation.md](documentation.md) | 문서 원본·인덱스 관리 규칙과 VitePress 자동 게시 운영 |
 
@@ -39,7 +41,7 @@
 - 구조: 제품의 `frontend/`, `backend/`와 독립적인 공식 UI 참고 앱 `design-reference/`가 있는 모노레포. 공통 패키지나 별도 모노레포 실행 도구는 필요가 생길 때 추가합니다.
 - 프론트: React + TypeScript + Vite + React Router, Tailwind + shadcn/ui, TanStack Query + fetch, React Hook Form + Zod. 패키지 관리자는 npm입니다.
 - 백엔드: FastAPI + uv + Pydantic + SQLAlchemy 2 비동기 API + asyncpg + PostgreSQL + Alembic입니다. 앞서 검토했던 동기 DB 접근안은 이 결정으로 대체합니다.
-- CI: GitHub Actions. 프론트는 ESLint·Prettier·TypeScript, 백엔드는 Ruff·mypy를 사용합니다. 공식 디자인은 필요할 때 로컬에서 수동 확인합니다.
+- CI: GitHub Actions. 기본 브랜치 `develop`과 운영 브랜치 `main`의 push는 전체 검사하며 운영 CD는 `main` CI 성공 후 실행합니다. 프론트는 ESLint·Prettier·TypeScript, 백엔드는 Ruff·mypy를 사용합니다. 공식 디자인은 필요할 때 로컬에서 수동 확인합니다.
 - 문서: `docs/`를 원본으로 VitePress + GitHub Pages에서 읽습니다. 명세·계획·구현의 사람 검토 절차는 그대로 유지합니다.
 - 스프린트 1 로그인: [자체 아이디·비밀번호 방식](../specs/authentication.md#login-decision). 학교·이메일 인증과 소셜 로그인은 후속 범위이며, [내부 사용자 ID와 로그인 수단의 분리](../specs/authentication.md#account-linking)를 적용합니다.
 - 로그인 유지: [PostgreSQL 서버 세션과 보안 쿠키](../specs/authentication.md#session-policy). 저장 필드와 요청 인증 흐름은 [DB](../database/identity.md#auth-sessions)·[API](../api/conventions.md#access) 설계에서 관리합니다.

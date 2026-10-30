@@ -21,6 +21,8 @@ class PullRequestTitleTests(unittest.TestCase):
             "test(api): cover cancellation",
             "docs: 개발 가이드 정리",
             "chore(deps): update locked dependencies",
+            "chore(release): develop 운영 릴리스",
+            "chore(release): main 이력 develop 동기화",
             "ci: validate PR titles",
             "fix:설명은 비어 있지 않아야 함",
         ]
