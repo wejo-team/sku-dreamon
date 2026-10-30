@@ -100,12 +100,14 @@ export function ExplorePage() {
   // 검색창은 자체 값을 두고 한글 조합이 끝난 값만 URL에 씁니다.
   // URL 반영이 늦어 검색창을 URL에 직접 묶으면 조합 중인 글자가 되돌아갑니다.
   const [draft, setDraft] = useState(q);
-  const [seenQ, setSeenQ] = useState(q);
+  const [seenKey, setSeenKey] = useState(location.key);
   const [writtenQ, setWrittenQ] = useState(q);
   const composing = useRef(false);
   // 뒤로 가기·초기화·탭 이동처럼 URL이 바깥에서 바뀌면 검색창도 맞춥니다.
-  if (q !== seenQ) {
-    setSeenQ(q);
+  // 조합 종료 직후 클릭하면 중간 URL(q=가)이 렌더링되지 않아 q만으로는
+  // 바뀐 것을 알 수 없으므로 이동마다 새로 생기는 location.key로 확인합니다.
+  if (location.key !== seenKey) {
+    setSeenKey(location.key);
     if (q !== writtenQ) {
       setWrittenQ(q);
       setDraft(q);
