@@ -19,9 +19,9 @@ from unittest.mock import patch
 DEPLOY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(DEPLOY))
 
-import cd_release as cd
-from config import ReleaseError, Runtime, atomic_write
-from test_release import NEW_SHA, SHA, FakeRelease, settings
+import cd_release as cd  # noqa: E402 -- 독립 배포 도구의 경로를 먼저 등록한다.
+from config import ReleaseError, Runtime, atomic_write  # noqa: E402
+from test_release import NEW_SHA, SHA, FakeRelease, settings  # noqa: E402
 
 REPOSITORY = "123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/synthetic-app"
 DIGEST = "2" * 64
@@ -340,7 +340,8 @@ class ArchiveTests(unittest.TestCase):
             source.write_text(body.replace("stale", "fresh"))
             os.utime(source, ns=(timestamp, timestamp))
             (root / "deploy" / "release.py").write_text(
-                "class Release:\n def __init__(self, runtime, checkout): self.runtime = runtime\n"
+                "class Release:\n def __init__(self, runtime, checkout):"
+                " self.runtime = runtime\n"
             )
             config = cd.Config(
                 "ap-northeast-2",
