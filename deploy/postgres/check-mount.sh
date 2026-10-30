@@ -10,7 +10,7 @@ data_path=$3
 [ -d "$mount_path" ] && [ -d "$data_path" ] && [ -w "$data_path" ] || fail
 [ "$(realpath "$mount_path")" = "$mount_path" ] || fail
 [ "$(realpath "$data_path")" = "$data_path" ] || fail
-case "$data_path" in "${mount_path%/}"/*) ;; *) fail ;; esac
+case "$data_path" in "${mount_path%/}/"*) ;; *) fail ;; esac
 actual_uuid=$(findmnt --noheadings --raw --mountpoint "$mount_path" --output UUID) || fail
 [ "$actual_uuid" = "$expected_uuid" ] || fail
 mounted_device=$(findmnt --noheadings --raw --target "$mount_path" --output MAJ:MIN) || fail
