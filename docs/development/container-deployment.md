@@ -77,9 +77,11 @@ sudo install -o root -g root -m 0600 deploy/runtime.example.json /etc/sku-dreamo
 
 DB 이름은 `POSTGRES_DB`, 앱 역할은 `dreamon_app`, DDL 역할은 `dreamon_migration`으로 고정합니다. URL의 비밀번호는 원본 secret 파일과 같아야 하며 URL 구문에 맞게 percent encoding합니다. 두 URL 모두 `postgres` 서비스와 동일 DB를 가리킵니다. URL query로 TLS나 timeout을 덮어쓸 수 없습니다. 기존 DB가 있는 경우 init script가 계정을 재초기화하지 않습니다. DB 인증서는 올바른 CA `basicConstraints`·`keyUsage`, 서버 leaf의 `serverAuth`·`postgres` DNS SAN 등 strict X.509 검증을 통과해야 합니다. 수동 검사용 합성 인증서·개인키·계정을 운영에 재사용하지 않습니다.
 
-`app_env`의 `AI_TIMEOUT_SECONDS`, `AI_CLEANUP_TIMEOUT_SECONDS`, `SHUTDOWN_TIMEOUT_SECONDS`는 명시적으로 입력합니다. AI 제공을 선택하면 `OPENAI_API_KEY`를 비공개 JSON에 공급하고 필요한 경우 `AI_REQUIRED=true`로 설정합니다. 실제 모델 호출은 수동 컨테이너 검사에 포함하지 않습니다.
+`app_env`의 `AI_TIMEOUT_SECONDS`, `AI_CLEANUP_TIMEOUT_SECONDS`, `SHUTDOWN_TIMEOUT_SECONDS`는 명시적으로 입력합니다. AI 제공을 선택하면 `OPENAI_API_KEY`를 공급하고 필요한 경우 `AI_REQUIRED=true`로 설정합니다. 최초 bootstrap 뒤 [SSM 설정 관리](ssm-configuration.md)를 연결하면 `app_env` 전체의 원본은 고정된 SecureString parameter이며, runtime JSON과 env 파일은 버전별 설정 재배포가 생성하는 적용본입니다. 직접 편집한 JSON을 다음 코드 배포로 적용하지 않습니다. 실제 모델 호출은 수동 컨테이너 검사에 포함하지 않습니다.
 
 앱·migration·PostgreSQL env 파일은 내용 digest에 따라 불변 파일로 생성됩니다. journal은 각 앱의 이미지·설정 revision·파일 참조·timeout 예산을 보존합니다. 앱 교체 중 DB 접속 값·CSRF 키 변경과 공유 CA·blocklist 파일의 임의 변경을 차단합니다. 호스트·API Host·DB mount·인프라 이미지·네트워크 설정도 bootstrap 때의 비밀값 없는 fingerprint와 대조합니다. 키 회전·DB 이동·인프라 변경은 별도 운영 절차로 처리합니다.
+
+설정만 바꿀 때는 [설정 전용 실행기](../../deploy/config_release.py)가 같은 이미지·SHA와 위 교체 엔진을 사용합니다. 1차 허용 변수와 rollback·중단 복구 경계는 [SSM 운영 가이드](ssm-configuration.md)에 정의하며, 일반 `release.py deploy`나 동일 SHA의 코드 CD 재실행으로 대체하지 않습니다. 같은 SHA의 설정 교체·rollback을 직접 실행하는 경로와 설정 진행 기록이 남은 동안의 일반 release·인증서 명령은 차단합니다.
 
 앱 이미지는 전체 commit SHA를 `RELEASE_SHA` build argument와 OCI revision label에 넣어 빌드합니다.
 

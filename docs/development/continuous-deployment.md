@@ -21,6 +21,8 @@ flowchart LR
 
 [호스트 실행기](../../deploy/cd_release.py)는 현재 릴리스가 예상 SHA와 일치하는지 배포 잠금 안에서 검사합니다. 운영 백업 성공 후 기존 [교체 엔진](container-deployment.md)을 사용합니다. PostgreSQL 컨테이너·볼륨·데이터와 런타임 비밀값을 교체하거나 개발 시드를 재실행하지 않습니다.
 
+코드 변경 없이 백엔드 설정만 바꾸려면 [SSM 설정 관리와 재배포](ssm-configuration.md)의 별도 workflow를 사용합니다. 코드 CD는 마지막으로 적용이 완료된 runtime 설정과 활성 슬롯의 일치를 검사하며, SSM 최신값을 자동으로 가져오지 않습니다. 설정 작업의 중단 기록이나 적용본 불일치가 있으면 코드 CD도 거부하고 먼저 설정 복구를 요구합니다.
+
 [프런트 게시기](../../deploy/cd_frontend.py)는 불변 assets를 먼저 올리고 HTML을 마지막에 게시합니다. 기존 assets는 유지하며, 변경할 일반 파일은 복구용 스냅샷을 확보합니다. CloudFront 무효화 완료 후 실제 HTTPS 응답의 HTML 해시와 탐색 경로를 확인합니다.
 
 ## 실패와 복구
@@ -33,6 +35,8 @@ flowchart LR
 - **DB migration은 이전 앱과 호환되는 변경이어야 합니다.** 앱 롤백은 DB downgrade가 아닙니다. 호환되지 않는 스키마 변경은 백업·복구 및 별도 배포 계획이 필요합니다.
 
 동일 SHA 재실행은 실제 이미지와 소스를 다시 확인합니다. 이미지·자료가 다르거나 호스트 journal에 미완료 작업이 있으면 중단합니다. 모든 CI 검사를 다시 실행하려면 main의 `Application CI`를 재실행합니다. 현재 main이 바뀐 과거 실행은 자동 배포하지 않습니다.
+
+동일 SHA의 코드 CD 재실행은 설정 재배포를 대신하지 않습니다. 설정 교체는 `Production configuration`에서 버전을 지정하며, 두 workflow는 같은 `production-deploy` concurrency와 호스트 잠금을 사용합니다.
 
 ## GitHub와 AWS 설정
 

@@ -30,6 +30,7 @@
 | [testing.md](testing.md) | 테스트 범위, CI 단계, 완료 기준 |
 | [컨테이너 실행과 앱 교체](container-deployment.md) | 비공개 런타임 JSON, DB 마운트·TLS, 최초 인증서, 드레인·복구·롤백과 수동 검증 |
 | [운영 CD](continuous-deployment.md) | `develop` 검증과 `main` 릴리스, 같은 SHA의 CI 확인·AWS OIDC·운영 배포 |
+| [SSM 설정 관리와 재배포](ssm-configuration.md) | 백엔드 설정의 버전별 중앙화, 코드 변경 없는 적용·실패 복구·직전 설정 rollback |
 | [운영 백업과 격리 복원](production-backups.md) | PostgreSQL·복구 설정의 암호화 S3 백업, 일일 실행, 모델 키 재주입과 복원 확인 |
 | [통합테스트와 bug bash](bug-bash.md) | 격리 HTTPS 환경·실제 브라우저 E2E·수동 시나리오·실행 결과 |
 | [documentation.md](documentation.md) | 문서 원본·인덱스 관리 규칙과 VitePress 자동 게시 운영 |

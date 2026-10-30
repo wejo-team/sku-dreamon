@@ -120,7 +120,15 @@ class FakeRelease(Release):
         return {
             "Id": f"{slot}-id",
             "Image": record["image_id"],
-            "Config": {"Image": record["image"], "Env": []},
+            "Config": {
+                "Image": record["image"],
+                "Env": [
+                    f"{key}={value}"
+                    for key, value in self.read_environment(
+                        Path(record["env_file"])
+                    ).items()
+                ],
+            },
             "State": {"Running": True, "ExitCode": 0, "OOMKilled": False},
         }
 
@@ -193,6 +201,15 @@ class FakeRelease(Release):
         self.events.append("docker:" + " ".join(args))
         if args[-1] == "reload" and self.fail_reload:
             raise ReleaseError("synthetic reload acknowledgement failure")
+        if args[0] in {"update", "stop"}:
+            for container in self.actual.values():
+                if container["Id"] == args[-1]:
+                    if args[0] == "update":
+                        if container["State"].get("Restarting"):
+                            raise ReleaseError("synthetic update during restart loop")
+                        container["restart_policy"] = "no"
+                    else:
+                        container["State"].update(Running=False, Restarting=False)
         return ""
 
 
@@ -312,6 +329,119 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.release.active_config.read_text(), "old full config\n")
         self.assertFalse(any("reload" in event for event in self.release.events))
 
+    def test_invalid_product_settings_do_not_block_failed_candidate_cleanup(
+        self,
+    ) -> None:
+        self.release.runtime.app_env["AI_MODEL"] = "synthetic-invalid-model"
+        docker = self.release.docker
+
+        def command(*args, **kwargs):
+            if args[:3] == ("exec", "app_green-id", "python"):
+                raise ReleaseError("synthetic Settings validation failure")
+            return docker(*args, **kwargs)
+
+        with (
+            patch.object(self.release, "docker", side_effect=command),
+            patch.object(
+                self.release,
+                "ready",
+                side_effect=lambda slot: Release.verify_slot(self.release, slot),
+            ),
+        ):
+            with self.assertRaisesRegex(ReleaseError, "Settings"):
+                self.deploy()
+            self.release.recover()
+        self.assertEqual(self.release.state["phase"], "stable")
+        self.assertTrue(self.release.actual["app_blue"]["State"]["Running"])
+        candidate = self.release.actual["app_green"]
+        self.assertFalse(candidate["State"]["Running"])
+        self.assertEqual(candidate["restart_policy"], "no")
+
+    def test_failed_exit_and_restart_loop_candidates_are_stopped_on_recovery(
+        self,
+    ) -> None:
+        for running, restarting in ((False, False), (True, True)):
+            with self.subTest(running=running, restarting=restarting):
+                self.setUp()
+                self.release.fail_ready = "app_green"
+                with self.assertRaises(ReleaseError):
+                    self.deploy()
+                candidate = self.release.actual["app_green"]
+                candidate["State"].update(
+                    Running=running,
+                    Restarting=restarting,
+                    ExitCode=1,
+                    OOMKilled=True,
+                )
+                self.release.recover()
+                self.assertEqual(self.release.state["phase"], "stable")
+                self.assertFalse(candidate["State"]["Running"])
+                self.assertFalse(candidate["State"]["Restarting"])
+                self.assertEqual(candidate["State"]["ExitCode"], 1)
+                self.assertEqual(candidate["restart_policy"], "no")
+                self.assertTrue(self.release.actual["app_blue"]["State"]["Running"])
+                self.assertTrue(self.release.actual["postgres"]["State"]["Running"])
+
+    def test_candidate_cleanup_rejects_image_and_environment_drift(self) -> None:
+        for changed in ("image", "environment"):
+            with self.subTest(changed=changed):
+                self.setUp()
+                self.release.fail_ready = "app_green"
+                with self.assertRaises(ReleaseError):
+                    self.deploy()
+                candidate = self.release.actual["app_green"]
+                if changed == "image":
+                    candidate["Image"] = IMAGE
+                else:
+                    candidate["Config"]["Env"] = ["AI_MODEL=unmanaged"]
+                self.release.events.clear()
+                with self.assertRaises(ReleaseError):
+                    self.release.recover()
+                self.assertFalse(
+                    any(
+                        event.startswith(("docker:update", "docker:stop"))
+                        for event in self.release.events
+                    )
+                )
+                self.assertTrue(self.release.actual["app_blue"]["State"]["Running"])
+                self.assertIsNotNone(self.release.state["transaction"])
+
+    def test_candidate_cleanup_refuses_active_slot_or_changed_container(self) -> None:
+        self.release.fail_ready = "app_green"
+        with self.assertRaises(ReleaseError):
+            self.deploy()
+        transaction = self.release.state["transaction"]
+        transaction["target"] = "app_blue"
+        with self.assertRaisesRegex(ReleaseError, "active app"):
+            self.release.discard_candidate()
+        transaction["target"] = "app_green"
+        transaction["candidate_cleanup_id"] = "different-container"
+        with self.assertRaisesRegex(ReleaseError, "identity changed"):
+            self.release.discard_candidate()
+        self.assertTrue(self.release.actual["app_blue"]["State"]["Running"])
+
+    def test_recovery_before_candidate_recreation_preserves_prior_stopped_slot(
+        self,
+    ) -> None:
+        self.release.worker_plan = [[]]
+        self.deploy()
+        self.release.runtime.app_env["AI_MODEL"] = "new-settings"
+        self.release.configuration_operation = True
+        with patch.object(
+            self.release,
+            "compose_environment",
+            side_effect=KeyboardInterrupt("synthetic interruption before up"),
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                self.release.deploy(NEW_IMAGE, NEW_SHA)
+        self.release.events.clear()
+        self.release.recover()
+        self.assertEqual(self.release.state["active"], "app_green")
+        self.assertEqual(self.release.state["phase"], "stable")
+        self.assertEqual(self.release.state["slots"]["app_blue"]["sha"], SHA)
+        self.assertFalse(self.release.actual["app_blue"]["State"]["Running"])
+        self.assertFalse(any(e.startswith("docker:") for e in self.release.events))
+
     def test_old_app_stops_only_after_original_worker_identity_exits(self) -> None:
         self.release.worker_plan = [["10:100"], ["10:100"], ["10:100"], ["10:999"]]
         with patch("release.time.sleep"):
@@ -416,6 +546,35 @@ class ReleaseTests(unittest.TestCase):
             self.deploy()
         self.assertNotIn("app_green", self.release.actual)
 
+    def test_same_code_settings_change_requires_configuration_runner(self) -> None:
+        self.release.runtime.app_env["AI_REQUESTS_PER_HOUR"] = "12"
+        with self.assertRaisesRegex(ReleaseError, "configuration runner"):
+            self.release.deploy(IMAGE, SHA)
+        self.assertNotIn("app_green", self.release.actual)
+        self.release.configuration_operation = True
+        self.release.worker_plan = [[]]
+        self.release.deploy(IMAGE, SHA)
+        self.assertEqual(self.release.state["active"], "app_green")
+
+    def test_same_code_settings_rollback_requires_configuration_runner(self) -> None:
+        self.release.configuration_operation = True
+        self.release.runtime.app_env["AI_REQUESTS_PER_HOUR"] = "12"
+        self.release.worker_plan = [[]]
+        self.release.deploy(IMAGE, SHA)
+        self.release.configuration_operation = False
+        with self.assertRaisesRegex(ReleaseError, "configuration runner"):
+            self.release.rollback()
+        self.assertEqual(self.release.state["active"], "app_green")
+        self.release.configuration_operation = True
+        self.release.rollback()
+        self.assertEqual(self.release.state["active"], "app_blue")
+
+    def test_same_values_with_new_revision_require_configuration_runner(self) -> None:
+        self.release.state["slots"]["app_blue"]["config_revision"] = "prior-revision"
+        with self.assertRaisesRegex(ReleaseError, "configuration runner"):
+            self.release.deploy(IMAGE, SHA)
+        self.assertNotIn("app_green", self.release.actual)
+
     def test_status_contains_only_safe_identifiers(self) -> None:
         result = json.dumps(self.release.status())
         self.assertNotIn("DATABASE_URL", result)
@@ -487,6 +646,40 @@ class ReleaseTests(unittest.TestCase):
                 with self.assertRaisesRegex(ReleaseError, "host lock"):
                     with self.release.lock():
                         self.fail("overlapping lock was acquired")
+
+    def test_pending_configuration_blocks_regular_release_and_certificate_lock(
+        self,
+    ) -> None:
+        pending = self.release.root / "state" / "config-pending.json"
+        original = self.release.journal.read_bytes()
+        for symlink in (False, True):
+            with self.subTest(symlink=symlink):
+                if symlink:
+                    pending.symlink_to(pending.with_name("missing-transaction"))
+                else:
+                    atomic_write(pending, "{}")
+                try:
+                    with self.assertRaisesRegex(ReleaseError, "configuration release"):
+                        with self.release.lock():
+                            self.fail("pending configuration allowed regular operation")
+                    self.assertEqual(self.release.journal.read_bytes(), original)
+                finally:
+                    pending.unlink()
+
+    def test_configuration_runner_can_recover_pending_under_the_same_host_lock(
+        self,
+    ) -> None:
+        pending = self.release.root / "state" / "config-pending.json"
+        atomic_write(pending, "{}")
+        self.release.configuration_operation = True
+        another = Release(self.release.runtime, DEPLOY.parent)
+        another.configuration_operation = True
+        with patch("config.private_path"):
+            with self.release.lock():
+                self.assertEqual(self.release.state["active"], "app_blue")
+                with self.assertRaisesRegex(ReleaseError, "host lock"):
+                    with another.lock():
+                        self.fail("configuration recovery bypassed the host lock")
 
     def test_renewal_commands_disable_sleep_inside_the_host_lock(self) -> None:
         for mode in ("renew", "dry-run"):
