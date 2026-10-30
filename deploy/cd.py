@@ -83,8 +83,16 @@ def gate(sha: str, timeout: int = 900) -> bool:
     raise DeploymentError("required checks did not complete within the gate deadline")
 
 
-def aws(*args: str) -> Any:
-    output = run("aws", *args, "--region", os.environ["AWS_REGION"], "--output", "json")
+def aws(*args: str, timeout: int = 900) -> Any:
+    output = run(
+        "aws",
+        *args,
+        "--region",
+        os.environ["AWS_REGION"],
+        "--output",
+        "json",
+        timeout=timeout,
+    )
     return json.loads(output) if output.strip() else {}
 
 
@@ -273,6 +281,7 @@ def preserve_recovery(state_dir: Path, sha: str) -> None:
             str(archive),
             "--content-type",
             "application/gzip",
+            timeout=30,
         )
         print(json.dumps({"private_recovery_key": key}), flush=True)
     except Exception:  # noqa: BLE001 -- 증거 보존 실패가 서비스 복구를 막으면 안 된다.

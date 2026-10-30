@@ -6,7 +6,7 @@ GitHub가 처음인 팀원은 [문서 협업 시작하기](../collaboration/READ
 
 ## 브랜치와 릴리스 흐름
 
-기본 브랜치는 `develop`입니다. 최신 `develop`에서 `feat/…`, `fix/…`, `docs/…` 같은 [작업 브랜치](conventions.md#git과-pr)를 만들고, 명세·기능·수정 PR의 대상도 `develop`으로 지정합니다. 작업 브랜치를 뜻하는 `feature/*` 대신 저장소의 `<type>/<작업-내용>` 이름을 사용합니다.
+기본 브랜치는 `develop`입니다. 최신 `develop`에서 `feat/…`, `fix/…`, `docs/…` 같은 [작업 브랜치](conventions.md)를 만들고, 명세·기능·수정 PR의 대상도 `develop`으로 지정합니다. 작업 브랜치를 뜻하는 `feature/*` 대신 저장소의 `<type>/<작업-내용>` 이름을 사용합니다.
 
 | 변경 | PR 방향 | 병합 방식 | 병합 후 실행 |
 | --- | --- | --- | --- |

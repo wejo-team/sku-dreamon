@@ -224,10 +224,12 @@ class DeployTests(unittest.TestCase):
         self.events.append("image")
         return DIGEST
 
-    def upload(self, *args):
+    def upload(self, *args, **kwargs):
         self.assertEqual(args[:2], ("s3api", "put-object"))
         key = args[args.index("--key") + 1]
         content = Path(args[args.index("--body") + 1]).read_bytes()
+        if "/recovery/" in key:
+            self.assertLessEqual(kwargs.get("timeout", 900), 30)
         if "/recovery/" in key and self.fail_recovery_upload:
             raise cd.DeploymentError("private upload diagnostic must not be printed")
         self.uploads[key] = content
@@ -493,6 +495,26 @@ class ApiVerificationTests(unittest.TestCase):
             self.assertRaises(cd.DeploymentError),
         ):
             cd.verify_api(SHA)
+
+
+class AwsTimeoutTests(unittest.TestCase):
+    def test_explicit_timeout_is_forwarded_to_the_process_boundary(self) -> None:
+        with (
+            patch.dict(os.environ, ENVIRONMENT, clear=True),
+            patch.object(cd, "run", return_value=b'{"saved": true}') as command,
+        ):
+            result = cd.aws("s3api", "put-object", timeout=30)
+        self.assertEqual(result, {"saved": True})
+        command.assert_called_once_with(
+            "aws",
+            "s3api",
+            "put-object",
+            "--region",
+            "ap-northeast-2",
+            "--output",
+            "json",
+            timeout=30,
+        )
 
 
 class HostPollingTests(unittest.TestCase):
