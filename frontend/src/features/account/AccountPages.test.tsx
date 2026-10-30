@@ -146,6 +146,26 @@ async function renderProfileFlow() {
 }
 
 describe('design preview account flows', () => {
+  it.each([
+    ['first profile', false, '/profile'],
+    ['saved profile', true, '/profile'],
+    ['profile edit', true, '/profile?edit=details'],
+  ] as const)(
+    'logs out from the %s without saving changes',
+    async (_, hasProfile, path) => {
+      await renderAccount(path, {
+        db: hasProfile ? createDemoRecords() : withoutMyProfile(),
+      });
+      const user = setupUser();
+      await user.click(screen.getByRole('button', { name: '로그아웃' }));
+      await screen.findByText('로그인하고 계속해 주세요.');
+      expect(mockSession()).toBeNull();
+      expect(requestsTo('POST', '/auth/logout')).toHaveLength(1);
+      expect(profileSaves()).toHaveLength(0);
+      expect(screen.queryByLabelText('이름 (필수)')).not.toBeInTheDocument();
+    },
+  );
+
   it.each([true, false])(
     'uses API isDemo=%s across the profile summary, editor and public preview regardless of the name',
     async (isDemo) => {
