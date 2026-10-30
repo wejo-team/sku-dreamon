@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "2.2",
+  "description": "검증된 릴리스 실행기로 운영 상태 조회, 앱 교체와 롤백을 수행한다.",
+  "parameters": {
+    "Action": {"type": "String", "allowedValues": ["status", "deploy", "rollback"], "interpolationType": "ENV_VAR"},
+    "ReleaseSha": {"type": "String", "allowedPattern": "^[0-9a-f]{40}$", "interpolationType": "ENV_VAR"},
+    "SourceSha256": {"type": "String", "allowedPattern": "^[0-9a-f]{64}$", "interpolationType": "ENV_VAR"},
+    "ImageDigest": {"type": "String", "allowedPattern": "^[0-9a-f]{64}$", "interpolationType": "ENV_VAR"},
+    "ExpectedCurrentSha": {"type": "String", "allowedPattern": "^[0-9a-f]{40}$", "interpolationType": "ENV_VAR"}
+  },
+  "mainSteps": [{
+    "action": "aws:runShellScript",
+    "name": "productionRelease",
+    "precondition": {"StringEquals": ["platformType", "Linux"]},
+    "inputs": {
+      "timeoutSeconds": "1800",
+      "runCommand": [
+        "set -eu",
+        "runner=/opt/sku-dreamon/current/deploy/cd_release.py",
+        "if [ ! -f \"$runner\" ]; then runner=/opt/sku-dreamon/operations/cd_release.py; fi",
+        "case \"$SSM_Action\" in",
+        "status) exec /usr/bin/python3.13 \"$runner\" --config /etc/sku-dreamon/cd.json --action status ;;",
+        "rollback) exec /usr/bin/python3.13 \"$runner\" --config /etc/sku-dreamon/cd.json --action rollback --sha \"$SSM_ReleaseSha\" --expected-current \"$SSM_ExpectedCurrentSha\" ;;",
+        "deploy) exec /usr/bin/python3.13 \"$runner\" --config /etc/sku-dreamon/cd.json --action deploy --sha \"$SSM_ReleaseSha\" --source-sha256 \"$SSM_SourceSha256\" --image-digest \"$SSM_ImageDigest\" --expected-current \"$SSM_ExpectedCurrentSha\" ;;",
+        "*) exit 2 ;;",
+        "esac"
+      ]
+    }
+  }]
+}

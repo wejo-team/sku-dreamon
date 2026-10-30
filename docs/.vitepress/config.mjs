@@ -99,7 +99,7 @@ export default defineConfig({
       },
     },
     editLink: {
-      pattern: `${repositoryUrl}/edit/main/docs/:path`,
+      pattern: `${repositoryUrl}/edit/develop/docs/:path`,
       text: "GitHub에서 수정 제안",
     },
     lastUpdated: {
