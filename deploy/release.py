@@ -61,6 +61,7 @@ class Release:
     def __init__(self, runtime: Runtime, checkout: Path) -> None:
         self.runtime = runtime
         self.checkout = checkout
+        self.configuration_operation = False
         self.root = runtime.root
         self.journal = self.root / "state" / "release.json"
         self.active_config = self.root / "nginx" / "active.conf"
@@ -99,6 +100,13 @@ class Release:
                 raise ReleaseError(
                     "another release operation holds the host lock"
                 ) from None
+            pending = state_dir / "config-pending.json"
+            if not self.configuration_operation and (
+                pending.exists() or pending.is_symlink()
+            ):
+                raise ReleaseError(
+                    "unfinished configuration release requires explicit recover"
+                )
             self.load()
             yield
         finally:
@@ -238,11 +246,37 @@ class Release:
     def verify_slot(self, slot: str) -> dict[str, Any]:
         record = self.state["slots"][slot]
         container = self.container(slot)
-        if (
-            not container
-            or not container["State"]["Running"]
-            or container["Image"] != record["image_id"]
+        if not container or not container["State"]["Running"]:
+            raise ReleaseError("app image or running identity differs from the journal")
+        self.verify_app_identity(record, container)
+        settings = json.loads(
+            self.docker(
+                "exec",
+                container["Id"],
+                "python",
+                "-c",
+                "import json; from app.core.config import Settings; "
+                "s=Settings(_env_file=None); "
+                "print(json.dumps({'AI_TIMEOUT_SECONDS': s.ai_timeout_seconds, "
+                "'AI_CLEANUP_TIMEOUT_SECONDS': s.ai_cleanup_timeout_seconds, "
+                "'SHUTDOWN_TIMEOUT_SECONDS': s.shutdown_timeout_seconds}))",
+                timeout=15,
+            )
+        )
+        if any(
+            float(settings[key]) != float(value)
+            for key, value in record["timeout_env"].items()
         ):
+            raise ReleaseError(
+                "product runtime timeout settings differ from the release record"
+            )
+        return container
+
+    def verify_app_identity(
+        self, record: dict[str, Any], container: dict[str, Any]
+    ) -> None:
+        """기동에 실패한 후보도 이미지·주입값 신원은 별도로 대조한다."""
+        if container["Image"] != record["image_id"]:
             raise ReleaseError("app image or running identity differs from the journal")
         if container["Config"]["Image"] != record["image"]:
             raise ReleaseError("app immutable image reference differs from the journal")
@@ -266,28 +300,6 @@ class Release:
         for key, value in record["timeout_env"].items():
             if environment_values.get(key) != value:
                 raise ReleaseError("actual app timeouts differ from the release record")
-        settings = json.loads(
-            self.docker(
-                "exec",
-                container["Id"],
-                "python",
-                "-c",
-                "import json; from app.core.config import Settings; "
-                "s=Settings(_env_file=None); "
-                "print(json.dumps({'AI_TIMEOUT_SECONDS': s.ai_timeout_seconds, "
-                "'AI_CLEANUP_TIMEOUT_SECONDS': s.ai_cleanup_timeout_seconds, "
-                "'SHUTDOWN_TIMEOUT_SECONDS': s.shutdown_timeout_seconds}))",
-                timeout=15,
-            )
-        )
-        if any(
-            float(settings[key]) != float(value)
-            for key, value in record["timeout_env"].items()
-        ):
-            raise ReleaseError(
-                "product runtime timeout settings differ from the release record"
-            )
-        return container
 
     def ready(self, slot: str, attempts: int = 12) -> None:
         self.verify_slot(slot)
@@ -515,6 +527,21 @@ class Release:
         self.reconcile()
         old = self.state["active"]
         if old:
+            record = self.state["slots"][old]
+            requested_hash = hashlib.sha256(
+                environment(self.runtime.app_env, raw=True).encode()
+            ).hexdigest()
+            if (
+                sha == record["sha"]
+                and (
+                    requested_hash != record["env_hash"]
+                    or self.runtime.config_revision != record["config_revision"]
+                )
+                and not self.configuration_operation
+            ):
+                raise ReleaseError(
+                    "settings-only deployment requires configuration runner"
+                )
             # DB 이동·CSRF key rotation은 별도 절차로 수행한다.
             prior_env = self.read_environment(
                 Path(self.state["slots"][old]["env_file"])
@@ -534,6 +561,17 @@ class Release:
         previous = self.state["previous"]
         if previous not in SLOTS or previous == self.state["active"]:
             raise ReleaseError("no compatible previous release is recorded")
+        active_record = self.state["slots"][self.state["active"]]
+        previous_record = self.state["slots"][previous]
+        if (
+            active_record["sha"] == previous_record["sha"]
+            and any(
+                active_record[key] != previous_record[key]
+                for key in ("env_hash", "config_revision")
+            )
+            and not self.configuration_operation
+        ):
+            raise ReleaseError("settings-only rollback requires configuration runner")
         # readiness는 코드에 고정된 호환 revision을 검사한다.
         self.begin(previous, self.state["slots"][previous], False)
 
@@ -681,6 +719,51 @@ class Release:
         container = self.container(slot)
         self.verify_stopped(container)
 
+    def discard_candidate(self) -> None:
+        """복귀 경로에서만 실패 후보를 멈추며 정상 종료로 기록하지 않는다."""
+        transaction = self.state.get("transaction")
+        if not transaction:
+            raise ReleaseError("candidate cleanup requires an active transaction")
+        slot = transaction["target"]
+        if slot not in SLOTS or slot in (self.state["active"], transaction["old"]):
+            raise ReleaseError("candidate cleanup refuses the active app")
+        container = self.container(slot)
+        if container is None:
+            return
+        try:
+            self.verify_app_identity(self.state["slots"][slot], container)
+        except ReleaseError:
+            # up 전 중단이면 슬롯에는 이전 릴리스의 정지 컨테이너가 남을 수 있다.
+            prior = transaction.get("prior_target")
+            if (
+                transaction["stage"] != "prepared"
+                or prior is None
+                or container["State"]["Running"]
+                or container["State"].get("Restarting")
+            ):
+                raise
+            self.verify_app_identity(prior, container)
+            return
+        identity = container["Id"]
+        if transaction.get("candidate_cleanup_id", identity) != identity:
+            raise ReleaseError("candidate identity changed during cleanup")
+        transaction["candidate_cleanup_id"] = identity
+        self.save()
+        # restarting 중에는 update가 거부될 수 있어 먼저 고정 ID를 정지한다.
+        seconds = self.state["slots"][slot]["budgets"]["stop"]
+        self.docker("stop", "--timeout", str(seconds), identity, timeout=seconds + 15)
+        # 이미 exit한 실패 후보도 호스트 재기동 후 살아나지 않는다.
+        self.docker("update", "--restart=no", identity, timeout=15)
+        stopped = self.container(slot)
+        if (
+            stopped is None
+            or stopped["Id"] != identity
+            or stopped["State"]["Running"]
+            or stopped["State"].get("Restarting")
+        ):
+            raise ReleaseError("candidate cleanup did not stop the expected app")
+        self.verify_app_identity(self.state["slots"][slot], stopped)
+
     @staticmethod
     def verify_stopped(container: dict[str, Any] | None) -> None:
         if (
@@ -733,9 +816,7 @@ class Release:
         if old:
             self.smoke(old)
         self.drain(transaction)
-        actual = self.container(transaction["target"])
-        if actual and actual["State"]["Running"]:
-            self.stop(transaction["target"])
+        self.discard_candidate()
         transaction["stage"] = "restored"
         self.state["phase"] = "failed"
         self.save()
@@ -783,9 +864,7 @@ class Release:
             stage == "config_intent" and actual_hash == transaction["old_hash"]
         ):
             # migration 실패는 DB 확인 후 별도 release로 재시도한다.
-            actual = self.container(transaction["target"])
-            if actual and actual["State"]["Running"]:
-                self.stop(transaction["target"])
+            self.discard_candidate()
             self.restore_target_record(transaction)
             self.state.update(
                 phase="stable" if transaction["old"] else "bootstrap", transaction=None

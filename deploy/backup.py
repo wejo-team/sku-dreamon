@@ -191,6 +191,9 @@ class Backup:
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise BackupError("lock_unavailable") from None
+            pending = directory / "config-pending.json"
+            if pending.exists() or pending.is_symlink():
+                raise BackupError("release_not_stable")
             journal = directory / "release.json"
             if not stat.S_ISREG(checked_stat(journal, private=True).st_mode):
                 raise BackupError("unsafe_path")
@@ -528,7 +531,8 @@ def main(arguments: list[str] | None = None) -> int:
         except (ReleaseError, OSError, ValueError, TypeError):
             raise BackupError("runtime_invalid") from None
         result = Backup(runtime, args.config, checkout, options).run()
-    # 최상위 운영 경계에서 예상 밖 오류도 비밀값·경로를 포함한 traceback으로 내보내지 않는다.
+    # 최상위 운영 경계에서 예상 밖 오류도 비밀값·경로가 포함된
+    # traceback으로 내보내지 않는다.
     except Exception as error:  # noqa: BLE001
         code = str(error) if isinstance(error, BackupError) else "operation_failed"
         print(json.dumps({"event": "backup_failed", "code": code}), file=sys.stderr)
