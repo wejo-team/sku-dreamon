@@ -137,6 +137,8 @@ class ConfigurationTests(unittest.TestCase):
             LANGSMITH_PROJECT="sku-dreamon-test",
             LANGSMITH_ENDPOINT="https://api.smith.langchain.com",
             LANGSMITH_WORKSPACE_ID="00000000-0000-4000-8000-000000000001",
+            LANGSMITH_HIDE_INPUTS="true",
+            LANGSMITH_HIDE_OUTPUTS="false",
         )
         result = self.change()
         self.assertEqual(result["operation_status"], "applied")
