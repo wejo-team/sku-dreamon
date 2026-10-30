@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "2.2",
+  "description": "현재 앱의 고정된 SSM 설정 버전을 적용하거나 이전 설정으로 복구한다.",
+  "parameters": {
+    "Action": {
+      "type": "String",
+      "allowedValues": ["status", "apply", "rollback", "recover"],
+      "interpolationType": "ENV_VAR"
+    },
+    "ParameterVersion": {
+      "type": "String",
+      "default": "0",
+      "allowedPattern": "^(0|[1-9][0-9]{0,18})$",
+      "interpolationType": "ENV_VAR"
+    },
+    "ExpectedCurrentSha": {
+      "type": "String",
+      "default": "0000000000000000000000000000000000000000",
+      "allowedPattern": "^[0-9a-f]{40}$",
+      "interpolationType": "ENV_VAR"
+    },
+    "ExpectedEnvHash": {
+      "type": "String",
+      "default": "0000000000000000000000000000000000000000000000000000000000000000",
+      "allowedPattern": "^[0-9a-f]{64}$",
+      "interpolationType": "ENV_VAR"
+    },
+    "ExpectedConfigRevision": {
+      "type": "String",
+      "default": "unknown",
+      "allowedPattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$",
+      "interpolationType": "ENV_VAR"
+    }
+  },
+  "mainSteps": [{
+    "action": "aws:runShellScript",
+    "name": "productionConfiguration",
+    "precondition": {"StringEquals": ["platformType", "Linux"]},
+    "inputs": {
+      "timeoutSeconds": "1800",
+      "runCommand": [
+        "set -eu",
+        "runner=/opt/sku-dreamon/current/deploy/config_release.py",
+        "test -f \"$runner\"",
+        "case \"$SSM_Action\" in",
+        "status|apply|rollback|recover) exec /usr/bin/python3.13 \"$runner\" --cd-config /etc/sku-dreamon/cd.json --source-config /etc/sku-dreamon/ssm-config.json --action \"$SSM_Action\" --version \"$SSM_ParameterVersion\" --expected-sha \"$SSM_ExpectedCurrentSha\" --expected-env-hash \"$SSM_ExpectedEnvHash\" --expected-config-revision \"$SSM_ExpectedConfigRevision\" ;;",
+        "*) exit 2 ;;",
+        "esac"
+      ]
+    }
+  }]
+}
