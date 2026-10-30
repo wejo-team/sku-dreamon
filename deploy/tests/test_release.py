@@ -488,6 +488,41 @@ class ReleaseTests(unittest.TestCase):
                     with self.release.lock():
                         self.fail("overlapping lock was acquired")
 
+    def test_renewal_commands_disable_sleep_inside_the_host_lock(self) -> None:
+        for mode in ("renew", "dry-run"):
+            with (
+                self.subTest(mode=mode),
+                patch.object(self.release, "wait_certificate"),
+                patch.object(
+                    self.release, "compose", wraps=self.release.compose
+                ) as compose,
+            ):
+                self.release.certificate(mode)
+                compose.assert_called_once()
+                args = compose.call_args.args
+                command = args[args.index("certbot") + 1 :]
+                self.assertEqual(command[0], "renew")
+                self.assertIn("--no-random-sleep-on-renew", command)
+                self.assertEqual("--dry-run" in command, mode == "dry-run")
+
+    def test_initial_certificate_command_has_no_renewal_sleep_option(self) -> None:
+        self.release.state.update(phase="bootstrap", active=None, slots={})
+        self.release.actual.pop("app_blue")
+        with (
+            patch.object(self.release, "wait_certificate"),
+            patch.object(self.release, "apply_certificate"),
+            patch.object(
+                self.release, "compose", wraps=self.release.compose
+            ) as compose,
+        ):
+            self.release.certificate("issue", email="operator@example.com")
+        compose.assert_called_once()
+        args = compose.call_args.args
+        command = args[args.index("certbot") + 1 :]
+        self.assertEqual(command[0], "certonly")
+        self.assertNotIn("--no-random-sleep-on-renew", command)
+        self.assertNotIn("--dry-run", command)
+
     def test_dry_run_does_not_reload_or_claim_a_certificate_installation(self) -> None:
         with patch.object(self.release, "wait_certificate"):
             self.release.certificate("dry-run")
