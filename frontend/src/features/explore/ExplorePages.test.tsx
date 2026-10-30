@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { setupUser } from '@/test/user';
 import { Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -325,6 +325,71 @@ describe('official reference public exploration', () => {
     expect(
       screen.getByRole('checkbox', { name: '모집중만' }),
     ).not.toBeChecked();
+  });
+
+  // 2벌식으로 칠 때 입력기가 보내는 조합 중간 값
+  it.each([
+    ['가난', ['ㄱ', '가', '간', '가나', '가난']],
+    ['맛탕', ['ㅁ', '마', '맛', '맛ㅌ', '맛타', '맛탕']],
+    [
+      '갂섥기',
+      ['ㄱ', '가', '갂', '갂ㅅ', '갂서', '갂설', '갂섥', '갂섥ㄱ', '갂섥기'],
+    ],
+  ])(
+    'keeps the Korean composition of %s in the search box and writes only the composed text to the URL',
+    async (word, steps) => {
+      const { user, step } = await renderExplore('/explore');
+      const input = screen.getByRole('textbox', { name: '탐색 검색' });
+      fireEvent.compositionStart(input);
+      for (const value of steps) {
+        fireEvent.change(input, { target: { value } });
+        expect(input).toHaveValue(value);
+        expect(currentUrl().searchParams.get('q')).toBeNull();
+      }
+      await step(async () => {
+        fireEvent.compositionEnd(input);
+      });
+      expect(input).toHaveValue(word);
+      expect(currentUrl().searchParams.get('q')).toBe(word);
+      await step(() =>
+        user.click(
+          screen.getAllByRole('button', { name: '검색 조건 초기화' })[0]!,
+        ),
+      );
+      expect(input).toHaveValue('');
+      expect(currentUrl().searchParams.get('q')).toBeNull();
+    },
+  );
+
+  // 조합 종료와 클릭이 함께 처리되면 중간 URL(q=가)이 렌더링되지 않습니다.
+  it('clears the composed draft when a tab link is clicked right after composition ends', async () => {
+    const { client } = await renderExplore('/explore');
+    const input = screen.getByRole('textbox', { name: '탐색 검색' });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: '가' } });
+    act(() => {
+      fireEvent.compositionEnd(input);
+      fireEvent.click(screen.getByRole('link', { name: '팀' }));
+    });
+    await settled(client);
+    expect(currentUrl().search).toBe('?tab=teams');
+    expect(input).toHaveValue('');
+  });
+
+  it('clears the composed draft when conditions are reset right after composition ends', async () => {
+    const { client } = await renderExplore('/explore?sort=deadline');
+    const input = screen.getByRole('textbox', { name: '탐색 검색' });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: '가' } });
+    act(() => {
+      fireEvent.compositionEnd(input);
+      fireEvent.click(
+        screen.getAllByRole('button', { name: '검색 조건 초기화' })[0]!,
+      );
+    });
+    await settled(client);
+    expect(currentUrl().search).toBe('');
+    expect(input).toHaveValue('');
   });
 
   it('exposes an accessible AI shortcut and resets a sort-only condition', async () => {
