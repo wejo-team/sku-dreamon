@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     http_trusted_proxies: tuple[str, ...] = ()
     openai_api_key: SecretStr | None = Field(default=None, repr=False)
     langsmith_tracing: bool = False
+    langsmith_hide_inputs: bool = False
+    langsmith_hide_outputs: bool = False
     langsmith_api_key: SecretStr | None = Field(default=None, repr=False)
     langsmith_project: str = Field(default="sku-dreamon", min_length=1, max_length=100)
     langsmith_endpoint: HttpUrl = HttpUrl("https://api.smith.langchain.com")

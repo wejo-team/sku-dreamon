@@ -22,7 +22,7 @@
 | [AI 에이전트 SDD](../development-plans/ai-agent.md) | `create_agent`·OpenAI Luna 백엔드·제품 화면 연결과 운영 후속 작업 |
 | [architecture.md](architecture.md) | 폴더 책임·의존 방향·실행 기반을 변경할 때 |
 | [ai-architecture.md](ai-architecture.md) | AI 흐름도·도구 구성도·저장 시퀀스와 구현 설명 |
-| [LangSmith 실행 추적](langsmith-tracing.md) | AI 실행·모델·도구 계측, 원문 제외, 설정과 검증·운영 제한 |
+| [LangSmith 실행 추적](langsmith-tracing.md) | LangChain 기본 실행 트리·원문 기록 범위, 설정·masking·운영 인계 |
 | [conventions.md](conventions.md) | 이름·포맷·주석·브랜치·커밋·PR |
 | [frontend.md](frontend.md) | 모바일 UI, API 호출, 캐시, 폼·상태 관리 |
 | [공식 디자인](../design/README.md) | 저장소의 모바일 화면·상태·컴포넌트를 참조해 제품 프론트에 구현할 때 |

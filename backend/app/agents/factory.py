@@ -3,7 +3,6 @@
 import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
-from contextlib import aclosing
 from datetime import UTC, datetime
 from typing import Protocol, cast
 
@@ -30,7 +29,6 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_openai import ChatOpenAI
 from langgraph.runtime import Runtime
 from langgraph.types import Command
-from langsmith import tracing_context
 
 from app.agents.guards import InputBlocked, InputGuard, InputGuardMiddleware
 from app.agents.prompts import AGENT_PROMPT, FINAL_ANSWER_PROMPT
@@ -39,8 +37,6 @@ from app.agents.tracing import (
     FINAL_ANSWER_TAG,
     AiTraceContext,
     AiTracing,
-    TraceStatus,
-    TurnTrace,
 )
 from app.agents.types import PreviousContext, RecommendationGate, RecommendationPlan
 from app.core.config import Settings
@@ -247,34 +243,6 @@ class OpenAiAgentDriver:
         gate: RecommendationGate,
         trace_context: AiTraceContext | None = None,
     ) -> AsyncGenerator[str]:
-        trace = self.tracing.start(sources.reader.context.purpose, trace_context)
-        status: TraceStatus = "failed"
-        try:
-            async with aclosing(
-                self._stream(
-                    sources, content, history, previous, gate=gate, trace=trace
-                )
-            ) as response:
-                async for chunk in response:
-                    yield chunk
-            status = "blocked" if trace is not None and trace.blocked else "completed"
-        except (asyncio.CancelledError, GeneratorExit):
-            status = "canceled"
-            raise
-        finally:
-            if trace is not None:
-                trace.finish(status)
-
-    async def _stream(
-        self,
-        sources: SourceTools,
-        content: str,
-        history: list[str],
-        previous: PreviousContext,
-        *,
-        gate: RecommendationGate,
-        trace: TurnTrace | None,
-    ) -> AsyncGenerator[str]:
         phase = RecommendationPhase(sources, gate)
 
         @tool
@@ -284,12 +252,9 @@ class OpenAiAgentDriver:
 
         middleware: list[AgentMiddleware[AgentState[None], None]] = []
         if sources.reader.context.purpose == "chat":
-            guard = (
-                InputGuard(self.model, callbacks=[trace])
-                if trace is not None
-                else InputGuard(self.model)
+            middleware.append(
+                InputGuardMiddleware(InputGuard(self.model), content, history)
             )
-            middleware.append(InputGuardMiddleware(guard, content, history))
         middleware.extend(
             [
                 RequestContext(sources, content, history, previous),
@@ -310,7 +275,9 @@ class OpenAiAgentDriver:
                 {"messages": [HumanMessage(id=REQUEST_MESSAGE_ID, content=content)]},
                 config={
                     "recursion_limit": 32,
-                    "callbacks": [trace] if trace is not None else [],
+                    **self.tracing.config(
+                        sources.reader.context.purpose, trace_context
+                    ),
                 },
                 version="v2",
             ),
@@ -319,8 +286,8 @@ class OpenAiAgentDriver:
             try:
                 while True:
                     # anext마다 새 task에서 실행될 수 있으므로 yield를 가로질러
-                    # contextvars를 유지하지 않고 각각의 대기·정리를 차단한다.
-                    with tracing_context(enabled=False):
+                    # contextvars를 유지하지 않고 각 대기·정리에 추적 설정을 적용한다.
+                    with self.tracing.context():
                         try:
                             event = await anext(events)
                         except StopAsyncIteration:
@@ -336,11 +303,9 @@ class OpenAiAgentDriver:
                         # text는 추론·도구 인자가 아닌 텍스트 블록만 추출한다.
                         yield str(chunk.text)
             finally:
-                with tracing_context(enabled=False):
+                with self.tracing.context():
                     await events.aclose()
         except InputBlocked as error:
-            if trace is not None:
-                trace.blocked = True
             await gate(
                 RecommendationPlan(
                     intent="clarify", selections=[], guidance=error.guidance

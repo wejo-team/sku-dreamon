@@ -103,7 +103,7 @@ async def test_contextual_followup_checks_current_input_with_user_history_only()
     assert "tools" not in binding
     assert binding["response_format"]["type"] == "json_schema"
     assert invoke.call_args.kwargs["config"] == {
-        "callbacks": [],
+        "run_name": "input_guard",
         "tags": ["ai_input_guard"],
     }
 

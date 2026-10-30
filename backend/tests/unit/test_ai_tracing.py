@@ -3,21 +3,20 @@
 import asyncio
 import json
 import threading
-from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
-import requests
 from langchain_core.messages import AIMessageChunk
+from langchain_openai import ChatOpenAI
 from langsmith import Client, get_tracing_context, tracing_context
 from pydantic import SecretStr, ValidationError
 
 from app.agents import factory, tracing
 from app.agents.factory import OpenAiAgentDriver
 from app.agents.tools import SourceTools
-from app.agents.tracing import TRACE_QUEUE_SIZE, AiTraceContext, AiTracing
+from app.agents.tracing import AiTraceContext, AiTracing
 from app.core.config import Settings
 from app.services.ai_sources import SourceReader
 from tests.unit.test_ai_runtime import Script, ScriptedModel, prepare
@@ -125,42 +124,43 @@ async def test_disabled_ignores_ambient_native_tracing_across_iterator_tasks(
     native.assert_not_called()
 
 
-async def test_real_sdk_serialization_exports_only_allowlisted_spans(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    bodies: list[bytes] = []
-    main_thread = threading.get_ident()
+@pytest.fixture
+def native_exports(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    batches: list[dict[str, Any]] = []
 
-    def capture(
-        self: requests.Session, method: str, url: str, **kwargs: Any
-    ) -> requests.Response:
-        assert threading.get_ident() != main_thread
-        assert method in {"POST", "PATCH"}
-        assert url.startswith("https://api.smith.langchain.com/runs")
-        assert kwargs["timeout"] == (1, 1)
-        bodies.append(kwargs["data"])
-        response = requests.Response()
-        response.status_code = 200
-        response._content = b"{}"
-        response.url = url
-        return response
+    def capture(self: Client, body: bytes, **kwargs: Any) -> None:
+        batches.append(json.loads(body))
 
-    monkeypatch.setattr(requests.Session, "request", capture)
+    monkeypatch.setattr(Client, "_post_batch_ingest_runs", capture)
 
     def client(**kwargs: Any) -> Client:
-        return Client(**kwargs)
+        return Client(
+            **kwargs,
+            info={
+                "batch_ingest_config": {
+                    "use_multipart_endpoint": False,
+                    "size_limit": 100,
+                    "scale_up_nthreads_limit": 1,
+                    "scale_up_qsize_trigger": 1000,
+                }
+            },
+        )
 
     monkeypatch.setattr(tracing, "Client", client)
-    monkeypatch.setenv("LANGCHAIN_REVISION_ID", "private-environment-metadata")
-    private_id = uuid4()
-    sentinel = f"private-input-{private_id}"
+    return batches
+
+
+async def test_native_graph_records_full_io_and_nested_guard_without_duplicates(
+    monkeypatch: pytest.MonkeyPatch,
+    native_exports: list[dict[str, Any]],
+) -> None:
     script = Script(
         rounds=[
             [AIMessageChunk(content='{"reason":"allowed"}')],
             [prepare()],
             [
                 AIMessageChunk(
-                    content="private answer",
+                    content="native answer",
                     usage_metadata={
                         "input_tokens": 7,
                         "output_tokens": 3,
@@ -171,325 +171,262 @@ async def test_real_sdk_serialization_exports_only_allowlisted_spans(
         ]
     )
     runtime = driver(monkeypatch, script, enabled_settings())
-    tools = sources("chat")
-    caplog.set_level("INFO", logger="app.agents.tracing")
+    request_id = uuid4()
     try:
-        assert [
-            part
-            async for part in runtime.stream(
-                tools,
-                sentinel,
-                ["private history"],
-                AsyncMock(return_value=[{"identity": sentinel}]),
+        result = [
+            chunk
+            async for chunk in runtime.stream(
+                sources("chat"),
+                "original request",
+                ["original history"],
+                AsyncMock(return_value=[{"facts": "authorized resource"}]),
                 gate=AsyncMock(),
-                trace_context=AiTraceContext(private_id, 2),
+                trace_context=AiTraceContext(request_id, 2),
             )
-        ] == ["private answer"]
+        ]
+        assert result == ["native answer"]
     finally:
         await runtime.tracing.aclose()
-    assert bodies
-    raw = b"\n".join(bodies).decode()
-    for forbidden in (
-        sentinel,
-        str(private_id),
-        "private answer",
-        "private history",
-        "synthetic-tracing-key",
-        "private-environment-metadata",
-        "serialized",
-        "messages",
-    ):
-        assert forbidden not in raw
-    updates = [json.loads(body) for body in bodies]
-    runs = [run for run in updates if run.get("name")]
-    assert {run["name"] for run in runs} == {
-        "ai_turn",
-        "input_guard",
-        "react_model",
-        "final_answer",
-        "prepare_recommendations",
-    }
-    root = next(run for run in runs if run["name"] == "ai_turn")
-    assert all(run["trace_id"] == root["id"] for run in runs)
-    assert all(run.get("parent_run_id") == root["id"] for run in runs if run != root)
-    assert all(run["inputs"] == {} for run in runs)
-    model_ids = {run["id"] for run in runs if run["run_type"] == "llm"}
-    assert all(
-        run["extra"]["metadata"].get("ls_model_name") == "gpt-6-luna"
-        and run["extra"]["metadata"].get("ls_provider") == "openai"
-        for run in updates
-        if run["id"] in model_ids
-    )
+    posts = [run for batch in native_exports for run in batch.get("post", [])]
+    roots = [run for run in posts if not run.get("parent_run_id")]
+    assert len(roots) == 1
+    root = roots[0]
+    assert root["name"] == "ai_turn"
+    assert all(run["trace_id"] == root["id"] for run in posts)
+    by_id = {run["id"]: run for run in posts}
+    guard = next(run for run in posts if run["name"] == "input_guard")
+    assert "InputGuardMiddleware" in by_id[guard["parent_run_id"]]["name"]
+    assert guard["parent_run_id"] != root["id"]
     assert any(
-        run.get("extra", {}).get("metadata", {}).get("usage_metadata")
-        == {"input_tokens": 7, "output_tokens": 3, "total_tokens": 10}
-        for run in updates
+        run["run_type"] == "tool" and run["name"] == "prepare_recommendations"
+        for run in posts
     )
-    assert str(private_id) in caplog.text and root["id"] in caplog.text
+    raw = json.dumps(native_exports, ensure_ascii=False)
+    for value in (
+        "original request",
+        "original history",
+        "authorized resource",
+        "native answer",
+        "input_tokens",
+    ):
+        assert value in raw
+    assert str(request_id) not in raw
+    assert root["extra"]["metadata"]["request_attempt"] == 2
 
 
-async def test_failed_export_and_close_never_fail_a_model_stream(
+@pytest.mark.parametrize("hidden", [False, True])
+async def test_native_hiding_and_configured_secret_masking(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
+    native_exports: list[dict[str, Any]],
+    hidden: bool,
 ) -> None:
-    client = Mock(spec=Client)
-    client.create_run.side_effect = RuntimeError("private exporter exception")
-    client.update_run.side_effect = RuntimeError("private exporter exception")
-    client.close.side_effect = RuntimeError("private exporter exception")
-    monkeypatch.setattr(tracing, "Client", Mock(return_value=client))
+    settings = enabled_settings().model_copy(
+        update={
+            "langsmith_hide_inputs": hidden,
+            "langsmith_hide_outputs": hidden,
+            "openai_api_key": SecretStr("configured-openai-credential"),
+        }
+    )
+    runtime = driver(
+        monkeypatch,
+        Script(rounds=[[prepare()], [AIMessageChunk(content="answer")]]),
+        settings,
+    )
+    try:
+        _ = [
+            chunk
+            async for chunk in runtime.stream(
+                sources(),
+                "configured-openai-credential original input",
+                [],
+                AsyncMock(return_value=[]),
+                gate=AsyncMock(),
+            )
+        ]
+    finally:
+        await runtime.tracing.aclose()
+    raw = json.dumps(native_exports)
+    assert "configured-openai-credential" not in raw
+    assert "synthetic-tracing-key" not in raw
+    runs = [
+        run
+        for batch in native_exports
+        for key in ("post", "patch")
+        for run in batch.get(key, [])
+    ]
+    if hidden:
+        assert all(not run.get("inputs") and not run.get("outputs") for run in runs)
+    else:
+        assert "original input" in raw and "[REDACTED]" in raw
+        assert any(run.get("outputs") for run in runs)
+
+
+async def test_native_context_excludes_ambient_parent_metadata_tags_and_replicas(
+    monkeypatch: pytest.MonkeyPatch,
+    native_exports: list[dict[str, Any]],
+) -> None:
+    from langsmith.run_trees import RunTree
+
     runtime = driver(
         monkeypatch,
         Script(rounds=[[prepare()], [AIMessageChunk(content="answer")]]),
         enabled_settings(),
     )
-    assert [
-        part
-        async for part in runtime.stream(
-            sources(), "request", [], AsyncMock(return_value=[]), gate=AsyncMock()
-        )
-    ] == ["answer"]
-    await runtime.tracing.aclose()
-    assert "private exporter exception" not in caplog.text
-
-
-async def test_callbacks_reject_untrusted_payloads_and_error_strings(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    client = Mock(spec=Client)
-    monkeypatch.setattr(tracing, "Client", Mock(return_value=client))
-    runtime = AiTracing(enabled_settings())
-    trace = runtime.start("chat", AiTraceContext(uuid4(), 1))
-    assert trace is not None
-    run_id = uuid4()
-    await trace.on_tool_start({"name": "private-tool"}, "private input", run_id=run_id)
-    await trace.on_tool_start(
-        {"name": "read_applicant", "private": "identity"},
-        "private input",
-        run_id=run_id,
-        metadata={"private": "identity"},
-    )
-    await trace.on_tool_error(RuntimeError("private traceback"), run_id=run_id)
-    trace.finish("failed")
-    await runtime.aclose()
-    assert client.create_run.call_count == 2
-    raw = repr(client.mock_calls)
-    assert "private" not in raw
-    assert "execution_failed" in raw
-
-
-async def test_model_close_error_still_joins_tracing_close() -> None:
-    entered, release = asyncio.Event(), asyncio.Event()
-
-    async def close_trace() -> None:
-        entered.set()
-        await release.wait()
-
-    runtime = object.__new__(OpenAiAgentDriver)
-    runtime.model = Mock()
-    runtime.model.root_async_client.close = AsyncMock(side_effect=ValueError("failed"))
-    runtime.tracing = cast(AiTracing, SimpleNamespace(aclose=close_trace))
-    closing = asyncio.create_task(runtime.aclose())
-    await entered.wait()
-    await asyncio.sleep(0)
-    assert not closing.done()
-    release.set()
-    with pytest.raises(ValueError, match="failed"):
-        await closing
-
-
-async def test_driver_close_cancellation_joins_both_owned_coroutines() -> None:
-    entered, cleaned = asyncio.Event(), asyncio.Event()
-
-    async def close() -> None:
-        entered.set()
-        try:
-            await asyncio.Event().wait()
-        finally:
-            cleaned.set()
-
-    runtime = object.__new__(OpenAiAgentDriver)
-    runtime.model = Mock()
-    runtime.model.root_async_client.close = AsyncMock()
-    runtime.tracing = cast(AiTracing, SimpleNamespace(aclose=close))
-    closing = asyncio.create_task(runtime.aclose())
-    await entered.wait()
-    closing.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await closing
-    assert cleaned.is_set()
-
-
-@pytest.mark.parametrize("status", ["blocked", "failed", "canceled"])
-async def test_trace_finishes_with_safe_status_when_stream_stops(
-    monkeypatch: pytest.MonkeyPatch, status: str
-) -> None:
-    client = Mock(spec=Client)
-    monkeypatch.setattr(tracing, "Client", Mock(return_value=client))
-    if status == "blocked":
-        script = Script(rounds=[[AIMessageChunk(content='{"reason":"out_of_scope"}')]])
-    elif status == "failed":
-        script = Script(rounds=[[AIMessageChunk(content="private malformed answer")]])
-    else:
-        script = Script(
-            rounds=[[prepare()], [AIMessageChunk(content="first")]],
-            release=asyncio.Event(),
-        )
-    runtime = driver(monkeypatch, script, enabled_settings())
+    parent = RunTree(name="unrelated-parent", inputs={}, client=runtime.tracing.client)
     stream = runtime.stream(
-        sources("chat" if status == "blocked" else "applicant_recommendation"),
-        "private request",
-        [],
-        AsyncMock(return_value=[]),
-        gate=AsyncMock(),
+        sources(), "request", [], AsyncMock(return_value=[]), gate=AsyncMock()
     )
     try:
-        if status == "failed":
-            with pytest.raises(ValueError):
-                _ = [chunk async for chunk in stream]
-        elif status == "blocked":
-            assert len([chunk async for chunk in stream]) == 1
-        else:
-            # 첫 최종 토큰 뒤 모델이 기다려도 소비자는 즉시 받고 닫을 수 있다.
-            assert await asyncio.wait_for(anext(stream), 1) == "first"
-            assert not script.canceled.is_set()
-            await asyncio.wait_for(stream.aclose(), 1)
-            assert script.canceled.is_set()
-        await runtime.tracing.aclose()
-        root_end = client.update_run.call_args.kwargs
-        assert root_end["extra"]["metadata"]["status"] == status
-        assert root_end["error"] == (
-            None if status == "blocked" else f"execution_{status}"
-        )
-        assert "private" not in repr(client.mock_calls)
+        with tracing_context(
+            enabled=True,
+            parent=parent,
+            metadata={"unrelated": "ambient identity"},
+            tags=["ambient tag"],
+            replicas=[{"project_name": "unexpected-replica"}],
+        ):
+            assert await asyncio.create_task(anext(stream)) == "answer"
+            assert get_tracing_context()["parent"] is parent
+            with pytest.raises(StopAsyncIteration):
+                await asyncio.create_task(anext(stream))
     finally:
         await stream.aclose()
         await runtime.tracing.aclose()
+    raw = json.dumps(native_exports)
+    for forbidden in (
+        str(parent.id),
+        "unrelated-parent",
+        "ambient identity",
+        "ambient tag",
+        "unexpected-replica",
+    ):
+        assert forbidden not in raw
 
 
-async def test_exporter_initialization_failure_does_not_disable_ai(
+async def test_first_token_and_cancel_do_not_wait_for_native_export(
+    monkeypatch: pytest.MonkeyPatch,
+    native_exports: list[dict[str, Any]],
+) -> None:
+    script = Script(
+        rounds=[[prepare()], [AIMessageChunk(content="first")]], release=asyncio.Event()
+    )
+    runtime = driver(monkeypatch, script, enabled_settings())
+    stream = runtime.stream(
+        sources(), "request", [], AsyncMock(return_value=[]), gate=AsyncMock()
+    )
+    try:
+        assert await asyncio.wait_for(anext(stream), 2) == "first"
+        assert not script.canceled.is_set()
+        await asyncio.wait_for(stream.aclose(), 2)
+        assert script.canceled.is_set()
+    finally:
+        await stream.aclose()
+        await runtime.tracing.aclose()
+    assert native_exports
+
+
+async def test_sdk_failure_keeps_model_stream_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        tracing, "Client", Mock(side_effect=ValueError("private secret"))
-    )
+    client = Mock(spec=Client)
+    client.create_run.side_effect = RuntimeError("export unavailable")
+    client.update_run.side_effect = RuntimeError("export unavailable")
+    monkeypatch.setattr(tracing, "Client", Mock(return_value=client))
     runtime = driver(
         monkeypatch,
         Script(rounds=[[prepare()], [AIMessageChunk(content="answer")]]),
         enabled_settings(),
     )
-    assert runtime.tracing.client is None
-    assert [
-        chunk
-        async for chunk in runtime.stream(
-            sources(), "request", [], AsyncMock(return_value=[]), gate=AsyncMock()
-        )
-    ] == ["answer"]
-
-
-async def test_worker_initialization_failure_closes_client_and_disables_export(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    client = Mock(spec=Client)
-    monkeypatch.setattr(tracing, "Client", Mock(return_value=client))
-    monkeypatch.setattr(
-        threading.Thread, "start", Mock(side_effect=RuntimeError("no thread"))
-    )
-    runtime = AiTracing(enabled_settings())
-    assert runtime.client is None and runtime.worker is None
-    assert runtime.start("chat", None) is None
-    client.close.assert_called_once_with(timeout=0)
-    await runtime.aclose()
-
-
-async def test_real_sdk_rate_limit_is_not_retried_or_delayed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    requests_seen: list[str] = []
-    sleeps = Mock()
-    monkeypatch.setattr("langsmith.client.time.sleep", sleeps)
-
-    def limited(
-        self: requests.Session, method: str, url: str, **kwargs: Any
-    ) -> requests.Response:
-        assert kwargs["timeout"] == (1, 1)
-        requests_seen.append(method)
-        response = requests.Response()
-        response.status_code = 429
-        response.url = url
-        response.headers["Retry-After"] = "3600"
-        response._content = b'{"error":"private exporter response"}'
-        return response
-
-    monkeypatch.setattr(requests.Session, "request", limited)
-    runtime = AiTracing(enabled_settings())
-    trace = runtime.start("chat", None)
-    assert trace is not None
-    trace.finish("completed")
-    await asyncio.wait_for(runtime.aclose(), 1)
-    assert requests_seen == ["POST", "PATCH"]
-    sleeps.assert_not_called()
-
-
-async def test_bounded_queue_drops_immediately_and_preserves_fifo(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    entered, release = threading.Event(), threading.Event()
-    client = Mock(spec=Client)
-
-    def export(**payload: Any) -> None:
-        if payload["name"] == "ai_turn":
-            entered.set()
-            release.wait(timeout=2)
-
-    client.create_run.side_effect = export
-    monkeypatch.setattr(tracing, "Client", Mock(return_value=client))
-    runtime = AiTracing(enabled_settings())
-    runtime.start("chat", None)
     try:
-        assert await asyncio.to_thread(entered.wait, 1)
-        # 전송 worker가 막혀도 요청 thread는 기다리지 않고 유한 큐에 추가한다.
-        for index in range(TRACE_QUEUE_SIZE + 5):
-            runtime.create_run(name=str(index))
-        assert runtime.queue.qsize() == TRACE_QUEUE_SIZE
+        assert [
+            chunk
+            async for chunk in runtime.stream(
+                sources(), "request", [], AsyncMock(return_value=[]), gate=AsyncMock()
+            )
+        ] == ["answer"]
     finally:
-        release.set()
-        await runtime.aclose()
-    assert [call.kwargs["name"] for call in client.create_run.call_args_list] == [
-        "ai_turn",
-        *map(str, range(TRACE_QUEUE_SIZE)),
-    ]
+        await runtime.tracing.aclose()
 
 
-async def test_exporter_shutdown_waits_off_loop_with_finite_budget(
+async def test_native_errors_keep_diagnostics_and_mask_configured_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    native_exports: list[dict[str, Any]],
+) -> None:
+    key = "configured-openai-credential"
+    settings = enabled_settings().model_copy(update={"openai_api_key": SecretStr(key)})
+    runtime = driver(monkeypatch, Script(rounds=[[prepare()]]), settings)
+    try:
+        with pytest.raises(RuntimeError, match="validation failed"):
+            _ = [
+                chunk
+                async for chunk in runtime.stream(
+                    sources(),
+                    "request",
+                    [],
+                    AsyncMock(return_value=[]),
+                    gate=AsyncMock(
+                        side_effect=RuntimeError(f"{key}: validation failed")
+                    ),
+                )
+            ]
+    finally:
+        await runtime.tracing.aclose()
+    raw = json.dumps(native_exports)
+    assert key not in raw
+    assert "validation failed" in raw
+    assert "[REDACTED]" in raw
+
+
+def test_native_model_serialization_keeps_api_key_as_secret_reference() -> None:
+    key = "configured-openai-credential"
+    model = ChatOpenAI(model="gpt-6-luna", api_key=SecretStr(key))
+    serialized = json.dumps(model.to_json(), default=str)
+    assert key not in serialized
+    assert "OPENAI_API_KEY" in serialized
+
+
+async def test_native_shutdown_is_finite_off_loop_and_model_failure_joins_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     entered, release = threading.Event(), threading.Event()
-    timeouts: list[float] = []
-
-    def export(**payload: Any) -> None:
-        entered.set()
-        release.wait(timeout=2)
+    client = Mock(spec=Client)
 
     def close(*, timeout: float) -> None:
-        timeouts.append(timeout)
+        assert timeout == 0.1
+        entered.set()
+        release.wait(timeout=1)
 
-    client = Mock(spec=Client)
-    client.create_run.side_effect = export
     client.close.side_effect = close
     monkeypatch.setattr(tracing, "Client", Mock(return_value=client))
     settings = enabled_settings().model_copy(update={"shutdown_timeout_seconds": 0.1})
-    runtime = AiTracing(settings)
-    runtime.start("chat", None)
-    task = asyncio.create_task(runtime.aclose())
+    runtime = object.__new__(OpenAiAgentDriver)
+    runtime.tracing = AiTracing(settings)
+    runtime.model = Mock()
+    runtime.model.root_async_client.close = AsyncMock(
+        side_effect=ValueError("model close failed")
+    )
+    closing = asyncio.create_task(runtime.aclose())
     try:
         assert await asyncio.to_thread(entered.wait, 1)
-        await asyncio.wait_for(task, 1)
-        assert timeouts == []
-        assert runtime.worker is not None and runtime.worker.daemon
-        assert runtime.worker.is_alive()
+        assert not closing.done()
+        with pytest.raises(ValueError, match="model close failed"):
+            await asyncio.wait_for(closing, 1)
     finally:
         release.set()
-        await task
-        assert runtime.worker is not None
-        await asyncio.to_thread(runtime.worker.join, 1)
-    assert timeouts == [0]
+
+
+def test_native_client_supported_daemon_and_uncompressed_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langsmith import utils
+
+    monkeypatch.setenv("LANGSMITH_USE_DAEMON", "false")
+    monkeypatch.setenv("LANGSMITH_DISABLE_RUN_COMPRESSION", "false")
+    cast(Any, utils.get_env_var).cache_clear()
+    assert utils.get_env_var("USE_DAEMON") == "false"
+    client = Mock(return_value=Mock(spec=Client))
+    monkeypatch.setattr(tracing, "Client", client)
+    runtime = AiTracing(enabled_settings())
+    assert utils.get_env_var("USE_DAEMON") == "true"
+    assert utils.get_env_var("DISABLE_RUN_COMPRESSION") == "true"
+    assert client.call_args.kwargs["auto_batch_tracing"] is True
+    runtime.client = None
