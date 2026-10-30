@@ -45,6 +45,11 @@ OPTIONAL_PRIVATE = frozenset(
 )
 ENV_FILE = re.compile(r"(?:app|migrate|postgres|unassigned)-[a-f0-9]{64}\.env")
 OPENAI_KEY_SENTINEL = "__REHYDRATE_OPENAI_API_KEY_FROM_SSM__"
+LANGSMITH_KEY_SENTINEL = "__REHYDRATE_LANGSMITH_API_KEY_FROM_SSM__"
+EXTERNAL_API_KEYS = {
+    "OPENAI_API_KEY": OPENAI_KEY_SENTINEL,
+    "LANGSMITH_API_KEY": LANGSMITH_KEY_SENTINEL,
+}
 ERROR_CODES = frozenset(
     {
         "not_root",
@@ -165,6 +170,7 @@ class Backup:
         self.options = options
         self.runner = runner
         self.openai_key_redacted = False
+        self.langsmith_key_redacted = False
 
     def docker(self, *arguments: str) -> bytes:
         return self.runner(
@@ -331,7 +337,7 @@ class Backup:
                     raise BackupError("archive_invalid")
                 member = archive.gettarinfo(fileobj=source, arcname=name)
                 if path == self.config or path.suffix == ".env":
-                    contents = self.redact_openai_key(path, source.read())
+                    contents = self.redact_external_api_keys(path, source.read())
                     member.size = len(contents)
                     archive.addfile(member, io.BytesIO(contents))
                 else:
@@ -345,23 +351,32 @@ class Backup:
         else:
             raise BackupError("archive_invalid")
 
-    def redact_openai_key(self, path: Path, contents: bytes) -> bytes:
-        """모델 키는 SSM에서 복구하도록 자리만 남기며 원본 파일은 바꾸지 않는다."""
+    def redact_external_api_keys(self, path: Path, contents: bytes) -> bytes:
+        """외부 API 키는 SSM에서 복구할 자리만 남기며 원본을 보존한다."""
         if path == self.config:
             value = json.loads(contents)
             environment = value["app_env"]
-            if "OPENAI_API_KEY" in environment:
-                environment["OPENAI_API_KEY"] = OPENAI_KEY_SENTINEL
-                self.openai_key_redacted = True
+            for key, sentinel in EXTERNAL_API_KEYS.items():
+                if key in environment:
+                    environment[key] = sentinel
+                    self.record_redacted_key(key)
             return (
                 json.dumps(value, ensure_ascii=False, sort_keys=True) + "\n"
             ).encode()
         lines = contents.split(b"\n")
         for index, line in enumerate(lines):
-            if line.startswith(b"OPENAI_API_KEY="):
-                lines[index] = b"OPENAI_API_KEY=" + OPENAI_KEY_SENTINEL.encode()
-                self.openai_key_redacted = True
+            for key, sentinel in EXTERNAL_API_KEYS.items():
+                prefix = key.encode() + b"="
+                if line.startswith(prefix):
+                    lines[index] = prefix + sentinel.encode()
+                    self.record_redacted_key(key)
         return b"\n".join(lines)
+
+    def record_redacted_key(self, key: str) -> None:
+        if key == "OPENAI_API_KEY":
+            self.openai_key_redacted = True
+        elif key == "LANGSMITH_API_KEY":
+            self.langsmith_key_redacted = True
 
     def upload(self, path: Path, key: str) -> dict:
         sha = digest(path)
@@ -479,6 +494,7 @@ class Backup:
                     "release_sha": state["slots"][state["active"]]["sha"],
                     "restored": False,
                     "openai_key_redacted": self.openai_key_redacted,
+                    "langsmith_key_redacted": self.langsmith_key_redacted,
                 }
                 manifest_file = directory / "manifest.json"
                 manifest_file.write_text(json.dumps(manifest, sort_keys=True) + "\n")

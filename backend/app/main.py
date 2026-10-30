@@ -62,7 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 try:
                     if app.state.ai_driver is not None:
                         async with asyncio.timeout(config.shutdown_timeout_seconds):
-                            await app.state.ai_driver.model.root_async_client.close()
+                            await app.state.ai_driver.aclose()
                 finally:
                     async with asyncio.timeout(config.shutdown_timeout_seconds):
                         await database.engine.dispose()

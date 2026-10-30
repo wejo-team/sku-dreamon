@@ -9,7 +9,7 @@
 | 객체 | 내용 |
 | --- | --- |
 | `database.dump` | 실행 중 DB의 일관된 custom-format `pg_dump`. 역할 생성·운영 파일은 포함하지 않음 |
-| `runtime.tar.gz` | 아래 허용한 DB·CSRF 비밀값, TLS·ACME 상태와 배포 journal. OpenAI 키는 제외 |
+| `runtime.tar.gz` | 아래 허용한 DB·CSRF 비밀값, TLS·ACME 상태와 배포 journal. OpenAI·LangSmith 키는 제외 |
 | `manifest.json` | 두 객체의 경로·크기·SHA-256, 시작/완료 시각, 활성 release SHA. 두 객체의 업로드·HEAD 검증 뒤 마지막에 게시 |
 
 업로드는 AWS CLI의 HTTPS·SHA-256 전송 checksum과 명시적인 `--sse aws:kms`를 사용합니다. 객체 크기·사용자 metadata SHA-256·SSE-KMS 응답을 다시 확인합니다. metadata 비교는 원격 파일 전체를 내려받아 hash를 재계산한 검사가 아니며, 첫 복원에서는 다운로드한 파일 자체의 SHA-256도 manifest와 대조해야 합니다. AWS 관리형 S3 KMS 키를 기본으로 사용하며 지정한 customer-managed key도 지원합니다. [AWS CLI cp](https://docs.aws.amazon.com/cli/latest/reference/s3/cp.html), [SSE-KMS와 권한](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html)
@@ -37,7 +37,7 @@ Compose project·service label이 맞는 실행 중 PostgreSQL 컨테이너가 �
 
 PGDATA, 원시 로그, Certbot work/cache/webroot, 설정 작업의 `private/config-<digest>.json` snapshot, 미지의 private 파일, 열린 `.lock` 파일은 포함하지 않습니다. snapshot은 호스트의 중단 복구용이며 전체 비밀값을 포함합니다. 디렉터리 밖 symlink를 따라 읽거나 원시 장치를 archive하지 않습니다. capture 동안 파일 크기·변경 시각 변화가 보이면 실패합니다. 생성한 임시 dump·archive는 root 전용 `runtime_dir/backup-staging`에 두고 정상 종료·처리한 실패 시 제거합니다. 호스트 전원 장애·SIGKILL 뒤 잔여 임시 파일은 관리자가 별도 확인합니다.
 
-`OPENAI_API_KEY`의 원본은 [SSM 설정 관리](ssm-configuration.md)를 연결한 이후에는 **앱 설정 전체가 담긴 SecureString JSON의 해당 버전**입니다. archive의 runtime JSON과 각 env 파일에서는 키 값만 `__REHYDRATE_OPENAI_API_KEY_FROM_SSM__`으로 바꾸며, 원본 런타임 파일은 수정하지 않습니다. DB 비밀번호·CSRF·CA 키는 복구에 필요하므로 암호화 archive에 보존합니다. manifest의 `openai_key_redacted`로 모델 키 제외 여부를 확인합니다. parameter 경로·설정 버전·복구 역할의 읽기/KMS 권한은 비공개 운영 기록에서 관리합니다. 연결 전 백업은 기존 개별 OpenAI key parameter의 경로·버전 기록을 유지합니다.
+`OPENAI_API_KEY`·`LANGSMITH_API_KEY`의 원본은 [SSM 설정 관리](ssm-configuration.md)를 연결한 이후에는 **앱 설정 전체가 담긴 SecureString JSON의 해당 버전**입니다. archive의 runtime JSON과 각 env 파일에서는 각 키 값을 `__REHYDRATE_OPENAI_API_KEY_FROM_SSM__`·`__REHYDRATE_LANGSMITH_API_KEY_FROM_SSM__`으로 바꾸며, 원본 런타임 파일은 수정하지 않습니다. DB 비밀번호·CSRF·CA 키는 복구에 필요하므로 암호화 archive에 보존합니다. manifest의 `openai_key_redacted`·`langsmith_key_redacted`로 각 키의 제외 여부를 확인합니다. parameter 경로·설정 버전·복구 역할의 읽기/KMS 권한은 비공개 운영 기록에서 관리합니다. 연결 전 백업은 기존 개별 OpenAI key parameter의 경로·버전 기록을 유지합니다.
 
 ## 호스트 설치
 
@@ -76,7 +76,7 @@ timer는 매일 UTC 18:15, 한국시간 다음 날 03:15부터 최대 15분 분�
 실제 사용자 레코드를 만들기 전에 migration이 끝난 빈 운영 DB에서 첫 백업을 만들고, 별도 격리 PostgreSQL에서 복원합니다. 가짜 사용자·공고·시연 seed를 운영에 넣지 않습니다.
 
 1. manifest와 두 객체를 접근 제한 경로에 내려받고 SHA-256·크기를 대조합니다. runtime archive에는 실제 비밀값이 있으므로 공개 artifact·일반 개발 환경에 풀지 않습니다.
-2. 앱·release 검증 전에 `runtime.json`과 journal의 각 슬롯 `config_revision`에 대응하는 **SSM bundle의 정확한 버전**에서 OpenAI 키를 읽어 해당 JSON·raw env에만 비공개로 채웁니다. 활성·이전 슬롯이 서로 다른 키 버전을 사용할 수 있으므로 최신 키 하나로 모든 파일을 채우지 않습니다. 연결 전 설정 revision은 기존 개별 parameter 기록을 사용합니다. 키를 stdout·명령 인자·로그에 남기지 않습니다. journal의 env hash와 파일명은 원래 키를 포함한 원본 env에 대응하므로 **각 파일의 동일한 키를 복구해야** 일치합니다. 필요한 버전·키를 구할 수 없거나 제공자에서 폐기했다면 journal을 조작하지 말고 별도의 설정 revision·키 회전 절차로 재구성합니다. sentinel을 실제 API 키로 사용하거나 그 상태를 운영 준비 완료로 판단하지 않습니다.
+2. 앱·release 검증 전에 `runtime.json`과 journal의 각 슬롯 `config_revision`에 대응하는 **SSM bundle의 정확한 버전**에서 OpenAI·LangSmith 키를 읽어 해당 JSON·raw env에만 비공개로 채웁니다. 활성·이전 슬롯이 서로 다른 키 버전을 사용할 수 있으므로 최신 키 하나로 모든 파일을 채우지 않습니다. 연결 전 설정 revision은 기존 개별 parameter 기록을 사용합니다. 키를 stdout·명령 인자·로그에 남기지 않습니다. journal의 env hash와 파일명은 원래 키를 포함한 원본 env에 대응하므로 **각 파일의 동일한 키를 복구해야** 일치합니다. 필요한 버전·키를 구할 수 없거나 제공자에서 폐기했다면 journal을 조작하지 말고 별도의 설정 revision·키 회전 절차로 재구성합니다. sentinel을 실제 API 키로 사용하거나 그 상태를 운영 준비 완료로 판단하지 않습니다.
 3. 별도 DB/컨테이너에서 `dreamon_migration`·`dreamon_app` 역할과 필요한 TLS·소유권을 준비합니다. 역할은 dump에 없으므로 [초기 역할 설정](../../deploy/postgres/init-roles.sh)과 비공개 비밀번호의 복구 경로를 사용합니다.
 4. 격리 DB에 `pg_restore --exit-on-error`를 실행하고 Alembic revision·테이블·역할/권한·기본 조회를 확인합니다. 운영 데이터 경로나 운영 DB를 복원 대상으로 쓰지 않습니다. `--create`는 archive의 DB 이름을 사용하므로 대상 DB 지정만으로 격리를 보장하지 않습니다. DB만 복원하는 시험에는 실제 모델 키·호출이 필요하지 않습니다.
 5. 시험 대상·실행 시각·원본 backup ID·검증 결과를 접근 제한 운영 기록에 남깁니다. 실제 사용자 데이터가 생긴 이후의 복원 연습은 별도 개인정보 접근/보존 경계로 수행합니다.

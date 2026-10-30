@@ -102,7 +102,10 @@ async def test_contextual_followup_checks_current_input_with_user_history_only()
     binding = model.bind.call_args.kwargs
     assert "tools" not in binding
     assert binding["response_format"]["type"] == "json_schema"
-    assert invoke.call_args.kwargs["config"] == {"callbacks": []}
+    assert invoke.call_args.kwargs["config"] == {
+        "callbacks": [],
+        "tags": ["ai_input_guard"],
+    }
 
 
 async def test_history_is_bounded_but_current_message_is_preserved() -> None:

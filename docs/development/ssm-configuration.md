@@ -28,10 +28,13 @@ SSM 값을 수정한 것만으로 실행 중인 앱이 바뀌지 않습니다. �
 | 변경 가능 | 예 |
 | --- | --- |
 | AI 설정 | `OPENAI_API_KEY`, `AI_REQUIRED`, 현재 Settings가 허용하는 `AI_*` |
+| 실행 추적 | `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, `LANGSMITH_ENDPOINT`, `LANGSMITH_WORKSPACE_ID` |
 | 인증 요청 제한 | `AUTH_LOGIN_ACCOUNT_LIMIT`, `AUTH_LOGIN_IP_LIMIT`, `AUTH_SIGNUP_IP_LIMIT`, `AUTH_AVAILABILITY_IP_LIMIT` |
 | 준비·종료 제한 시간 | `READINESS_TIMEOUT_SECONDS`, `SHUTDOWN_TIMEOUT_SECONDS` |
 
 DB URL·DB pool/TLS 설정, CSRF 키, origin·Host·trusted proxy, 차단 목록 경로·버전, `APP_ENV`는 기존 적용값과 같아야 합니다. 이 키의 추가·삭제도 변경으로 취급합니다. DB 자격증명 회전·CSRF 키 회전·공유 CA/차단 목록 교체·호스트/네트워크 변경은 별도 절차로 처리합니다. AI 키의 실제 제공자 유효성·할당량은 `/ready`에서 호출해 검사하지 않습니다.
+
+LangSmith도 실제 접속을 readiness 조건으로 사용하지 않습니다. 기본 비활성화, 전송 데이터의 허용 목록과 프로젝트 접근·보존 확인은 [실행 추적](langsmith-tracing.md)을 따릅니다. 해당 코드를 먼저 릴리스한 뒤 설정 bundle에 키를 추가하고, 활성화·비활성화·키 교체는 같은 설정 재배포 절차로 적용합니다.
 
 프론트 `VITE_*`는 빌드에 포함되는 공개 설정이므로 이번 workflow에서 변경하지 않습니다. 설정 재배포는 이미지 build/push, 프론트 게시, DB migration·DB 컨테이너 교체를 실행하지 않습니다.
 
@@ -136,9 +139,9 @@ sudo python3.13 /opt/sku-dreamon/current/deploy/config_release.py \
 
 기존 blue/green 두 슬롯을 재사용하므로 설정 배포도 직전 릴리스 슬롯을 갱신합니다. 여러 단계 전의 코드 rollback 이력을 따로 보존하지 않습니다. 오래된 설정을 다시 적용할 때는 현재 코드와의 호환성을 확인하고 SSM 버전을 지정합니다.
 
-OpenAI 키를 바꿀 때 이전 키를 제공자에서 즉시 폐기하면 설정 파일을 복구해도 그 키의 유효성이 돌아오지 않습니다. 전환·복구 확인과 키 폐기 순서를 함께 관리합니다. `/ready`는 실제 모델 호출 없이 로컬 client 준비만 검사합니다.
+OpenAI·LangSmith 키를 바꿀 때 이전 키를 제공자에서 즉시 폐기하면 설정 파일을 복구해도 그 키의 유효성이 돌아오지 않습니다. 전환·복구 확인과 키 폐기 순서를 함께 관리합니다. `/ready`는 실제 모델·계측 호출 없이 로컬 client 준비만 검사합니다.
 
-snapshot에는 전체 비밀값이 있으므로 root 전용 경로에 보존합니다. `config-*.json`은 현재 백업 archive 대상이 아니고 미완료 작업은 백업을 차단합니다. 정상 적용 후의 호스트 복원·활성/이전 버전별 OpenAI 키 재주입은 [운영 백업](production-backups.md)을 따릅니다. 백업 보존 기간 동안 필요한 SSM 버전과 기존 키의 복구 가능성을 별도로 유지해야 합니다.
+snapshot에는 전체 비밀값이 있으므로 root 전용 경로에 보존합니다. `config-*.json`은 현재 백업 archive 대상이 아니고 미완료 작업은 백업을 차단합니다. 정상 적용 후의 호스트 복원·활성/이전 버전별 OpenAI·LangSmith 키 재주입은 [운영 백업](production-backups.md)을 따릅니다. 백업 보존 기간 동안 필요한 SSM 버전과 기존 키의 복구 가능성을 별도로 유지해야 합니다.
 
 ## 검증
 

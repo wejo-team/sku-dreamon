@@ -27,6 +27,7 @@ MUTABLE_KEYS = frozenset(
     key
     for key in APP_KEYS
     if key.startswith("AI_")
+    or key.startswith("LANGSMITH_")
     or key == "OPENAI_API_KEY"
     or key in {"READINESS_TIMEOUT_SECONDS", "SHUTDOWN_TIMEOUT_SECONDS"}
     or (key.startswith("AUTH_") and key.endswith("_LIMIT"))
