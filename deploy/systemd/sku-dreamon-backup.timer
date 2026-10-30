@@ -1,0 +1,12 @@
+# 매일 UTC 18:15(KST 다음 날 03:15) 이후 분산 실행하며 누락분은 다음 기동에 보완한다.
+[Unit]
+Description=Daily SKU DreamOn production backup
+
+[Timer]
+OnCalendar=*-*-* 18:15:00 UTC
+RandomizedDelaySec=15m
+Persistent=true
+Unit=sku-dreamon-backup.service
+
+[Install]
+WantedBy=timers.target
