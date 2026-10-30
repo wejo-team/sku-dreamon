@@ -332,6 +332,9 @@ class CDRelease:
         }
 
     def stable(self, release) -> dict[str, Any]:
+        pending = self.root / "state" / "config-pending.json"
+        if pending.exists() or pending.is_symlink():
+            raise CDError("configuration_recovery_required")
         result = self.summary(release)
         if (
             result["phase"] != "stable"
@@ -345,6 +348,16 @@ class CDRelease:
 
     def guard(self, release, expected: str, sha: str, image: str) -> bool:
         status = self.stable(release)
+        active_record = release.state["slots"][release.state["active"]]
+        environment = "".join(
+            f"{key}={value}\n" for key, value in sorted(release.runtime.app_env.items())
+        )
+        if (
+            hashlib.sha256(environment.encode()).hexdigest()
+            != active_record["env_hash"]
+            or release.runtime.config_revision != active_record["config_revision"]
+        ):
+            raise CDError("configuration_requires_dedicated_release")
         active = status["active_sha"]
         duplicate = (
             active == sha
@@ -529,6 +542,8 @@ class CDRelease:
             or not SHA.fullmatch(expected)
         ):
             raise CDError("invalid_request")
+        if action == "rollback" and sha == expected:
+            raise CDError("configuration_requires_dedicated_release")
         if action == "deploy" and (
             source_hash is None
             or not DIGEST.fullmatch(source_hash)
