@@ -61,7 +61,7 @@ LLM 전환으로 마감·정원·중복 지원·공모전별 소속 제한이나
 
 ### 조건 탐색과 제목·이름 검색
 
-2026-10-31 사용자 요청에 따라 AI 검색은 구조화된 조건 탐색과 실제 제목·이름 검색을 구분합니다. 조건 탐색·이름 검색은 구현했으며 기존 일반 탐색 화면의 검색 범위를 유지합니다. 프롬프트의 전체 단계 구조화는 후속 작업입니다.
+2026-10-31 사용자 요청에 따라 AI 검색은 구조화된 조건 탐색과 실제 제목·이름 검색을 구분합니다. 조건 탐색·이름 검색은 구현했으며 기존 일반 탐색 화면의 검색 범위를 유지합니다. 프롬프트는 조회·검증·최종 답변 단계의 역할과 데이터 경계를 구분합니다.
 
 - 관심 분야·역할·접수 상태는 [공통 선택지](profile-options.md)와 공모전 상태에 정의된 코드로 조회합니다. “IT 공모전”은 IT·기술 분야 조건이며 제목에 `IT`가 포함되어야 한다는 뜻이 아닙니다. 도구 설명은 허용 코드와 한국어 의미, 생략 시 동작, 조합 방식과 예시를 제공합니다.
 - 실제 공모전 제목·팀 이름·사람 이름을 지정한 요청은 해당 항목의 문자 그대로 부분 일치로 검색하고, 함께 지정한 구조화된 조건은 모두 충족해야 합니다. 이름 앞뒤 공백은 검색 전에 제거하고 빈 이름은 받지 않습니다. `%`·`_`를 전체 일치 문법으로 해석하지 않습니다.
@@ -209,11 +209,13 @@ LLM 전환으로 마감·정원·중복 지원·공모전별 소속 제한이나
 - [x] AC-39: 입력 가드와 ReAct 전환 뒤에도 기존 SSE 순서·취소·재시도·권한 무효화·완성 답변 저장이 유지된다. 최종 답변의 추가 LLM 검사나 전체 답변·문장 버퍼링 없이 첫 최종 텍스트를 생성 중에 표시한다.
 - [x] AC-40: AI가 IT 분야·모집 역할·접수 상태를 카탈로그 코드로 탐색하고 실제 제목·이름 검색과 구분한다. 함께 지정한 조건은 모두 적용하며 잘못된 코드·미지원 인자·빈 이름을 거부한다. 일반 탐색 화면의 검색 범위는 유지한다.
 - [x] AC-41: N일 이내 마감을 동일한 서버 시각의 미래 구간으로 조회하고 적용 조건·기준 시각을 확인할 수 있다. 경계·모순 조건·페이지 한도를 구분하며 빈 결과를 전체 부재로 단정하지 않는다.
-- [ ] AC-42: 입력 분류·자료 조회·최종 답변 프롬프트가 단계별 역할과 데이터 경계를 구분한다. 카탈로그 의미를 원본과 일치시켜 전달하고 기존 입력 가드·검증·권한·카드 제한·SSE 동작을 유지한다.
+- [x] AC-42: 입력 분류·자료 조회·최종 답변 프롬프트가 단계별 역할과 데이터 경계를 구분한다. 카탈로그 의미를 원본과 일치시켜 전달하고 기존 입력 가드·검증·권한·카드 제한·SSE 동작을 유지한다.
 
 AC-40~41은 [도구 입력·호출](../../backend/tests/unit/test_ai_tools.py)·[실제 적용 조건](../../backend/tests/unit/test_ai_source_search.py)·[격리 PostgreSQL 검색](../../backend/tests/integration/test_ai_domain_filters.py)·[현재 지원 가능 범위](../../backend/tests/integration/test_ai_search_filters.py) 검사로 검증합니다. 기준 명세는 [#254](https://github.com/wejo-team/sku-dreamon/pull/254), 구현 계획과 후속 프롬프트 작업은 [#255](https://github.com/wejo-team/sku-dreamon/issues/255)에 연결합니다. 모델이 모든 자연어 요청을 정확하게 해석한다는 보장은 아닙니다.
 
-AC-36~39의 자동 검증은 [입력 가드](../../backend/tests/unit/test_ai_guards.py)·[실제 그래프](../../backend/tests/unit/test_ai_runtime.py)·[제공자 모의 전송](../../backend/tests/unit/test_ai_provider.py)·[DB/SSE 수명](../../backend/tests/integration/test_ai_guard_stream.py) 테스트에 연결합니다. 가짜 판정과 모의 제공자로 실행 경계를 검증했으며 실제 의미 분류의 오탐·누락·추천 품질은 [#164](https://github.com/wejo-team/sku-dreamon/issues/164)의 후속 평가입니다. 이번 구현에서 운영 키를 사용하거나 실제 모델을 호출하지 않았습니다.
+AC-42는 [모델 자료의 코드 사전](../../backend/tests/unit/test_ai_prompts.py)·[분류 입력의 신뢰 경계](../../backend/tests/unit/test_ai_guards.py)·[실제 그래프의 검증 후 확정 자료](../../backend/tests/unit/test_ai_runtime.py) 검사로 확인합니다. 프롬프트는 카탈로그 enum과 응답 필드 별칭을 원본으로 설명하고 조회 단계의 도구 의무를 최종 단계로 넘기지 않습니다.
+
+AC-36~39의 자동 검증은 [입력 가드](../../backend/tests/unit/test_ai_guards.py)·[실제 그래프](../../backend/tests/unit/test_ai_runtime.py)·[제공자 모의 전송](../../backend/tests/unit/test_ai_provider.py)·[DB/SSE 수명](../../backend/tests/integration/test_ai_guard_stream.py) 테스트에 연결합니다. 가짜 판정과 모의 제공자로 실행 경계를 검증했으며 실제 의미 분류의 오탐·누락·추천 품질은 [#164](https://github.com/wejo-team/sku-dreamon/issues/164)의 후속 평가입니다. AC-36~39의 구현 검증에서는 운영 키를 사용하거나 실제 모델을 호출하지 않았습니다.
 
 <a id="open-questions"></a>
 
