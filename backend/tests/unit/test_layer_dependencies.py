@@ -9,7 +9,7 @@ import pytest
 APP = Path(__file__).resolve().parents[2] / "app"
 ALLOWED = {
     "cli": {"core", "schemas", "services"},
-    "agents": {"agents", "core", "schemas", "services"},
+    "agents": {"agents", "core", "schemas", "services", "rules"},
     "core": {"core"},
     "models": {"core", "models", "rules"},
     "schemas": {"core", "schemas", "rules"},
