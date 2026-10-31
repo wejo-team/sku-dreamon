@@ -57,7 +57,9 @@ async def _selections(
     )
 
 
-def _search(query: PeopleQuery) -> repository.ProfileSearch:
+def _search(
+    query: PeopleQuery, *, name_contains: str | None = None
+) -> repository.ProfileSearch:
     search = (query.q or "").strip()
     needle = search.casefold()
     return repository.ProfileSearch(
@@ -79,6 +81,7 @@ def _search(query: PeopleQuery) -> repository.ProfileSearch:
         )
         if search
         else (),
+        name_contains=name_contains,
     )
 
 
@@ -220,10 +223,12 @@ async def read_public_profile(
     return await build_profile_response(session, profile)
 
 
-async def list_people(session: AsyncSession, query: PeopleQuery) -> Page[PersonSummary]:
+async def list_people(
+    session: AsyncSession, query: PeopleQuery, *, name_contains: str | None = None
+) -> Page[PersonSummary]:
     """공개 검색 결과와 집계를 같은 스냅샷에서 읽고 마지막 페이지로 보정한다."""
     await _start_snapshot(session)
-    filters = _search(query)
+    filters = _search(query, name_contains=name_contains)
     total = await repository.count_people(session, filters)
     total_pages = (total + query.page_size - 1) // query.page_size
     page = min(query.page, max(total_pages, 1))

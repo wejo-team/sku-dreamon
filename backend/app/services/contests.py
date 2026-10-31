@@ -1,7 +1,7 @@
 """공개 공고의 상태·원문 응답을 같은 조회 시점의 저장 자료로 구성한다."""
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from pydantic import AnyHttpUrl
@@ -31,12 +31,17 @@ def _utcnow() -> datetime:
 
 
 async def list_contests(
-    session: AsyncSession, query: ContestSearch
+    session: AsyncSession,
+    query: ContestSearch,
+    *,
+    title_contains: str | None = None,
+    deadline_within_days: int | None = None,
+    now: datetime | None = None,
 ) -> Page[ContestSummary]:
     if session.in_transaction():
         raise RuntimeError("Contest listing requires a fresh transaction")
     await begin_read_snapshot(session, read_only=True)
-    current = _utcnow()
+    current = _utcnow() if now is None else now
     needle = (query.q or "").strip()
     filters = listing.ContestFilter(
         needle=needle,
@@ -48,6 +53,12 @@ async def list_contests(
         field_code=query.field_code,
         registration_status=query.registration_status,
         now=current,
+        title_contains=title_contains,
+        deadline_on_or_before=(
+            current + timedelta(days=deadline_within_days)
+            if deadline_within_days is not None
+            else None
+        ),
     )
     total = await listing.count_contests(session, filters)
     pages = (total + query.page_size - 1) // query.page_size

@@ -235,9 +235,12 @@ async def test_native_responses_guard_gate_and_first_final_text() -> None:
     assert reading["tool_choice"] == "required"
     assert reading["parallel_tool_calls"] is False
     assert {item["name"] for item in reading["tools"]} == {
-        "search_people",
-        "search_contests",
-        "search_teams",
+        "find_people",
+        "search_people_by_name",
+        "find_contests",
+        "search_contests_by_title",
+        "find_teams",
+        "search_teams_by_name",
         "get_resource_detail",
         "prepare_recommendations",
     }

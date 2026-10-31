@@ -67,8 +67,8 @@ class FixtureDriver:
         elif context.application_id is not None:
             resource = await tools.load("application", context.application_id)
         else:
-            ids, _ = await tools.reader.applicants(1)
-            candidates = await tools.items("application", ids)
+            result = await tools.reader.applicants(1)
+            candidates = await tools.items("application", result.ids)
             if not candidates:
                 return RecommendationPlan(
                     intent="empty", selections=[], guidance="현재 유효 후보가 없습니다."
