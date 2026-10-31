@@ -472,6 +472,62 @@ async def test_publication_blocks_revocation_until_send_and_stops_next_chunk(
         await asyncio.gather(mutation, return_exceptions=True)
 
 
+async def test_publication_blocks_course_reimport_until_send_and_stops_next_chunk(
+    ai_data: ApplicationData,
+) -> None:
+    catalog = CourseImport.model_validate(
+        {
+            "schema_version": "0.1.0",
+            "courses": [
+                {
+                    "code": "GE1394",
+                    "name": "AI리터러시와가치설계",
+                    "aliases": [],
+                    "departments": [],
+                }
+            ],
+        }
+    )
+    async with ai_data.database.session() as session:
+        await import_courses(session, catalog)
+        course_id = await session.scalar(
+            select(Course.course_id).where(Course.code == "GE1394")
+        )
+        assert course_id is not None
+        session.add(ProfileCourse(account_id=ai_data.stranger_id, course_id=course_id))
+        await session.commit()
+
+    service = AiService(ai_data.database, settings(), FakeDriver(ai_data))
+    execution = await service.start(
+        principal(ai_data, ai_data.applicant_id),
+        "chat",
+        ChatStart.model_validate(payload()),
+    )
+    stream = service.stream(execution)
+    while b"event: answer.delta" not in await anext(stream):
+        pass
+
+    async def reimport() -> None:
+        catalog.courses[0].name = "AI리터러시"
+        async with ai_data.database.session() as session:
+            await import_courses(session, catalog)
+
+    mutation = asyncio.create_task(reimport())
+    try:
+        # 현재 프레임을 보내는 동안에는 그 근거가 된 공통 과목명도 바뀌지 않는다.
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(asyncio.shield(mutation), 0.1)
+        following = await anext(stream)
+        await asyncio.wait_for(mutation, 3)
+        assert b"event: invalidated" in following
+        assert b"answer.delta" not in following
+    finally:
+        await stream.aclose()
+        if not mutation.done():
+            mutation.cancel()
+        await asyncio.gather(mutation, return_exceptions=True)
+
+
 async def test_completed_result_and_cancellation_are_owned_by_current_session(
     ai_data: ApplicationData,
 ) -> None:
