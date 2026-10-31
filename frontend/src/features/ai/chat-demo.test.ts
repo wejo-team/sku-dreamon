@@ -213,7 +213,7 @@ describe('createDemoReply', () => {
       const reply = createDemoReply(message, previous, data);
       expect(reply.recommendations).toEqual([]);
       expect(reply.search).toMatchObject(previous);
-      expect(reply.suggestions).toContain('마감이 가까운 공모전 찾아줘');
+      expect(reply.suggestions).toContain('IT 공모전 찾아줘');
     },
   );
 

@@ -19,6 +19,8 @@ class ContestFilter:
     field_code: str | None
     registration_status: str | None
     now: datetime
+    title_contains: str | None = None
+    deadline_on_or_before: datetime | None = None
 
 
 class ContestListRow(NamedTuple):
@@ -29,6 +31,17 @@ class ContestListRow(NamedTuple):
 
 def _conditions(query: ContestFilter) -> list[ColumnElement[bool]]:
     conditions: list[ColumnElement[bool]] = []
+    if query.title_contains is not None:
+        conditions.append(
+            Contest.title.icontains(query.title_contains, autoescape=True)
+        )
+    if query.deadline_on_or_before is not None:
+        conditions.extend(
+            [
+                Contest.registration_closes_at > query.now,
+                Contest.registration_closes_at <= query.deadline_on_or_before,
+            ]
+        )
     if query.field_code is not None:
         conditions.append(
             select(ContestField.contest_id)

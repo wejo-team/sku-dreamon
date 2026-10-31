@@ -31,6 +31,12 @@
 
 [프롬프트](../../backend/app/agents/prompts.py)는 자유 텍스트의 지시를 자료로 취급하고 고정 점수·자동 선발을 금지합니다. 참가 자격은 원문 확인 안내에 사용하며 학사 조건으로 후보를 차단하지 않습니다. 주당 참여 가능 시간은 모든 프로젝트를 합산한 참고값입니다. 보안·권한 검사는 프롬프트 준수 여부에 의존하지 않습니다.
 
+### 프롬프트 구성
+
+[조회 프롬프트](../../backend/app/agents/prompts.py)는 역할·도구 선택·카탈로그 인자·검색 순서·검증·답변·데이터 보안·예외로 나눕니다. 도구 선택과 필수 검증 호출은 조회 단계에만 적용하고, 검증 뒤에는 최종 답변 지침으로 전환합니다. 공통 근거·권한 정책은 두 단계에 계속 적용합니다. [입력 가드](../../backend/app/agents/guards.py)는 역할·입력 데이터·분류 기준·정상 요청과 예외·출력으로 나눠 의미 분류만 수행합니다.
+
+자료의 분야·역할·역량·주당 참여 가능 시간 설명은 [공통 카탈로그](../../backend/app/rules/catalogs.py)의 코드와 표시명에서 생성합니다. 경험 입력 상태는 프로필의 미입력·경험 없음·본문 입력을 구분합니다. 이 사전은 자료를 해석하는 용도이며 도구 schema에 없는 필터를 허용하지 않습니다. [최종 호출](../../backend/app/agents/factory.py)은 서버가 확정한 자료 JSON을 별도 데이터 절에 넣습니다. JSON 문자열의 명령·역할 주장·헤더는 지시가 아니며, 구분 표기가 서버의 권한·후보 검증을 대체하지 않습니다.
+
 ## 목적별 도구와 권한
 
 ![도구 구성: 서버의 AgentContext와 SourceTools 팩토리가 목적별 도구를 만들고 SourceReader와 도메인 서비스를 통해 PostgreSQL을 조회](diagrams/ai-tools.svg)
@@ -41,7 +47,7 @@
 
 | 목적 | 허용 도구·자료 | 경계 |
 | --- | --- | --- |
-| 일반 대화 | `search_people`, `search_contests`, `search_teams`, `get_resource_detail`: 공개 공고·추천 가능한 팀·공개 사람 | 비공개 본인 프로필도 자동으로 읽지 않음. 일반 사람을 실제 지원자로 취급하지 않음 |
+| 일반 대화 | `find_contests`, `find_teams`, `find_people` 조건 탐색; `search_contests_by_title`, `search_teams_by_name`, `search_people_by_name` 제목·이름 검색; `get_resource_detail` 상세: 공개 공고·추천 가능한 팀·공개 사람 | 비공개 본인 프로필도 자동으로 읽지 않음. 일반 사람을 실제 지원자로 취급하지 않음 |
 | 지원자 검토 | `read_applicant`: 경로로 고정된 지원 한 건 | 현재 해당 팀장만 허용. 지원 뒤 비공개 프로필도 기존 검토 관계로 읽음 |
 | 팀 후보 추천 | `list_applicants`: 경로로 고정된 팀의 실제 지원 | 현재 팀장만 허용. 새 후보의 지원 상태·소속 검사 |
 
@@ -55,11 +61,15 @@
 
 | 도구 | 선택 enum 조건 | 서버가 유지하는 범위 |
 | --- | --- | --- |
-| `search_teams` | `role_code` | 모집 기간·정원·현재 요청자의 지원 가능 조건 |
-| `search_people` | `role_code`, `field_code` | 공개 프로필만 조회 |
-| `search_contests` | `field_code`, `registration_status` | 마감순, 접수 상태 생략 시 전체 |
+| `find_teams`, `search_teams_by_name` | `role_code` | 모집 기간·정원·현재 요청자의 지원 가능 조건 |
+| `find_people`, `search_people_by_name` | `role_code`, `field_code` | 공개 프로필만 조회 |
+| `find_contests`, `search_contests_by_title` | `field_code`, `registration_status` | 마감순, 접수 상태 생략 시 전체. `deadline_within_days`로 미래 마감 범위 추가 |
 
-`query`는 enum 조건을 제외한 자유 검색어이며 필터와 **AND**로 적용합니다. 예를 들어 개발자를 모집하는 팀은 `role_code="development", query=""`로 찾고, `query="개발자"`를 중복 조건으로 넣지 않습니다. 백엔드가 지원하지 않는 역량 필터를 모델에 광고하지 않습니다. `page`는 1~10, 목록 크기는 서버에서 8개로 고정합니다. `hasMore`가 참이면 다음 페이지가 있으며, 빈 `items`만으로 전체 데이터 부재나 마감을 단정하지 않습니다. 조회 후 권한 검사에서 제외된 항목은 결과에서 빠질 수 있습니다.
+`find_*`에는 자유 검색어가 없습니다. 예를 들어 IT 공모전은 `find_contests(field_code="it_technology")`, 개발자를 모집하는 팀은 `find_teams(role_code="development")`로 찾습니다. `search_*_by_*`는 앞뒤 공백을 제거한 필수 `title` 또는 `name`(1~100자)을 해당 항목에서만 리터럴 부분 일치로 검색합니다. `%`·`_`는 와일드카드가 아니며, 함께 지정한 enum·마감 필터와 **AND**로 적용합니다. 기존 HTTP의 `q` 범위는 보존합니다. 주최자·소개·역량 등 직접 지원하지 않는 조건을 제목·이름으로 대체하거나 지원하지 않는 인자를 만들지 않으며, 허용된 상세 사실로 확인하거나 사용자에게 질문합니다.
+
+`deadline_within_days`는 1~365의 정수이며 공모전 목록과 집계가 공유하는 서버 시각으로 `now < closes_at <= now + N × 24시간`을 적용합니다. `closed`와 미래 마감 범위의 동시 요청은 입력 오류입니다. 접수 예정인 공모전도 미래 마감 범위와 함께 필터링할 수 있습니다. “마감 임박”에 일수가 없으면 접수 중인 공모전을 마감순으로 조회하고 실제 마감일을 설명하며, “이번 주” 같은 달력 범위를 상대 일수로 바꾸지 않습니다.
+
+`page`는 1~10, 목록 크기는 서버에서 8개로 고정합니다. 결과의 `page`는 도메인 목록이 보정한 실제 페이지입니다. `hasMore`는 허용된 다음 페이지가 있을 때만 참이고, 10페이지 이후 자료가 남으면 `pageLimitReached`로 조건을 좁히도록 안내합니다. `appliedFilters`는 정규화한 제목·이름·코드·상태·일수를 담고 마감 조건에는 `checkedAt`, `deadlineAfter`, `deadlineOnOrBefore`로 실제 구간을 남깁니다. 조회 후 권한 검사에서 제외된 항목은 `items`에서 빠질 수 있으므로 추천 가능 총수는 제공하지 않습니다. 빈 페이지나 제한된 조회만으로 전체 자료 부재나 마감을 단정하지 않습니다.
 
 모델은 도구 설명과 enum을 근거로 조건을 선택하지만 실제 자연어 해석의 정확도는 별도 품질 평가 대상입니다. 유효한 모집 기간을 갖는 시연 데이터셋 정비는 후속 작업이며, 이 도구 계약 변경에는 데이터 수정이나 운영 배포를 포함하지 않습니다.
 
