@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AppError
 from app.models.auth import Account
 from app.repositories import auth as auth_repository
-from app.schemas.auth import AccountResponse, Credentials, LoginIdAvailability
+from app.schemas.auth import (
+    AccountResponse,
+    Credentials,
+    LoginIdAvailability,
+    SignupCredentials,
+)
 from app.security.passwords import (
     PasswordBlocklist,
     hash_password,
@@ -43,7 +48,9 @@ async def login_id_availability(
 
 
 async def signup(
-    session: AsyncSession, credentials: Credentials, blocklist: PasswordBlocklist | None
+    session: AsyncSession,
+    credentials: SignupCredentials,
+    blocklist: PasswordBlocklist | None,
 ) -> AuthenticatedAccount:
     try:
         if blocklist is None:

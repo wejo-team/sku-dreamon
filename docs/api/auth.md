@@ -43,9 +43,9 @@ CSRF 조회는 같은 인증 상태의 유효한 쿠키를 재사용하고 `Cach
 
 <a id="credentials"></a>
 
-### Credentials — 가입·로그인 요청
+### SignupCredentials·Credentials — 가입·로그인 요청
 
-정확한 입력은 [Credentials·LoginId](../../backend/app/schemas/auth.py)와 생성 OpenAPI를 따릅니다. 아이디는 trim·ASCII 소문자화 후 4~24자, 비밀번호는 NFC 후 코드 포인트 15~128자이며 공백·대소문자를 보존합니다. 가입에는 운영 차단 목록이 적용되며 일치하면 `400 PASSWORD_BLOCKED`, 미설정이면 `503 TEMPORARY_UNAVAILABLE`입니다.
+정확한 입력은 [SignupCredentials·Credentials·LoginId](../../backend/app/schemas/auth.py)와 생성 OpenAPI를 따릅니다. 아이디는 trim·ASCII 소문자화 후 4~24자, 비밀번호는 NFC 후 코드 포인트 8~128자이며 공백·대소문자를 보존합니다. 가입의 `SignupCredentials`는 Unicode 문장부호(P) 또는 기호(S)를 하나 이상 요구하며 누락하면 422입니다. 로그인의 `Credentials`에는 기호 조건을 적용하지 않아 기존 계정의 비밀번호도 허용합니다. JSON 필드는 두 요청 모두 `loginId`, `password`입니다. 가입에는 운영 차단 목록이 적용되며 일치하면 `400 PASSWORD_BLOCKED`, 미설정이면 `503 TEMPORARY_UNAVAILABLE`입니다.
 
 <a id="account"></a>
 

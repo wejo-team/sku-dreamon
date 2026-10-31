@@ -27,7 +27,15 @@ async def test_signup_login_and_availability(
     http_app.state.password_blocklist = PasswordBlocklist(
         version="test", _passwords=frozenset({"blocked-password-123"})
     )
-    credentials = {"loginId": " NEWUSER ", "password": "Unique long password 123"}
+    credentials = {"loginId": " NEWUSER ", "password": "abcdefg!"}
+    missing_symbol = await http_client.post(
+        "/api/v1/accounts",
+        json={**credentials, "password": "abcdefgh"},
+        headers=await headers(http_client),
+    )
+    assert missing_symbol.status_code == 422
+    assert missing_symbol.json()["detail"][0]["loc"] == ["body", "password"]
+    assert "abcdefgh" not in missing_symbol.text
     response = await http_client.post(
         "/api/v1/accounts", json=credentials, headers=await headers(http_client)
     )
@@ -63,10 +71,34 @@ async def test_signup_login_and_availability(
         assert await session.scalar(select(func.count()).select_from(Account)) == 1
 
 
+async def test_existing_password_without_symbols_still_logs_in(
+    http_client: AsyncClient, http_database: Database
+) -> None:
+    from app.security.passwords import hash_password
+
+    password = "Existing password without symbols"
+    async with http_database.session() as session:
+        account = Account(
+            login_id_normalized="legacyuser",
+            password_hash=await hash_password(password),
+        )
+        session.add(account)
+        await session.commit()
+        account_id = str(account.account_id)
+
+    response = await http_client.post(
+        "/api/v1/auth/login",
+        json={"loginId": "legacyuser", "password": password},
+        headers=await headers(http_client),
+    )
+    assert response.status_code == 200
+    assert response.json()["data"]["account"]["id"] == account_id
+
+
 async def test_unconfigured_signup_and_csrf_fail_without_account(
     http_client: AsyncClient, http_database: Database
 ) -> None:
-    credentials = {"loginId": "newuser", "password": "Unique long password 123"}
+    credentials = {"loginId": "newuser", "password": "abcdefg!"}
     assert (
         await http_client.post("/api/v1/accounts", json=credentials)
     ).status_code == 403
@@ -119,7 +151,7 @@ async def test_signup_session_failure_rolls_back_account(
     monkeypatch.setattr(service, "issue_session", fail)
     response = await http_client.post(
         "/api/v1/accounts",
-        json={"loginId": "rollback", "password": "Unique long password 123"},
+        json={"loginId": "rollback", "password": "abcdefg!"},
         headers=await headers(http_client),
     )
     assert response.status_code == 500
@@ -135,7 +167,7 @@ async def test_concurrent_signup_has_one_account_and_session(
 
     from app.core.exceptions import AppError
     from app.models.auth import AuthSession
-    from app.schemas.auth import Credentials
+    from app.schemas.auth import SignupCredentials
     from app.security.passwords import PasswordBlocklist
     from app.services.auth import signup
 
@@ -144,9 +176,7 @@ async def test_concurrent_signup_has_one_account_and_session(
             try:
                 await signup(
                     session,
-                    Credentials(
-                        loginId="sameuser", password="Unique long password 123"
-                    ),
+                    SignupCredentials(loginId="sameuser", password="abcdefg!"),
                     PasswordBlocklist(
                         version="test", _passwords=frozenset({"blocked-password-123"})
                     ),

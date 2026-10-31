@@ -29,6 +29,13 @@ def normalize_password(value: str) -> str:
     return normalized
 
 
+def require_password_symbol(value: str) -> str:
+    """새 비밀번호에는 문장부호·기호를 요구하며 문자·공백과 구분한다."""
+    if not any(unicodedata.category(char).startswith(("P", "S")) for char in value):
+        raise ValueError("Password must contain at least one symbol")
+    return value
+
+
 LoginId = Annotated[
     StrictStr,
     AfterValidator(normalize_login_id),
@@ -47,10 +54,10 @@ Password = Annotated[
     StrictStr,
     AfterValidator(normalize_password),
     Field(
-        min_length=15,
+        min_length=8,
         max_length=128,
         description=(
-            "비밀번호. NFC 정규화 후 Unicode 코드 포인트 기준 15~128자이며, "
+            "비밀번호. NFC 정규화 후 Unicode 코드 포인트 기준 8~128자이며, "
             "대소문자와 앞뒤·중간 공백을 보존합니다. 요청 전용 필드입니다."
         ),
     ),
@@ -58,11 +65,26 @@ Password = Annotated[
 
 
 class Credentials(RequestDTO):
-    """회원가입과 로그인에 사용하는 아이디·비밀번호 입력."""
+    """로그인 입력. 기존 계정의 기호 없는 비밀번호도 허용한다."""
 
     login_id: LoginId
     password: Password = Field(
         repr=False, exclude=True, json_schema_extra={"writeOnly": True}
+    )
+
+
+class SignupCredentials(Credentials):
+    """가입에만 기호 조건을 추가하며 로그인과 JSON 필드 모양을 유지한다."""
+
+    password: Annotated[Password, AfterValidator(require_password_symbol)] = Field(
+        repr=False,
+        exclude=True,
+        json_schema_extra={"writeOnly": True},
+        description=(
+            "새 비밀번호. NFC 후 Unicode 코드 포인트 기준 8~128자이며 "
+            "Unicode 문장부호(P) 또는 기호(S)를 하나 이상 포함해야 합니다. "
+            "대소문자와 공백을 보존하며 대문자·숫자 조합은 요구하지 않습니다."
+        ),
     )
 
 

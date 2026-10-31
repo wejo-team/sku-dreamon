@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from app.schemas.auth import AccountResponse, Credentials, LoginId
+from app.schemas.auth import AccountResponse, Credentials, LoginId, SignupCredentials
 
 
 def test_credentials_normalize_only_ascii_login_case_and_password_nfc() -> None:
@@ -31,14 +31,14 @@ def test_login_id_rejects_invalid_characters_length_and_non_strings(
 
 
 @pytest.mark.parametrize(
-    "password", ["a" * 14, "a" * 129, "e\u0301" * 14, 123456789012345]
+    "password", ["a" * 7, "a" * 129, "e\u0301" * 7, 123456789012345]
 )
 def test_password_length_is_measured_after_normalization(password: object) -> None:
     with pytest.raises(ValidationError):
         Credentials.model_validate({"loginId": "validuser", "password": password})
 
 
-@pytest.mark.parametrize("password", ["a" * 15, "가" * 128, " " * 15, "🚀" * 15])
+@pytest.mark.parametrize("password", ["a" * 8, "가" * 128, " " * 15, "🚀" * 15])
 def test_password_accepts_code_point_boundaries_without_composition_rules(
     password: str,
 ) -> None:
@@ -48,6 +48,50 @@ def test_password_accepts_code_point_boundaries_without_composition_rules(
         ).password
         == password
     )
+
+
+@pytest.mark.parametrize(
+    "password",
+    [
+        "abcdefg!",
+        "1234567@",
+        "가나다라마바사!",
+        "é" * 7 + "!",
+        "😀" * 8,
+        "a" * 127 + "!",
+    ],
+)
+def test_signup_accepts_eight_characters_with_a_symbol(password: str) -> None:
+    credentials = SignupCredentials.model_validate(
+        {"loginId": "validuser", "password": password}
+    )
+    assert credentials.password == password
+    assert password not in repr(credentials)
+    assert "password" not in credentials.model_dump()
+
+
+@pytest.mark.parametrize(
+    "password",
+    [
+        "abcdef!",
+        "abcdefgh",
+        "한글비밀번호입니다",
+        "abcdefg ",
+        "abcdefg\n",
+        "e\u0301" * 6 + "!",
+        "a" * 128 + "!",
+    ],
+)
+def test_signup_rejects_short_passwords_and_missing_symbols(password: str) -> None:
+    with pytest.raises(ValidationError):
+        SignupCredentials.model_validate({"loginId": "validuser", "password": password})
+
+
+def test_signup_normalizes_before_counting_and_preserves_spaces() -> None:
+    credentials = SignupCredentials.model_validate(
+        {"loginId": "validuser", "password": " e\u0301" + "a" * 4 + "! "}
+    )
+    assert credentials.password == " éaaaa! "
 
 
 @pytest.mark.parametrize(
