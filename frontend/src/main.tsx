@@ -9,6 +9,7 @@ import '@/styles/login.css';
 import '@/styles/profile-fields.css';
 import '@/styles/design-preview.css';
 import '@/styles/service-ui.css';
+import '@/styles/applicant-assessment.css';
 import '@/styles/information-hierarchy.css';
 import '@/styles/mobile-preview.css';
 

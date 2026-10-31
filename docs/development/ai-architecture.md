@@ -1,6 +1,6 @@
 # AI 에이전트 아키텍처
 
-현재 백엔드 구현을 읽고 수정하기 위한 문서입니다. 사용자 동작은 [추천 명세](../specs/matching.md), 설계 결정·후속 작업은 [SDD](../development-plans/ai-agent.md), 전송 계약은 [AI API](../api/ai.md), 테이블·제약은 [AI 저장](../database/ai.md)이 원본입니다. 프론트 연결·대화 기록 조회 API·운영 배포는 포함하지 않습니다.
+현재 백엔드와 지원자 평가 화면 연결을 읽고 수정하기 위한 문서입니다. 사용자 동작은 [추천 명세](../specs/matching.md), 설계 결정·후속 작업은 [SDD](../development-plans/ai-agent.md), 전송 계약은 [AI API](../api/ai.md), 테이블·제약은 [AI 저장](../database/ai.md)이 원본입니다. 지원자 점수 v3·완성 JSON을 연결했으며 대화 기록 조회 API·운영 배포는 이번 범위에 포함하지 않습니다.
 
 ## 구성과 실행 흐름
 
@@ -8,11 +8,11 @@
 
 [그림 크게 보기](diagrams/ai-flow.svg) · [Mermaid 원본](diagrams/ai-flow.mmd)
 
-보라색은 **Luna 호출**, 초록색은 **서버의 처리·검증**, 노란색은 **완료 저장**입니다. 입력 가드가 현재 사용자 요청을 허용한 뒤 단일 ReAct 에이전트가 자료 조회와 최종 답변을 이어갑니다. 서버의 필수 검증을 통과한 최종 호출의 텍스트만 즉시 전송하고, 생성 완료 후 저장과 최종 결과 전송으로 이어집니다. 대화 원문 저장은 일반 채팅에만 적용합니다.
+그림은 일반 대화 경로입니다. 보라색은 **Luna 호출**, 초록색은 **서버의 처리·검증**, 노란색은 **완료 저장**입니다. 입력 가드가 현재 사용자 요청을 허용한 뒤 단일 ReAct 에이전트가 자료 조회와 최종 답변을 이어갑니다. 서버의 필수 검증을 통과한 최종 호출의 텍스트만 즉시 전송하고, 생성 완료 후 저장과 최종 결과 전송으로 이어집니다. 대화 원문 저장은 일반 채팅에만 적용합니다.
 
 별도 worker·작업 큐 없이 요청을 받은 FastAPI 프로세스가 실행합니다. [앱 수명](../../backend/app/main.py) 동안 모델 클라이언트를 공유하지만 대화·검증 상태는 실행별 객체에 둡니다. 요청마다 [create_agent](../../backend/app/agents/factory.py)의 그래프 하나와 목적별 도구를 구성하며 LangGraph 영속 checkpointer·store는 연결하지 않습니다. 서버 재시작 뒤 중단된 그래프를 재개하지 않습니다.
 
-## 입력 가드와 단일 ReAct의 책임
+## 일반 대화의 입력 가드와 단일 ReAct
 
 | 단계 | 입력과 출력 | 책임 |
 | --- | --- | --- |
@@ -29,7 +29,7 @@
 
 최종 텍스트의 추가 LLM 검토·문장/전체 답변 버퍼링은 없습니다. 모델 내용의 사실성·추천 품질 전체를 결정론적으로 보장하는 구조는 아닙니다. 첫 텍스트 전에 가드·자료 조회·검증 지연이 있으며 기존 `searching → validating → writing` 진행 이벤트를 유지합니다. `validating`·`writing`은 게이트 성공 후 첫 텍스트 직전에 전달됩니다.
 
-[프롬프트](../../backend/app/agents/prompts.py)는 자유 텍스트의 지시를 자료로 취급하고 고정 점수·자동 선발을 금지합니다. 참가 자격은 원문 확인 안내에 사용하며 학사 조건으로 후보를 차단하지 않습니다. 주당 참여 가능 시간은 모든 프로젝트를 합산한 참고값입니다. 보안·권한 검사는 프롬프트 준수 여부에 의존하지 않습니다.
+[일반 대화 프롬프트](../../backend/app/agents/prompts.py)는 자유 텍스트의 지시를 자료로 취급하고 점수·자동 선발을 금지합니다. 지원자 전용 항목 점수는 아래 별도 평가 계약을 따릅니다. 참가 자격은 원문 확인 안내에 사용하며 학사 조건으로 후보를 차단하지 않습니다. 주당 참여 가능 시간은 모든 프로젝트를 합산한 참고값입니다. 보안·권한 검사는 프롬프트 준수 여부에 의존하지 않습니다.
 
 ### 프롬프트 구성
 
@@ -37,13 +37,27 @@
 
 자료의 분야·역할·역량·주당 참여 가능 시간 설명은 [공통 카탈로그](../../backend/app/rules/catalogs.py)의 코드와 표시명에서 생성합니다. 경험 입력 상태는 프로필의 미입력·경험 없음·본문 입력을 구분합니다. 이 사전은 자료를 해석하는 용도이며 도구 schema에 없는 필터를 허용하지 않습니다. [최종 호출](../../backend/app/agents/factory.py)은 서버가 확정한 자료 JSON을 별도 데이터 절에 넣습니다. JSON 문자열의 명령·역할 주장·헤더는 지시가 아니며, 구분 표기가 서버의 권한·후보 검증을 대체하지 않습니다.
 
+## 지원자 조회·구조화 평가
+
+지원자 요청은 별도의 `OpenAiAgentDriver.assess`에서 기존 권한별 읽기 도구와 명시적인 `ProviderStrategy(ApplicantAssessmentPlan, strict=True)`를 사용합니다. 개별 검토는 한 명, 후보 추천은 조회한 유효 지원 중 선택한 최대 3명만 평가합니다. 전체 지원자 완료나 상위 순위를 뜻하지 않으며, 모델 출력과 서비스 양쪽에서 인원 상한을 검증합니다. 항목 설명·총평은 간결한 한 문장을 요청해 기본 출력 예산을 유지합니다. 조회와 구조화 평가를 한 `create_agent` 그래프 안에서 끝내며 별도 자유 텍스트 Writer나 토큰 스트림은 실행하지 않습니다. 일반 대화의 입력 가드·필수 서버 제어 도구·최종 토큰 전송은 유지합니다.
+
+지원자 조회 도구는 기존 사실과 함께 서버가 실제 등록 필드에서 만든 `evidence` 참조 목록을 제공합니다. 모델은 각 지원자의 실제 key와 근거 참조만 반환합니다. [평가 검증](../../backend/app/agents/assessment.py)은 조회한 대상·중복·4개 항목·실제 근거를 검사하고 근거 원문은 서버에서 구성합니다. 서비스는 현재 팀장 권한·지원 상태·자료 해시를 다시 확인한 뒤 완성 결과를 채택합니다. 팀 후보 결과에는 필터에 필요한 현재 이름과 등록 역량만 추가하고 일반 채팅의 카드 계약은 확장하지 않습니다.
+
+항목은 역할·역량·경험·참여시간이며 `score`는 0~100의 5점 단위 정수 또는 `null`입니다. `informationStatus=sufficient`와 숫자, `insufficient`와 `null`의 양방향 일치를 검사합니다. 0점은 근거가 있는 불일치이며 미등록을 0점으로 바꾸지 않습니다. [평가 프롬프트](../../backend/app/agents/prompts.py)는 항목별 0·25·50·75·100 기준점과 같은 후보 비교 기준을 정의합니다. 개인 속성으로 점수화하거나 총점·순위·자동 선발을 만들지 않습니다. 참여시간에는 팀의 명시적 조건과 지원자가 이 팀에 배정할 시간까지 있어야 하며 전체 프로젝트 합산 자기신고만으로 계산하지 않습니다.
+
+`AssessmentGuard`는 도구 오류·잘못된 호출과 제공자의 미완료 상태를 거부합니다. 유효한 JSON처럼 보여도 `incomplete/max_output_tokens`면 한도 실패로 처리합니다. `InputBudget`과 기존 `AiTracing` 설정을 사용하고, 추적 비활성화 우회나 별도 키를 추가하지 않습니다. 실제 모델의 루브릭 해석·점수 일관성은 형식 검증과 별개인 품질 평가 대상입니다.
+
+제품은 `/stream` 없는 평가 POST에서 `Success<AiCompletion>`을 받아 현재 권한 재검증 후 표시합니다. 기존 지원자 SSE는 부분 문장 없이 v3 결과만 전달하며 중첩된 `score=null`도 보존합니다. `AiJsonResponse`는 기존 `StreamCleanup` deadline·상태 저장 중복 방지·전체 전송 예산을 공유하고 최종 JSON 전송 동안 권한 잠금을 유지합니다. 원문은 요청·브라우저 메모리에만 있고 결과 조회·polling 복원 API는 없습니다.
+
+그래프는 네 항목별 점수와 지원자별 고유색을 사용하며 정보 부족은 점선·비어 있는 표시로 구분합니다. 평가 설명·근거·출처·질문은 화면에 노출하지 않지만 원본 결과와 재검증 해시에는 보존합니다.
+
 ## 목적별 도구와 권한
 
 ![도구 구성: 서버의 AgentContext와 SourceTools 팩토리가 목적별 도구를 만들고 SourceReader와 도메인 서비스를 통해 PostgreSQL을 조회](diagrams/ai-tools.svg)
 
 [그림 크게 보기](diagrams/ai-tools.svg) · [Mermaid 원본](diagrams/ai-tools.mmd)
 
-`SourceTools.build()`가 **요청 목적에 맞는 읽기 도구 묶음 하나**를 ReAct 에이전트에 전달합니다. 그림의 세 묶음을 한 요청에 모두 제공하지 않습니다. 도구 함수는 요청별 `SourceTools`를 클로저로 참조하고, 서버가 주입한 `SourceReader`에서 권한과 자료 범위를 확인합니다. 팩토리는 DB를 변경하지 않는 내부 제어 도구 `prepare_recommendations`를 추가하며, 최종 단계에는 모든 도구를 제거합니다.
+`SourceTools.build()`가 **요청 목적에 맞는 읽기 도구 묶음 하나**를 ReAct 에이전트에 전달합니다. 그림의 세 묶음을 한 요청에 모두 제공하지 않습니다. 도구 함수는 요청별 `SourceTools`를 클로저로 참조하고, 서버가 주입한 `SourceReader`에서 권한과 자료 범위를 확인합니다. 일반 대화 팩토리는 DB를 변경하지 않는 내부 제어 도구 `prepare_recommendations`를 추가하며, 최종 단계에는 모든 도구를 제거합니다.
 
 | 목적 | 허용 도구·자료 | 경계 |
 | --- | --- | --- |
@@ -108,7 +122,7 @@ OpenAI 호출은 `store=False`, 이전 응답 ID 연결은 끕니다. LangSmith�
 ## 취소·실패·권한 변경
 
 - 모델 호출 중에도 현재 실행과 세션을 확인합니다. 취소·로그아웃·기한 만료 시 하위 작업을 취소하고 마지막 상태를 확정합니다.
-- SSE 소비·heartbeat·연결 종료를 관리하는 [응답 클래스](../../backend/app/routers/ai.py)는 최초 헤더 전송 실패와 진행 중 연결 종료 모두에서 생성기를 닫고 미완료 실행을 정리합니다.
+- SSE와 평가 JSON의 연결 종료를 관리하는 [응답 클래스](../../backend/app/routers/ai.py)는 최초 헤더 전송 실패와 진행 중 연결 종료 모두에서 생성기를 닫고 미완료 실행을 정리합니다.
 - `invalidated`를 받으면 프론트는 해당 답변 전체를 제거해야 합니다. 이미 전송한 바이트는 서버에서 회수할 수 없습니다.
 - 답변 생성 완료 전 실패·취소된 요청은 저장된 사용자 메시지만 남습니다. 실패 상세의 장기 이력은 저장하지 않으며 메타데이터 만료 뒤에는 메시지만으로 종료 원인을 복원할 수 없습니다.
 - 프로세스가 종료되어 남은 `pending`은 기한 후 상태 조회·정리에서 실패로 바뀝니다. SSE 재생·완료 답변 복원은 제공하지 않습니다.
@@ -124,6 +138,8 @@ OpenAI 호출은 `store=False`, 이전 응답 ID 연결은 끕니다. LangSmith�
 | [에이전트](../../backend/app/agents/factory.py), [가드](../../backend/app/agents/guards.py), [도구](../../backend/app/agents/tools.py) | 입력 분류·단일 ReAct·단계 강제·예산·최종 토큰 필터 |
 | [자료 서비스](../../backend/app/services/ai_sources.py) | 도메인 조회·모델 입력 최소화 |
 | [대화 레포지토리](../../backend/app/repositories/ai_chat.py), [실행 레포지토리](../../backend/app/repositories/ai_runs.py) | SQL·고유 제약·행 잠금·flush. 자체 commit 없음 |
+
+지원자 [평가 계약 테스트](../../backend/tests/unit/test_ai_assessment.py)와 [HTTP 테스트](../../backend/tests/integration/test_ai_assessment.py)는 점수·정보 상태·실제 근거·JSON·취소·권한·원문 미보존을 검사합니다. [제공자 어댑터 테스트](../../backend/tests/unit/test_ai_assessment_provider.py)는 외부 호출 없는 실제 Responses 어댑터로 strict JSON과 미완료 응답 거부를 확인합니다.
 
 의존 방향은 [공통 아키텍처](architecture.md#responsibility-boundaries)를 따릅니다. [통합 테스트](../../backend/tests/integration/test_ai.py)는 실제 PostgreSQL과 가짜 모델로 권한·중복·취소·원문 저장·트랜잭션 실패·연결 종료를 검사합니다. [도구 테스트](../../backend/tests/unit/test_ai_tools.py)는 도메인 분리·조회 한도·자료 변경을 검사합니다. [런타임 테스트](../../backend/tests/unit/test_ai_runtime.py)는 실제 `create_agent`와 가짜 모델로 필수 게이트·최종 토큰의 즉시 전달·취소를 검사하고, [가드 테스트](../../backend/tests/unit/test_ai_guards.py)와 [가드 통합 테스트](../../backend/tests/integration/test_ai_guard_stream.py)는 분류 계약·장애·거절 저장·재시도를 검사합니다. 가짜 판정 테스트는 실제 의미 분류 품질의 증거가 아닙니다. 실제 모델 수동 검사는 [로컬 실행](local-development.md#ai-backend)을 따르며 일반 테스트는 유료 API를 호출하지 않습니다.
 

@@ -15,6 +15,7 @@ from app.agents.tools import SourceTools
 from app.agents.tracing import AiTraceContext
 from app.agents.types import (
     AgentContext,
+    ApplicantAssessmentPlan,
     PreviousContext,
     RecommendationGate,
     RecommendationPlan,
@@ -65,6 +66,11 @@ class Runs:
 
 
 class Driver:
+    async def assess(
+        self, sources: SourceTools, *, trace_context: AiTraceContext | None = None
+    ) -> ApplicantAssessmentPlan:
+        raise AssertionError("Chat fixture must not evaluate applicants")
+
     def __init__(self, mode: str) -> None:
         self.mode = mode
         self.entered = asyncio.Event()

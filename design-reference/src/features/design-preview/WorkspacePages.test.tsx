@@ -441,8 +441,8 @@ describe('applicant review', () => {
       expect(
         await within(
           screen.getByRole('region', { name: 'AI 검토 도움' }),
-        ).findByRole('status'),
-      ).toHaveTextContent(initialApplicants[0]!.message);
+        ).findByRole('figure'),
+      ).toHaveTextContent('100점 기준');
       expect(
         screen.getByRole('button', { name: '다시 검토하기' }),
       ).toBeEnabled();
@@ -629,8 +629,8 @@ describe('recruitment reopening and discarded history', () => {
     expect(
       await within(
         screen.getByRole('region', { name: 'AI 검토 도움' }),
-      ).findByRole('status'),
-    ).toHaveTextContent(initialApplicants[0]!.message);
+      ).findByRole('figure'),
+    ).toHaveTextContent('100점 기준');
     expect(
       screen.getByText(/폐기된 지원은 새 선발 후보 추천에서 제외/),
     ).toBeInTheDocument();

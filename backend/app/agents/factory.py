@@ -1,4 +1,4 @@
-"""단일 ReAct 실행의 검증된 최종 모델 텍스트만 실시간으로 전달한다."""
+"""채팅은 검증된 최종 텍스트를 스트리밍하고 지원자는 구조화 평가를 완성한다."""
 
 import asyncio
 import json
@@ -15,6 +15,7 @@ from langchain.agents.middleware.types import (
     ModelResponse,
     ToolCallRequest,
 )
+from langchain.agents.structured_output import ProviderStrategy
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
@@ -31,14 +32,24 @@ from langgraph.runtime import Runtime
 from langgraph.types import Command
 
 from app.agents.guards import InputBlocked, InputGuard, InputGuardMiddleware
-from app.agents.prompts import AGENT_PROMPT, FINAL_ANSWER_PROMPT
+from app.agents.prompts import (
+    AGENT_PROMPT,
+    APPLICANT_LOOKUP_PROMPT,
+    ASSESSMENT_PROMPT,
+    FINAL_ANSWER_PROMPT,
+)
 from app.agents.tools import SourceTools, ToolBudgetExceeded
 from app.agents.tracing import (
     FINAL_ANSWER_TAG,
     AiTraceContext,
     AiTracing,
 )
-from app.agents.types import PreviousContext, RecommendationGate, RecommendationPlan
+from app.agents.types import (
+    ApplicantAssessmentPlan,
+    PreviousContext,
+    RecommendationGate,
+    RecommendationPlan,
+)
 from app.core.config import Settings
 
 Gate = RecommendationGate
@@ -57,6 +68,13 @@ class AgentDriver(Protocol):
         gate: RecommendationGate,
         trace_context: AiTraceContext | None = None,
     ) -> AsyncIterator[str]: ...
+
+    async def assess(
+        self,
+        sources: SourceTools,
+        *,
+        trace_context: AiTraceContext | None = None,
+    ) -> ApplicantAssessmentPlan: ...
 
 
 class RequestContext(AgentMiddleware[AgentState[None], None]):
@@ -210,6 +228,36 @@ class RecommendationPhase(AgentMiddleware[AgentState[None], None]):
         return result
 
 
+class AssessmentGuard(AgentMiddleware[AgentState[None], None]):
+    """구조화 JSON이 파싱돼도 제공자 미완료·도구 오류를 성공으로 처리하지 않는다."""
+
+    async def aafter_model(
+        self, state: AgentState[None], runtime: Runtime[None]
+    ) -> None:
+        message = state["messages"][-1]
+        if not isinstance(message, AIMessage) or message.invalid_tool_calls:
+            raise ValueError("Invalid assessment response")
+        status = message.response_metadata.get("status")
+        if status is not None and status != "completed":
+            details = message.response_metadata.get("incomplete_details")
+            if (
+                isinstance(details, dict)
+                and details.get("reason") == "max_output_tokens"
+            ):
+                raise ToolBudgetExceeded()
+            raise ValueError("Incomplete assessment response")
+
+    async def awrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[object]]],
+    ) -> ToolMessage | Command[object]:
+        result = await handler(request)
+        if isinstance(result, ToolMessage) and result.status == "error":
+            raise ValueError("Invalid assessment tool call")
+        return result
+
+
 class OpenAiAgentDriver:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -235,6 +283,49 @@ class OpenAiAgentDriver:
         for result in results:
             if isinstance(result, BaseException):
                 raise result
+
+    async def assess(
+        self,
+        sources: SourceTools,
+        *,
+        trace_context: AiTraceContext | None = None,
+    ) -> ApplicantAssessmentPlan:
+        """지원자 조회와 평가를 한 그래프에서 수행하고 완성된 JSON만 반환한다."""
+        if sources.reader.context.purpose == "chat":
+            raise ValueError("Applicant assessment requires an applicant purpose")
+        agent = create_agent(
+            model=self.model,
+            tools=sources.build(),
+            system_prompt=APPLICANT_LOOKUP_PROMPT + "\n" + ASSESSMENT_PROMPT,
+            response_format=ProviderStrategy(ApplicantAssessmentPlan, strict=True),
+            middleware=[
+                AssessmentGuard(),
+                InputBudget(self.settings.ai_max_input_tokens),
+            ],
+        )
+        with self.tracing.context():
+            state = await agent.ainvoke(
+                {
+                    "messages": [
+                        HumanMessage(
+                            content=json.dumps(
+                                {"purpose": sources.reader.context.purpose},
+                                ensure_ascii=False,
+                            )
+                        )
+                    ]
+                },
+                config={
+                    "recursion_limit": 32,
+                    **self.tracing.config(
+                        sources.reader.context.purpose, trace_context
+                    ),
+                },
+            )
+        output = state.get("structured_response")
+        if not isinstance(output, ApplicantAssessmentPlan):
+            raise ValueError("Missing structured applicant assessment")
+        return output
 
     async def stream(
         self,

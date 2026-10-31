@@ -1,0 +1,61 @@
+/* 항목별 점수 막대와 자료 부족 점선을 모바일에서도 구분합니다. */
+.applicant-assessment {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  min-width: 0;
+}
+.applicant-assessment figcaption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.assessment-scale {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+}
+.assessment-scores {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+}
+.assessment-score-row {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.assessment-score-row dd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+}
+.assessment-score-chart {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 10px;
+}
+.assessment-score-track {
+  fill: var(--muted);
+}
+.assessment-score-bar {
+  fill: var(--primary);
+}
+.assessment-score-missing {
+  stroke: var(--muted-foreground);
+  stroke-width: 1;
+}
+.assessment-score-value {
+  flex: 0 0 24px;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

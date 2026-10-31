@@ -1,4 +1,4 @@
-// AI 스트림과 실행 제어 API를 실제 서버 계약으로 호출합니다.
+// 채팅 SSE·지원자 JSON 평가와 실행 제어 API를 실제 서버 계약으로 호출합니다.
 import { apiRequest, apiRequestRaw, ApiError } from '@/lib/api';
 import { Id, PositiveSafeInteger, success } from '@/lib/api-contract';
 import {
@@ -6,6 +6,7 @@ import {
   AiPurpose,
   AiRequestView,
   AiResult,
+  ApplicantCompletion,
   ChatStart,
   TargetStart,
   RetryStart,
@@ -57,34 +58,80 @@ export function startChat(
 export function startApplicantReview(
   applicationId: string,
   input: TargetStart,
-  onEvent: OnEvent,
   signal?: AbortSignal,
 ) {
   const body = TargetStart.parse(input);
-  return stream(
-    `/applications/${Id.parse(applicationId)}/ai-reviews/stream`,
+  const targetId = Id.parse(applicationId);
+  return completeApplicants(
+    `/applications/${targetId}/ai-reviews`,
     body,
-    { requestId: body.requestId, attempt: 1, purpose: 'applicant_review' },
-    onEvent,
+    {
+      requestId: body.requestId,
+      attempt: 1,
+      purpose: 'applicant_review',
+      applicationId: targetId,
+    },
     signal,
   );
 }
 export function startApplicantRecommendations(
   teamId: string,
   input: TargetStart,
-  onEvent: OnEvent,
   signal?: AbortSignal,
 ) {
   const body = TargetStart.parse(input);
-  return stream(
-    `/teams/${Id.parse(teamId)}/applicant-recommendations/stream`,
+  return completeApplicants(
+    `/teams/${Id.parse(teamId)}/applicant-recommendations`,
     body,
     {
       requestId: body.requestId,
       attempt: 1,
       purpose: 'applicant_recommendation',
     },
-    onEvent,
+    signal,
+  );
+}
+async function completeApplicants(
+  path: string,
+  input: unknown,
+  expected: {
+    requestId: string;
+    attempt: number;
+    purpose: 'applicant_review' | 'applicant_recommendation';
+    applicationId?: string;
+  },
+  signal?: AbortSignal,
+) {
+  const completed = success(ApplicantCompletion).parse(
+    await apiRequest(path, { method: 'POST', json: input, signal }),
+  ).data;
+  if (
+    completed.requestId !== expected.requestId ||
+    completed.attempt !== expected.attempt ||
+    (completed.result !== null && completed.result.kind !== expected.purpose) ||
+    (completed.result?.kind === 'applicant_review' &&
+      expected.applicationId !== undefined &&
+      completed.result.applicationId !== expected.applicationId)
+  )
+    throw new Error('지원자 평가 응답이 현재 요청과 일치하지 않습니다.');
+  return completed;
+}
+export function retryApplicants(
+  requestId: string,
+  input: { expectedAttempt: number; input: TargetStart },
+  purpose: 'applicant_review' | 'applicant_recommendation',
+  signal?: AbortSignal,
+) {
+  const body = {
+    expectedAttempt: PositiveSafeInteger.parse(input.expectedAttempt),
+    input: TargetStart.parse(input.input),
+  };
+  if (body.input.requestId !== requestId)
+    throw new Error('재시도 입력의 요청 식별자가 다릅니다.');
+  return completeApplicants(
+    `/ai/requests/${Id.parse(requestId)}/retries`,
+    body,
+    { requestId, attempt: body.expectedAttempt + 1, purpose },
     signal,
   );
 }

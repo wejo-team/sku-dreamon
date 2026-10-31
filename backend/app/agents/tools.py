@@ -6,6 +6,7 @@ from uuid import UUID
 
 from langchain_core.tools import BaseTool, tool
 
+from app.agents.assessment import assessment_evidence
 from app.agents.tool_inputs import (
     ContestFindInput,
     ContestTitleSearchInput,
@@ -74,8 +75,18 @@ class SourceTools:
                     continue
                 raise
             if kind != "application" or value.is_selection_candidate:
-                values.append(value.model_input())
+                values.append(self.model_input(value))
         return values
+
+    @staticmethod
+    def model_input(resource: Resource) -> dict[str, object]:
+        value = resource.model_input()
+        if resource.reference.kind == "application":
+            value["evidence"] = {
+                key: evidence.model_dump(mode="json")
+                for key, evidence in assessment_evidence(resource).items()
+            }
+        return value
 
     async def search_response(
         self, kind: str, result: SourceSearchResult
@@ -236,7 +247,7 @@ class SourceTools:
                 self.count_call()
                 target = self.reader.context.application_id
                 assert target is not None
-                return (await self.load("application", target)).model_input()
+                return self.model_input(await self.load("application", target))
 
             return [read_applicant]
 

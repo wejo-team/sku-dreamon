@@ -1,4 +1,4 @@
-// 실제 API 함수와 SSE 파서를 통과하며 외부 모델은 호출하지 않습니다.
+// 실제 지원자 JSON API와 재검증·취소·세션 경계를 통과하며 외부 모델은 호출하지 않습니다.
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -15,6 +15,7 @@ import type {
 import { createDemoRecords, demoIds } from '@/features/demo/fixtures';
 import { ApplicantReview } from './ApplicantReview';
 import { TargetAiPanel } from './TargetAiPanel';
+import { assessmentFixture } from './assessment-test-fixtures';
 import { TeamApplicantRecommendations } from './TeamApplicantRecommendations';
 vi.mock('@/lib/clock', async (original) => ({
   ...(await original<typeof import('@/lib/clock')>()),
@@ -31,8 +32,10 @@ const account: Account = {
 };
 const version = { accountId: person, usedVersion: '1', currentVersion: '1' };
 const review: ApplicantReviewResult = {
+  schemaVersion: 3,
   kind: 'applicant_review',
   applicationId: target,
+  assessment: assessmentFixture(),
   summary: '지원서의 경험을 검토했습니다.',
   evidence: ['등록한 React 경험'],
   profileVersions: [version],
@@ -41,11 +44,15 @@ const review: ApplicantReviewResult = {
   generatedAt: '2026-10-28T00:00:00Z',
 };
 const recommendations: ApplicantRecommendationResult = {
+  schemaVersion: 3,
   kind: 'applicant_recommendation',
   summary: '역할에 맞는 지원자입니다.',
   candidates: [
     {
       applicationId: target,
+      title: '김서연',
+      assessment: assessmentFixture(),
+      profile: { skillCodes: ['service_planning'] },
       reason: '모집 역할과 등록 경험이 일치해요.',
       profileVersion: version,
     },
@@ -81,48 +88,27 @@ function api(handler: (request: Request) => Response | Promise<Response>) {
     }),
   );
 }
-function frame(
-  requestId: string,
-  event: string,
-  sequence: number,
-  payload: object = {},
-  attempt = 1,
-) {
-  return `event: ${event}\ndata: ${JSON.stringify({ requestId, attempt, sequence, ...payload })}\n\n`;
-}
 function complete(
   requestId: string,
   result: ApplicantReviewResult | ApplicantRecommendationResult,
   attempt = 1,
 ) {
-  return (
-    frame(requestId, 'started', 1, { purpose: result.kind }, attempt) +
-    frame(requestId, 'result', 2, { result }, attempt) +
-    frame(
+  return Response.json({
+    data: {
       requestId,
-      'done',
-      3,
-      {
-        status:
-          result.kind === 'applicant_recommendation' &&
-          !result.candidates.length
-            ? 'empty'
-            : 'succeeded',
-      },
       attempt,
-    )
-  );
+      status:
+        result.kind === 'applicant_recommendation' && !result.candidates.length
+          ? 'empty'
+          : 'succeeded',
+      result,
+    },
+  });
 }
-function sse(value: string) {
-  return new Response(
-    new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(value));
-        controller.close();
-      },
-    }),
-    { headers: { 'Content-Type': 'text/event-stream' } },
-  );
+function interrupted() {
+  return new Response('{"data":', {
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 function error(status: number, code: string) {
   return Response.json(
@@ -158,6 +144,9 @@ function mount(
     },
   });
   client.setQueryData(queryKeys.me, account);
+  const catalogRecords = createDemoRecords();
+  client.setQueryData(queryKeys.catalogs, catalogRecords.catalogs);
+  client.setQueryData(queryKeys.academicUnits, catalogRecords.academicUnits);
   const ui = (revision = '1', visible = true) => (
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -179,7 +168,7 @@ beforeEach(() => {
 });
 
 describe('실제 팀 AI 화면', () => {
-  it('완료 후 검증하고 복사 시에도 변경되지 않은 최초 DTO를 전송한다', async () => {
+  it('완료와 focus 복귀에 최초 DTO로 재검증하고 설명 대신 점수를 표시한다', async () => {
     const updated = {
       ...review,
       isStale: true,
@@ -188,31 +177,32 @@ describe('실제 팀 AI 화면', () => {
     api((r) =>
       r.path.endsWith('/validation')
         ? Response.json({ data: { valid: true, result: updated } })
-        : sse(complete(String(r.body.requestId), review)),
+        : complete(String(r.body.requestId), review),
     );
     const { user } = mount();
-    const clipboard = vi
-      .spyOn(navigator.clipboard, 'writeText')
-      .mockResolvedValue();
     await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
     expect(
       await screen.findByRole('region', { name: 'AI 지원자 검토 결과' }),
-    ).toHaveTextContent(review.summary);
+    ).toContainElement(
+      screen.getByRole('figure', { name: '항목별 평가 점수' }),
+    );
+    expect(screen.getByRole('img', { name: '역할: 85점' })).toBeInTheDocument();
+    expect(screen.queryByText(review.summary)).not.toBeInTheDocument();
+    expect(screen.queryByText(review.evidence[0]!)).not.toBeInTheDocument();
     expect(screen.getByText(/검토 이후 프로필이 변경/)).toBeInTheDocument();
     expect(
       screen.getByText(/현재 선발 후보가 아닌 지원서/),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '결과 복사' }));
-    await screen.findByText('결과를 복사했어요.');
-    expect(clipboard).toHaveBeenCalledWith(
-      `${review.summary}\n\n${review.evidence[0]}`,
-    );
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    await screen.findByRole('figure', { name: '항목별 평가 점수' });
     expect(
       requests
         .filter((r) => r.path.endsWith('/validation'))
         .map((r) => r.body.result),
     ).toEqual([review, review]);
-    expect(requests[0]!.path).toBe(`/applications/${target}/ai-reviews/stream`);
+    expect(requests[0]!.path).toBe(`/applications/${target}/ai-reviews`);
     expect(requests[0]!.init.credentials).toBe('include');
     expect(requests.every((r) => r.method === 'POST')).toBe(true);
   });
@@ -225,7 +215,7 @@ describe('실제 팀 AI 화면', () => {
       api((r) =>
         r.path.endsWith('/validation')
           ? Response.json({ data: { valid: true, result } })
-          : sse(complete(String(r.body.requestId), result)),
+          : complete(String(r.body.requestId), result),
       );
       const { user } = mount('applicant_recommendation');
       await user.click(
@@ -233,7 +223,7 @@ describe('실제 팀 AI 화면', () => {
       );
       await screen.findByRole('region', { name: 'AI 지원자 추천 결과' });
       expect(requests[0]!.path).toBe(
-        `/teams/${target}/applicant-recommendations/stream`,
+        `/teams/${target}/applicant-recommendations`,
       );
       if (empty)
         expect(
@@ -241,72 +231,96 @@ describe('실제 팀 AI 화면', () => {
         ).toBeInTheDocument();
       else
         expect(
-          screen.getByRole('link', { name: '추천 후보 1 지원서 확인' }),
+          screen.getByRole('link', { name: '김서연 지원서 보기' }),
         ).toHaveAttribute('href', `/applicants/${target}`);
       expect(
         screen.queryByRole('button', { name: /선발하기/ }),
       ).not.toBeInTheDocument();
     },
   );
-  it('재시도는 동일 requestId와 expectedAttempt를 전송한다', async () => {
-    api((r) => {
+  it('JSON 실패 후 상태를 확인하고 동일 requestId와 expectedAttempt로 재시도한다', async () => {
+    let id = '';
+    api(async (r) => {
       if (r.path.endsWith('/validation'))
         return Response.json({ data: { valid: true, result: review } });
-      if (r.path.endsWith('/retries/stream'))
-        return sse(
-          complete(
-            (r.body.input as { requestId: string }).requestId,
-            review,
-            2,
-          ),
+      if (r.path.endsWith('/retries'))
+        return complete(
+          (r.body.input as { requestId: string }).requestId,
+          review,
+          2,
         );
-      const id = String(r.body.requestId);
-      return sse(
-        frame(id, 'started', 1, { purpose: 'applicant_review' }) +
-          frame(id, 'error', 2, {
-            failure: {
-              code: 'temporary_failure',
-              message: '일시적으로 검토하지 못했어요.',
-              retryable: true,
-            },
-          }),
-      );
+      if (r.method === 'GET') {
+        const failed = await requestState(id, 'failed').json();
+        failed.data.failure = {
+          code: 'temporary_failure',
+          message: '일시적으로 검토하지 못했어요.',
+          retryable: true,
+        };
+        return Response.json(failed);
+      }
+      id = String(r.body.requestId);
+      return error(503, 'AI_GENERATION_FAILED');
     });
     const { user } = mount();
     await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
     await user.click(
       await screen.findByRole('button', { name: '검토 다시 시도' }),
     );
-    await screen.findByRole('region', { name: 'AI 지원자 검토 결과' });
-    expect(requests[1]!.body).toEqual({
+    await screen.findByRole('figure', { name: '항목별 평가 점수' });
+    expect(requests.find((r) => r.path.endsWith('/retries'))?.body).toEqual({
       expectedAttempt: 1,
       input: requests[0]!.body,
     });
-    expect(requests[2]!.body.attempt).toBe(2);
+    expect(requests.at(-1)?.body.attempt).toBe(2);
   });
-  it('done 없는 종료는 상태를 조회하고 취소할 수 있다', async () => {
+  it('잘린 JSON 응답은 상태를 조회하고 취소할 수 있다', async () => {
     let id = '';
     api((r) => {
       if (r.method === 'GET') return requestState(id, 'pending');
       if (r.path.endsWith('/cancellation')) return requestState(id, 'canceled');
       id = String(r.body.requestId);
-      return sse(
-        frame(id, 'started', 1, { purpose: 'applicant_review' }) +
-          frame(id, 'answer.delta', 2, { text: '미완성 검토' }) +
-          frame(id, 'result', 3, { result: review }),
-      );
+      return interrupted();
     });
     const { user } = mount();
     await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
     await screen.findByText(/연결이 끊겼지만 요청은 처리 중/);
     expect(screen.queryByText('미완성 검토')).not.toBeInTheDocument();
-    expect(screen.queryByText(review.summary)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('figure', { name: '항목별 평가 점수' }),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '요청 취소' }));
     await screen.findByText('요청을 취소했어요.');
     expect(requests.at(-1)).toMatchObject({
       method: 'PUT',
       body: { expectedAttempt: 1 },
     });
+  });
+  it('요청 취소 뒤 늦게 도착한 완료 JSON을 저장하거나 표시하지 않는다', async () => {
+    let id = '';
+    let finish: (value: Response) => void = () => {};
+    api((r) => {
+      if (r.path.endsWith('/cancellation')) return requestState(id, 'canceled');
+      id = String(r.body.requestId);
+      return new Promise<Response>((resolve) => {
+        finish = resolve;
+      });
+    });
+    const { user, client } = mount();
+    await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    await user.click(screen.getByRole('button', { name: '요청 취소' }));
+    await screen.findByText('요청을 취소했어요.');
+    await act(async () => {
+      finish(complete(id, review));
+    });
+    expect(
+      screen.queryByRole('figure', { name: '항목별 평가 점수' }),
+    ).not.toBeInTheDocument();
+    expect(
+      client.getQueriesData({ queryKey: ['ai', 'target-result'] }),
+    ).toEqual([]);
+    expect(requests[0]!.init.signal?.aborted).toBe(true);
+    expect(requests).toHaveLength(2);
   });
   it.each(['pending', 'error'] as const)(
     '연속 상태 확인의 이전 %s 응답은 최신 재시도 가능 상태를 덮지 않는다',
@@ -317,7 +331,7 @@ describe('실제 팀 AI 화면', () => {
       api(async (request) => {
         if (request.method !== 'GET') {
           id = String(request.body.requestId);
-          return sse(frame(id, 'started', 1, { purpose: 'applicant_review' }));
+          return interrupted();
         }
         checks++;
         if (checks === 1) return requestState(id, 'pending');
@@ -359,29 +373,43 @@ describe('실제 팀 AI 화면', () => {
     },
   );
 
-  it('invalidated 종료는 임시 답변을 전부 제거한다', async () => {
-    api((r) => {
-      const id = String(r.body.requestId);
-      return sse(
-        frame(id, 'started', 1, { purpose: 'applicant_review' }) +
-          frame(id, 'answer.delta', 2, { text: '폐기할 임시 내용' }) +
-          frame(id, 'invalidated', 3, { reason: 'context_changed' }),
+  it.each(['invalidated', 'canceled'] as const)(
+    '%s JSON 결과는 저장하거나 검증하지 않는다',
+    async (status) => {
+      api((r) =>
+        Response.json({
+          data: {
+            requestId: String(r.body.requestId),
+            attempt: 1,
+            status,
+            result: null,
+          },
+        }),
       );
-    });
-    const { user } = mount();
-    await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
-    await screen.findByText(/지원 정보나 검토 권한이 변경/);
-    expect(screen.queryByText('폐기할 임시 내용')).not.toBeInTheDocument();
-    expect(requests).toHaveLength(1);
-  });
-  it('재진입은 원본 DTO로 재검증하고 권한 상실 시 본문과 복사를 숨긴다', async () => {
+      const { user, client } = mount();
+      await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
+      await screen.findByText(
+        status === 'invalidated'
+          ? /지원 정보나 검토 권한이 변경/
+          : '요청을 취소했어요.',
+      );
+      expect(
+        screen.queryByRole('figure', { name: '항목별 평가 점수' }),
+      ).not.toBeInTheDocument();
+      expect(
+        client.getQueriesData({ queryKey: ['ai', 'target-result'] }),
+      ).toEqual([]);
+      expect(requests).toHaveLength(1);
+    },
+  );
+  it('재진입은 원본 DTO로 재검증하고 권한 상실 시 차트를 숨긴다', async () => {
     let checks = 0;
     api((r) =>
       r.path.endsWith('/validation')
         ? ++checks === 1
           ? Response.json({ data: { valid: true, result: review } })
           : error(404, 'NOT_FOUND')
-        : sse(complete(String(r.body.requestId), review)),
+        : complete(String(r.body.requestId), review),
     );
     const view = mount();
     await view.user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
@@ -389,7 +417,9 @@ describe('실제 팀 AI 화면', () => {
     view.rerender(view.ui('1', false));
     view.rerender(view.ui());
     await screen.findByText(/지원 정보나 검토 권한이 변경/);
-    expect(screen.queryByText(review.summary)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('figure', { name: '항목별 평가 점수' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: '결과 복사' }),
     ).not.toBeInTheDocument();
@@ -400,7 +430,7 @@ describe('실제 팀 AI 화면', () => {
     api((r) =>
       r.path.endsWith('/validation')
         ? Response.json({ data: { valid, result: valid ? review : null } })
-        : sse(complete(String(r.body.requestId), review)),
+        : complete(String(r.body.requestId), review),
     );
     const view = mount();
     await view.user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
@@ -416,14 +446,16 @@ describe('실제 팀 AI 화면', () => {
       window.dispatchEvent(new Event('focus'));
     });
     await screen.findByText(/지원 정보나 검토 권한이 변경/);
-    expect(screen.queryByText(review.summary)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('figure', { name: '항목별 평가 점수' }),
+    ).not.toBeInTheDocument();
   });
   it('blur 뒤 늦게 도착한 검증 결과는 다시 표시하지 않고 focus에서 새로 확인한다', async () => {
     let checks = 0;
     let finish: (value: Response) => void = () => {};
     api((request) => {
       if (!request.path.endsWith('/validation'))
-        return sse(complete(String(request.body.requestId), review));
+        return complete(String(request.body.requestId), review);
       checks++;
       if (checks === 2)
         return new Promise<Response>((resolve) => {
@@ -442,7 +474,9 @@ describe('실제 팀 AI 화면', () => {
       window.dispatchEvent(new Event('blur'));
       finish(Response.json({ data: { valid: true, result: review } }));
     });
-    expect(screen.queryByText(review.summary)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('figure', { name: '항목별 평가 점수' }),
+    ).not.toBeInTheDocument();
     await act(async () => {
       window.dispatchEvent(new Event('focus'));
     });
@@ -477,7 +511,7 @@ describe('실제 팀 AI 화면', () => {
     api((r) =>
       r.path.endsWith('/validation')
         ? error(401, 'UNAUTHENTICATED')
-        : sse(complete(String(r.body.requestId), review)),
+        : complete(String(r.body.requestId), review),
     );
     const view = mount();
     await view.user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
@@ -487,7 +521,9 @@ describe('실제 팀 AI 화면', () => {
     expect(
       screen.queryByRole('region', { name: 'AI 검토 도움' }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText(review.summary)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('figure', { name: '항목별 평가 점수' }),
+    ).not.toBeInTheDocument();
   });
   it('503 미설정은 모의 응답으로 전환하지 않는다', async () => {
     api(() => error(503, 'AI_NOT_CONFIGURED'));
@@ -497,11 +533,50 @@ describe('실제 팀 AI 화면', () => {
     expect(screen.queryByText('모의 응답')).not.toBeInTheDocument();
     expect(requests).toHaveLength(1);
   });
+  it('자료 조회 한도 429는 서버의 실패 안내와 재시도 불가 상태를 복원한다', async () => {
+    let id = '';
+    const message =
+      '검토할 수 있는 자료 범위를 넘었어요. 조건을 좁혀 다시 요청해 주세요.';
+    api(async (request) => {
+      if (request.method === 'GET') {
+        const failed = await requestState(id, 'failed').json();
+        failed.data.failure = {
+          code: 'limit_exceeded',
+          message,
+          retryable: false,
+        };
+        return Response.json(failed);
+      }
+      id = String(request.body.requestId);
+      return error(429, 'AI_LIMIT_EXCEEDED');
+    });
+    const { user } = mount();
+    await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
+    await expect(screen.findByRole('alert')).resolves.toHaveTextContent(
+      message,
+    );
+    expect(
+      screen.queryByRole('button', { name: '검토 다시 시도' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/연결 상태를 확인/)).not.toBeInTheDocument();
+    expect(requests.map((request) => request.method)).toEqual(['POST', 'GET']);
+  });
   it('팀원은 추천을 볼 수 없으며 종료된 비공개 지원서는 검토할 수 있다', async () => {
     api((r) =>
       r.path.endsWith('/validation')
-        ? Response.json({ data: { valid: true, result: review } })
-        : sse(complete(String(r.body.requestId), review)),
+        ? Response.json({
+            data: {
+              valid: true,
+              result: {
+                ...review,
+                applicationId: demoIds.applications.seoyeon,
+              },
+            },
+          })
+        : complete(String(r.body.requestId), {
+            ...review,
+            applicationId: demoIds.applications.seoyeon,
+          }),
     );
     const records = createDemoRecords();
     const application = records.applications.find(
@@ -514,6 +589,9 @@ describe('실제 팀 AI 화면', () => {
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
     });
     client.setQueryData(queryKeys.me, account);
+    const catalogRecords = createDemoRecords();
+    client.setQueryData(queryKeys.catalogs, catalogRecords.catalogs);
+    client.setQueryData(queryKeys.academicUnits, catalogRecords.academicUnits);
     render(
       <QueryClientProvider client={client}>
         <MemoryRouter>
@@ -537,7 +615,7 @@ describe('실제 팀 AI 화면', () => {
     await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
     await screen.findByRole('region', { name: 'AI 지원자 검토 결과' });
     expect(requests[0]!.path).toBe(
-      `/applications/${application.id}/ai-reviews/stream`,
+      `/applications/${application.id}/ai-reviews`,
     );
   });
 });
