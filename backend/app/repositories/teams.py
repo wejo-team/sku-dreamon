@@ -107,11 +107,14 @@ async def list_teams(
     contest_id: UUID | None,
     require_contest: bool,
     current: datetime,
+    name_contains: str | None = None,
 ) -> TeamListResult:
     members = _member_count()
     matches = select(Team.team_id, Team.created_at).join(
         Contest, Contest.contest_id == Team.contest_id
     )
+    if name_contains is not None:
+        matches = matches.where(Team.name.icontains(name_contains, autoescape=True))
     if contest_id is not None:
         matches = matches.where(Team.contest_id == contest_id)
     if role_code is not None:

@@ -62,6 +62,7 @@ async def list_teams(
     contest_id: UUID | None = None,
     require_contest: bool = False,
     now: datetime | None = None,
+    name_contains: str | None = None,
 ) -> Page[TeamSummary]:
     """페이지 보정·총원·목록을 한 문장에서 읽어 동시 변경에 의한 혼합을 막는다.
 
@@ -85,6 +86,7 @@ async def list_teams(
         contest_id=contest_id,
         require_contest=require_contest,
         current=current,
+        name_contains=name_contains,
     )
     total, page, found = result.total, result.page, result.contest_exists
     if not found:

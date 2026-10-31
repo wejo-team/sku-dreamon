@@ -24,6 +24,7 @@ class ProfileSearch:
     matching_fields: tuple[str, ...]
     matching_roles: tuple[str, ...]
     matching_skills: tuple[str, ...]
+    name_contains: str | None = None
 
 
 async def list_portfolios(
@@ -69,6 +70,10 @@ async def get_selection_codes(
 
 def _filters(query: ProfileSearch) -> list[ColumnElement[bool]]:
     conditions: list[ColumnElement[bool]] = [Profile.is_public.is_(True)]
+    if query.name_contains is not None:
+        conditions.append(
+            Profile.real_name.icontains(query.name_contains, autoescape=True)
+        )
     if query.field_code is not None:
         conditions.append(
             select(ProfileInterest.account_id)
