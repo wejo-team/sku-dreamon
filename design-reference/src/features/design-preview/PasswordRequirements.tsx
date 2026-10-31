@@ -5,7 +5,7 @@ import { getPasswordRequirements } from '@/features/design-preview/auth-policy';
 export function PasswordRequirements({ value }: { value: string }) {
   const requirements = getPasswordRequirements(value);
   const items = [
-    { label: '8~128자', met: requirements.length },
+    { label: '8자 이상', met: requirements.length },
     { label: '기호 1개 이상 (!, @, # 등)', met: requirements.symbol },
   ];
 

@@ -55,7 +55,7 @@ describe('account input policy', () => {
     for (const value of [
       'abcdefg!',
       '1234567@',
-      '가나다라마바사!',
+      'é'.repeat(7) + '!',
       '😀'.repeat(8),
     ]) {
       expect(signupPasswordSchema.safeParse(value).success, value).toBe(true);
@@ -66,6 +66,7 @@ describe('account input policy', () => {
       'abcdefg ',
       'abcdefg\n',
       'é'.repeat(6) + '!',
+      '가나다라마바사!',
     ]) {
       expect(signupPasswordSchema.safeParse(value).success, value).toBe(false);
     }
@@ -73,26 +74,62 @@ describe('account input policy', () => {
     expect(signupPasswordSchema.safeParse(demoPassword).success).toBe(true);
   });
 
+  it.each([
+    '가나다라마바사!',
+    '가abcdef!',
+    'ㄱabcdef!',
+    'ﾡabcdef!',
+    '㈝abcdef!',
+    ' abcdefg!',
+    'abcdefg! ',
+    'abcd efg!',
+    'abcd\tefg!',
+    'abcd\nefg!',
+    'abcd\u0085efg!',
+    'abcd\u00a0efg!',
+    'abcd\u3000efg!',
+    'abcd\ufeffefg!',
+  ])(
+    'rejects forbidden signup characters without breaking legacy login: %s',
+    (value) => {
+      expect(signupPasswordSchema.safeParse(value).success).toBe(false);
+      expect(passwordSchema.parse(value)).toBe(value.normalize('NFC'));
+    },
+  );
+
   it('reports each requirement independently using the same NFC length as validation', () => {
     expect(getPasswordRequirements('')).toEqual({
       length: false,
       symbol: false,
+      characters: true,
     });
     expect(getPasswordRequirements('!')).toEqual({
       length: false,
       symbol: true,
+      characters: true,
     });
     expect(getPasswordRequirements('abcdefgh')).toEqual({
       length: true,
       symbol: false,
+      characters: true,
     });
     expect(getPasswordRequirements('e\u0301'.repeat(7) + '!')).toEqual({
       length: true,
       symbol: true,
+      characters: true,
     });
     expect(getPasswordRequirements('a'.repeat(128) + '!')).toEqual({
-      length: false,
+      length: true,
       symbol: true,
+      characters: true,
+    });
+    expect(signupPasswordSchema.safeParse('a'.repeat(128) + '!').success).toBe(
+      false,
+    );
+    expect(getPasswordRequirements('abcdefg! ')).toEqual({
+      length: true,
+      symbol: true,
+      characters: false,
     });
   });
 });

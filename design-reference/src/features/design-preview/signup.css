@@ -7,11 +7,6 @@
   margin-bottom: 0;
 }
 
-.dreamon-preview .dreamon-signup .preview-page-intro p {
-  margin-top: 10px;
-  font-size: 15px;
-}
-
 .dreamon-preview .dreamon-signup-form {
   gap: 32px;
 }
@@ -29,14 +24,8 @@
 }
 
 .dreamon-preview .dreamon-signup-section-heading h2 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 18px;
-}
-
-.dreamon-signup-section-heading p,
-.dreamon-signup-footer p {
-  color: var(--muted-foreground);
-  font-size: 14px;
 }
 
 .dreamon-signup p {
@@ -81,6 +70,12 @@
   gap: 10px;
 }
 
-.dreamon-preview .dreamon-signup-school-note {
+.dreamon-caps-lock {
+  margin: 0;
+  color: var(--warning-ink);
   font-size: 13px;
+}
+
+.dreamon-caps-lock:not(:empty) {
+  margin-top: 8px;
 }

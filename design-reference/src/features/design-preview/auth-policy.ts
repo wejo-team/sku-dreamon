@@ -29,18 +29,23 @@ export function getPasswordRequirements(value: string) {
   const normalized = normalizePassword(value);
   const length = Array.from(normalized).length;
   return {
-    length: length >= 8 && length <= 128,
+    length: length >= 8,
     symbol: /[\p{P}\p{S}]/u.test(normalized),
+    characters: !/[\p{Script=Hangul}\p{White_Space}\uFEFF]/u.test(normalized),
   };
 }
 
-// [출처 3] 로그인에는 새 가입의 기호 조건을 적용하지 않습니다.
+// [출처 3] 로그인에는 새 가입의 기호·문자 조건을 적용하지 않습니다.
 export const passwordSchema = z
   .string()
   .transform(normalizePassword)
   .refine(
     (value) => getPasswordRequirements(value).length,
-    '비밀번호는 공백을 포함해 8~128자로 입력해 주세요.',
+    '비밀번호는 8자 이상 입력해 주세요.',
+  )
+  .refine(
+    (value) => Array.from(value).length <= 128,
+    '비밀번호는 128자 이하로 입력해 주세요.',
   );
 
 // Interaction fixtures only. Production must use an approved, maintained
@@ -53,8 +58,12 @@ export const commonPasswordFixtures = new Set([
   'password!',
   '1234567!',
 ]);
-// [출처 3] 가입: 기호 포함과 흔한 비밀번호 예시 차단
+// [출처 3] 가입: 한글·공백 거부, 기호 포함과 흔한 비밀번호 예시 차단
 export const signupPasswordSchema = passwordSchema
+  .refine(
+    (value) => getPasswordRequirements(value).characters,
+    '한글과 공백은 사용할 수 없어요.',
+  )
   .refine(
     (value) => getPasswordRequirements(value).symbol,
     '기호를 1개 이상 포함해 주세요. (!, @, # 등)',

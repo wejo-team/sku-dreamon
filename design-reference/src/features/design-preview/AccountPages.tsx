@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   ArrowRight,
@@ -62,6 +62,7 @@ import { AcademicFields, ExperienceFields, SkillFields } from './ProfileFields';
 import {
   demoId,
   demoPassword,
+  getPasswordRequirements,
   loginIdSchema,
   passwordSchema,
   signupPasswordSchema,
@@ -1060,6 +1061,12 @@ export function SignupPage() {
   const returnTo = safeReturnTo(search.get('returnTo') ?? search.get('from'));
   const [complete, setComplete] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
+  useEffect(() => {
+    const resetCapsLock = () => setCapsLockOn(false);
+    window.addEventListener('blur', resetCapsLock);
+    return () => window.removeEventListener('blur', resetCapsLock);
+  }, []);
   const {
     register,
     control,
@@ -1078,8 +1085,9 @@ export function SignupPage() {
     },
   });
   const password = useWatch({ control, name: 'password' });
-  const passwordError =
-    touchedFields.password || isSubmitted
+  const passwordError = !getPasswordRequirements(password).characters
+    ? '한글과 공백은 사용할 수 없어요.'
+    : touchedFields.password || isSubmitted
       ? errors.password?.message
       : undefined;
   if (complete)
@@ -1107,10 +1115,7 @@ export function SignupPage() {
       >
         로그인으로
       </BackLink>
-      <PageIntro
-        title="회원가입"
-        description="계정을 만들고, 함께할 관심 분야를 알려주세요."
-      />
+      <PageIntro title="회원가입" />
       <form
         className="preview-panel preview-form dreamon-signup-form"
         noValidate
@@ -1147,7 +1152,6 @@ export function SignupPage() {
         >
           <header className="dreamon-signup-section-heading">
             <h2 id="signup-account-title">계정 정보</h2>
-            <p>로그인에 사용할 정보를 입력해 주세요.</p>
           </header>
           <div className="preview-field">
             <Label htmlFor="signup-username">아이디 (필수)</Label>
@@ -1178,13 +1182,24 @@ export function SignupPage() {
               <Input
                 id="signup-password"
                 type={showPassword ? 'text' : 'password'}
-                {...register('password')}
+                {...register('password', {
+                  onBlur: () => setCapsLockOn(false),
+                })}
+                onKeyDown={(event) =>
+                  setCapsLockOn(event.getModifierState('CapsLock'))
+                }
+                onKeyUp={(event) =>
+                  setCapsLockOn(event.getModifierState('CapsLock'))
+                }
+                onMouseDown={(event) =>
+                  setCapsLockOn(event.getModifierState('CapsLock'))
+                }
                 autoComplete="new-password"
                 aria-invalid={!!passwordError}
                 aria-describedby={
                   passwordError
-                    ? 'signup-password-requirements signup-password-help signup-password-error'
-                    : 'signup-password-requirements signup-password-help'
+                    ? 'signup-password-requirements signup-password-caps-lock signup-password-error'
+                    : 'signup-password-requirements signup-password-caps-lock'
                 }
               />
               <Button
@@ -1203,10 +1218,16 @@ export function SignupPage() {
                 )}
               </Button>
             </div>
-            <PasswordRequirements value={password} />
-            <p id="signup-password-help" className="preview-muted">
-              한글과 공백도 사용할 수 있어요. 앞뒤 공백도 그대로 포함돼요.
-            </p>
+            <div>
+              <PasswordRequirements value={password} />
+              <p
+                id="signup-password-caps-lock"
+                className="dreamon-caps-lock"
+                role="status"
+              >
+                {capsLockOn ? 'Caps Lock이 켜져 있어요.' : ''}
+              </p>
+            </div>
             <FieldError id="signup-password-error" message={passwordError} />
           </div>
         </section>
@@ -1216,7 +1237,6 @@ export function SignupPage() {
         >
           <header className="dreamon-signup-section-heading">
             <h2 id="signup-profile-title">기본 프로필</h2>
-            <p>함께할 팀을 찾을 때 사용할 정보예요.</p>
           </header>
           <div className="preview-field">
             <Label htmlFor="signup-name">이름 (필수)</Label>
@@ -1257,7 +1277,6 @@ export function SignupPage() {
           />
         </section>
         <div className="dreamon-signup-footer">
-          <p className="preview-muted">가입 후 프로필을 더 채울 수 있어요.</p>
           <Button
             type="submit"
             className="preview-button"
@@ -1266,9 +1285,6 @@ export function SignupPage() {
             {isSubmitting ? '가입 중' : '회원가입'}
             <ArrowRight size={18} aria-hidden="true" />
           </Button>
-          <p className="dreamon-signup-school-note">
-            학교 인증 없이 가입할 수 있어요.
-          </p>
         </div>
       </form>
     </div>

@@ -941,6 +941,63 @@ describe('design preview account flows', () => {
     expect(onConfirm).toHaveBeenNthCalledWith(1, true);
     expect(onConfirm).toHaveBeenNthCalledWith(2, true);
   });
+  it('reports forbidden signup characters immediately without changing the input', async () => {
+    renderAccount('/design-preview/signup');
+    const user = userEvent.setup();
+    const password = screen.getByLabelText('비밀번호 (필수)');
+    await user.click(password);
+    for (const value of ['한abcdef!', 'abc def!', 'abcdefg! ']) {
+      await user.clear(password);
+      await user.paste(value);
+      expect(
+        await screen.findByText('한글과 공백은 사용할 수 없어요.'),
+      ).toBeVisible();
+      expect(password).toHaveValue(value);
+      expect(password).toHaveFocus();
+      expect(password).toHaveAttribute('aria-invalid', 'true');
+    }
+    await user.clear(password);
+    await user.paste('abcdefg!');
+    await waitFor(() =>
+      expect(
+        screen.queryByText('한글과 공백은 사용할 수 없어요.'),
+      ).not.toBeInTheDocument(),
+    );
+    expect(password).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  it('announces Caps Lock while entering a signup password and clears it on key release or blur', async () => {
+    renderAccount('/design-preview/signup');
+    const user = userEvent.setup();
+    const password = screen.getByLabelText('비밀번호 (필수)');
+    await user.click(password);
+    expect(
+      screen.queryByText('Caps Lock이 켜져 있어요.'),
+    ).not.toBeInTheDocument();
+    fireEvent.keyUp(password, { key: 'CapsLock', modifierCapsLock: true });
+    expect(screen.getByText('Caps Lock이 켜져 있어요.')).toBeVisible();
+    expect(password).toHaveAttribute(
+      'aria-describedby',
+      expect.stringContaining('signup-password-caps-lock'),
+    );
+    fireEvent.keyDown(password, { key: 'a', modifierCapsLock: false });
+    expect(
+      screen.queryByText('Caps Lock이 켜져 있어요.'),
+    ).not.toBeInTheDocument();
+    fireEvent.keyDown(password, { key: 'A', modifierCapsLock: true });
+    expect(screen.getByText('Caps Lock이 켜져 있어요.')).toBeVisible();
+    fireEvent.blur(password);
+    expect(
+      screen.queryByText('Caps Lock이 켜져 있어요.'),
+    ).not.toBeInTheDocument();
+    fireEvent.keyUp(password, { key: 'A', modifierCapsLock: true });
+    expect(screen.getByText('Caps Lock이 켜져 있어요.')).toBeVisible();
+    fireEvent.blur(window);
+    expect(
+      screen.queryByText('Caps Lock이 켜져 있어요.'),
+    ).not.toBeInTheDocument();
+  });
+
   it('normalizes duplicate signup IDs and preserves pasted over-limit passwords for correction', async () => {
     const state = renderAccount('/design-preview/signup');
     const user = userEvent.setup();
@@ -949,16 +1006,18 @@ describe('design preview account flows', () => {
     await user.paste('  DREAMONDEMO  ');
     expect(await screen.findByText('이미 사용 중인 아이디예요.')).toBeVisible();
     const password = screen.getByLabelText('비밀번호 (필수)');
-    const oversized = '한'.repeat(129);
+    const oversized = 'a'.repeat(128) + '!';
     await user.click(password);
     await user.paste(oversized);
     await user.tab();
     expect(
-      await screen.findByText(
-        '비밀번호는 공백을 포함해 8~128자로 입력해 주세요.',
-      ),
+      await screen.findByText('비밀번호는 128자 이하로 입력해 주세요.'),
     ).toBeVisible();
     expect(password).toHaveValue(oversized);
+    expect(screen.getByText('8자 이상').closest('li')).toHaveAttribute(
+      'data-met',
+      'true',
+    );
     expect(password).toHaveAttribute('autocomplete', 'new-password');
     await user.click(screen.getByRole('button', { name: '비밀번호 보기' }));
     expect(password).toHaveAttribute('type', 'text');

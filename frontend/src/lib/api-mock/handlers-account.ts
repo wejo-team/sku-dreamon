@@ -93,6 +93,8 @@ export function registerAccountRoutes(router: MockRouter) {
     // [출처 1, 2] 가입 → 201, 자동 로그인
     .on('POST', '/accounts', ({ body }) => {
       const { loginId, password } = normalizedCredentials(body);
+      if (!getPasswordRequirements(password).characters)
+        invalid(['body', 'password'], '한글과 공백은 사용할 수 없어요.');
       if (!getPasswordRequirements(password).symbol)
         invalid(['body', 'password'], '기호를 1개 이상 포함해 주세요.');
       // [출처 1] 차단 목록의 비밀번호는 400 PASSWORD_BLOCKED

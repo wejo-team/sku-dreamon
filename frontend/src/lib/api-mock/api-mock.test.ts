@@ -50,9 +50,17 @@ async function signIn() {
 
 describe('mock API adapter', () => {
   it('accepts an eight-character signup password with a symbol and rejects one without it', async () => {
-    await expect(
-      auth.createAccount({ loginId: 'shortpassword', password: 'abcdefgh' }),
-    ).rejects.toMatchObject({ status: 422 });
+    for (const password of [
+      'abcdefgh',
+      'abcdef가!',
+      ' abcdefg!',
+      'abcdefg! ',
+      'abcdefg!\u00a0',
+    ]) {
+      await expect(
+        auth.createAccount({ loginId: 'shortpassword', password }),
+      ).rejects.toMatchObject({ status: 422 });
+    }
     const { account } = await auth.createAccount({
       loginId: 'shortpassword',
       password: 'abcdefg!',
