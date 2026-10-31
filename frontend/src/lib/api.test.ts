@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiRequest, resetCsrfToken } from './api';
+import { ApiError, apiRequest, fetchCsrfToken, resetCsrfToken } from './api';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -195,6 +195,75 @@ describe('apiRequest', () => {
 
 // docs/api/conventions.md#csrf-transport
 describe('CSRF transport', () => {
+  it('cancels only the caller while another mutation waits for the shared token', async () => {
+    let complete!: (response: Response) => void;
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (!url.endsWith('/auth/csrf'))
+        return Promise.resolve(Response.json({ data: {} }));
+      return new Promise<Response>((resolve, reject) => {
+        complete = resolve;
+        init?.signal?.addEventListener('abort', () =>
+          reject(init.signal?.reason),
+        );
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const controller = new AbortController();
+    const canceled = apiRequest('/ai/requests/validation', {
+      method: 'POST',
+      signal: controller.signal,
+    }).catch((error: unknown) => error);
+    const saving = apiRequest('/me/profile', { method: 'PUT' }).catch(
+      (error: unknown) => error,
+    );
+    controller.abort();
+    complete(Response.json({ data: { csrfToken: CSRF } }));
+    expect(await canceled).toMatchObject({ name: 'AbortError' });
+    expect(await saving).toEqual({ data: {} });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/v1/auth/csrf',
+      '/api/v1/me/profile',
+    ]);
+  });
+
+  it('rejects an already canceled caller without starting token issuance', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ data: { csrfToken: CSRF } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(fetchCsrfToken(controller.signal)).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('discards a late token after session reset without clearing the new request', async () => {
+    const completions: ((response: Response) => void)[] = [];
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          completions.push(resolve);
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const previous = fetchCsrfToken().catch((error: unknown) => error);
+    resetCsrfToken();
+    const current = fetchCsrfToken();
+    const countAfterReset = completions.length;
+    completions[0]!(Response.json({ data: { csrfToken: 'previous-session' } }));
+    const previousOutcome = await previous;
+    const sameSession = fetchCsrfToken();
+    completions[1]?.(Response.json({ data: { csrfToken: 'current-session' } }));
+    const outcomes = await Promise.all([current, sameSession]);
+    expect(countAfterReset).toBe(2);
+    expect(previousOutcome).toMatchObject({ name: 'AbortError' });
+    expect(outcomes).toEqual(['current-session', 'current-session']);
+    await expect(fetchCsrfToken()).resolves.toBe('current-session');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('sends X-CSRF-Token with state changes only and reuses the token in memory', async () => {
     const { fetchMock } = withCsrf(() => Response.json({ data: {} }));
     await apiRequest('/me/profile');
