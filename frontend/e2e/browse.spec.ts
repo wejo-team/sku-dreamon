@@ -192,7 +192,8 @@ test('기존 공고: API 대조·검색·필터·정렬·상세 복귀·빈 결�
     title: selected.title,
   });
   await page
-    .getByRole('button', { name: '검색 조건 초기화', exact: true })
+    .getByRole('navigation', { name: '주 메뉴', exact: true })
+    .getByRole('link', { name: '탐색', exact: true })
     .click();
   await expect(page).toHaveURL(/\/explore$/);
   await assertListing(page, 'contests', first);

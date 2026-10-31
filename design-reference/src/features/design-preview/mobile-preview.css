@@ -1,8 +1,0 @@
-.dreamon-mobile-viewport {
-  width: min(100%, 480px);
-  min-height: 100dvh;
-  margin-inline: auto;
-  background: var(--surface-canvas);
-  container-type: inline-size;
-  container-name: dreamon;
-}

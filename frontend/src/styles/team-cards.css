@@ -1,0 +1,134 @@
+/* 공개 팀 목록과 내 팀 카드의 여백을 줄이고 소개 원문을 두 줄로 요약 표시합니다. */
+.dreamon-preview .preview-explore-grid--teams,
+.dreamon-preview .preview-contest-team-list {
+  gap: 12px;
+}
+
+.dreamon-preview .preview-team-card,
+.dreamon-preview .workspace-team-card {
+  gap: 8px;
+  padding: 14px;
+}
+
+.dreamon-preview .preview-team-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dreamon-preview .preview-team-card-title {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dreamon-preview .preview-team-card-heading h3 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.dreamon-preview .preview-team-card-heading > .preview-badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.dreamon-preview .preview-team-card .preview-card-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.dreamon-preview .preview-team-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dreamon-preview .preview-team-card-roles {
+  min-width: 0;
+  gap: 4px;
+}
+
+.dreamon-preview .preview-team-card .preview-badge {
+  min-height: 22px;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.dreamon-preview .preview-team-card .preview-team-card-members {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.dreamon-preview .preview-team-card .preview-card-footer {
+  gap: 8px;
+  margin-top: 0;
+  padding-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dreamon-preview .preview-team-card .preview-card-footer > span,
+.dreamon-preview .workspace-team-card .workspace-team-contest {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dreamon-preview .workspace-team-grid {
+  gap: 12px;
+}
+
+.dreamon-preview .workspace-team-card h3 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.dreamon-preview .workspace-team-card .workspace-team-contest {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.dreamon-preview .workspace-team-card .workspace-team-facts {
+  gap: 20px;
+  margin: 0;
+}
+
+.dreamon-preview .workspace-team-card .workspace-team-facts > div {
+  gap: 2px;
+}
+
+.dreamon-preview .workspace-team-card .workspace-team-facts dt {
+  font-size: 12px;
+}
+
+.dreamon-preview .workspace-team-card .workspace-team-facts dd {
+  font-size: 14px;
+}

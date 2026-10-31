@@ -1,11 +1,11 @@
 /**
  * [참조 출처]
- * 1. design-reference/src/features/design-preview/ExplorePages.tsx - 탐색·공모전 상세·사람 상세 원본
+ * 1. frontend/src/app/App.tsx - 탐색·공모전 상세·사람 상세 경로
  * 2. docs/design/screens.md - 공모전·팀·사람 탐색, 공모전 상세의 함께할 팀, 사람 상세 접근 제한
- * 3. docs/design/tokens.md - 공모전 카드(작은 포스터·D-day·우하단 팀 수), 검색창 안 AI 아이콘, 44px 조작
+ * 3. docs/design/tokens.md - 공모전 목록(썸네일·제목·주최자·D-day·분야·팀 수), 검색·알림·선택 도구, 44px 조작
  * 4. docs/specs/contests.md - 공고 공개·참가·마감 정책
  * 5. docs/specs/profile.md#people-directory - 로그인 후 공개 프로필만 검색·열람
- * 6. docs/design/assets/explore-390.png, contest-teams-390.png, contest-teams-empty-390.png, people-pagination-390.png, search-ai-320.png - 실제 화면
+ * 6. docs/design/assets/explore-layout-20261101-390.png - 제품 탐색 압축 목록 검증 화면
  * 7. docs/api/contests.md#queries, docs/api/teams.md#queries, docs/api/profiles.md#directory-endpoints -
  *    검색·필터·정렬·페이지는 서버 query(q·fieldCode·roleCode·recruitingOnly·contestId·sort·page·pageSize)로 위임
  * 8. docs/development/frontend.md - 「API와 query」 각 화면은 로딩·빈 결과·오류 상태 제공
@@ -15,10 +15,8 @@ import {
   CalendarDays,
   ChevronRight,
   Search,
-  ArrowRight,
   Sparkles,
   Plus,
-  RotateCcw,
   Users,
   X,
 } from 'lucide-react';
@@ -53,6 +51,7 @@ import {
 import { ApiError } from '@/lib/api';
 import { ContestCover } from '@/components/common/ContestCover';
 import { ExploreFilters } from '@/features/explore/ExploreFilters';
+import { Notifications } from '@/features/notifications/NotificationInbox';
 import { ProfileDetails } from '@/components/common/ProfileDetails';
 import { ListPagination } from '@/components/common/ListPagination';
 import {
@@ -74,7 +73,7 @@ import {
   SchoolVerificationBadge,
 } from '@/components/common/CommonUi';
 
-// [출처 2, 3, 6] 탭·검색·필터·정렬·페이지를 URL에 유지하는 탐색
+// [출처 2, 3, 6] 종류·검색·필터·정렬·페이지를 URL에 유지하는 탐색
 export function ExplorePage() {
   const [params, setParams] = useSearchParams();
   const { signedIn } = useSession();
@@ -168,7 +167,6 @@ export function ExplorePage() {
     ready,
     tab === 'contests' ? CONTEST_EXPLORE_PAGE_SIZE : REFERENCE_PAGE_SIZE,
   );
-  const reset = () => setParams(tab === 'contests' ? {} : { tab });
   const contextQuery = useQuery({
     ...contestQueryOptions(contestParam),
     enabled: !!contestParam,
@@ -185,65 +183,87 @@ export function ExplorePage() {
   return (
     <section className="preview-explore" aria-label="탐색">
       <h1 className="sr-only">탐색</h1>
-      <nav className="preview-tabs" aria-label="탐색 종류">
-        {[
-          ['contests', '공모전'],
-          ['teams', '팀'],
-          ['people', '사람'],
-        ].map(([value, label]) => (
-          <Link
-            key={value}
-            to={value === 'contests' ? '/explore' : `/explore?tab=${value}`}
-            aria-current={tab === value ? 'page' : undefined}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-      <div className="preview-search">
-        <Search size={20} aria-hidden="true" />
-        <Input
-          aria-label="탐색 검색"
-          placeholder={
-            tab === 'contests'
-              ? '공모전 검색'
-              : tab === 'teams'
-                ? '팀 이름, 키워드 검색'
-                : '이름, 역할, 관심 분야 검색'
-          }
-          value={draft}
-          onChange={(event) => {
-            if (composing.current) setDraft(event.target.value);
-            else commitQuery(event.target.value);
-          }}
-          onCompositionStart={() => {
-            composing.current = true;
-          }}
-          onCompositionEnd={(event) => {
-            composing.current = false;
-            commitQuery(event.currentTarget.value);
-          }}
-        />
-        {draft && (
-          <Button
-            variant="ghost"
-            aria-label="검색어 지우기"
-            onClick={() => commitQuery('')}
-          >
-            <X size={18} aria-hidden="true" />
-          </Button>
-        )}
-        <Button
-          asChild
-          variant="outline"
-          className="preview-compact-action preview-ai-shortcut"
-        >
-          <Link to="/ai" aria-label="AI에게 추천 받기" title="AI에게 추천 받기">
-            <Sparkles size={20} aria-hidden="true" />
-          </Link>
-        </Button>
+      <div className="preview-explore-topbar">
+        <div className="preview-search">
+          <Search size={20} aria-hidden="true" />
+          <Input
+            aria-label="탐색 검색"
+            placeholder={
+              tab === 'contests'
+                ? '공모전 검색'
+                : tab === 'teams'
+                  ? '팀 이름, 키워드 검색'
+                  : '이름, 역할, 관심 분야 검색'
+            }
+            value={draft}
+            onChange={(event) => {
+              if (composing.current) setDraft(event.target.value);
+              else commitQuery(event.target.value);
+            }}
+            onCompositionStart={() => {
+              composing.current = true;
+            }}
+            onCompositionEnd={(event) => {
+              composing.current = false;
+              commitQuery(event.currentTarget.value);
+            }}
+          />
+          {draft && (
+            <Button
+              variant="ghost"
+              aria-label="검색어 지우기"
+              onClick={() => commitQuery('')}
+            >
+              <X size={18} aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+        <Notifications />
       </div>
-      <div className="preview-filters">
+      <div className="preview-explore-toolbar">
+        <span className="preview-result-count" role="status">
+          <span className="sr-only">검색 결과 </span>
+          {listState === 'ready'
+            ? `${count}개`
+            : listState === 'loading'
+              ? '…'
+              : '—'}
+        </span>
+        <div className="preview-explore-kind">
+          <Label className="sr-only" htmlFor="explore-kind">
+            탐색 종류
+          </Label>
+          <NativeSelect
+            id="explore-kind"
+            value={tab}
+            onChange={(event) =>
+              setParams(
+                event.target.value === 'contests'
+                  ? {}
+                  : { tab: event.target.value },
+              )
+            }
+          >
+            <option value="contests">공모전</option>
+            <option value="teams">팀</option>
+            <option value="people">사람</option>
+          </NativeSelect>
+        </div>
+        {tab === 'contests' && (
+          <div className="preview-sort">
+            <Label className="sr-only" htmlFor="explore-sort">
+              정렬
+            </Label>
+            <NativeSelect
+              id="explore-sort"
+              value={sort}
+              onChange={(event) => update('sort', event.target.value)}
+            >
+              <option value="default">등록순</option>
+              <option value="deadline">마감 임박순</option>
+            </NativeSelect>
+          </div>
+        )}
         <ExploreFilters
           key={tab}
           kind={tab}
@@ -260,37 +280,6 @@ export function ExplorePage() {
             setParams(next);
           }}
         />
-        {tab === 'contests' && (
-          <div className="preview-filter-control preview-sort">
-            <Label className="sr-only" htmlFor="explore-sort">
-              정렬
-            </Label>
-            <NativeSelect
-              id="explore-sort"
-              value={sort}
-              onChange={(event) => update('sort', event.target.value)}
-            >
-              <option value="default">등록순</option>
-              <option value="deadline">마감 임박순</option>
-            </NativeSelect>
-          </div>
-        )}
-        {(q ||
-          category ||
-          role ||
-          sort !== 'default' ||
-          params.get('open') ||
-          contestContext) && (
-          <Button
-            variant="outline"
-            className="preview-compact-action"
-            aria-label="검색 조건 초기화"
-            title="검색 조건 초기화"
-            onClick={reset}
-          >
-            <RotateCcw size={18} aria-hidden="true" />
-          </Button>
-        )}
       </div>
       {contestContext && tab === 'teams' && (
         <Notice>
@@ -300,28 +289,13 @@ export function ExplorePage() {
           </div>
         </Notice>
       )}
-      <div className="preview-results-heading">
-        <h2 ref={headingRef} tabIndex={-1}>
-          {tab === 'contests'
-            ? '공모전 둘러보기'
-            : tab === 'teams'
-              ? '함께 도전하는 팀'
-              : '함께할 사람'}
-        </h2>
-        {listState === 'ready' && (
-          <span className="preview-result-count" role="status">
-            <span className="sr-only">검색 결과 </span>
-            {count}
-            <span className="sr-only">개</span>
-          </span>
-        )}
-        {tab === 'teams' && (
-          <Link className="preview-text-link" to="/teams/new">
-            팀 만들기
-            <ArrowRight size={16} aria-hidden="true" />
-          </Link>
-        )}
-      </div>
+      <h2 className="sr-only" ref={headingRef} tabIndex={-1}>
+        {tab === 'contests'
+          ? '공모전 둘러보기'
+          : tab === 'teams'
+            ? '함께 도전하는 팀'
+            : '함께할 사람'}
+      </h2>
       {listState === 'guest' ? (
         <EmptyState
           title="로그인하고 함께할 사람을 찾아보세요"
@@ -349,12 +323,8 @@ export function ExplorePage() {
       ) : !count ? (
         <EmptyState
           title="검색 결과가 없어요"
-          description="검색어를 바꾸거나 필터를 줄여보세요."
-        >
-          <Button onClick={reset} className="preview-button">
-            검색 조건 초기화
-          </Button>
-        </EmptyState>
+          description="검색어나 필터를 바꿔보세요. 하단 탐색을 누르면 처음부터 다시 볼 수 있어요."
+        />
       ) : (
         <div
           className={`preview-grid preview-explore-grid preview-explore-grid--${tab}`}
@@ -371,28 +341,31 @@ export function ExplorePage() {
                     src={item.posterUrl ?? undefined}
                     loading={index === 0 ? 'eager' : 'lazy'}
                   />
-                  <span
-                    className={`preview-deadline ${item.registrationStatus === 'open' && summaryDaysLeft(item) <= 7 ? 'preview-deadline--soon' : ''}`}
-                  >
-                    {summaryBadgeLabel(item)}
-                  </span>
                 </div>
                 <div className="preview-contest-copy">
-                  <h3>{item.title}</h3>
                   <div className="preview-row">
+                    <h3>{item.title}</h3>
                     <DemoBadge isDemo={item.isDemo} kind="contest" />
-                    {item.fieldCodes.map((code) => (
-                      <Badge key={code}>{fieldLabel(code)}</Badge>
-                    ))}
                   </div>
                   <p className="preview-muted">{item.organizer}</p>
-                  <span className="preview-contest-teams">
-                    <Users size={16} aria-hidden="true" />
-                    <span className="sr-only">연결된 팀 </span>
-                    {/* [출처 3] 모집 상태와 관계없는 연결 팀 전체 수(teamCount) */}
-                    {item.teamCount}
-                    <span className="sr-only">개</span>
-                  </span>
+                  <div className="preview-contest-meta">
+                    <span
+                      className={`preview-deadline ${item.registrationStatus === 'open' && summaryDaysLeft(item) <= 7 ? 'preview-deadline--soon' : ''}`}
+                    >
+                      {summaryBadgeLabel(item)}
+                    </span>
+                    <div className="preview-contest-fields">
+                      {item.fieldCodes.map((code) => (
+                        <Badge key={code}>{fieldLabel(code)}</Badge>
+                      ))}
+                    </div>
+                    <span className="preview-contest-teams">
+                      <Users size={16} aria-hidden="true" />
+                      <span className="sr-only">연결된 팀 </span>
+                      {item.teamCount}
+                      <span className="sr-only">개</span>
+                    </span>
+                  </div>
                 </div>
               </Link>
             ))}

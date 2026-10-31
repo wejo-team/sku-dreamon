@@ -561,6 +561,10 @@ test('알림 503 조회 실패는 빈 목록과 구분하고 필터를 유지하
         : route.continue(),
     );
     await page.goto('/workspace');
+    await page
+      .getByRole('navigation', { name: '주 메뉴', exact: true })
+      .getByRole('link', { name: '탐색', exact: true })
+      .click();
     await page.getByRole('button', { name: /^알림/ }).click();
     const inbox = page.getByRole('dialog', { name: '알림', exact: true });
     await expect(inbox.getByRole('alert')).toContainText(
