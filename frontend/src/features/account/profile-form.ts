@@ -1,11 +1,11 @@
 /**
  * [참조 출처]
- * 1. docs/api/profiles.md#profile-fields - 공통 편집 필드 13개, 선택 입력은 null 또는 []
+ * 1. docs/api/profiles.md#profile-fields - 공통 편집 필드와 수강 과목, 선택 입력은 null 또는 []
  * 2. docs/api/profiles.md#experience - 상태·본문 정규화(provided인데 본문이 비면 unspecified·null)
  * 3. docs/api/profiles.md#portfolio - URL 제거는 portfolio: null, 제목은 선택
  * 4. docs/api/catalogs.md#academic-unit - 가장 깊게 선택한 항목 ID를 academicUnitId로 저장
  * 5. docs/specs/profile.md#input-validation - 앞뒤 공백 제거 후 검증·저장
- * 6. docs/api/profiles.md#profile-write - PUT /me/profile 본문: 13개 + expectedVersion(최초 저장 "0")
+ * 6. docs/api/profiles.md#profile-write - PUT /me/profile 본문과 courseCodes(빈 배열은 전체 제거)
  *
  * 프로필 편집 폼의 입력값과 Profile DTO·ProfileWrite 사이의 변환입니다. 폼은 선택 안 함을 빈 문자열로 다루고,
  * 저장할 때 계약에 맞게 null·[]로 바꿉니다.
@@ -17,6 +17,7 @@ import type {
   ProfileWrite,
 } from '@/features/profiles/api';
 import type { Labels } from '@/features/catalogs/labels';
+import type { CourseSummary } from '@/features/catalogs/api';
 import { normalizeWebUrl } from '@/features/demo/profile-fields';
 
 export type ProfileFormValues = {
@@ -35,6 +36,7 @@ export type ProfileFormValues = {
   fieldCodes: string[];
   roleCodes: string[];
   skillCodes: string[];
+  courses: CourseSummary[];
   portfolioUrl: string;
   portfolioTitle: string;
 };
@@ -59,6 +61,7 @@ export function toFormValues(
     fieldCodes: [...profile.fieldCodes],
     roleCodes: [...profile.roleCodes],
     skillCodes: [...profile.skillCodes],
+    courses: [...profile.courses],
     portfolioUrl: profile.portfolio?.url ?? '',
     portfolioTitle: profile.portfolio?.title ?? '',
   };
@@ -97,6 +100,7 @@ export function toProfileWrite(
     fieldCodes: [...values.fieldCodes],
     roleCodes: [...values.roleCodes],
     skillCodes: [...values.skillCodes],
+    courseCodes: values.courses.map((course) => course.code),
     portfolio: url ? { url, title: orNull(values.portfolioTitle) } : null,
   };
 }

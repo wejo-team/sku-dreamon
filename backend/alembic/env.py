@@ -16,6 +16,7 @@ from app.models import applications as application_models  # noqa: F401 -- 지�
 from app.models import auth as auth_models  # noqa: F401 -- metadata 모델 등록
 from app.models import auth_attempts as auth_attempt_models  # noqa: F401 -- 시도 제한 등록
 from app.models import contests as contest_models  # noqa: F401 -- 공고 모델 등록
+from app.models import courses as course_models  # noqa: F401 -- 과목·프로필 선택 등록
 from app.models import notifications as notification_models  # noqa: F401 -- 알림 모델 등록
 from app.models import profiles as profile_models  # noqa: F401 -- 프로필 모델 등록
 from app.models import teams as team_models  # noqa: F401 -- 팀 모델 등록

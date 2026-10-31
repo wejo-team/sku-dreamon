@@ -13,6 +13,7 @@ from pydantic import (
 
 from app.core.http.schemas import NonnegativeBigInt, PositiveBigInt, RequestDTO, Version
 from app.rules.text import normalize_text
+from app.schemas.catalogs import CourseCode
 
 NormalizedText = Annotated[StrictStr, AfterValidator(normalize_text)]
 Name = Annotated[NormalizedText, Field(min_length=1, max_length=50)]
@@ -58,11 +59,23 @@ class ProfileWrite(RequestDTO):
         min_length=1, max_length=2, description="희망 역할 1~2개."
     )
     skill_codes: list[StrictStr] = Field(description="보유 역량. 중복 불가.")
+    course_codes: list[CourseCode] = Field(
+        default_factory=list,
+        description=(
+            "선택 수강 과목의 학수번호. 생략하면 기존 선택을 유지하고 "
+            "빈 배열은 해제합니다."
+        ),
+    )
     portfolio: PortfolioWrite | None = Field(description="포트폴리오 또는 null.")
 
     @model_validator(mode="after")
     def normalize_values(self) -> Self:
-        for values in (self.field_codes, self.role_codes, self.skill_codes):
+        for values in (
+            self.field_codes,
+            self.role_codes,
+            self.skill_codes,
+            self.course_codes,
+        ):
             if len(values) != len(set(values)):
                 raise ValueError("Selections must be distinct")
         if self.experience_state != "provided":

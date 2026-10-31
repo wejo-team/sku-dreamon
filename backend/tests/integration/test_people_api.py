@@ -19,6 +19,7 @@ from app.core.http.handlers import register_error_handlers
 from app.dependencies.auth import SESSION_COOKIE_NAME, CurrentAccount
 from app.models.academic_units import AcademicUnit
 from app.models.auth import Account, AuthSession
+from app.models.courses import Course, ProfileCourse
 from app.models.profiles import (
     PortfolioLink,
     Profile,
@@ -47,6 +48,8 @@ tables = [
         ProfileDesiredRole,
         ProfileSkill,
         PortfolioLink,
+        Course,
+        ProfileCourse,
     )
 ]
 
@@ -210,6 +213,7 @@ async def test_private_and_missing_people_are_indistinguishable_but_owner_can_re
     assert own.json()["data"]["version"] == "1"
     assert own.json()["data"]["academicUnitId"] is None
     assert own.json()["data"]["portfolio"] is None
+    assert own.json()["data"]["courses"] == []
     assert set(own.json()["data"]) == {
         "accountId",
         "version",
@@ -229,6 +233,7 @@ async def test_private_and_missing_people_are_indistinguishable_but_owner_can_re
         "roleCodes",
         "skillCodes",
         "portfolio",
+        "courses",
     }
 
 
