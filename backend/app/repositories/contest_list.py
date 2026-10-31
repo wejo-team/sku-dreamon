@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import NamedTuple
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contests import Contest, ContestField
@@ -94,6 +94,8 @@ async def list_contests(
         .correlate(Contest)
         .scalar_subquery()
     )
+    # 두 정렬 모두 접수 마감 공고를 마지막에 두고 그 안에서는 같은 기준으로 정렬한다.
+    closed = case((Contest.registration_closes_at <= filters.now, 1), else_=0)
     order = (
         (Contest.registration_closes_at.asc(), Contest.contest_id.asc())
         if sort == "deadline_asc"
@@ -102,7 +104,7 @@ async def list_contests(
     rows = await session.execute(
         select(Contest, fields, teams)
         .where(*_conditions(filters))
-        .order_by(*order)
+        .order_by(closed.asc(), *order)
         .offset((page - 1) * page_size)
         .limit(page_size)
         .execution_options(populate_existing=True)

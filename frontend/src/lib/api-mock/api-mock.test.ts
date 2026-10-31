@@ -97,6 +97,38 @@ describe('mock API adapter', () => {
     ]);
   });
 
+  it.each([
+    [
+      'created_desc',
+      (left: contests.ContestSummary, right: contests.ContestSummary) =>
+        right.createdAt.localeCompare(left.createdAt) ||
+        right.id.localeCompare(left.id),
+    ],
+    [
+      'deadline_asc',
+      (left: contests.ContestSummary, right: contests.ContestSummary) =>
+        left.endsAt.localeCompare(right.endsAt) ||
+        left.id.localeCompare(right.id),
+    ],
+  ] as const)(
+    'places closed contests last in %s and keeps each group in the sort order',
+    async (sort, compare) => {
+      const { data } = await contests.listContests({ sort, pageSize: 100 });
+      const closed = data.filter(
+        (item) => item.registrationStatus === 'closed',
+      );
+      const others = data.filter(
+        (item) => item.registrationStatus !== 'closed',
+      );
+      expect(closed.length).toBeGreaterThan(0);
+      expect(others.length).toBeGreaterThan(0);
+      expect(data).toEqual([
+        ...[...others].sort(compare),
+        ...[...closed].sort(compare),
+      ]);
+    },
+  );
+
   it('keeps private profiles out of the people directory and its detail', async () => {
     await signIn();
     const people = await profiles.listPeople();
