@@ -54,7 +54,7 @@ LANGSMITH_PROJECT=sku-dreamon-production
 
 기존 공개 EC2·앱 네트워크에서는 선택한 LangSmith endpoint로 **외부 HTTPS 443** 통신이 가능하면 됩니다. 새 inbound 포트나 Nginx 경로는 필요 없습니다. 외부 목적지를 제한하는 방화벽·프록시가 있다면 해당 endpoint를 허용해야 합니다.
 
-운영 적용은 코드를 `develop → main`으로 릴리스한 뒤 SSM bundle에 키·운영 프로젝트를 등록하고 [SSM 설정 재배포](ssm-configuration.md)로 지정 버전을 적용합니다. 코드 배포는 기존 적용 설정을 사용하므로 SSM에 새 버전을 등록한 것만으로 키가 반영되지는 않습니다. 키가 적용되기 전에는 경고와 함께 외부 추적 없이 실행합니다. 키는 [백업 제외·버전별 재주입](production-backups.md)을 따릅니다.
+운영에서는 SSM 전체 bundle에 키·운영 프로젝트를 등록한 뒤 코드를 `develop → main`으로 릴리스하면 새 코드 배포가 조회 시점의 설정 버전을 고정해 함께 적용합니다. 코드 변경 없이 키만 적용하려면 [SSM 설정 재배포](ssm-configuration.md)에서 지정 버전을 적용합니다. 설정 결합 기능을 처음 도입하는 운영 환경은 구 실행기로 한 번 릴리스해야 하므로 [코드 CD의 최초 전환 제한](continuous-deployment.md)을 확인합니다. SSM에 저장만 하고 배포하지 않은 키는 실행 중인 앱에 반영되지 않으며, 키가 적용되기 전에는 경고와 함께 외부 추적 없이 실행합니다. 키는 [백업 제외·버전별 재주입](production-backups.md)을 따릅니다.
 
 ## SDK 수명과 검증
 

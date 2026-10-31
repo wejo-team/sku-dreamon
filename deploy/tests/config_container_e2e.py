@@ -11,16 +11,18 @@ import json
 import os
 import shutil
 import sys
+import tarfile
 import tempfile
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from container_e2e import BLUE_SHA, ROOT, CheckFailed, Harness
+from container_e2e import BLUE_SHA, GREEN_SHA, ROOT, CheckFailed, Harness
 
 sys.path.insert(0, str(ROOT / "deploy"))
 
-from cd_release import Config  # noqa: E402
+from cd_release import CDError, CDRelease, Config  # noqa: E402
 from config import atomic_write  # noqa: E402
 from config_release import ConfigError, ConfigRelease  # noqa: E402
 
@@ -34,6 +36,9 @@ class ConfigurationHarness(Harness):
         self.images["product_blue"] = self.build(
             "product-blue", "backend/Dockerfile", ROOT, f"RELEASE_SHA={BLUE_SHA}"
         )
+        self.images["product_green"] = self.build(
+            "product-green", "backend/Dockerfile", ROOT, f"RELEASE_SHA={GREEN_SHA}"
+        )
         self.images["nginx"] = self.build("nginx", "deploy/nginx/Dockerfile", ROOT)
         self.images["postgres"] = self.build(
             "postgres", "deploy/postgres/Dockerfile", ROOT
@@ -43,6 +48,46 @@ class ConfigurationHarness(Harness):
             "image", "inspect", "certbot/certbot:v5.8.0", "--format", "{{.Id}}"
         )
         self.mark("production_images_built_without_model_fixture")
+        self.prepare_registry()
+
+    def prepare_registry(self) -> None:
+        """격리 daemon 안의 레지스트리로 실제 이미지 digest 경계를 유지한다."""
+        self.phase = "prepare_local_registry"
+        self.docker("pull", "registry:3", timeout=180)
+        self.registry = self.docker(
+            "run",
+            "--detach",
+            "--rm",
+            "--label",
+            f"com.docker.compose.project={self.project}",
+            "--publish",
+            "127.0.0.1::5000",
+            "registry:3",
+        )
+        info = json.loads(self.docker("inspect", self.registry))[0]
+        port = info["NetworkSettings"]["Ports"]["5000/tcp"][0]["HostPort"]
+        self.registry_repository = f"127.0.0.1:{port}/synthetic-app"
+        self.product_refs = {}
+        for color, sha in (("blue", BLUE_SHA), ("green", GREEN_SHA)):
+            tag = f"{self.registry_repository}:{sha}"
+            self.docker("tag", self.images[f"product_{color}"], tag)
+            for _attempt in range(20):
+                result = self.command(
+                    ["docker", "--host", "unix:///var/run/docker.sock", "push", tag],
+                    timeout=180,
+                    success=False,
+                )
+                if result.returncode == 0:
+                    break
+                time.sleep(0.5)
+            else:
+                raise CheckFailed("isolated registry did not accept image")
+            image = json.loads(self.docker("image", "inspect", tag))[0]
+            self.product_refs[color] = next(
+                value
+                for value in image["RepoDigests"]
+                if value.startswith(self.registry_repository + "@sha256:")
+            )
 
     def initial_release(self) -> None:
         self.phase = "initial_production_release"
@@ -51,7 +96,7 @@ class ConfigurationHarness(Harness):
         self.release(
             "deploy",
             "--image",
-            self.images["product_blue"],
+            self.product_refs["blue"],
             "--sha",
             BLUE_SHA,
             "--migrate",
@@ -146,6 +191,11 @@ class ConfigurationHarness(Harness):
         )
         self.original_runtime = json.loads(self.config.read_text())
         self.original_status = self.operation_runner.status()
+        self.source_path = source
+        self.code_config = replace(
+            self.operation_runner.config,
+            ecr_repository_url=self.registry_repository,
+        )
 
     def change(self, action: str, version: int = 0) -> dict[str, Any]:
         before = self.operation_runner.status()
@@ -157,19 +207,21 @@ class ConfigurationHarness(Harness):
             version,
         )
 
-    def observe(self, requests_per_hour: str) -> tuple[str, str]:
+    def observe(
+        self, requests_per_hour: str, *, sha: str = BLUE_SHA, image: str | None = None
+    ) -> tuple[str, str]:
         status = self.operation_runner.status()
         assert status["phase"] == "stable" and status["config_phase"] == "idle"
-        assert status["active_sha"] == BLUE_SHA
+        assert status["active_sha"] == sha
         journal = json.loads((self.runtime / "state/release.json").read_text())
         slot = journal["active"]
         actual = self.container(slot)
         values = dict(item.split("=", 1) for item in actual["Config"]["Env"])
         assert values["AI_REQUESTS_PER_HOUR"] == requests_per_hour
-        assert actual["Image"] == self.images["product_blue"]
+        assert actual["Image"] == (image or self.images["product_blue"])
         assert actual["State"]["Running"]
         code, headers, _ = self.http("/api/v1/health")
-        assert code == 200 and headers["x-release-id"] == BLUE_SHA
+        assert code == 200 and headers["x-release-id"] == sha
         assert headers["x-release-slot"] == slot
         assert self.container("postgres")["Id"] == self.pg_id
         assert self.container("nginx")["Id"] == self.nginx_id
@@ -253,6 +305,159 @@ class ConfigurationHarness(Harness):
         assert self.source_calls == reads
         self.mark("interrupted_commit_recovers_prior_container_and_runtime_without_ssm")
 
+    def combined_checks(self) -> None:
+        self.phase = "prepare_combined_code_configuration_runner"
+        staging = self.temporary / "code-source"
+        shutil.copytree(
+            ROOT / "deploy",
+            staging / "deploy",
+            ignore=shutil.ignore_patterns("tests", "test-results", "__pycache__"),
+        )
+        archive = self.temporary / "code-source.tar.gz"
+        with tarfile.open(archive, "w:gz") as output:
+            output.add(staging / "deploy", arcname="deploy")
+        source_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
+        image_digest = self.product_refs["green"].rsplit("@sha256:", 1)[1]
+        self.snapshots[3] = {
+            **self.original_runtime["app_env"],
+            "AI_REQUESTS_PER_HOUR": "23",
+        }
+        self.snapshots[4] = {
+            **self.snapshots[3],
+            "AI_REASONING_EFFORT": "invalid-synthetic-value",
+        }
+        latest = 3
+        calls: list[int] = []
+        backups = 0
+
+        def synthetic_services(arguments, *, data=None, timeout=60):
+            nonlocal backups
+            if arguments[:3] == ["aws", "s3", "cp"]:
+                shutil.copyfile(archive, arguments[4])
+                return b""
+            if arguments[:3] == ["aws", "ecr", "get-login-password"]:
+                return b"synthetic-registry-password"
+            if arguments[:3] == ["aws", "ssm", "get-parameter"]:
+                assert arguments[arguments.index("--name") + 1] == PARAMETER
+                calls.append(latest)
+                return json.dumps(
+                    {
+                        "Parameter": {
+                            "Name": PARAMETER,
+                            "Version": latest,
+                            "Type": "SecureString",
+                            "DataType": "text",
+                            "Value": json.dumps(self.snapshots[latest]),
+                            "ARN": (
+                                f"arn:aws:ssm:{REGION}:123456789012:"
+                                f"parameter{PARAMETER}"
+                            ),
+                        }
+                    }
+                ).encode()
+            if arguments[:2] == ["systemctl", "start"]:
+                # 외부 백업 서비스 경계만 대체하고 작업 전 안정 쌍을 직접 대조한다.
+                assert not cd.configuration.pending.exists()
+                journal = json.loads((self.runtime / "state/release.json").read_text())
+                active = journal["slots"][journal["active"]]
+                cd.configuration.runtime_matches(
+                    json.loads(self.config.read_text()), active
+                )
+                backups += 1
+                atomic_write(
+                    self.runtime / "state/backup-last-success.json",
+                    json.dumps(
+                        {
+                            "status": "complete",
+                            "backup_id": f"synthetic-code-{backups}",
+                            "release_sha": active["sha"],
+                            "objects": [{}, {}],
+                        }
+                    ),
+                )
+                return b""
+            if arguments[0] == "docker":
+                return self.command(
+                    arguments,
+                    input_text=data.decode() if data is not None else None,
+                    timeout=timeout,
+                ).stdout.encode()
+            raise CheckFailed("unexpected combined service operation")
+
+        cd = CDRelease(
+            self.code_config, runner=synthetic_services, source_path=self.source_path
+        )
+
+        def deploy():
+            return cd.change("deploy", GREEN_SHA, BLUE_SHA, source_hash, image_digest)
+
+        self.phase = "combined_code_and_configuration_apply"
+        previous = self.observe("20")
+        deploy()
+        active = self.observe("23", sha=GREEN_SHA, image=self.images["product_green"])
+        assert active[0] != previous[0] and calls == [3] and backups == 1
+        assert json.loads(self.config.read_text())["config_revision"].startswith(
+            "ssm-3-"
+        )
+        self.mark("code_and_latest_configuration_applied_in_one_blue_green_transition")
+
+        self.phase = "combined_same_sha_idempotence"
+        latest = 4
+        deploy()
+        assert (
+            self.observe("23", sha=GREEN_SHA, image=self.images["product_green"])
+            == active
+        )
+        assert calls == [3] and backups == 1
+        self.mark("same_sha_retry_does_not_read_new_latest_or_replace_container")
+
+        self.phase = "combined_code_and_configuration_rollback"
+        cd.change("rollback", BLUE_SHA, GREEN_SHA)
+        self.observe("20")
+        assert (
+            calls == [3]
+            and json.loads(self.config.read_text()) == self.original_runtime
+        )
+        self.mark("code_rollback_restores_same_previous_configuration_without_ssm")
+
+        self.phase = "combined_invalid_candidate_recovery"
+        try:
+            deploy()
+        except CDError as error:
+            assert str(error) == "release_failed_restored"
+        else:
+            raise CheckFailed("invalid combined candidate unexpectedly applied")
+        self.observe("20")
+        assert json.loads(self.config.read_text()) == self.original_runtime
+        assert not cd.configuration.pending.exists()
+        self.mark("combined_invalid_app_setting_restores_old_code_configuration_and_db")
+
+        self.phase = "combined_post_cutover_interruption"
+        latest = 3
+        publish = cd.configuration.publish
+
+        def interrupt(value, allowed):
+            raise KeyboardInterrupt
+
+        cd.configuration.publish = interrupt
+        try:
+            deploy()
+        except KeyboardInterrupt:
+            pass
+        else:
+            raise CheckFailed("combined interruption did not occur")
+        finally:
+            cd.configuration.publish = publish
+        assert cd.status()["code_config_phase"] == "pending"
+        reads = list(calls)
+        cd.configuration.recover()
+        self.observe("20")
+        assert (
+            calls == reads
+            and json.loads(self.config.read_text()) == self.original_runtime
+        )
+        self.mark("combined_interruption_recovers_old_pair_without_new_ssm_query")
+
 
 def main() -> int:
     if os.geteuid() != 0:
@@ -284,6 +489,7 @@ def main() -> int:
                             "config.py",
                             "release.py",
                             "cd_release.py",
+                            "code_config.py",
                             "config_release.py",
                             "ssm_config.py",
                             "tests/config_container_e2e.py",
@@ -298,6 +504,7 @@ def main() -> int:
             harness.initial_release()
             harness.setup_configuration()
             harness.configuration_checks()
+            harness.combined_checks()
             success = True
         except Exception as error:  # noqa: BLE001 -- 합성 설정도 오류 원문에 출력하지 않는다.
             failure = type(error).__name__
