@@ -1,7 +1,7 @@
 /**
  * [참조 출처]
  * 1. docs/api/auth.md#account-endpoints - 가입 201·로그인 200·로그아웃 204·GET /me, 409 LOGIN_ID_TAKEN, 401 INVALID_CREDENTIALS
- * 2. docs/api/auth.md#credentials - loginId 정규화(trim·소문자·^[a-z0-9]{4,24}$), password NFC 15~128 코드 포인트
+ * 2. docs/api/auth.md#credentials - loginId 정규화(trim·소문자·^[a-z0-9]{4,24}$), password NFC 8~128 코드 포인트, 가입 시 기호 포함
  * 3. docs/api/catalogs.md#catalog-endpoints - GET /catalogs, GET /catalogs/academic-units
  * 4. docs/api/contests.md#queries - 공모전 검색 대상·필터·정렬(created_desc, deadline_asc)
  * 5. docs/api/profiles.md#profile-endpoints - 프로필 저장 버전 규칙(최초 "0"), 공개 전환 no-op 200
@@ -25,6 +25,7 @@ import {
 import {
   commonPasswordFixtures,
   demoPassword,
+  getPasswordRequirements,
   normalizeLoginId,
   normalizePassword,
 } from '@/features/demo/auth-policy';
@@ -64,7 +65,7 @@ function normalizedCredentials(body: unknown) {
     invalid(['body', 'loginId'], '아이디 형식이 올바르지 않아요.');
   const password = normalizePassword(raw.password);
   const length = Array.from(password).length;
-  if (length < 15 || length > 128)
+  if (length < 8 || length > 128)
     invalid(['body', 'password'], '비밀번호 길이가 올바르지 않아요.');
   return { loginId, password };
 }
@@ -92,6 +93,10 @@ export function registerAccountRoutes(router: MockRouter) {
     // [출처 1, 2] 가입 → 201, 자동 로그인
     .on('POST', '/accounts', ({ body }) => {
       const { loginId, password } = normalizedCredentials(body);
+      if (!getPasswordRequirements(password).characters)
+        invalid(['body', 'password'], '한글과 공백은 사용할 수 없어요.');
+      if (!getPasswordRequirements(password).symbol)
+        invalid(['body', 'password'], '기호를 1개 이상 포함해 주세요.');
       // [출처 1] 차단 목록의 비밀번호는 400 PASSWORD_BLOCKED
       if (commonPasswordFixtures.has(password.toLowerCase()))
         fail(400, 'PASSWORD_BLOCKED', '다른 비밀번호를 선택해 주세요.');
@@ -154,6 +159,17 @@ export function registerAccountRoutes(router: MockRouter) {
     // [출처 3]
     .on('GET', '/catalogs', () => ok(db().catalogs))
     .on('GET', '/catalogs/academic-units', () => ok(db().academicUnits))
+    .on('GET', '/catalogs/courses', ({ query }) => {
+      const q = searchText(query);
+      const courses = db()
+        .courses.filter((course) =>
+          [course.code, course.name, ...course.aliases].some((value) =>
+            value.toLowerCase().includes(q),
+          ),
+        )
+        .sort((left, right) => left.code.localeCompare(right.code));
+      return Response.json(paginate(courses, query));
+    })
     // [출처 4] 공모전 목록: 제목·주최자·분야 표시명 검색
     .on('GET', '/contests', ({ query }) => {
       const q = searchText(query);
@@ -216,6 +232,18 @@ export function registerAccountRoutes(router: MockRouter) {
       const write = validate(ProfileWrite, body);
       const existing = profileOf(accountId);
       assertVersion(existing?.version ?? '0', write.expectedVersion);
+      const courses =
+        write.courseCodes === undefined
+          ? (existing?.courses ?? [])
+          : write.courseCodes.map((code) => {
+              const course = db().courses.find((item) => item.code === code);
+              if (!course)
+                conflict(
+                  'INVALID_COURSE_SELECTION',
+                  '과목을 다시 확인해 주세요.',
+                );
+              return { code, name: course!.name };
+            });
       // [출처 5] 선택 코드는 현재 선택 가능한 카탈로그 항목이어야 함
       const codes: [Parameters<typeof catalogHas>[0], (string | null)[]][] = [
         ['fields', write.fieldCodes],
@@ -258,6 +286,7 @@ export function registerAccountRoutes(router: MockRouter) {
         fieldCodes: write.fieldCodes,
         roleCodes: write.roleCodes,
         skillCodes: write.skillCodes,
+        courses,
         // [출처 10] 포트폴리오 제목도 앞뒤 공백 제거, 빈 값은 null
         portfolio: write.portfolio && {
           url: write.portfolio.url,

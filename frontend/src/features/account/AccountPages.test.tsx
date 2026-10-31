@@ -26,16 +26,42 @@ import {
   type DemoDatabase,
 } from '@/features/demo/fixtures';
 import type { Profile } from '@/features/profiles/api';
+import { state } from '@/lib/api-mock/state';
 import {
   demoIds,
   ME,
   mockSession,
+  mockDb,
   myProfile,
   renderWithApi,
   sentRequests,
   settled,
   withProfile,
 } from '@/test/render';
+
+async function submitCourseSignup(loginId: string) {
+  const user = setupUser();
+  await fill(user, screen.getByLabelText('아이디 (필수)'), loginId);
+  await fill(
+    user,
+    screen.getByLabelText('비밀번호 (필수)'),
+    'CourseSignup2026!',
+  );
+  await fill(user, screen.getByLabelText('이름 (필수)'), '김학생');
+  await user.click(
+    within(screen.getByRole('group', { name: /관심 분야/ })).getByLabelText(
+      '교육',
+    ),
+  );
+  await user.click(
+    within(screen.getByRole('group', { name: /희망 역할/ })).getByLabelText(
+      '기획',
+    ),
+  );
+  await user.click(screen.getByRole('checkbox', { name: '자료구조 (CS1001)' }));
+  await user.click(screen.getByRole('button', { name: '회원가입' }));
+  return user;
+}
 
 const weeklyAvailabilityOptions = fixtureCatalogs().weeklyAvailabilityRanges;
 // 화면이 실제로 보낸 저장 요청(docs/api/profiles.md, docs/api/teams.md)
@@ -199,6 +225,158 @@ describe('design preview account flows', () => {
       expect(visibilitySaves()).toHaveLength(0);
     },
   );
+  it('offers optional course search during signup', async () => {
+    await renderAccount('/signup');
+    expect(
+      screen.getByRole('searchbox', { name: '과목명 또는 학수번호' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('수강했거나 수강 중인 과목을 선택해 주세요.'),
+    ).toBeInTheDocument();
+  });
+
+  it('saves selected courses, reloads them and removes all with an empty code list', async () => {
+    const records = createDemoRecords();
+    records.courses = [
+      {
+        code: 'GE1394',
+        name: 'AI리터러시와가치설계',
+        aliases: [],
+        departments: ['교양'],
+      },
+    ];
+    await renderAccount('/profile?edit=details', { db: records });
+    const user = setupUser();
+    await user.click(
+      await screen.findByRole('checkbox', {
+        name: 'AI리터러시와가치설계 (GE1394)',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+    await screen.findByRole('button', { name: '프로필 수정' });
+    expect(lastProfileSave()).toMatchObject({ courseCodes: ['GE1394'] });
+    expect(myProfile().courses).toEqual([
+      { code: 'GE1394', name: 'AI리터러시와가치설계' },
+    ]);
+    expect(screen.getByText('AI리터러시와가치설계')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '프로필 수정' }));
+    expect(
+      screen.getByRole('button', {
+        name: 'AI리터러시와가치설계 (GE1394) 선택 해제',
+      }),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', {
+        name: 'AI리터러시와가치설계 (GE1394) 선택 해제',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: '변경사항 저장' }));
+    await screen.findByRole('button', { name: '프로필 수정' });
+    expect(lastProfileSave()).toMatchObject({ courseCodes: [] });
+    expect(myProfile().courses).toEqual([]);
+  });
+
+  it.each([
+    { name: 'keeps signup course selections for retry', switchAccount: false },
+    {
+      name: 'checks the current account before retry despite a fresh session cache',
+      switchAccount: true,
+    },
+  ])('$name', async ({ switchAccount }) => {
+    let failSave = true;
+    const records = createDemoRecords();
+    records.courses = [
+      { code: 'CS1001', name: '자료구조', aliases: [], departments: [] },
+    ];
+    const { client } = renderWithApi(<SignupPage />, {
+      db: records,
+      fail: (request) =>
+        failSave && request.path === '/me/profile' && request.method === 'PUT',
+    });
+    client.setDefaultOptions({
+      ...client.getDefaultOptions(),
+      queries: { retry: false, gcTime: Infinity, staleTime: 30_000 },
+    });
+    await settled(client);
+    const user = await submitCourseSignup(
+      switchAccount ? 'courseswitchaccount' : 'courseaccount',
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '프로필 저장 결과를 확인하지 못했어요.',
+    );
+    expect(lastProfileSave()).toMatchObject({ courseCodes: ['CS1001'] });
+    failSave = false;
+    const sessionReads = requestsTo('GET', '/me').length;
+    if (switchAccount) {
+      // 다른 탭에서 로그인한 것처럼 화면 캐시는 두고 서버 세션만 변경합니다.
+      state.sessionAccountId = ME;
+      state.csrfToken = null;
+    }
+    await user.click(screen.getByRole('button', { name: '프로필 다시 저장' }));
+    if (switchAccount) {
+      await screen.findByText(
+        '가입한 계정으로 로그인하고 프로필을 완성해 보세요.',
+      );
+      expect(requestsTo('GET', '/me')).toHaveLength(sessionReads + 1);
+      expect(profileSaves()).toHaveLength(1);
+      return;
+    }
+    await screen.findByRole('link', { name: '프로필 완성하기' });
+    expect(requestsTo('POST', '/accounts')).toHaveLength(1);
+    expect(profileSaves()).toHaveLength(2);
+    expect(lastProfileSave()).toMatchObject({ courseCodes: ['CS1001'] });
+  });
+
+  it('preserves a committed signup profile when its response is lost and retry conflicts', async () => {
+    const records = createDemoRecords();
+    records.courses = [
+      { code: 'CS1001', name: '자료구조', aliases: [], departments: [] },
+    ];
+    const { client } = renderWithApi(<SignupPage />, { db: records });
+    const send = globalThis.fetch;
+    let loseProfileResponse = true;
+    vi.stubGlobal('fetch', async (input: string, init: RequestInit = {}) => {
+      const response = await send(input, init);
+      if (
+        loseProfileResponse &&
+        input.endsWith('/me/profile') &&
+        init.method === 'PUT' &&
+        response.ok
+      ) {
+        loseProfileResponse = false;
+        throw new TypeError('프로필 저장 후 연결이 끊겼습니다.');
+      }
+      return response;
+    });
+    await settled(client);
+    const user = await submitCourseSignup('courselostresponse');
+    await screen.findByRole('alert');
+    const saved = structuredClone(
+      mockDb().profiles.find((profile) => profile.accountId === mockSession()),
+    );
+    expect(saved).toMatchObject({
+      version: '1',
+      courses: [{ code: 'CS1001', name: '자료구조' }],
+    });
+    await user.click(screen.getByRole('button', { name: '프로필 다시 저장' }));
+    await screen.findByText(
+      '이미 저장된 프로필이 있어요. 내 프로필에서 내용을 확인해 주세요.',
+    );
+    expect(
+      screen.queryByRole('button', { name: '프로필 다시 저장' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: '내 프로필에서 확인' }),
+    ).toHaveAttribute('href', '/profile');
+    expect(profileSaves()).toHaveLength(2);
+    expect(profileSaves().map((request) => request.body)).toEqual([
+      expect.objectContaining({ expectedVersion: '0' }),
+      expect.objectContaining({ expectedVersion: '0' }),
+    ]);
+    expect(
+      mockDb().profiles.find((profile) => profile.accountId === mockSession()),
+    ).toEqual(saved);
+  });
 
   it('projects every registered field of a public profile and none of a private profile', async () => {
     const profile = {
@@ -619,11 +797,7 @@ describe('design preview account flows', () => {
     await renderAccount('/signup');
     const user = setupUser();
     await fill(user, screen.getByLabelText('아이디 (필수)'), '  NewAccount  ');
-    await fill(
-      user,
-      screen.getByLabelText('비밀번호 (필수)'),
-      '새로운비밀번호를길게만들어요123',
-    );
+    await fill(user, screen.getByLabelText('비밀번호 (필수)'), 'abcdefg!');
     await fill(user, screen.getByLabelText('이름 (필수)'), '김지우');
     await user.click(
       within(screen.getByRole('group', { name: /관심 분야/ })).getByLabelText(
@@ -646,7 +820,7 @@ describe('design preview account flows', () => {
         path: '/accounts',
         body: {
           loginId: 'newaccount',
-          password: '새로운비밀번호를길게만들어요123',
+          password: 'abcdefg!',
         },
       },
     ]);
@@ -1204,15 +1378,15 @@ describe('design preview account flows', () => {
     const username = screen.getByLabelText('아이디 (필수)');
     await user.click(username);
     await user.paste('  DREAMONDEMO  ');
+    await user.tab();
     expect(await screen.findByText('이미 사용 중인 아이디예요.')).toBeVisible();
     const password = screen.getByLabelText('비밀번호 (필수)');
-    const oversized = '한'.repeat(129);
+    const oversized = 'a'.repeat(128) + '!';
     await user.click(password);
     await user.paste(oversized);
+    await user.tab();
     expect(
-      await screen.findByText(
-        '비밀번호는 공백을 포함해 15~128자로 입력해 주세요.',
-      ),
+      await screen.findByText('비밀번호는 128자 이하로 입력해 주세요.'),
     ).toBeVisible();
     expect(password).toHaveValue(oversized);
     expect(password).toHaveAttribute('autocomplete', 'new-password');
@@ -1222,12 +1396,95 @@ describe('design preview account flows', () => {
     await user.click(screen.getByRole('button', { name: '비밀번호 숨기기' }));
     expect(password).toHaveAttribute('type', 'password');
     await user.clear(password);
-    await user.paste('passwordpassword');
+    await user.paste('password!');
     expect(
       await screen.findByText(
         '쉽게 추측할 수 있는 비밀번호예요. 다른 비밀번호를 선택해 주세요.',
       ),
     ).toBeVisible();
     expect(profileSaves()).toEqual([]);
+  });
+
+  it('updates password requirements while typing without premature errors or repeated ID checks', async () => {
+    await renderAccount('/signup');
+    const user = setupUser();
+    const requirements = screen.getByRole('list', { name: '비밀번호 조건' });
+    const states = () =>
+      within(requirements)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent);
+    expect(states()).toEqual([
+      '8자 이상미충족',
+      '기호 1개 이상 (!, @, # 등)미충족',
+    ]);
+    await fill(user, screen.getByLabelText('아이디 (필수)'), 'livechecks');
+    const password = screen.getByLabelText('비밀번호 (필수)');
+    await user.click(password);
+    await user.type(password, 'abcdefgh');
+    expect(states()).toEqual([
+      '8자 이상충족',
+      '기호 1개 이상 (!, @, # 등)미충족',
+    ]);
+    expect(password).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.type(password, '!');
+    expect(states()).toEqual([
+      '8자 이상충족',
+      '기호 1개 이상 (!, @, # 등)충족',
+    ]);
+    await user.keyboard('{Backspace}');
+    expect(states()[1]).toContain('미충족');
+    await user.tab();
+    expect(
+      await screen.findByText('기호를 1개 이상 포함해 주세요. (!, @, # 등)'),
+    ).toBeVisible();
+    expect(requestsTo('GET', '/auth/login-id-availability')).toHaveLength(1);
+    expect(requestsTo('POST', '/accounts')).toEqual([]);
+  });
+
+  it('preserves forbidden password characters and immediately explains how to correct them', async () => {
+    await renderAccount('/signup');
+    const user = setupUser();
+    const password = screen.getByLabelText('비밀번호 (필수)');
+    for (const value of ['abcdef가!', ' abcdefg!', 'abcdefg! ', 'abc defg!']) {
+      await user.clear(password);
+      await fill(user, password, value);
+      expect(password).toHaveValue(value);
+      expect(password).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByText('한글과 공백은 사용할 수 없어요.')).toBeVisible();
+    }
+    await user.clear(password);
+    await fill(user, password, 'abcdefg!');
+    expect(
+      screen.queryByText('한글과 공백은 사용할 수 없어요.'),
+    ).not.toBeInTheDocument();
+    expect(password).toHaveAttribute('aria-invalid', 'false');
+    expect(requestsTo('POST', '/accounts')).toEqual([]);
+  });
+
+  it('shows Caps Lock only when detected and clears it on key release or lost focus', async () => {
+    await renderAccount('/signup');
+    const user = setupUser();
+    const password = screen.getByLabelText('비밀번호 (필수)');
+    const notice = 'Caps Lock이 켜져 있어요.';
+    expect(screen.queryByText(notice)).not.toBeInTheDocument();
+    await user.click(password);
+    fireEvent.keyDown(password, { key: 'A', modifierCapsLock: true });
+    expect(screen.getByText(notice)).toBeVisible();
+    expect(password).toHaveAccessibleDescription(
+      expect.stringContaining(notice),
+    );
+    fireEvent.keyUp(password, { key: 'CapsLock', modifierCapsLock: false });
+    expect(screen.queryByText(notice)).not.toBeInTheDocument();
+    fireEvent.keyUp(password, { key: 'CapsLock', modifierCapsLock: true });
+    expect(screen.getByText(notice)).toBeVisible();
+    await user.click(screen.getByLabelText('이름 (필수)'));
+    expect(screen.queryByText(notice)).not.toBeInTheDocument();
+    await user.click(password);
+    fireEvent.keyDown(password, { key: 'A', modifierCapsLock: true });
+    fireEvent(window, new Event('blur'));
+    expect(screen.queryByText(notice)).not.toBeInTheDocument();
+    expect(password).toHaveValue('');
+    expect(requestsTo('POST', '/accounts')).toEqual([]);
   });
 });

@@ -82,7 +82,7 @@ function TestControls() {
         onClick={() =>
           signup.mutate({
             loginId: 'otheraccount',
-            password: '다른계정의비밀번호를길게만들어요1',
+            password: 'OtherAccountPassword1!',
           })
         }
       >

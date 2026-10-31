@@ -9,8 +9,8 @@
 | [Health·readiness API](health.md) | liveness 유지, DEP-02 DB·보안 자원·로컬 AI 준비 검사 구현. 구현·검증 근거 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217) | 실제 Nginx·배포 경로 검증 |
 | [공통 계약](conventions.md) | DTO·성공 응답·페이지·오류·인증 의존성 | 후속 API에 같은 기반 적용 |
 | [계정·인증 API](auth.md) | 가입·로그인·아이디 확인·CSRF·본인 계정·로그아웃·공유 시도 제한 | 실제 차단 목록·origin·키와 운영 설정 |
-| [프로필 API](profiles.md) | 본인 프로필·공개 사람 조회, 전체 저장·수정·공개 전환 | 실서버 브라우저 회귀·운영 검증 |
-| [선택지 API](catalogs.md) | 공통 enum·학사 계층 조회 | 공식 운영 학사 원장 검증 |
+| [프로필 API](profiles.md) | 본인 프로필·공개 사람 조회, 전체 저장·수정·공개 전환, 수강 과목 연결 | 운영 배포 |
+| [선택지 API](catalogs.md) | 공통 enum·학사 계층 조회, DB 과목 검색·JSON 적재 CLI | 운영 학사 원장 선정·시드 적재, 신규 학기 과목 보완 |
 | [공모전 API](contests.md) | 저장 모델·값 검증·공개 목록/상세·확인된 JSON 입력 CLI | 실제 자료 확인·적재·갱신 운영 |
 | [팀 API](teams.md) | 팀 생성·공개 목록·모집글·공고 하위 팀 목록, 내 팀·팀 공간, 모집 종료·재개 | 실서버 브라우저 회귀·운영 검증 |
 | [지원 API](applications.md) | 신규 지원·본인 조회·취소, 팀장 지원자 조회·검토·미선발·선발 | 실서버 브라우저 회귀·운영 검증 |
