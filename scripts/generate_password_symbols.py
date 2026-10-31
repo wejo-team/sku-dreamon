@@ -1,4 +1,4 @@
-"""서버 Python 3.13의 Unicode 15.1 기호 집합으로 두 프론트의 정규식을 생성한다.
+"""서버 Python 3.13의 Unicode 15.1 기호 집합으로 제품 프론트 정규식을 생성한다.
 
 생성: cd backend && uv run python ../scripts/generate_password_symbols.py
 검사: cd backend && uv run python ../scripts/generate_password_symbols.py --check
@@ -13,7 +13,6 @@ ROOT = Path(__file__).resolve().parents[1]
 UNICODE_VERSION = "15.1.0"
 TARGETS = (
     Path("frontend/src/features/demo/password-symbols.ts"),
-    Path("design-reference/src/features/design-preview/password-symbols.ts"),
 )
 
 

@@ -1,14 +1,15 @@
-"""로컬 wejo_dev에 공고를 변경하지 않는 재실행 가능한 시연 데이터를 넣는다."""
+"""로컬 wejo_dev의 공고를 보존하며 버전이 있는 시연 데이터를 구성·검증한다."""
 
 import argparse
 import asyncio
+import hashlib
 import json
 import random
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid5
 
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,7 @@ from app.core.config import Settings
 from app.core.db.session import create_database
 from app.core.demo_data import DEV_ACCOUNT_IDS, DEV_NAMESPACE, DEV_TEAM_IDS
 from app.models.academic_units import AcademicUnit
+from app.models.ai_runs import AiRun
 from app.models.applications import Application, ApplicationEvent
 from app.models.auth import Account
 from app.models.contests import Contest, ContestAudience, ContestField
@@ -28,13 +30,13 @@ from app.models.profiles import (
     ProfileSkill,
 )
 from app.models.teams import Team, TeamMembership, TeamRecruitmentRole
-from app.repositories.recruitment_locks import lock_accounts
+from app.repositories.recruitment_locks import lock_accounts, lock_teams
 from app.repositories.team_create import insert_team
 from app.rules.catalogs import RoleCode
 from app.rules.contests import validate_team_capacity
 from app.rules.requests import request_fingerprint
 from app.schemas.application_create import ApplicationCreate
-from app.schemas.auth import Credentials
+from app.schemas.auth import SignupCredentials
 from app.schemas.profile_write import ProfileWrite
 from app.schemas.team_create import TeamCreate
 from app.security.passwords import hash_password
@@ -43,8 +45,16 @@ from app.services.application_review import change_review_status, select_applica
 from app.services.applications import cancel_application
 from app.services.catalogs import create_academic_unit
 from app.services.teams import close_recruitment
+from scripts.dev_dataset import (
+    DATASET_VERSION,
+    RANDOM_SEED,
+    ContestCandidate,
+    DatasetPlan,
+    build_plan,
+    team_story,
+)
+from scripts.dev_dataset_report import contest_fingerprint, dataset_report
 from scripts.seed_content import (
-    TOPICS,
     legacy_profile_input,
     legacy_team_content,
 )
@@ -145,7 +155,7 @@ async def seed_users(session: AsyncSession) -> int:
     now = datetime.now(UTC)
     for i in missing:
         account_id = DEV_ACCOUNT_IDS[i]
-        credentials = Credentials.model_validate(
+        credentials = SignupCredentials.model_validate(
             {"loginId": f"devuser{i + 1:03d}", "password": DEV_PASSWORD}
         )
         created = now - timedelta(days=120 - i % 120, minutes=i)
@@ -207,9 +217,14 @@ async def seed_users(session: AsyncSession) -> int:
     return len(missing)
 
 
-async def seed_team(session: AsyncSession, index: int, contest: Contest) -> Team:
+async def seed_team(
+    session: AsyncSession,
+    index: int,
+    contest: ContestCandidate,
+    reference_at: datetime,
+) -> Team:
     """신규 시드 팀의 고정 ID·정원·리더 소속을 한 트랜잭션으로 저장한다."""
-    now = datetime.now(UTC)
+    now = reference_at
     capacity = max(contest.min_members or 2, 3 + index % 4)
     if contest.max_members is not None:
         capacity = min(capacity, contest.max_members)
@@ -220,10 +235,9 @@ async def seed_team(session: AsyncSession, index: int, contest: Contest) -> Team
         maximum_members=contest.max_members,
     )
     deadline_at = min(
-        contest.registration_closes_at, now + timedelta(days=7 + index % 21)
+        contest.registration_closes_at, now + timedelta(days=28 + index % 15)
     ).replace(microsecond=0)
-    roles = [list(RoleCode)[index % 6].value, list(RoleCode)[(index + 1) % 6].value]
-    name, introduction = team_content(index, contest.title)
+    name, introduction, roles = team_story(index, contest)
     body = TeamCreate.model_validate(
         {
             "requestId": str(uuid5(DEV_NAMESPACE, f"team-request:{index}")),
@@ -261,7 +275,8 @@ async def seed_team(session: AsyncSession, index: int, contest: Contest) -> Team
         deadline_time_assumed=deadline.time_assumed,
         deadline_timezone_assumed=deadline.timezone_assumed,
         version=1,
-        created_at=now,
+        # 마지막 생성 구간에도 여러 공고가 섞이도록 계획 순서를 최신순에 반영한다.
+        created_at=now - timedelta(minutes=len(DEV_TEAM_IDS) - index),
         updated_at=now,
     )
     membership = TeamMembership(
@@ -276,26 +291,9 @@ async def seed_team(session: AsyncSession, index: int, contest: Contest) -> Team
     return team
 
 
-async def seed_teams(session: AsyncSession) -> int:
-    now = datetime.now(UTC)
-    contests = list(
-        await session.scalars(
-            select(Contest)
-            .where(
-                Contest.registration_opens_at <= now,
-                Contest.registration_closes_at > now + timedelta(hours=1),
-                Contest.member_limit_kind.in_(("range", "unlimited")),
-                (Contest.max_members.is_(None) | (Contest.max_members >= 2)),
-            )
-            .order_by(Contest.contest_id)
-        )
-    )
-    if not contests:
-        print(
-            "현재 접수 중이며 팀 인원이 확인된 공모전이 없어 팀 연결은 보류합니다.",
-            flush=True,
-        )
-        return 0
+async def seed_teams(session: AsyncSession, plan: DatasetPlan | None = None) -> int:
+    if plan is None:
+        plan = await load_plan(session, datetime.now(UTC))
     existing = set(
         await session.scalars(
             select(Team.team_id).where(Team.team_id.in_(DEV_TEAM_IDS))
@@ -305,14 +303,14 @@ async def seed_teams(session: AsyncSession) -> int:
         await session.scalars(
             select(Profile.profile_id)
             .where(
-                Profile.profile_id.in_(DEV_ACCOUNT_IDS[100:]),
+                Profile.profile_id.in_(DEV_ACCOUNT_IDS[100:298]),
                 Profile.is_public.is_(True),
             )
             .order_by(Profile.profile_id)
         )
     )
     added = 0
-    for group in range(50):
+    for group, contest in enumerate(plan.assignments):
         indices = (group * 2, group * 2 + 1)
         if all(DEV_TEAM_IDS[i] in existing for i in indices):
             continue
@@ -320,7 +318,6 @@ async def seed_teams(session: AsyncSession) -> int:
             raise ValueError(
                 "시드 팀 쌍의 일부만 존재합니다. 기존 팀을 보존하기 위해 중단합니다."
             )
-        contest = contests[group % len(contests)]
         busy = set(
             await session.scalars(
                 select(TeamMembership.account_id).where(
@@ -330,11 +327,13 @@ async def seed_teams(session: AsyncSession) -> int:
             )
         )
         candidates = [p for p in public_ids if p not in busy]
-        random.Random(group + 20261026).shuffle(candidates)
+        random.Random(group + RANDOM_SEED).shuffle(candidates)
         candidates = candidates[:12]
         if any(DEV_ACCOUNT_IDS[i] in busy for i in indices) or len(candidates) < 8:
-            continue
-        teams = [await seed_team(session, i, contest) for i in indices]
+            raise ValueError("시연 팀장 소속 또는 공개 지원자 수를 확인해주세요.")
+        teams = [
+            await seed_team(session, i, contest, plan.reference_at) for i in indices
+        ]
         await session.commit()
         application_ids: list[list[UUID]] = [[], []]
         for side, team in enumerate(teams):
@@ -350,9 +349,10 @@ async def seed_teams(session: AsyncSession) -> int:
                         "roleCode": role.value,
                         "message": (
                             f"{role.display_name} 역할로 지원합니다. "
-                            f"{TOPICS[group % 10]}에 관심이 있고, "
-                            f"주당 {5 + j % 4 * 5}시간 참여할 수 있습니다. "
-                            "일정과 진행 상황을 팀원들과 꾸준히 공유하겠습니다."
+                            f"{contest.title}의 주제에 관심이 있습니다. "
+                            "모집글의 작업을 작은 단위로 나누어 진행하고 "
+                            "초안과 조사 근거를 함께 검토하고 싶습니다. "
+                            "구체적인 참여 시간은 팀원들과 조율하겠습니다."
                         ),
                     }
                 )
@@ -397,7 +397,8 @@ async def seed_teams(session: AsyncSession) -> int:
                 await cancel_application(
                     session, row.application_id, row.applicant_account_id, row.version
                 )
-            if group % 3 == 0 and side == 1:
+            # 매 공고에 지원 가능한 팀을 남기고 첫 팀에만 종료 사례를 배치한다.
+            if group % 4 == 2 and side == 0:
                 await session.refresh(team)
                 await close_recruitment(
                     session,
@@ -421,7 +422,9 @@ async def seed_teams(session: AsyncSession) -> int:
         await session.commit()
         added += 2
         if added % 10 == 0:
-            print(f"팀 {added}/100 및 지원·알림 준비", flush=True)
+            print(
+                f"팀 {added}/{len(plan.assignments) * 2} 및 지원·알림 준비", flush=True
+            )
     return added
 
 
@@ -643,6 +646,7 @@ async def counts(session: AsyncSession) -> dict[str, int]:
         Application,
         ApplicationEvent,
         Notification,
+        AiRun,
     )
     return {
         model.__tablename__: int(
@@ -699,15 +703,165 @@ async def validate_seed(session: AsyncSession) -> None:
             raise ValueError(f"시드 무결성 검사 실패: {name}")
 
 
+async def load_plan(session: AsyncSession, reference_at: datetime) -> DatasetPlan:
+    fields: dict[UUID, list[str]] = {}
+    for contest_id, code in await session.execute(
+        select(ContestField.contest_id, ContestField.field_code).order_by(
+            ContestField.contest_id, ContestField.field_code
+        )
+    ):
+        fields.setdefault(contest_id, []).append(code)
+    candidates = [
+        ContestCandidate(
+            contest_id=contest.contest_id,
+            title=contest.title,
+            field_codes=tuple(fields.get(contest.contest_id, [])),
+            created_at=contest.created_at,
+            registration_opens_at=contest.registration_opens_at,
+            registration_closes_at=contest.registration_closes_at,
+            member_limit_kind=contest.member_limit_kind,
+            min_members=contest.min_members,
+            max_members=contest.max_members,
+        )
+        for contest in await session.scalars(select(Contest))
+    ]
+    return build_plan(candidates, reference_at)
+
+
+async def clear_seed_teams(session: AsyncSession) -> int:
+    """고정 시드 팀의 관계만 자식부터 제거하며 일반 계정이 연결됐으면 중단한다."""
+    # 제품과 동일한 계정→공고→팀 순서로 잠가 검사 후 신규 지원이 끼지 않게 한다.
+    await lock_accounts(session, DEV_ACCOUNT_IDS)
+    contest_ids = select(Team.contest_id).where(Team.team_id.in_(DEV_TEAM_IDS))
+    await session.execute(
+        select(Contest.contest_id)
+        .where(Contest.contest_id.in_(contest_ids))
+        .order_by(Contest.contest_id)
+        .with_for_update(read=True)
+    )
+    existing_teams = await lock_teams(session, DEV_TEAM_IDS)
+    expected = dict(zip(DEV_TEAM_IDS, DEV_ACCOUNT_IDS, strict=False))
+    for team in existing_teams:
+        if team.leader_account_id != expected[team.team_id] or team.request_id != uuid5(
+            DEV_NAMESPACE, f"team-request:{DEV_TEAM_IDS.index(team.team_id)}"
+        ):
+            raise ValueError("시드 팀의 고정 식별자가 기존 팀과 충돌합니다.")
+    for model, account_column in (
+        (Application, Application.applicant_account_id),
+        (TeamMembership, TeamMembership.account_id),
+        (ApplicationEvent, ApplicationEvent.actor_account_id),
+    ):
+        if await session.scalar(
+            select(func.count())
+            .select_from(model)
+            .where(
+                model.team_id.in_(DEV_TEAM_IDS), account_column.not_in(DEV_ACCOUNT_IDS)
+            )
+        ):
+            raise ValueError("시드 팀에 일반 계정의 활동이 있어 재구성을 중단합니다.")
+    event_ids = select(ApplicationEvent.application_event_id).where(
+        ApplicationEvent.team_id.in_(DEV_TEAM_IDS)
+    )
+    if await session.scalar(
+        select(func.count())
+        .select_from(Notification)
+        .where(
+            Notification.event_id.in_(event_ids),
+            Notification.recipient_account_id.not_in(DEV_ACCOUNT_IDS),
+        )
+    ):
+        raise ValueError("시드 팀에 일반 계정의 알림이 있어 재구성을 중단합니다.")
+    run_scope = or_(
+        AiRun.team_id.in_(DEV_TEAM_IDS),
+        AiRun.application_id.in_(
+            select(Application.application_id).where(
+                Application.team_id.in_(DEV_TEAM_IDS)
+            )
+        ),
+    )
+    if await session.scalar(
+        select(func.count())
+        .select_from(AiRun)
+        .where(
+            run_scope,
+            or_(
+                AiRun.account_id.not_in(DEV_ACCOUNT_IDS),
+                AiRun.expires_at > datetime.now(UTC),
+            ),
+        )
+    ):
+        raise ValueError(
+            "시드 팀의 AI 검토 메타데이터가 아직 만료되지 않았거나 "
+            "일반 계정 소유입니다."
+        )
+    count = int(
+        await session.scalar(
+            select(func.count()).select_from(Team).where(Team.team_id.in_(DEV_TEAM_IDS))
+        )
+        or 0
+    )
+    await session.execute(
+        delete(Notification).where(Notification.event_id.in_(event_ids))
+    )
+    # 제품의 메타데이터 보존 기한이 지난 해당 시드 팀 실행만 정리한다.
+    # 별도 보존되는 일반 AI 대화·메시지에는 접근하지 않는다.
+    await session.execute(delete(AiRun).where(run_scope))
+    # 폐기 사건끼리의 자기 참조는 같은 DELETE 문에서 함께 지운다.
+    for related_model in (
+        ApplicationEvent,
+        TeamMembership,
+        Application,
+        TeamRecruitmentRole,
+        Team,
+    ):
+        await session.execute(
+            delete(related_model).where(related_model.team_id.in_(DEV_TEAM_IDS))
+        )
+    await session.flush()
+    return count
+
+
+def generator_fingerprint() -> str:
+    """제작 코드와 학사 입력이 같았는지 확인할 작은 식별자만 기록한다."""
+    digest = hashlib.sha256()
+    for path in (
+        Path(__file__),
+        Path(__file__).with_name("dev_dataset.py"),
+        Path(__file__).with_name("dev_dataset_report.py"),
+        Path(__file__).with_name("seed_content.py"),
+        Path(__file__).parents[1] / "app/core/demo_data.py",
+        ACADEMIC_SOURCE,
+    ):
+        digest.update(path.name.encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
 async def run(
-    *, apply: bool, users_only: bool, refresh: bool = False
+    *,
+    apply: bool,
+    users_only: bool,
+    rebuild_teams: bool = False,
+    check: bool = False,
+    refresh: bool = False,
 ) -> dict[str, object]:
+    if (
+        (users_only and rebuild_teams)
+        or (refresh and rebuild_teams)
+        or (check and (apply or users_only or rebuild_teams or refresh))
+    ):
+        raise ValueError(
+            "--check는 단독 사용하며 --users-only와 재구성은 함께 쓸 수 없습니다."
+        )
     url = str(Settings().database_url)
     validate_target(url)
+    reference_at = datetime.now(UTC).replace(microsecond=0)
     database = create_database(url)
     try:
         async with database.engine.connect() as connection:
             async with connection.begin() as transaction:
+                if check:
+                    await connection.execute(text("SET TRANSACTION READ ONLY"))
                 if (
                     await connection.scalar(text("SELECT current_database()"))
                     != "wejo_dev"
@@ -716,6 +870,9 @@ async def run(
                 await connection.execute(
                     text("SELECT pg_advisory_xact_lock(20261026, 300)")
                 )
+                schema_revision = await connection.scalar(
+                    text("SELECT version_num FROM alembic_version")
+                )
                 # 서비스 commit은 savepoint만 확정한다. 전체 적재는 마지막에 확정한다.
                 async with AsyncSession(
                     bind=connection,
@@ -723,30 +880,61 @@ async def run(
                     join_transaction_mode="create_savepoint",
                 ) as session:
                     before = await counts(session)
+                    catalog_before = await contest_fingerprint(session)
+                    plan = await load_plan(session, reference_at)
+                    if rebuild_teams and not plan.assignments:
+                        raise ValueError(
+                            "배정 가능한 공모전이 없어 기존 팀을 보존합니다."
+                        )
                     refreshed = None
+                    added = teams_added = teams_removed = 0
                     if refresh:
                         refreshed = await refresh_content(
                             session, users_only=users_only
                         )
-                        added, teams_added = 0, 0
-                    else:
+                    elif not check:
                         added = await seed_users(session)
+                        teams_removed = (
+                            await clear_seed_teams(session) if rebuild_teams else 0
+                        )
                         await session.commit()
-                        teams_added = 0 if users_only else await seed_teams(session)
+                        if not users_only:
+                            teams_added = await seed_teams(session, plan)
                     await validate_seed(session)
                     await session.commit()
                     after = await counts(session)
+                    report = await dataset_report(session, reference_at)
+                    catalog_after = await contest_fingerprint(session)
+                    if catalog_before != catalog_after:
+                        raise ValueError("공모전 원본이 변경되어 적재를 중단합니다.")
                     await session.commit()
                 if not apply:
                     await transaction.rollback()
                 return {
-                    "status": "applied" if apply else "rolled_back",
+                    "datasetVersion": DATASET_VERSION,
+                    "schemaRevision": schema_revision,
+                    "generatorSha256": generator_fingerprint(),
+                    "catalogSha256": catalog_before,
+                    "referenceAt": reference_at.isoformat(),
+                    "status": "checked"
+                    if check
+                    else "applied"
+                    if apply
+                    else "rolled_back",
+                    "rebuildTeams": rebuild_teams,
                     "usersCreated": added,
+                    "teamsRemoved": teams_removed,
                     "teamsCreated": teams_added,
                     "before": before,
                     "after": after,
                     "usersOnly": users_only,
                     "contentRefresh": refreshed,
+                    "plan": {
+                        "contestIds": [str(c.contest_id) for c in plan.contests],
+                        "teamCount": len(plan.assignments) * 2,
+                        "warnings": list(plan.warnings),
+                    },
+                    "validation": report,
                 }
     finally:
         await database.engine.dispose()
@@ -765,11 +953,43 @@ def main() -> None:
         action="store_true",
         help="생성 없이 구시드 원문과 일치하는 프로필·팀만 갱신 (기본은 롤백)",
     )
+    parser.add_argument(
+        "--rebuild-teams",
+        action="store_true",
+        help="고정 가상 팀·지원·알림을 v2 분포로 재구성 (계정·프로필·공고 유지)",
+    )
+    parser.add_argument(
+        "--check", action="store_true", help="쓰기 없이 현재 시연 품질 검사"
+    )
+    parser.add_argument(
+        "--report", type=Path, help="실행 보고서를 저장할 로컬 JSON 경로"
+    )
     args = parser.parse_args()
     result = asyncio.run(
-        run(apply=args.apply, users_only=args.users_only, refresh=args.refresh_content)
+        run(
+            apply=args.apply,
+            users_only=args.users_only,
+            rebuild_teams=args.rebuild_teams,
+            check=args.check,
+            refresh=args.refresh_content,
+        )
     )
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    payload = json.dumps(result, ensure_ascii=False, indent=2)
+    report_path = args.report or (
+        Path(__file__).resolve().parents[2]
+        / "data/reports/dev-dataset"
+        / DATASET_VERSION
+        / f"{datetime.now(UTC):%Y%m%dT%H%M%S%fZ}.json"
+    )
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(payload + "\n", encoding="utf-8")
+    print(payload)
+    print(f"보고서: {report_path.resolve()}")
+    quality = result["validation"]
+    if args.check and isinstance(quality, dict):
+        assessment = quality["quality"]
+        if not assessment["passed"]:
+            raise SystemExit(1)
 
 
 if __name__ == "__main__":

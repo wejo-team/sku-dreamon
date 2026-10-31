@@ -19,7 +19,13 @@ from app.models.contests import Contest
 from app.repositories.contest_import import insert_contest
 from app.rules.catalogs import FieldCode
 from app.rules.contests import interpret_deadline, interpret_opening
-from scripts.seed_dev_data import counts, seed_teams, seed_users, validate_seed
+from scripts.seed_dev_data import (
+    counts,
+    load_plan,
+    seed_teams,
+    seed_users,
+    validate_seed,
+)
 
 
 class FixtureError(Exception):
@@ -174,20 +180,25 @@ async def run(url: str, *, apply: bool) -> dict[str, object]:
                     expire_on_commit=False,
                     join_transaction_mode="create_savepoint",
                 ) as session:
-                    for contest, field in build_contests(datetime.now(UTC)):
+                    reference_at = datetime.now(UTC)
+                    for contest, field in build_contests(reference_at):
                         await insert_contest(
                             session, contest, audiences=["unrestricted"], fields=[field]
                         )
                     await session.commit()
                     users_created = await seed_users(session)
                     await session.commit()
-                    teams_created = await seed_teams(session)
+                    plan = await load_plan(session, reference_at)
+                    expected_teams = len(plan.assignments) * 2
+                    teams_created = await seed_teams(session, plan)
                     await validate_seed(session)
                     result = await counts(session)
                     if (
                         result["contests"] != len(SCENARIOS)
                         or users_created != 300
-                        or teams_created != 100
+                        or expected_teams == 0
+                        or teams_created != expected_teams
+                        or result["teams"] != expected_teams
                     ):
                         raise FixtureError("The complete E2E fixture was not created")
                     await session.commit()

@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import {
   Id,
+  PositiveBigInt,
   PositiveSafeInteger,
   Timestamp,
   Version,
@@ -35,6 +36,7 @@ export const ChatStart = z
     conversationId: Id,
     clientMessageId: Id,
     content: message,
+    resultFormat: z.literal('rich').optional(),
     history: z.array(message).max(20).default([]),
     previousResults: z.array(PreviousResult).max(20).default([]),
   })
@@ -56,7 +58,39 @@ export const RetryStart = z
   })
   .strict();
 export type RetryStart = z.infer<typeof RetryStart>;
-export const ResourceCard = z
+export const PersonDetails = z
+  .object({
+    kind: z.literal('person'),
+    skillCodes: z
+      .array(
+        z.enum([
+          'programming',
+          'ui_ux',
+          'data_analysis',
+          'video_editing',
+          'document_writing',
+          'service_planning',
+          'market_research',
+          'graphic_design',
+          'presentation_design',
+          'data_visualization',
+          'social_media_marketing',
+          'content_planning',
+          'public_speaking',
+        ]),
+      )
+      .max(13),
+    weeklyAvailabilityCode: z
+      .enum(['under_5', 'from_5_to_10', 'from_10_to_20', 'at_least_20'])
+      .nullable(),
+    experienceState: z.enum(['unspecified', 'none', 'provided']),
+    experienceBody: textWithin(500).nullable(),
+    introduction: textWithin(300).nullable(),
+  })
+  .strict();
+export type PersonDetails = z.infer<typeof PersonDetails>;
+
+export const BasicResourceCard = z
   .object({
     kind: z.enum(['contest', 'team', 'person']),
     resourceId: Id,
@@ -67,6 +101,49 @@ export const ResourceCard = z
     isDemo: z.boolean(),
   })
   .strict();
+export type BasicResourceCard = z.infer<typeof BasicResourceCard>;
+export const RichResourceCard = z
+  .object({
+    kind: z.enum(['contest', 'team', 'person']),
+    resourceId: Id,
+    title: textWithin(500),
+    reason: textWithin(500),
+    fieldCodes: z.array(z.string()),
+    roleCodes: z.array(z.string()),
+    isDemo: z.boolean(),
+    evidence: z.array(textWithin(500)).max(6),
+    details: z.discriminatedUnion('kind', [
+      PersonDetails,
+      z
+        .object({
+          kind: z.literal('team'),
+          contestTitle: textWithin(500),
+          capacity: PositiveBigInt,
+          memberCount: PositiveSafeInteger,
+          recruitmentEndsAt: Timestamp,
+          isRecruiting: z.boolean(),
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal('contest'),
+          organizer: textWithin(500),
+          registrationStatus: z.enum(['scheduled', 'open', 'closed']),
+          startsAt: Timestamp,
+          endsAt: Timestamp,
+        })
+        .strict(),
+    ]),
+  })
+  .strict()
+  .refine((card) => card.kind === card.details.kind, {
+    path: ['details', 'kind'],
+    message: '카드와 상세 정보의 종류가 다릅니다.',
+  });
+export type RichResourceCard = z.infer<typeof RichResourceCard>;
+
+// 두 strict 형식만 허용하고 구형 결과 필드를 임의로 보완하지 않습니다.
+export const ResourceCard = z.union([RichResourceCard, BasicResourceCard]);
 export type ResourceCard = z.infer<typeof ResourceCard>;
 export const ChatResult = z
   .object({
