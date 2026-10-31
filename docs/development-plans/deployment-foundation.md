@@ -152,6 +152,14 @@ N과 N−1 앱·schema 호환성을 테스트하고 릴리스에 기록합니다
 
 현재 프론트 DTO와 [AI 이벤트 스키마](../../frontend/src/features/ai/contract.ts)는 Zod `.strict()`를 사용합니다. **응답 필드 추가도 구 프론트에는 비호환일 수 있습니다.** 구/신 프론트 × 구/신 백엔드 조합과 열린 탭을 검사하고, 필요하면 먼저 호환 파서를 배포하거나 버전별 응답을 유지한 뒤 확장합니다. DB expand-contract만으로 API·SSE 호환성을 보장하지 않습니다.
 
+#### Revision 10 릴리스 인수
+
+과목 구현은 [#245](https://github.com/wejo-team/sku-dreamon/pull/245), 선행 구앱 호환은 [#246](https://github.com/wejo-team/sku-dreamon/pull/246)·[릴리스 #247](https://github.com/wejo-team/sku-dreamon/pull/247)에서 관리합니다. 선행 버전은 migration head 09를 유지하면서 09·10을 허용하고, 이후 과목 버전은 head·readiness 모두 10을 요구합니다. 선행 배포의 성공 SHA와 활성 상태를 확인한 뒤 과목 버전을 전환합니다.
+
+DB10에서 이전 호환 앱으로 돌아갈 때는 migration 없이 기록된 이미지·설정을 전환합니다. 브리지 이미지로 `alembic upgrade head`를 실행하거나 DB downgrade로 복구하지 않습니다. 과목 프론트는 구 API의 과목 필드 부재를 구분하고 일반 항목만 수정할 때 해당 키를 생략합니다. 편집 도중 지원 여부가 바뀌면 초안을 유지하고 저장을 차단해 새로고침을 안내합니다. 프론트 자산 복원·재로딩과 열린 탭의 실패 복구도 확인합니다.
+
+최종 배포 뒤 [고정 카탈로그 산출물](course-catalog.md)을 검증·적재하고 동일 재적재의 신규·갱신 0, 3,864개 과목과 실제 검색을 확인합니다. 배포 성공과 데이터 적재 성공을 별도로 기록하며 비공개 artifact 식별자·운영 로그는 공개 문서에 넣지 않습니다.
+
 ## 배포 권한과 복구·운영
 
 GitHub Actions는 AWS OIDC로 단기 역할을 얻습니다. `aud=sts.amazonaws.com`, 정확한 저장소와 `sub`를 제한하며, production environment를 사용하면 `sub`가 branch 대신 environment를 나타내므로 environment 자체에서 main만 허용합니다. 저장소 생성 시점·설정에 따라 owner/repository의 불변 ID가 subject에 포함될 수 있으므로 실제 발급 claim 형태를 확인해 trust policy를 만들고 예전 문자열 예제를 그대로 복사하지 않습니다. PR·fork 실행에는 운영 역할을 주지 않습니다. 정적 AWS access key를 GitHub secret으로 보관하지 않습니다. [GitHub OIDC와 AWS](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
