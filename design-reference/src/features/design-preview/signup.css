@@ -1,0 +1,81 @@
+/* 회원가입의 정보 묶음과 실시간 조건을 기존 서비스 토큰으로 표현합니다. */
+.dreamon-preview .dreamon-signup {
+  max-width: 600px;
+}
+
+.dreamon-preview .dreamon-signup .preview-page-intro {
+  margin-bottom: 0;
+}
+
+.dreamon-preview .dreamon-signup-form {
+  gap: 32px;
+}
+
+.dreamon-signup-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.dreamon-signup-section + .dreamon-signup-section {
+  border-top: 1px solid var(--border);
+  padding-top: 28px;
+}
+
+.dreamon-preview .dreamon-signup-section-heading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.dreamon-signup p {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.dreamon-password-requirements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.dreamon-password-requirements li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dreamon-password-requirements svg {
+  flex-shrink: 0;
+}
+
+.dreamon-password-requirements [data-met='true'] {
+  color: var(--leaf-ink);
+}
+
+.dreamon-signup-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+.dreamon-preview .dreamon-signup-footer .preview-button {
+  min-height: 52px;
+  gap: 10px;
+}
+
+.dreamon-caps-lock {
+  margin: 0;
+  color: var(--warning-ink);
+  font-size: 13px;
+}
+
+.dreamon-caps-lock:not(:empty) {
+  margin-top: 8px;
+}

@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   ArrowRight,
@@ -16,6 +16,8 @@ import {
 } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { z } from 'zod';
+import { PasswordRequirements } from './PasswordRequirements';
+import './signup.css';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -60,6 +62,7 @@ import { AcademicFields, ExperienceFields, SkillFields } from './ProfileFields';
 import {
   demoId,
   demoPassword,
+  getPasswordRequirements,
   loginIdSchema,
   passwordSchema,
   signupPasswordSchema,
@@ -1058,12 +1061,18 @@ export function SignupPage() {
   const returnTo = safeReturnTo(search.get('returnTo') ?? search.get('from'));
   const [complete, setComplete] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
+  useEffect(() => {
+    const resetCapsLock = () => setCapsLockOn(false);
+    window.addEventListener('blur', resetCapsLock);
+    return () => window.removeEventListener('blur', resetCapsLock);
+  }, []);
   const {
     register,
     control,
     handleSubmit,
     resetField,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, touchedFields, isSubmitted },
   } = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
     mode: 'onChange',
@@ -1075,6 +1084,12 @@ export function SignupPage() {
       interests: [],
     },
   });
+  const password = useWatch({ control, name: 'password' });
+  const passwordError = !getPasswordRequirements(password).characters
+    ? '한글과 공백은 사용할 수 없어요.'
+    : touchedFields.password || isSubmitted
+      ? errors.password?.message
+      : undefined;
   if (complete)
     return (
       <div className="preview-detail preview-stack preview-account-page">
@@ -1094,7 +1109,7 @@ export function SignupPage() {
       </div>
     );
   return (
-    <div className="preview-detail preview-stack preview-account-page">
+    <div className="preview-detail preview-stack preview-account-page dreamon-signup">
       <BackLink
         to={`${previewPath('/login')}?returnTo=${encodeURIComponent(returnTo)}`}
       >
@@ -1102,7 +1117,7 @@ export function SignupPage() {
       </BackLink>
       <PageIntro title="회원가입" />
       <form
-        className="preview-panel preview-form"
+        className="preview-panel preview-form dreamon-signup-form"
         noValidate
         onSubmit={handleSubmit((values) => {
           saveProfile({
@@ -1131,112 +1146,146 @@ export function SignupPage() {
           setComplete(true);
         })}
       >
-        <div className="preview-field">
-          <Label htmlFor="signup-username">아이디 (필수)</Label>
-          <Input
-            id="signup-username"
-            {...register('username')}
-            autoComplete="username"
-            autoCapitalize="none"
-            spellCheck={false}
-            aria-invalid={!!errors.username}
-            aria-describedby={
-              errors.username ? 'signup-username-error' : undefined
-            }
-          />
-          <p className="preview-muted">
-            영문 소문자와 숫자 4~24자. 대문자는 소문자로 바뀌어요.
-          </p>
-          <FieldError
-            id="signup-username-error"
-            message={errors.username?.message}
-          />
-        </div>
-        <div className="preview-field">
-          <Label htmlFor="signup-password">비밀번호 (필수)</Label>
-          <div className="dreamon-login-password">
+        <section
+          className="dreamon-signup-section"
+          aria-labelledby="signup-account-title"
+        >
+          <header className="dreamon-signup-section-heading">
+            <h2 id="signup-account-title">계정 정보</h2>
+          </header>
+          <div className="preview-field">
+            <Label htmlFor="signup-username">아이디 (필수)</Label>
             <Input
-              id="signup-password"
-              type={showPassword ? 'text' : 'password'}
-              {...register('password')}
-              autoComplete="new-password"
-              aria-invalid={!!errors.password}
+              id="signup-username"
+              {...register('username')}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              aria-invalid={!!errors.username}
               aria-describedby={
-                errors.password
-                  ? 'signup-password-error signup-password-help'
-                  : 'signup-password-help'
+                errors.username
+                  ? 'signup-username-help signup-username-error'
+                  : 'signup-username-help'
               }
             />
-            <Button
-              type="button"
-              variant="ghost"
-              className="dreamon-login-reveal"
-              aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
-              aria-controls="signup-password"
-              aria-pressed={showPassword}
-              onClick={() => setShowPassword((value) => !value)}
-            >
-              {showPassword ? (
-                <EyeOff size={20} aria-hidden="true" />
-              ) : (
-                <Eye size={20} aria-hidden="true" />
-              )}
-            </Button>
+            <p id="signup-username-help" className="preview-muted">
+              영문 소문자와 숫자 4~24자. 대문자는 소문자로 바뀌어요.
+            </p>
+            <FieldError
+              id="signup-username-error"
+              message={errors.username?.message}
+            />
           </div>
-          <p id="signup-password-help" className="preview-muted">
-            15~128자. 한글과 공백을 사용할 수 있으며 앞뒤 공백도 비밀번호에
-            포함돼요.
-          </p>
-          <FieldError
-            id="signup-password-error"
-            message={errors.password?.message}
-          />
-        </div>
-        <div className="preview-field">
-          <Label htmlFor="signup-name">이름 (필수)</Label>
-          <Input
-            id="signup-name"
-            {...register('name')}
-            autoComplete="off"
-            aria-invalid={!!errors.name}
-            aria-describedby={errors.name ? 'signup-name-error' : undefined}
-          />
-          <FieldError id="signup-name-error" message={errors.name?.message} />
-        </div>
-        <Controller
-          control={control}
-          name="interests"
-          render={({ field }) => (
-            <ChoiceField
-              id="signup-interests"
-              label="관심 분야"
-              options={interestOptions}
-              {...field}
-              error={errors.interests?.message}
-            />
-          )}
-        />
-        <Controller
-          control={control}
-          name="roles"
-          render={({ field }) => (
-            <ChoiceField
-              id="signup-roles"
-              label="희망 역할"
-              options={roleOptions}
-              {...field}
-              error={errors.roles?.message}
-            />
-          )}
-        />
-        <SchoolVerificationBadge />
-        <Button
-          type="submit"
-          className="preview-button"
-          disabled={isSubmitting}
+          <div className="preview-field">
+            <Label htmlFor="signup-password">비밀번호 (필수)</Label>
+            <div className="dreamon-login-password">
+              <Input
+                id="signup-password"
+                type={showPassword ? 'text' : 'password'}
+                {...register('password', {
+                  onBlur: () => setCapsLockOn(false),
+                })}
+                onKeyDown={(event) =>
+                  setCapsLockOn(event.getModifierState('CapsLock'))
+                }
+                onKeyUp={(event) =>
+                  setCapsLockOn(event.getModifierState('CapsLock'))
+                }
+                onMouseDown={(event) =>
+                  setCapsLockOn(event.getModifierState('CapsLock'))
+                }
+                autoComplete="new-password"
+                aria-invalid={!!passwordError}
+                aria-describedby={
+                  passwordError
+                    ? 'signup-password-requirements signup-password-caps-lock signup-password-error'
+                    : 'signup-password-requirements signup-password-caps-lock'
+                }
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                className="dreamon-login-reveal"
+                aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                aria-controls="signup-password"
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((value) => !value)}
+              >
+                {showPassword ? (
+                  <EyeOff size={20} aria-hidden="true" />
+                ) : (
+                  <Eye size={20} aria-hidden="true" />
+                )}
+              </Button>
+            </div>
+            <div>
+              <PasswordRequirements value={password} />
+              <p
+                id="signup-password-caps-lock"
+                className="dreamon-caps-lock"
+                role="status"
+              >
+                {capsLockOn ? 'Caps Lock이 켜져 있어요.' : ''}
+              </p>
+            </div>
+            <FieldError id="signup-password-error" message={passwordError} />
+          </div>
+        </section>
+        <section
+          className="dreamon-signup-section"
+          aria-labelledby="signup-profile-title"
         >
-          {isSubmitting ? '가입 중' : '회원가입'}
-        </Button>
+          <header className="dreamon-signup-section-heading">
+            <h2 id="signup-profile-title">기본 프로필</h2>
+          </header>
+          <div className="preview-field">
+            <Label htmlFor="signup-name">이름 (필수)</Label>
+            <Input
+              id="signup-name"
+              {...register('name')}
+              autoComplete="name"
+              aria-invalid={!!errors.name}
+              aria-describedby={errors.name ? 'signup-name-error' : undefined}
+            />
+            <FieldError id="signup-name-error" message={errors.name?.message} />
+          </div>
+          <Controller
+            control={control}
+            name="interests"
+            render={({ field }) => (
+              <ChoiceField
+                id="signup-interests"
+                label="관심 분야"
+                options={interestOptions}
+                {...field}
+                error={errors.interests?.message}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="roles"
+            render={({ field }) => (
+              <ChoiceField
+                id="signup-roles"
+                label="희망 역할"
+                options={roleOptions}
+                {...field}
+                error={errors.roles?.message}
+              />
+            )}
+          />
+        </section>
+        <div className="dreamon-signup-footer">
+          <Button
+            type="submit"
+            className="preview-button"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? '가입 중' : '회원가입'}
+            <ArrowRight size={18} aria-hidden="true" />
+          </Button>
+        </div>
       </form>
     </div>
   );
