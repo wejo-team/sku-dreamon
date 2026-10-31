@@ -4,7 +4,7 @@
 - 명세 검토: 기존 [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17), LLM 전환 [PR #73](https://github.com/wejo-team/sku-dreamon/pull/73), AI 로그인 전용·프로필 공개 정책 [PR #75](https://github.com/wejo-team/sku-dreamon/pull/75); 2026-10-19 [#77](https://github.com/wejo-team/sku-dreamon/issues/77)의 입력·결과 제한과 #33·#36·#46·#49 연결 결정 반영
 - 화면 구현과 후속: [AI 화면 연결 #163](https://github.com/wejo-team/sku-dreamon/issues/163), [실제 자료 품질·보존 #164](https://github.com/wejo-team/sku-dreamon/issues/164), [운영 배포 #165](https://github.com/wejo-team/sku-dreamon/issues/165)
 
-공모전·팀·실제 지원자 추천을 **LLM 기반 추천**으로 변경합니다. 이 문서는 사용자에게 제공할 동작, 근거와 공개 범위를 정의합니다. `create_agent`·OpenAI Luna·실시간 스트리밍·현재 탭 메모리 유지는 확정했으며, 백엔드 구현과 후속 범위는 [AI 에이전트 SDD](../development-plans/ai-agent.md)에서 관리합니다. 저장소의 실행 가능한 공식 디자인은 화면·상태·인터랙션의 참고 자료이며 실제 LLM·서버 구현 완료를 뜻하지 않습니다.
+공모전·팀·실제 지원자 추천을 **LLM 기반 추천**으로 변경합니다. 이 문서는 사용자에게 제공할 동작, 근거와 공개 범위를 정의합니다. `create_agent`·OpenAI Luna·실시간 스트리밍·현재 탭 메모리 유지는 확정했으며, 백엔드 구현과 후속 범위는 [AI 에이전트 SDD](../development-plans/ai-agent.md)에서 관리합니다. 화면·상태·인터랙션의 현재 구현 기준은 `frontend/`와 [프론트엔드 가이드](../development/frontend.md)입니다. `design-reference/`의 모의 화면·응답은 과거 이력으로 보관하며 실제 LLM·서버 구현 완료를 뜻하지 않습니다.
 
 입력·공개 범위는 [프로필](profile.md), 분류는 [공통 선택지](profile-options.md), 모집·지원의 권한과 상태는 [팀 모집과 지원](team-recruitment.md)에서 관리합니다.
 
@@ -126,9 +126,11 @@ LLM 전환으로 마감·정원·중복 지원·공모전별 소속 제한이나
 
 <a id="current-reference"></a>
 
-## 현재 디자인 레퍼런스와 남은 차이
+<a id="현재-디자인-레퍼런스와-남은-차이"></a>
 
-[공식 디자인 PR](https://github.com/wejo-team/sku-dreamon/pull/74)의 참고 앱 동작입니다. 소스·배포 버전과 수행한 검증은 [프로토타입·명세 대조 기록](prototype-alignment.md)에서 관리하며, 아래 화면 동작을 실제 서버 기능의 완료로 취급하지 않습니다.
+## 디자인 레퍼런스와 당시 차이 이력
+
+[초기 디자인 PR](https://github.com/wejo-team/sku-dreamon/pull/74)의 참고 앱 동작을 보관한 이력입니다. 아래 동작·미구현 경계와 [버전·검증 기록](prototype-alignment.md)은 당시 레퍼런스의 범위이며 현재 제품의 구현 상태를 뜻하지 않습니다. 현재 화면·인터랙션은 `frontend/`와 [프론트엔드 기준](../development/frontend.md)을 따릅니다.
 
 | 항목 | 참고 화면의 동작과 한계 |
 | --- | --- |
@@ -195,7 +197,7 @@ LLM 전환으로 마감·정원·중복 지원·공모전별 소속 제한이나
 
 위 앵커는 과거 문서·PR 링크의 호환을 위해 유지합니다. 연결된 예전 고정 점수·가중치·합집합 비율·정렬·동점 산식은 폐기됐으며 현재 요구사항은 이 문서의 LLM 기반 동작입니다. 이전 공식이나 당시 요소별 점수를 재사용하지 않습니다. 지원자 점수는 2026-10-31 후속 요청의 새 프롬프트 기준을 따릅니다.
 
-2026-10-25 사용자 결정으로 **LangGraph 런타임의 `langchain.agents.create_agent`·OpenAI Luna·실시간 스트리밍·현재 탭 메모리 유지**를 선택했습니다. 후속 사용자 요청에 따라 [AI 에이전트 SDD](../development-plans/ai-agent.md)의 SSE·조회 도구·검증·답변 생성·공유 실행 메타데이터를 백엔드에 로컬 구현했습니다. PR #157은 백엔드 범위였고, 후속 #163에서 제품 화면의 대화·지원자 검토·추천을 연결했습니다. 운영 배포·실제 자료의 품질 평가는 후속입니다. 공식 디자인의 로컬 데이터·응답 예시를 실제 LLM 연동으로 취급하지 않습니다.
+2026-10-25 사용자 결정으로 **LangGraph 런타임의 `langchain.agents.create_agent`·OpenAI Luna·실시간 스트리밍·현재 탭 메모리 유지**를 선택했습니다. 후속 사용자 요청에 따라 [AI 에이전트 SDD](../development-plans/ai-agent.md)의 SSE·조회 도구·검증·답변 생성·공유 실행 메타데이터를 백엔드에 로컬 구현했습니다. PR #157은 백엔드 범위였고, 후속 #163에서 제품 화면의 대화·지원자 검토·추천을 연결했습니다. 운영 배포·실제 자료의 품질 평가는 후속입니다. 과거 디자인 레퍼런스의 로컬 데이터·응답 예시를 실제 LLM 연동으로 취급하지 않습니다.
 
 <a id="acceptance-criteria"></a>
 
