@@ -30,6 +30,7 @@ from app.schemas.auth import (
     CsrfToken,
     LoginId,
     LoginIdAvailability,
+    SignupCredentials,
 )
 from app.security.csrf import get_or_create_csrf_token
 from app.security.passwords import PasswordBlocklist
@@ -79,7 +80,7 @@ async def signup(
     request: Request,
     response: Response,
     session: DatabaseSession,
-    credentials: Credentials,
+    credentials: SignupCredentials,
 ) -> Success[AuthResult]:
     await limit_auth(request, "signup")
     blocklist = cast(
