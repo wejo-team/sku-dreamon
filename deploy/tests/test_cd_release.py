@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
 import io
 import json
@@ -20,7 +21,9 @@ DEPLOY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(DEPLOY))
 
 import cd_release as cd  # noqa: E402 -- 독립 배포 도구의 경로를 먼저 등록한다.
-from config import ReleaseError, Runtime, atomic_write  # noqa: E402
+from config import APP_KEYS, ReleaseError, Runtime, atomic_write  # noqa: E402
+from config_release import ConfigError, ConfigRelease  # noqa: E402
+from ssm_config import Snapshot  # noqa: E402
 from test_release import NEW_SHA, SHA, FakeRelease, settings  # noqa: E402
 
 REPOSITORY = "123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/synthetic-app"
@@ -73,6 +76,7 @@ class Commands:
         self.wrong_digest = False
         self.backups = 0
         self.config_paths: list[Path] = []
+        self.image_revisions = {OLD_IMAGE: SHA, IMAGE: NEW_SHA}
 
     def __call__(self, arguments, *, data=None, timeout=60):
         self.calls.append(arguments)
@@ -89,7 +93,7 @@ class Commands:
                 return b"private login output"
             if "inspect" in arguments:
                 image = arguments[-1]
-                sha = SHA if image == OLD_IMAGE else NEW_SHA
+                sha = self.image_revisions[image]
                 return json.dumps(
                     [
                         {
@@ -127,6 +131,22 @@ class Commands:
         raise AssertionError("unexpected external operation")
 
 
+class ConfigurationSource:
+    def __init__(self, environment):
+        self.environment = {**environment, "AI_REQUESTS_PER_HOUR": "31"}
+        self.version = 7
+        self.calls = 0
+        self.failure = False
+
+    def fetch_latest(self, runner):
+        self.calls += 1
+        if self.failure:
+            raise RuntimeError("synthetic-secret-provider-error")
+        return Snapshot(
+            copy.deepcopy(self.environment), f"ssm-{self.version}-synthetic", {}
+        )
+
+
 class CDTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -155,11 +175,16 @@ class CDTests(unittest.TestCase):
             self.current,
         )
         self.commands = Commands(self.release)
+        self.configuration_source = ConfigurationSource(value["app_env"])
         self.source_hash = hashlib.sha256(self.commands.archive).hexdigest()
 
         @contextlib.contextmanager
         def factory(config, checkout):
             self.release.checkout = checkout
+            self.release.runtime = Runtime.parse(
+                json.loads(config.runtime_config.read_text()), checkout
+            )
+            self.release.configuration_app_keys = APP_KEYS
             yield self.release
 
         self.factory = factory
@@ -170,7 +195,10 @@ class CDTests(unittest.TestCase):
             side_effect=lambda path, **kw: cd.trusted(path, private=True, **kw),
         ).start()
         self.cd = cd.CDRelease(
-            self.config, runner=self.commands, engine_factory=factory
+            self.config,
+            runner=self.commands,
+            engine_factory=factory,
+            source_factory=lambda path: self.configuration_source,
         )
 
     def deploy(self):
@@ -191,13 +219,240 @@ class CDTests(unittest.TestCase):
 
     def test_same_release_retry_is_noop_and_cache_tampering_is_rejected(self):
         self.deploy()
+        applied = json.loads(self.config_path.read_text())
+        self.configuration_source.environment["AI_REQUESTS_PER_HOUR"] = "99"
+        self.configuration_source.version += 1
         self.deploy()
+        self.assertEqual(self.configuration_source.calls, 1)
+        self.assertEqual(json.loads(self.config_path.read_text()), applied)
         self.assertEqual(self.commands.backups, 1)
         self.assertEqual(self.release.events.count("migration"), 1)
         (self.releases / NEW_SHA / "deploy" / "release.py").write_text("tampered")
         with self.assertRaisesRegex(cd.CDError, "cached_source_mismatch"):
             self.deploy()
         self.assertEqual(self.current.resolve().name, NEW_SHA)
+
+    def assert_original_pair(self):
+        self.assertEqual(self.current.resolve().name, SHA)
+        self.assertEqual(
+            json.loads(self.config_path.read_text()), settings(self.release.root)
+        )
+        active = self.release.state["slots"][self.release.state["active"]]
+        self.cd.configuration.runtime_matches(
+            json.loads(self.config_path.read_text()), active
+        )
+        self.assertEqual(active["sha"], SHA)
+        self.assertFalse(self.cd.configuration.pending.exists())
+
+    def test_latest_response_is_pinned_before_backup_even_when_source_changes(self):
+        def change_latest():
+            self.configuration_source.environment["AI_REQUESTS_PER_HOUR"] = "99"
+            self.configuration_source.version = 8
+            self.assertFalse(self.cd.configuration.pending.exists())
+            self.assertEqual(
+                json.loads(self.config_path.read_text()), settings(self.release.root)
+            )
+
+        self.commands.on_backup = change_latest
+        self.deploy()
+        value = json.loads(self.config_path.read_text())
+        self.assertEqual(value["app_env"]["AI_REQUESTS_PER_HOUR"], "31")
+        self.assertEqual(value["config_revision"], "ssm-7-synthetic")
+        self.assertEqual(self.configuration_source.calls, 1)
+        self.assertEqual(
+            self.release.events.count(
+                "compose:up --detach --no-deps --force-recreate app_green"
+            ),
+            1,
+        )
+        self.assertEqual(self.release.events.count("migration"), 1)
+
+    def test_ssm_failure_and_protected_changes_never_start_backup_or_migration(self):
+        self.configuration_source.failure = True
+        with self.assertRaises(RuntimeError):
+            self.deploy()
+        self.configuration_source.failure = False
+        self.configuration_source.environment["CSRF_SIGNING_KEY"] = (
+            "synthetic-rotated-key-at-least-32-bytes"
+        )
+        with self.assertRaisesRegex(ConfigError, "setting_requires_separate_procedure"):
+            self.deploy()
+        self.assertEqual(self.commands.backups, 0)
+        self.assertNotIn("migration", self.release.events)
+        self.assert_original_pair()
+
+    def test_runtime_publication_failure_restores_code_and_configuration_pair(self):
+        original = self.cd.configuration.publish
+        failed = False
+
+        def fail_once(value, allowed):
+            nonlocal failed
+            if not failed:
+                failed = True
+                original(value, allowed)
+                raise OSError("synthetic-private-publication-error")
+            return original(value, allowed)
+
+        with patch.object(self.cd.configuration, "publish", side_effect=fail_once):
+            with self.assertRaisesRegex(cd.CDError, "release_failed_restored"):
+                self.deploy()
+        self.assert_original_pair()
+
+    def test_pending_delete_fsync_failure_restores_old_pair(self):
+        original = self.cd.sync_directory
+        failed = False
+
+        def fail_once(path):
+            nonlocal failed
+            if path == self.cd.configuration.pending.parent and not failed:
+                failed = True
+                raise OSError("synthetic-pending-fsync-failure")
+            return original(path)
+
+        with patch.object(self.cd, "sync_directory", side_effect=fail_once):
+            with self.assertRaisesRegex(cd.CDError, "release_failed_restored"):
+                self.deploy()
+        self.assert_original_pair()
+
+    def test_interrupted_engine_stages_recover_without_reading_ssm(self):
+        self.release.crash_stage = "candidate_started"
+        with self.assertRaises(KeyboardInterrupt):
+            self.deploy()
+        self.configuration_source.failure = True
+        calls = self.configuration_source.calls
+        with self.assertRaises((cd.CDError, ReleaseError)):
+            self.deploy()
+        self.assertEqual(self.cd.status()["code_config_phase"], "pending")
+        self.cd.configuration.recover()
+        self.assertEqual(self.configuration_source.calls, calls)
+        self.assert_original_pair()
+
+    def test_post_cutover_crash_restores_pair_and_source_can_be_fixed_for_new_attempt(
+        self,
+    ):
+        publish = self.cd.configuration.publish
+        with patch.object(
+            self.cd.configuration, "publish", side_effect=KeyboardInterrupt
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                self.deploy()
+        self.configuration_source.failure = True
+        self.cd.configuration.recover()
+        self.assert_original_pair()
+        self.configuration_source.failure = False
+        self.configuration_source.version = 9
+        self.configuration_source.environment["AI_REQUESTS_PER_HOUR"] = "19"
+        self.cd.configuration.publish = publish
+        self.deploy()
+        self.assertEqual(self.configuration_source.calls, 2)
+        self.assertEqual(
+            json.loads(self.config_path.read_text())["config_revision"],
+            "ssm-9-synthetic",
+        )
+
+    def test_code_rollback_keeps_configuration_only_update_from_previous_code(self):
+        self.deploy()
+        from types import SimpleNamespace
+
+        environment = {
+            **json.loads(self.config_path.read_text())["app_env"],
+            "AI_REQUESTS_PER_HOUR": "33",
+        }
+        source = SimpleNamespace(
+            fetch=lambda version, runner: Snapshot(environment, "ssm-3-synthetic", {})
+        )
+        operation = ConfigRelease(
+            self.config,
+            self.base / "ssm.json",
+            engine_factory=self.factory,
+            source_factory=lambda path: source,
+        )
+        status = operation.status()
+        operation.change(
+            "apply",
+            NEW_SHA,
+            status["active_env_hash"],
+            status["active_config_revision"],
+            3,
+        )
+        prior = json.loads(self.config_path.read_text())
+        third_sha, third_digest = "c" * 40, "3" * 64
+        third_image = REPOSITORY + "@sha256:" + third_digest
+        self.commands.image_revisions[third_image] = third_sha
+        self.configuration_source.version = 4
+        self.configuration_source.environment["AI_REQUESTS_PER_HOUR"] = "34"
+        self.cd.change("deploy", third_sha, NEW_SHA, self.source_hash, third_digest)
+        self.configuration_source.failure = True
+        self.cd.change("rollback", NEW_SHA, third_sha)
+        self.assertEqual(json.loads(self.config_path.read_text()), prior)
+        self.assertEqual(self.current.resolve().name, NEW_SHA)
+        active = self.release.state["slots"][self.release.state["active"]]
+        self.assertEqual(active["config_revision"], "ssm-3-synthetic")
+        self.assertEqual(self.configuration_source.calls, 2)
+
+    def test_interrupted_runtime_and_link_publication_recover_same_old_pair(self):
+        original = self.cd.publish
+
+        def interrupt(sha, *, allowed):
+            original(sha, allowed=allowed)
+            raise KeyboardInterrupt
+
+        with patch.object(self.cd, "publish", side_effect=interrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                self.deploy()
+        self.assertEqual(self.current.resolve().name, NEW_SHA)
+        self.assertEqual(
+            json.loads(self.config_path.read_text())["config_revision"],
+            "ssm-7-synthetic",
+        )
+        self.configuration_source.failure = True
+        self.cd.configuration.recover()
+        self.assert_original_pair()
+
+    def test_rollback_restores_recorded_pair_without_ssm_and_old_parser_sees_old_env(
+        self,
+    ):
+        self.deploy()
+        self.configuration_source.failure = True
+        factory = self.cd.engine_factory
+
+        @contextlib.contextmanager
+        def old_parser(config, checkout):
+            if checkout.name == SHA:
+                value = json.loads(config.runtime_config.read_text())
+                if "AI_REQUESTS_PER_HOUR" in value["app_env"]:
+                    raise ValueError("old parser rejects new settings")
+                self.assertNotEqual(config.runtime_config, self.config_path)
+            with factory(config, checkout) as release:
+                yield release
+
+        self.cd.engine_factory = old_parser
+        self.cd.change("rollback", SHA, NEW_SHA)
+        self.assertEqual(self.configuration_source.calls, 1)
+        self.assert_original_pair()
+
+    def test_pending_code_configuration_blocks_backup_and_configuration_only_changes(
+        self,
+    ):
+        import backup
+
+        self.release.crash_stage = "candidate_started"
+        with self.assertRaises(KeyboardInterrupt):
+            self.deploy()
+        options = backup.Options("synthetic-backups", "ap-northeast-2")
+        job = backup.Backup(
+            self.release.runtime, self.config_path, DEPLOY.parent, options
+        )
+        with self.assertRaisesRegex(backup.BackupError, "release_not_stable"):
+            with job.release_lock():
+                self.fail("pending pair must block backup")
+        operation = ConfigRelease(
+            self.config, self.base / "ssm.json", engine_factory=self.factory
+        )
+        with self.assertRaises(ReleaseError):
+            operation.change("apply", SHA, "a" * 64, "synthetic-1", 1)
+        text = self.cd.configuration.pending.read_text() + json.dumps(self.cd.status())
+        self.assertNotIn(self.configuration_source.environment["DATABASE_URL"], text)
 
     def test_finished_journal_with_old_link_is_reconciled_without_second_migration(
         self,
@@ -322,12 +577,88 @@ class CDTests(unittest.TestCase):
         self.release.save()
         result = self.cd.status()
         self.assertEqual(
-            set(result), {"phase", "active_sha", "previous_sha", "active_image"}
+            set(result),
+            {
+                "phase",
+                "active_sha",
+                "previous_sha",
+                "active_image",
+                "code_config_phase",
+            },
         )
         self.assertNotIn("synthetic-do-not-log", json.dumps(result))
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_target_ssm_parser_uses_target_allowlist_and_restores_current_module(self):
+        import ssm_config
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "deploy").mkdir()
+            (root / "deploy/config.py").write_text(
+                "APP_KEYS = frozenset({'APP_ENV', 'AI_NEW_TARGET_SETTING'})\n"
+                "class ReleaseError(Exception): pass\n"
+                "def checked_mapping(value, keys):\n"
+                " if set(value) - keys: raise ReleaseError()\n"
+                " return value\n"
+                "def private_path(path): pass\n"
+                "class Runtime:\n @staticmethod\n def read(*args): return None\n"
+            )
+            (root / "deploy/release.py").write_text(
+                "class Release:\n def __init__(self, runtime, checkout): pass\n"
+            )
+            (root / "deploy/ssm_config.py").write_text(
+                (DEPLOY / "ssm_config.py").read_text()
+            )
+            source_path = root / "source.json"
+            source_path.write_text(
+                json.dumps(
+                    {"region": "ap-northeast-2", "parameter_name": "/synthetic/config"}
+                )
+            )
+            response = json.dumps(
+                {
+                    "Parameter": {
+                        "Name": "/synthetic/config",
+                        "Version": 7,
+                        "Type": "SecureString",
+                        "DataType": "text",
+                        "Value": json.dumps(
+                            {
+                                "APP_ENV": "production",
+                                "AI_NEW_TARGET_SETTING": "synthetic",
+                            }
+                        ),
+                        "ARN": (
+                            "arn:aws:ssm:ap-northeast-2:123456789012:"
+                            "parameter/synthetic/config"
+                        ),
+                    }
+                }
+            ).encode()
+            config = cd.Config(
+                "ap-northeast-2",
+                "synthetic-artifacts",
+                REPOSITORY,
+                root / "unused.json",
+                root,
+                root / "current",
+            )
+            with cd.engine(config, root) as release:
+                source = release.configuration_source(source_path)
+                self.assertEqual(
+                    source.fetch_latest(lambda *args, **kw: response).app_env[
+                        "AI_NEW_TARGET_SETTING"
+                    ],
+                    "synthetic",
+                )
+            self.assertIs(sys.modules["ssm_config"], ssm_config)
+            with self.assertRaises(ssm_config.SourceError):
+                ssm_config.Source("ap-northeast-2", "/synthetic/config").fetch_latest(
+                    lambda *args, **kw: response
+                )
+
     def test_engine_uses_verified_source_even_when_matching_stale_bytecode_exists(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

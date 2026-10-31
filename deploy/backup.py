@@ -197,8 +197,10 @@ class Backup:
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise BackupError("lock_unavailable") from None
-            pending = directory / "config-pending.json"
-            if pending.exists() or pending.is_symlink():
+            if any(
+                (directory / name).exists() or (directory / name).is_symlink()
+                for name in ("config-pending.json", "code-config-pending.json")
+            ):
                 raise BackupError("release_not_stable")
             journal = directory / "release.json"
             if not stat.S_ISREG(checked_stat(journal, private=True).st_mode):

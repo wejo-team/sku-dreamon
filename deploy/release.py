@@ -62,6 +62,7 @@ class Release:
         self.runtime = runtime
         self.checkout = checkout
         self.configuration_operation = False
+        self.code_configuration_operation = False
         self.root = runtime.root
         self.journal = self.root / "state" / "release.json"
         self.active_config = self.root / "nginx" / "active.conf"
@@ -106,6 +107,13 @@ class Release:
             ):
                 raise ReleaseError(
                     "unfinished configuration release requires explicit recover"
+                )
+            code_pending = state_dir / "code-config-pending.json"
+            if not self.code_configuration_operation and (
+                code_pending.exists() or code_pending.is_symlink()
+            ):
+                raise ReleaseError(
+                    "unfinished code configuration release requires explicit recover"
                 )
             self.load()
             yield

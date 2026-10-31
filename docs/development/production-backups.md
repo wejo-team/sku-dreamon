@@ -22,7 +22,7 @@ S3 객체·버전·사용자 데이터 삭제, lifecycle 설정, 보존 기간 �
 
 root로 실행하고 [컨테이너 운영](container-deployment.md)의 root 전용 runtime JSON을 읽습니다. `release.py`와 같은 `state/release.lock`을 비차단 독점 잠금으로 사용하고, journal이 `stable`이며 진행 중 전환·인증서 작업이 없을 때만 실행합니다. dump부터 원격 업로드와 완료 표식까지 잠금을 유지하므로 그동안 새 배포는 시작할 수 없습니다. 일반 앱 트래픽과 DB 쓰기는 계속 가능합니다.
 
-[SSM 설정 재배포](ssm-configuration.md)의 `state/config-pending.json`이 남아 있으면 백업을 거부합니다. 컨테이너와 runtime 입력의 서로 다른 설정을 정상 백업으로 기록하지 않도록 먼저 설정 `recover`를 완료합니다.
+[SSM 설정 재배포](ssm-configuration.md)의 `state/config-pending.json`이나 [코드·설정 결합 배포](continuous-deployment.md)의 `state/code-config-pending.json`이 남아 있으면 백업을 거부합니다. 컨테이너와 runtime 입력의 서로 다른 설정을 정상 백업으로 기록하지 않도록 해당 실행기의 `recover`를 먼저 완료합니다. 코드 배포의 사전 백업은 새 pending 기록을 만들기 전, 기존 코드·설정이 일치하는 안정 상태에서 수행합니다.
 
 Compose project·service label이 맞는 실행 중 PostgreSQL 컨테이너가 정확히 하나여야 합니다. journal의 컨테이너 ID, `PGDATA`, 실제 writable bind source를 대조하고 기존 UUID·mountpoint·실제 장치 검사를 수행합니다. capture 후 같은 대상을 다시 확인합니다. 임의 DB URL·다른 컨테이너·다른 mount로 fallback하지 않습니다.
 
