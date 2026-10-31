@@ -55,7 +55,6 @@ def test_password_accepts_code_point_boundaries_without_composition_rules(
     [
         "abcdefg!",
         "1234567@",
-        "가나다라마바사!",
         "é" * 7 + "!",
         "😀" * 8,
         "a" * 127 + "!",
@@ -87,11 +86,54 @@ def test_signup_rejects_short_passwords_and_missing_symbols(password: str) -> No
         SignupCredentials.model_validate({"loginId": "validuser", "password": password})
 
 
-def test_signup_normalizes_before_counting_and_preserves_spaces() -> None:
+def test_signup_normalizes_before_counting_without_changing_case() -> None:
     credentials = SignupCredentials.model_validate(
-        {"loginId": "validuser", "password": " e\u0301" + "a" * 4 + "! "}
+        {"loginId": "validuser", "password": "e\u0301" * 6 + "A!"}
     )
-    assert credentials.password == " éaaaa! "
+    assert credentials.password == "é" * 6 + "A!"
+
+
+@pytest.mark.parametrize(
+    "character",
+    [
+        "가",  # 완성형
+        "\u1100",  # 조합 자모
+        "ㄱ",  # 호환 자모
+        "\ua960",  # 자모 확장 A
+        "\ud7b0",  # 자모 확장 B
+        "\uffa1",  # 반각 자모
+        "\u302e",  # 한글 방점
+        "\u321d",  # 괄호 한글 오전
+        "\u327c",  # 원문자 한글 참고
+        " ",
+        "\t",
+        "\n",
+        "\r",
+        "\u0085",
+        "\u00a0",
+        "\u1680",
+        "\u2003",
+        "\u2028",
+        "\u2029",
+        "\u202f",
+        "\u205f",
+        "\u3000",
+        "\ufeff",
+    ],
+)
+def test_signup_rejects_hangul_and_whitespace_without_changing_login(
+    character: str,
+) -> None:
+    password = "Abcdefg!" + character
+    with pytest.raises(ValidationError):
+        SignupCredentials.model_validate({"loginId": "validuser", "password": password})
+    assert Credentials(loginId="validuser", password=password).password == password
+
+
+@pytest.mark.parametrize("password", [" abcdefg!", "abcdefg! ", "abcd efg!"])
+def test_signup_rejects_spaces_instead_of_removing_them(password: str) -> None:
+    with pytest.raises(ValidationError):
+        SignupCredentials.model_validate({"loginId": "validuser", "password": password})
 
 
 @pytest.mark.parametrize(

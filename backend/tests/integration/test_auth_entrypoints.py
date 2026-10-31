@@ -28,14 +28,15 @@ async def test_signup_login_and_availability(
         version="test", _passwords=frozenset({"blocked-password-123"})
     )
     credentials = {"loginId": " NEWUSER ", "password": "abcdefg!"}
-    missing_symbol = await http_client.post(
-        "/api/v1/accounts",
-        json={**credentials, "password": "abcdefgh"},
-        headers=await headers(http_client),
-    )
-    assert missing_symbol.status_code == 422
-    assert missing_symbol.json()["detail"][0]["loc"] == ["body", "password"]
-    assert "abcdefgh" not in missing_symbol.text
+    for password in ["abcdefgh", "한글abcde!", " abcdefg!", "abcdefg! "]:
+        rejected = await http_client.post(
+            "/api/v1/accounts",
+            json={**credentials, "password": password},
+            headers=await headers(http_client),
+        )
+        assert rejected.status_code == 422
+        assert rejected.json()["detail"][0]["loc"] == ["body", "password"]
+        assert password not in rejected.text
     response = await http_client.post(
         "/api/v1/accounts", json=credentials, headers=await headers(http_client)
     )
@@ -71,12 +72,15 @@ async def test_signup_login_and_availability(
         assert await session.scalar(select(func.count()).select_from(Account)) == 1
 
 
-async def test_existing_password_without_symbols_still_logs_in(
-    http_client: AsyncClient, http_database: Database
+@pytest.mark.parametrize(
+    "password",
+    ["Existing password without symbols", " 앞뒤 공백과한글비밀번호입니다! "],
+)
+async def test_existing_password_still_logs_in_without_signup_character_rules(
+    http_client: AsyncClient, http_database: Database, password: str
 ) -> None:
     from app.security.passwords import hash_password
 
-    password = "Existing password without symbols"
     async with http_database.session() as session:
         account = Account(
             login_id_normalized="legacyuser",

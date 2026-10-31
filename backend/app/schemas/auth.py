@@ -1,5 +1,6 @@
 """아이디·비밀번호 입력 규칙과 본인 계정의 응답 필드를 정의한다."""
 
+import re
 import string
 import unicodedata
 from typing import Annotated, Literal
@@ -10,6 +11,17 @@ from pydantic import AfterValidator, Field, StrictStr
 from app.core.http.schemas import RequestDTO, ResponseDTO, Timestamp
 
 _ASCII_LOWERCASE = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
+# 프론트의 Unicode Script=Hangul과 같은 범위이며 자모·방점·괄호 문자도 포함한다.
+_HANGUL = re.compile(
+    r"[\u1100-\u11ff\u302e-\u302f\u3131-\u318e\u3200-\u321e\u3260-\u327e"
+    r"\ua960-\ua97c\uac00-\ud7a3\ud7b0-\ud7c6\ud7cb-\ud7fb"
+    r"\uffa0-\uffbe\uffc2-\uffc7\uffca-\uffcf\uffd2-\uffd7\uffda-\uffdc]"
+)
+# Unicode White_Space와 FEFF. Python isspace의 추가 제어문자와 구분한다.
+_PASSWORD_WHITESPACE = re.compile(
+    r"[\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a"
+    r"\u2028\u2029\u202f\u205f\u3000\ufeff]"
+)
 
 
 def normalize_login_id(value: str) -> str:
@@ -33,6 +45,13 @@ def require_password_symbol(value: str) -> str:
     """새 비밀번호에는 문장부호·기호를 요구하며 문자·공백과 구분한다."""
     if not any(unicodedata.category(char).startswith(("P", "S")) for char in value):
         raise ValueError("Password must contain at least one symbol")
+    return value
+
+
+def require_signup_password_characters(value: str) -> str:
+    """가입의 한글·공백을 제거하지 않고 거부해 의도한 입력을 보존한다."""
+    if _HANGUL.search(value) or _PASSWORD_WHITESPACE.search(value):
+        raise ValueError("Password must not contain Hangul or whitespace")
     return value
 
 
@@ -65,7 +84,7 @@ Password = Annotated[
 
 
 class Credentials(RequestDTO):
-    """로그인 입력. 기존 계정의 기호 없는 비밀번호도 허용한다."""
+    """로그인 입력. 기존 계정의 한글·공백·기호 없는 비밀번호도 허용한다."""
 
     login_id: LoginId
     password: Password = Field(
@@ -74,16 +93,22 @@ class Credentials(RequestDTO):
 
 
 class SignupCredentials(Credentials):
-    """가입에만 기호 조건을 추가하며 로그인과 JSON 필드 모양을 유지한다."""
+    """가입에만 문자 조건을 추가하며 로그인과 JSON 필드 모양을 유지한다."""
 
-    password: Annotated[Password, AfterValidator(require_password_symbol)] = Field(
+    password: Annotated[
+        Password,
+        AfterValidator(require_signup_password_characters),
+        AfterValidator(require_password_symbol),
+    ] = Field(
         repr=False,
         exclude=True,
         json_schema_extra={"writeOnly": True},
         description=(
             "새 비밀번호. NFC 후 Unicode 코드 포인트 기준 8~128자이며 "
             "Unicode 문장부호(P) 또는 기호(S)를 하나 이상 포함해야 합니다. "
-            "대소문자와 공백을 보존하며 대문자·숫자 조합은 요구하지 않습니다."
+            "한글(Script=Hangul)과 공백(Unicode White_Space·FEFF)은 금지하며 "
+            "자동으로 제거하지 않습니다. 대소문자를 보존하고 "
+            "대문자·숫자 조합은 요구하지 않습니다."
         ),
     )
 
