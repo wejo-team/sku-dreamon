@@ -2,29 +2,33 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta, tzinfo
 from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 from app.core.db.base import Base
 from app.core.db.session import Database
 from app.core.demo_data import DEV_ACCOUNT_IDS
+from app.models.applications import Application
 from app.models.auth import Account
 from app.models.contests import Contest
 from app.models.profiles import Profile
-from app.models.teams import Team
+from app.models.teams import Team, TeamRecruitmentRole
 from app.repositories.contest_import import insert_contest
 from app.rules.catalogs import RoleCode
 from app.rules.contests import interpret_deadline, interpret_opening
 from app.schemas.application_create import ApplicationCreate
 from app.services.application_create import submit_application
 from scripts import seed_dev_data as seed
-from scripts.dev_dataset import ContestCandidate
+from scripts import seed_e2e_data
+from scripts.dev_dataset import ContestCandidate, DatasetPlan
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 NOW = datetime(2026, 10, 28, 12, tzinfo=UTC)
@@ -79,6 +83,60 @@ async def snapshot(database: Database) -> dict[str, list[tuple[object, ...]]]:
             rows = await session.execute(select(table).order_by(*table.primary_key))
             result[table.name] = [tuple(row) for row in rows]
         return result
+
+
+@pytest.mark.parametrize("incomplete", [False, True])
+async def test_e2e_fixture_follows_team_plan_and_rolls_back_incomplete_seed(
+    seed_database: Database,
+    database_url: str,
+    fast_password_hash: None,
+    monkeypatch: pytest.MonkeyPatch,
+    incomplete: bool,
+) -> None:
+    # URL 차단은 test_e2e_tools에서 검증한다. 이 테스트는 별도 *_test DB의
+    # 격리 스키마에 실제 E2E transaction·서비스 commit 경계를 실행한다.
+    monkeypatch.setattr(
+        seed_e2e_data, "validate_target", lambda _: make_url(database_url)
+    )
+    monkeypatch.setattr(seed_e2e_data, "create_database", lambda _: seed_database)
+    before = await snapshot(seed_database)
+    if incomplete:
+
+        async def seed_one_pair(
+            session: AsyncSession, plan: DatasetPlan | None = None
+        ) -> int:
+            # 서비스 commit 이후에도 불완전한 결과를 감지하면 전체를 되돌린다.
+            assert plan is not None
+            return await seed.seed_teams(
+                session, replace(plan, assignments=plan.assignments[:1])
+            )
+
+        monkeypatch.setattr(seed_e2e_data, "seed_teams", seed_one_pair)
+        with pytest.raises(seed_e2e_data.FixtureError, match="complete E2E fixture"):
+            await seed_e2e_data.run(database_url, apply=True)
+        assert await snapshot(seed_database) == before
+        return
+
+    result = await seed_e2e_data.run(database_url, apply=True)
+    assert result["status"] == "applied"
+    async with seed_database.session() as session:
+        actual = await seed.counts(session)
+        assert actual["contests"] == 13
+        assert actual["accounts"] == 300
+        # 접수 중 11개 공고 × 최대 6팀. 12+1 공고 페이지와 팀 2페이지를 유지한다.
+        assert actual["teams"] == 66
+        assert result["counts"] == actual
+        assert set(await session.scalars(select(TeamRecruitmentRole.role_code))) == {
+            code.value for code in RoleCode
+        }
+        assert set(await session.scalars(select(Application.status))) == {
+            "submitted",
+            "reviewing",
+            "rejected",
+            "canceled",
+            "selected",
+            "discarded",
+        }
 
 
 async def add_contest(
