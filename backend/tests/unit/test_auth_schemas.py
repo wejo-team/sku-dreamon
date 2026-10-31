@@ -1,5 +1,6 @@
 """자체 인증 입력의 정규화와 계정 응답의 공개 필드 계약을 검증한다."""
 
+import unicodedata
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -84,6 +85,24 @@ def test_signup_accepts_eight_characters_with_a_symbol(password: str) -> None:
 def test_signup_rejects_short_passwords_and_missing_symbols(password: str) -> None:
     with pytest.raises(ValidationError):
         SignupCredentials.model_validate({"loginId": "validuser", "password": password})
+
+
+def test_password_symbol_contract_uses_unicode_15_1() -> None:
+    assert unicodedata.unidata_version == "15.1.0", (
+        "Python Unicode 변경 시 프론트의 고정 기호 범위와 가입 정책을 함께 검토하세요."
+    )
+
+
+@pytest.mark.parametrize("symbol", ["\U0001fae9", "\U0001fa89"])
+def test_newer_unicode_symbols_do_not_satisfy_signup_rule(symbol: str) -> None:
+    password = "abcdefg" + symbol
+    with pytest.raises(ValidationError):
+        SignupCredentials(loginId="validuser", password=password)
+    assert Credentials(loginId="validuser", password=password).password == password
+    assert (
+        SignupCredentials(loginId="validuser", password=password + "!").password
+        == password + "!"
+    )
 
 
 def test_signup_normalizes_before_counting_without_changing_case() -> None:

@@ -45,7 +45,7 @@ CSRF 조회는 같은 인증 상태의 유효한 쿠키를 재사용하고 `Cach
 
 ### SignupCredentials·Credentials — 가입·로그인 요청
 
-정확한 입력은 [SignupCredentials·Credentials·LoginId](../../backend/app/schemas/auth.py)와 생성 OpenAPI를 따릅니다. 아이디는 trim·ASCII 소문자화 후 4~24자, 비밀번호는 NFC 후 코드 포인트 8~128자입니다. 가입의 `SignupCredentials`는 Unicode 문장부호(P) 또는 기호(S)를 하나 이상 요구하고, 한글(`Script=Hangul`)과 공백(`White_Space` 및 U+FEFF)을 금지합니다. 앞뒤·중간 공백을 자동으로 제거하지 않고, 조건에 맞지 않으면 422로 거부합니다. 대소문자는 그대로 보존합니다. 로그인의 `Credentials`에는 새 가입의 문자 조건을 적용하지 않아 한글·공백이 있거나 기호가 없는 기존 비밀번호도 사용할 수 있습니다. JSON 필드는 두 요청 모두 `loginId`, `password`입니다. 가입에는 운영 차단 목록이 적용되며 일치하면 `400 PASSWORD_BLOCKED`, 미설정이면 `503 TEMPORARY_UNAVAILABLE`입니다.
+정확한 입력은 [SignupCredentials·Credentials·LoginId](../../backend/app/schemas/auth.py)와 생성 OpenAPI를 따릅니다. 아이디는 trim·ASCII 소문자화 후 4~24자, 비밀번호는 NFC 후 코드 포인트 8~128자입니다. 가입의 `SignupCredentials`는 **Unicode 15.1 기준** 문장부호(P) 또는 기호(S)를 하나 이상 요구하고, 한글(`Script=Hangul`)과 공백(`White_Space` 및 U+FEFF)을 금지합니다. Unicode 15.1에 없는 코드 포인트는 기호로 세지 않으며, 프론트도 같은 15.1 범위를 사용합니다. 앞뒤·중간 공백을 자동으로 제거하지 않고, 조건에 맞지 않으면 422로 거부합니다. 대소문자는 그대로 보존합니다. 로그인의 `Credentials`에는 새 가입의 문자 조건을 적용하지 않아 한글·공백이 있거나 기호가 없는 기존 비밀번호도 사용할 수 있습니다. JSON 필드는 두 요청 모두 `loginId`, `password`입니다. 가입에는 운영 차단 목록이 적용되며 일치하면 `400 PASSWORD_BLOCKED`, 미설정이면 `503 TEMPORARY_UNAVAILABLE`입니다.
 
 <a id="account"></a>
 

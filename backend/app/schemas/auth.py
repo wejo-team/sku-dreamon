@@ -43,6 +43,7 @@ def normalize_password(value: str) -> str:
 
 def require_password_symbol(value: str) -> str:
     """새 비밀번호에는 문장부호·기호를 요구하며 문자·공백과 구분한다."""
+    # Unicode 15.1 계약. Python 업그레이드 시 프론트의 고정 범위와 함께 검토한다.
     if not any(unicodedata.category(char).startswith(("P", "S")) for char in value):
         raise ValueError("Password must contain at least one symbol")
     return value
@@ -105,7 +106,7 @@ class SignupCredentials(Credentials):
         json_schema_extra={"writeOnly": True},
         description=(
             "새 비밀번호. NFC 후 Unicode 코드 포인트 기준 8~128자이며 "
-            "Unicode 문장부호(P) 또는 기호(S)를 하나 이상 포함해야 합니다. "
+            "Unicode 15.1 문장부호(P) 또는 기호(S)를 하나 이상 포함해야 합니다. "
             "한글(Script=Hangul)과 공백(Unicode White_Space·FEFF)은 금지하며 "
             "자동으로 제거하지 않습니다. 대소문자를 보존하고 "
             "대문자·숫자 조합은 요구하지 않습니다."
