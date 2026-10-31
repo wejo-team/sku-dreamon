@@ -104,7 +104,7 @@ AI 키의 비어 있지 않은 값에서 `ai_enabled`를 계산하며 기본 `AI
 
 운영 전환 전 검사는 **trusted Nginx 컨테이너의 고정 네트워크 peer에서 후보 Docker 서비스 이름으로** 요청합니다. 예상 API Host와 `X-Forwarded-For`의 실제 검사 client IP 하나, `X-Forwarded-Proto: https`를 사용합니다. API 컨테이너 안·호스트 localhost에서 직접 호출하면 운영 프록시 경계가 의도적으로 거부하므로 그 요청을 readiness 성공 조건으로 쓰지 않습니다. 내부 rollout·monitor probe는 직렬화합니다. 이미 진행·취소 정리 중인 검사 한 개가 있으면 다른 probe는 즉시 503이며 동시 요청의 200은 보장하지 않습니다. Nginx 기반의 실제 경로·외부 공개 차단은 [DEP-03 수동 컨테이너 검사](../development/container-deployment.md#verification)에서 검사합니다.
 
-DB 검사는 제한 시간 안의 `SELECT 1`과 단일 Alembic revision을 사용합니다. 브리지 릴리스의 [COMPATIBLE_SCHEMA_REVISIONS](../../backend/app/core/db/revisions.py)는 현재 `20261026_09`, `20261031_10`이며 소스 리뷰·테스트로만 확장합니다. 환경변수로 임의 revision을 허용하지 않습니다. 새 revision을 허용하는 **이전 앱의 호환 릴리스부터** 기존 schema에 배포한 뒤 safe expand·새 앱 전환을 진행해야 이전 슬롯을 재기동할 수 있습니다.
+DB 검사는 제한 시간 안의 `SELECT 1`과 단일 Alembic revision을 사용합니다. 릴리스의 [COMPATIBLE_SCHEMA_REVISIONS](../../backend/app/core/db/revisions.py)는 현재 `20261031_10`이며 소스 리뷰·테스트로만 확장합니다. 환경변수로 임의 revision을 허용하지 않습니다. 새 revision을 허용하는 **이전 앱의 호환 릴리스부터** 기존 schema에 배포한 뒤 safe expand·새 앱 전환을 진행해야 이전 슬롯을 재기동할 수 있습니다.
 
 `SELECT 1`은 테이블·sequence의 DML 권한을 증명하지 않습니다. 앱 역할의 필요한 읽기/쓰기 권한은 배포 전 점검과 격리된 smoke에서 검사하고 반복 readiness에 사용자 생성·로그인·지속 DB 쓰기를 넣지 않습니다.
 
@@ -152,18 +152,13 @@ N과 N−1 앱·schema 호환성을 테스트하고 릴리스에 기록합니다
 
 현재 프론트 DTO와 [AI 이벤트 스키마](../../frontend/src/features/ai/contract.ts)는 Zod `.strict()`를 사용합니다. **응답 필드 추가도 구 프론트에는 비호환일 수 있습니다.** 구/신 프론트 × 구/신 백엔드 조합과 열린 탭을 검사하고, 필요하면 먼저 호환 파서를 배포하거나 버전별 응답을 유지한 뒤 확장합니다. DB expand-contract만으로 API·SSE 호환성을 보장하지 않습니다.
 
-#### Revision 10 단계적 릴리스
+#### Revision 10 릴리스 인수
 
-과목 구현 [#245](https://github.com/wejo-team/sku-dreamon/pull/245)의 `06bbfca356d92557434e1e2da601ac65009bc811`을 일시 되돌려, 기존 앱이 revision 10에서도 복구 대상으로 동작하는 브리지를 먼저 준비합니다. [정책 #244](https://github.com/wejo-team/sku-dreamon/pull/244)는 유지하며 과목 기능을 철회하는 변경이 아닙니다. 이 계획의 코드 준비·검증과 실제 운영 배포 완료를 구분합니다.
+과목 구현은 [#245](https://github.com/wejo-team/sku-dreamon/pull/245), 선행 구앱 호환은 [#246](https://github.com/wejo-team/sku-dreamon/pull/246)·[릴리스 #247](https://github.com/wejo-team/sku-dreamon/pull/247)에서 관리합니다. 선행 버전은 migration head 09를 유지하면서 09·10을 허용하고, 이후 과목 버전은 head·readiness 모두 10을 요구합니다. 선행 배포의 성공 SHA와 활성 상태를 확인한 뒤 과목 버전을 전환합니다.
 
-| 단계 | 앱·schema 계약 | 다음 단계의 선행 조건 |
-| --- | --- | --- |
-| 릴리스 1: 호환 브리지 | 기존 업무 코드, Alembic head `20261026_09`, readiness는 09·10 허용. 프론트는 후속 `courses` 응답 필드를 수용하되 기존 저장 요청을 유지 | `develop` → `main` 배포의 성공 SHA·활성 이미지 확인 후 `main` → `develop` 동기화 |
-| 릴리스 2: 과목 구현 복원 | #245 전체 구현과 revision 10을 재적용. 새 앱은 10만 허용. 검증한 과목 JSON의 운영 적재와 검색 smoke를 별도로 수행 | 브리지 이미지·설정을 롤백 대상으로 기록하고, 새 앱 전환·실제 데이터 검증 후 이력 동기화 |
+DB10에서 이전 호환 앱으로 돌아갈 때는 migration 없이 기록된 이미지·설정을 전환합니다. 브리지 이미지로 `alembic upgrade head`를 실행하거나 DB downgrade로 복구하지 않습니다. 과목 프론트는 구 API의 과목 필드 부재를 구분하고 일반 항목만 수정할 때 해당 키를 생략합니다. 편집 도중 지원 여부가 바뀌면 초안을 유지하고 저장을 차단해 새로고침을 안내합니다. 프론트 자산 복원·재로딩과 열린 탭의 실패 복구도 확인합니다.
 
-브리지는 [실제 확장 DDL 사본](../../backend/tests/schema_10_expand.py)을 격리된 테스트 schema에만 적용해 기존 프로필 조회·수정·공개 전환과 새 수강 관계 보존을 검증합니다. 이 사본은 운영 Alembic revision 목록에 넣지 않습니다. [readiness 회귀](../../backend/tests/integration/test_deployment_readiness.py)는 09·10 허용과 미지원 revision 거부를 검증합니다.
-
-DB가 10이 된 뒤 앱을 복구할 때는 [배포 엔진의 rollback](../../deploy/release.py)이 사용하는 `migrate=False` 경로로 브리지 이미지·설정만 전환합니다. 브리지 이미지에는 revision 10의 migration 이력이 없으므로, 이 이미지로 `alembic upgrade head`·`alembic check`를 다시 실행하는 배포나 DB downgrade로 복구하지 않습니다. 최종 구현 복원 시 일시 브리지 코드·테스트·이 절의 진행 상태도 함께 정리합니다.
+최종 배포 뒤 [고정 카탈로그 산출물](course-catalog.md)을 검증·적재하고 동일 재적재의 신규·갱신 0, 3,864개 과목과 실제 검색을 확인합니다. 배포 성공과 데이터 적재 성공을 별도로 기록하며 비공개 artifact 식별자·운영 로그는 공개 문서에 넣지 않습니다.
 
 ## 배포 권한과 복구·운영
 

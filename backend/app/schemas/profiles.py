@@ -21,6 +21,7 @@ from app.rules.catalogs import (
     SkillCode,
     WeeklyAvailabilityCode,
 )
+from app.schemas.catalogs import CourseSummary
 
 
 class PortfolioResponse(ResponseDTO):
@@ -94,6 +95,13 @@ class ProfileResponse(PersonSummary):
     )
     portfolio: PortfolioResponse | None = Field(
         description=("등록된 포트폴리오 링크와 선택 제목. 미등록 시 null입니다.")
+    )
+    courses: list[CourseSummary] = Field(
+        default_factory=list,
+        description=(
+            "본인이 선택한 수강 과목. 수강 중·완료 상태를 구분하거나 "
+            "이수를 검증하지 않습니다."
+        ),
     )
 
 

@@ -30,6 +30,7 @@ _PROFILE_FIELDS = {
     "experience_state",
     "experience_body",
     "weekly_availability_code",
+    "courses",
 }
 _CONTEST_FIELDS = {
     "title",

@@ -120,3 +120,22 @@ erDiagram
 학사 ID와 부모 ID는 DB에서 `bigint`, [API](../api/catalogs.md#academic-unit)에서는 `PositiveBigInt` 십진 문자열입니다. 사용자의 소속 저장은 기존 항목을 참조할 뿐 새 학사 행이나 ID를 만들지 않습니다. 계정·공고·팀 등 다른 업무 ID는 UUID를 유지합니다.
 
 **초기 데이터 적재는 별도 확인이 필요합니다.** [ACADEMIC-01~04](../specs/academic-structure.md#open-questions)의 실제 목록·적용 대상·부모 관계와 기존 데이터 대응이 남아 있으며, 31행 이관 표를 현행 운영 목록으로 확정하지 않습니다.
+
+<a id="course-catalog"></a>
+
+## 과목 카탈로그와 프로필 수강 과목
+
+[수강 과목 정책](../specs/profile.md#courses)에 따라 Excel의 학수번호를 유일한 과목 통합 키로 사용합니다. 연도·학기·분반별 버전이나 학생의 성적·이수 상태는 저장하지 않습니다. 물리 정의는 [과목 모델](../../backend/app/models/courses.py)과 [마이그레이션](../../backend/alembic/versions/20261031_10_courses.py)을 따릅니다.
+
+| 테이블 | 컬럼 | 용도 |
+| --- | --- | --- |
+| `courses` | `course_id bigint IDENTITY` | PK. 재적재해도 유지 |
+| `courses` | `code varchar(64) UNIQUE NOT NULL` | 문자열 학수번호. 연도·학기와 무관하게 유일 |
+| `courses` | `name text NOT NULL` | 수집된 가장 최근 자료의 대표 과목명 |
+| `courses` | `aliases text[] NOT NULL DEFAULT '{}'` | 동일 코드의 과거 이름, 검색용 |
+| `courses` | `departments text[] NOT NULL DEFAULT '{}'` | 원본 개설학과 표시명. 현재 학사 계층과 자동 연결하지 않음 |
+| `profile_courses` | `account_id uuid`, `course_id bigint` | 각각 프로필·과목 FK, 두 컬럼의 복합 PK로 중복 선택 방지 |
+
+과목은 학생마다 복제하지 않습니다. 프로필 쓰기는 카탈로그 존재를 검사한 후 같은 프로필 트랜잭션에서 연결을 교체하고 프로필 수정 시각·버전을 갱신합니다. 조회는 기존 프로필 권한을 확인한 후 과목을 일괄 조회합니다. 카탈로그 API는 공개이지만 개인의 선택 과목은 공개 카탈로그에 포함하지 않습니다.
+
+적재는 JSON 검증 후 명시적 CLI `--apply`에서만 수행합니다. 같은 코드의 대표명·별칭·개설학과를 갱신하고 입력에 없는 과목이나 기존 프로필 연결은 지우지 않습니다. 동시 적재는 트랜잭션 advisory lock으로 직렬화합니다. 원본 Excel·해시·학기 커버리지는 gitignored 수집 장부에 보존하고 교수명 등 원본의 나머지 필드는 제품 DB에 적재하지 않습니다. 재생성·적재 명령은 [개발 계획](../development-plans/course-catalog.md)을 참조합니다.
