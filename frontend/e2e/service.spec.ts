@@ -190,7 +190,7 @@ test('팀 생성→지원→팀장 선발→알림 읽음→선발자 취소·�
     ).toHaveCount(0);
     await memberPage.goto(`/teams/${team.id}?view=space`);
     await expect(
-      memberPage.getByRole('heading', { name: '확정된 팀원' }),
+      memberPage.getByRole('heading', { name: '팀원' }),
     ).toBeVisible();
     await memberPage.screenshot({
       path: testInfo.outputPath('selected-member.png'),

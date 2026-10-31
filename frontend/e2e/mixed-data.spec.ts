@@ -313,14 +313,14 @@ if (process.env.E2E_MIXED_DATA === '1') {
           ).toBe(403);
           await memberPage.goto(`/teams/${team.id}?view=space`);
           await expect(
-            memberPage.getByRole('heading', { name: '확정된 팀원' }),
+            memberPage.getByRole('heading', { name: '팀원' }),
           ).toBeVisible();
           await expectDemoBadge(memberPage, 'team', space.team.isDemo);
           const self = space.members.find(
             (member) => member.accountId === applicant.accountId,
           )!;
           const ownMember = memberPage
-            .getByRole('region', { name: '확정된 팀원' })
+            .getByRole('region', { name: '팀원' })
             .locator('li')
             .filter({
               has: memberPage.getByText(`${profile.realName} (나)`, {

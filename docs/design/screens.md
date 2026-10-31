@@ -18,8 +18,8 @@
 | 팀 만들기 `/teams/new` | [CreateTeamPage](../../frontend/src/features/teams/CreateTeamPage.tsx), [ContestPicker](../../frontend/src/features/teams/ContestPicker.tsx) | [팀 생성·정원 정책](../specs/team-recruitment.md#acceptance-criteria): 공모전 검색 선택, 팀명 2~40자·소개 10~1,000자·역할 1~6개, 모든 팀의 공식 인원 범위. 분야는 공모전 상속, 범위 정원 기본값 없음, 정원 1명은 역할/추가 모집 생략. 준비 모임 예외 없음 |
 | 워크스페이스 `/workspace` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access): 본인이 팀장이거나 현재 확정 팀원인 팀과 빈 상태. 내 팀·내 지원 콘텐츠 제목과 개수, 작업 아이콘을 한 줄에 배치하고 팀 카드 전체를 눌러 팀 공간 이동 |
 | 내 지원 `/workspace?view=applications` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 AC-04·17~18](../specs/team-recruitment.md#acceptance-criteria): 현재 지원 상태·선발 후 취소·자리 반환·재지원, 다른 팀 선발에 따른 폐기 사유·이력 |
-| 팀 공간 `/teams/:teamId?view=space` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 AC-09·13·20·25](../specs/team-recruitment.md#acceptance-criteria): 팀장·현재 팀원만 접근, 확정 인원·남은 자리·공고·모집 상태, 팀장 재개 확인·성공·불가 사유 |
-| 지원자 관리 `/teams/:teamId?view=applicants` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 AC-05·14·16](../specs/team-recruitment.md#acceptance-criteria): 해당 팀장만 진행 중인 지원(지원 완료·검토 중)을 관리 목록에서 확인하고 검토·선발. 선발 성공 즉시 팀원 확정·같은 공모전의 다른 대기 지원 폐기. 폐기 지원은 이력에 남고 검토 대기 수에서 제외 |
+| 팀 공간 `/teams/:teamId?view=space` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 AC-09·13·20·25](../specs/team-recruitment.md#acceptance-criteria): 팀장·현재 팀원만 접근. 팀 메뉴 아래 팀명·소개·상태 카드, 팀원 카드의 사람 아이콘과 현재 인원/정원, 찾는 팀원의 모집 역할·마감일, 공모전 정보. 팀장 재개 확인·성공·불가 사유 |
+| 지원자 관리 `/teams/:teamId?view=applicants` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 AC-05·14·16](../specs/team-recruitment.md#acceptance-criteria): 해당 팀장만 진행 중인 지원(지원 완료·검토 중)을 관리 목록에서 확인하고 검토·선발. 선발 성공 즉시 팀원 확정·같은 공모전의 다른 대기 지원 폐기. 폐기 지원은 이력에 남고 관리 목록에서 제외. 검토 대기 수 문구와 불가한 재모집 버튼·사유는 생략 |
 | 지원자 검토 `/applicants/:applicantId` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [프로필 공개 정책](../specs/profile.md#visibility), [팀 선발 정책](../specs/team-recruitment.md#membership-capacity): 지원한 팀장이 공개 상태와 관계없이 전체 현재 프로필을 확인. 일반 팀원은 이 예외를 갖지 않음 |
 | 내 프로필 `/profile` | [AccountPages](../../frontend/src/features/account/AccountPages.tsx), [ProfileFields](../../frontend/src/features/account/ProfileFields.tsx) | [프로필 완료 조건](../specs/profile.md#acceptance-criteria): 학적·학년 선택, 이름/소개/경험/제목 길이·관심/역할 개수, 기타 제거, 주당 합산 시간 4구간 단일 선택, 전체 공개 전환 확인·기존 지원자 최신 프로필 검토, 선택형 마스코트 |
 | 본인 공개 화면 확인 `/profile/public` | [AccountPages](../../frontend/src/features/account/AccountPages.tsx) | [사람 탐색과 공개 설정](../specs/profile.md#people-directory): 본인이 설정한 공개 결과 확인 |
@@ -60,6 +60,10 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 프로필의 주당 시간은 모든 참여 프로젝트 합산 참고값이며 네 구간(`5시간 미만`, `5~10시간 미만`, `10~20시간 미만`, `20시간 이상`) 중 단일 선택입니다. 미입력은 최저 구간과 구분하며 팀별 약속·잔여 시간이 아닙니다. 학적·학년은 선택, 관심 1~3개·역할 1~2개, 이름 50자·소개 300자·경험 500자·포트폴리오 제목 50자를 검증하고 초과 입력을 보존합니다. 기타와 보충 입력은 제거합니다. 학사 종속값은 같은 관계의 유효값을 유지하고 다른 소속 관계의 값만 초안에서 비우며 취소하면 이전 저장값을 유지합니다. 실제 학사 식별자·관계 전수 검증은 별도입니다.
 
 공모전 탐색 카드는 왼쪽 세로 포스터와 오른쪽 정보를 배치하는 작은 카드 변형을 사용하며, 정확한 열 너비·여백은 [제품 스타일](../../frontend/src/styles/service-ui.css)을 따릅니다. 이미지 아래에 별도 문구를 두지 않습니다. 원본 이미지를 자르지 않으며 제목이 길어지면 카드 높이를 늘립니다. 오른쪽은 제목·분야·주최자 순으로 배치하고 우하단의 팀 아이콘·숫자로 모집 상태와 관계없이 공모전에 연결된 모든 팀 수를 표시합니다. 접근성 이름에는 `연결된 팀 N개`를 포함합니다. 별도 상세보기 문구·화살표, 참가 대상·접수 마감 정보 행은 두지 않습니다. D-day는 포스터 위에 유지하고 정확한 마감일·참가 대상은 상세에서 확인합니다. 카드 전체의 클릭·키보드 이동과 녹색 hover·포커스·누름 상태를 유지합니다.
+
+팀 공간과 지원자 관리에서는 팀 메뉴 아래 카드에 팀명·소개·상태를 모으고, 상단의 내 역할·확정 인원 요약을 생략합니다. `팀원` 카드에는 이름·역할과 사람 아이콘을 곁들인 `현재 인원/정원`을 표시하며 학교 인증 여부는 생략합니다. `찾는 팀원`에는 모집 역할과 마감일만 표시하고 정원 1명 팀에서는 생략합니다. 공개 모집글의 모집 조건·정원 안내는 유지합니다.
+
+2026-11-01 목업 브라우저에서 320·390·430·1024px의 팀 공간·지원자 관리, 정원 충족 3/3, 정원 1명과 긴 소개를 확인했습니다. [팀 공간 390px](assets/team-space-compact-390.png), [정원 충족 320px](assets/team-space-full-320.png), [지원자 관리 320px](assets/team-applicants-full-320.png)는 이 표시 변경의 확인 자료이며 실제 API·운영 배포 검증과 구분합니다.
 
 키·값 정보는 공모전 상세, 팀 목록·공간, 내 프로필·공개 프로필·지원자 검토에서 같은 [정보 계층](tokens.md)을 사용합니다. 워크스페이스 팀 카드는 내 역할과 확정 인원/정원으로 요약하고, 중복되는 `팀장 포함 총 N명` 안내는 생략합니다. 요약 옆 화살표는 별도 버튼이 아니며 카드 링크의 일부입니다. 팀 만들기·모집 상세의 정원 안내와 팀장 포함 정원 계산 정책은 유지합니다.
 
