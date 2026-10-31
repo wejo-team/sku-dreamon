@@ -2,6 +2,8 @@
 
 사람과 에이전트가 함께 사용하는 문서입니다. **현재 작업에 필요한 문서만 선택해서 읽습니다.**
 
+개발 작업은 **최신 `develop`의 `docs/`**를 기준으로 합니다. 시작·재개·인계 시 [기준 브랜치 확인](development/workflow.md#development-baseline)을 따르고, 로컬 문서가 오래되었다면 [develop 문서](https://github.com/wejo-team/sku-dreamon/tree/develop/docs)를 확인합니다. `main`과 문서 사이트는 릴리스 시점의 문서입니다.
+
 ## 폴더별 문서
 
 메뉴의 카테고리는 저장소의 `docs/` 폴더 구조와 같습니다. 각 폴더의 인덱스에서 필요한 문서를 고릅니다.
@@ -15,7 +17,7 @@
 | [database/](database/README.md) | 물리 ERD·테이블 정의·DB 제약·트랜잭션 설계안 |
 | [data/](data/README.md) | 개발·시연 데이터 제작 규칙·버전·분포·재구성 방법 |
 | [api/](api/README.md) | 요청·응답 필드·권한·오류·페이지네이션의 Markdown 설계 |
-| [design/](design/README.md) | 공식 모바일 디자인 실행·화면별 명세·프론트엔드 인계 |
+| [design/](design/README.md) | 제품 화면 소스·스타일·자산 출처와 이전 디자인 이력 |
 | [templates/](templates/README.md) | 새 문서를 작성할 때 복사하는 양식 |
 | [branding.md](branding.md) | 서경드림온의 의미와 이름·기술 식별자 표기 기준 |
 | [agent-guide.md](agent-guide.md) | 에이전트의 문서 선택과 작업·보고 원칙 |
@@ -27,12 +29,12 @@
 - 기획 팀원 등 GitHub가 처음인 팀원이 참여할 때: [문서 협업 시작하기](collaboration/README.md)
 - 처음 실행할 때: [로컬 실행](development/local-development.md)
 - 실제 프론트·서버·DB를 함께 검증할 때: [통합테스트와 bug bash](development/bug-bash.md)
-- 제품 화면을 구현할 때: [공식 디자인 레퍼런스](design/README.md)
+- 제품 화면을 구현할 때: [프론트엔드 기준](development/frontend.md)과 [제품 화면 소스](design/screens.md)
 - DB와 서버 인터페이스를 검토할 때: [DB 설계](database/README.md) → [API 명세](api/README.md)
 - 명세·계획·PR과 `작업 브랜치 → develop → main` 릴리스를 검토할 때: [팀 작업 흐름](development/workflow.md)
 - `main` CI 이후 운영 배포를 확인할 때: [운영 CD](development/continuous-deployment.md)
-- 공식 모바일 디자인을 참고할 때: [디자인 실행 안내](design/README.md)과 [버전·검증 기록](specs/prototype-alignment.md)
-- 현재 프로토타입과 기능 명세를 대조할 때: [디자인 기능·명세 대조](specs/prototype-alignment.md)
+- 공통 스타일·이미지 출처를 확인할 때: [제품 UI 안내](design/README.md)
+- 초기 디자인의 정책 반영·검증 이력을 확인할 때: [디자인 대조 이력](specs/prototype-alignment.md)
 - 문서를 추가하거나 게시할 때: [문서 관리](development/documentation.md)
 
 ## 읽기 원칙

@@ -43,6 +43,7 @@ backend/
   .python-version
   pyproject.toml
   uv.lock
+design-reference/        # 초기 디자인 이력 보관, 제품 UI 기준은 frontend/
 docs/                    # 작업별 인덱스·명세·개발 및 에이전트 가이드
   .vitepress/            # 문서 사이트 설정·테마
 scripts/                 # CI 영향 범위·필수 결과 판별, 문서·사이트 검증, E2E 실행

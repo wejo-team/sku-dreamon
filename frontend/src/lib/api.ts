@@ -66,24 +66,61 @@ export type CsrfToken = z.infer<typeof CsrfToken>;
 
 let csrfToken: string | null = null;
 let csrfRequest: Promise<string> | null = null;
+let csrfController: AbortController | null = null;
+let csrfGeneration = 0;
+
+// 발급 요청은 공유하지만 화면 전환·AI 중단에 의한 취소는 각 대기자에게만 적용합니다.
+function waitForCsrf(request: Promise<string>, signal?: AbortSignal) {
+  if (!signal) return request;
+  return new Promise<string>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    request.then(
+      (token) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(token);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
 
 // [출처 6] GET /auth/csrf → 200 Success<CsrfToken>. 같은 화면의 동시 요청은 한 번만 조회합니다.
-export function fetchCsrfToken(signal?: AbortSignal): Promise<string> {
+export async function fetchCsrfToken(signal?: AbortSignal): Promise<string> {
+  signal?.throwIfAborted();
   if (csrfToken) return Promise.resolve(csrfToken);
-  csrfRequest ??= apiRequest('/auth/csrf', { signal })
-    .then((body) => {
-      csrfToken = success(CsrfToken).parse(body).data.csrfToken;
-      return csrfToken;
-    })
-    .finally(() => {
-      csrfRequest = null;
-    });
-  return csrfRequest;
+  if (!csrfRequest) {
+    const generation = csrfGeneration;
+    csrfController = new AbortController();
+    const request = apiRequest('/auth/csrf', { signal: csrfController.signal })
+      .then((body) => {
+        if (generation !== csrfGeneration)
+          throw new DOMException('Session changed', 'AbortError');
+        csrfToken = success(CsrfToken).parse(body).data.csrfToken;
+        return csrfToken;
+      })
+      .finally(() => {
+        // 이전 발급의 종료가 새 세션의 진행 중인 발급을 지우지 않게 합니다.
+        if (csrfRequest === request) {
+          csrfRequest = null;
+          csrfController = null;
+        }
+      });
+    csrfRequest = request;
+  }
+  return waitForCsrf(csrfRequest, signal);
 }
 
 // [출처 6] 로그인 세션이 바뀌거나 CSRF 검사가 실패하면 보관한 토큰을 버립니다.
 export function resetCsrfToken() {
+  csrfGeneration++;
   csrfToken = null;
+  csrfController?.abort();
+  csrfController = null;
+  csrfRequest = null;
 }
 
 export type ApiRequestOptions = Omit<RequestInit, 'body'> & {

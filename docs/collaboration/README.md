@@ -10,7 +10,8 @@ GitHub를 처음 사용하는 팀원을 위한 문서 협업 안내입니다. �
 
 | 하고 싶은 일 | 시작할 곳 |
 | --- | --- |
-| 팀 문서 읽기 | [문서 사이트](https://wejo-team.github.io/sku-dreamon/)에서 검색하거나 폴더 메뉴 선택 |
+| 개발 기준 문서 읽기 | [develop의 문서 인덱스](https://github.com/wejo-team/sku-dreamon/blob/develop/docs/README.md)에서 필요한 문서 선택 |
+| 릴리스된 문서 확인 | [문서 사이트](https://wejo-team.github.io/sku-dreamon/)에서 검색하거나 폴더 메뉴 선택 |
 | 기존 문서 수정, 새 문서 추가, PR 만들기 | [GitHub 웹에서 문서 수정하기](editing-docs.md) |
 | 기능의 동작과 정책 정리하기 | [기능 명세 작성하기](writing-specs.md) |
 | 다른 사람의 문서 검토, 수정 요청에 답하기 | [문서 리뷰와 게시 확인하기](review-and-publish-docs.md) |
@@ -30,10 +31,12 @@ GitHub를 처음 사용하는 팀원을 위한 문서 협업 안내입니다. �
 
 | 장소 | 용도 |
 | --- | --- |
-| 문서 사이트 | `main`에서 게시된 문서 읽기 |
-| 저장소의 `develop`과 `docs/` | 팀에 반영된 최신 원본 확인·작업 브랜치에서 수정 |
+| 저장소의 `develop`과 `docs/` | 개발·검토에 사용할 최신 기준 문서 확인·작업 브랜치에서 수정 |
+| 문서 사이트 | `main`에서 게시된 릴리스 시점의 문서 확인 |
 | Pull requests(PR) | 변경 전후 비교, 질문, 승인, 반영 기록 확인 |
 | Issues | 아직 문서 변경으로 정리하기 어려운 질문·제안·작업 논의 |
+
+개발과 문서 작업은 `develop`의 문서를 기준으로 합니다. 사이트에는 아직 릴리스되지 않은 변경이 없을 수 있으므로, 작업을 시작하거나 이어받을 때 [develop의 문서 인덱스](https://github.com/wejo-team/sku-dreamon/blob/develop/docs/README.md)에서 관련 내용을 확인합니다.
 
 우리 팀은 **명세 작성 → 사람 검토·합의 → 개발 계획 → 구현·검증 → 결과 리뷰** 순서로 진행합니다. 새 기능의 명세 PR에는 동작과 정책을 담고, 구현은 이후 별도 작업으로 진행합니다. 세부 기준은 [팀 작업 흐름](../development/workflow.md)을 따릅니다.
 

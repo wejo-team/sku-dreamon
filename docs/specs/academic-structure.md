@@ -134,9 +134,11 @@
 
 <a id="prototype-reference"></a>
 
-## 현재 디자인 레퍼런스
+<a id="현재-디자인-레퍼런스"></a>
 
-[공식 디자인 PR](https://github.com/wejo-team/sku-dreamon/pull/74)의 참고 앱 동작입니다. 소스·배포 버전과 수행한 검증은 [프로토타입·명세 대조 기록](prototype-alignment.md)에서 관리하며, 아래 화면 동작을 실제 서버 기능의 완료로 취급하지 않습니다.
+## 디자인 레퍼런스 이력
+
+[초기 디자인 PR](https://github.com/wejo-team/sku-dreamon/pull/74)의 참고 앱 동작을 보관한 이력입니다. 아래 동작·미구현 경계와 [버전·검증 기록](prototype-alignment.md)은 당시 레퍼런스의 범위이며 현재 제품의 구현 상태를 뜻하지 않습니다. 현재 화면·인터랙션은 `frontend/`와 [프론트엔드 기준](../development/frontend.md)을 따릅니다.
 
 참고 앱은 위 **31행 이관 목록을 화면 확인용 데이터**로 사용합니다. 공식 운영 목록·적용 학년도·현행 여부를 검증하거나 영구 코드를 확정한 것이 아닙니다.
 
