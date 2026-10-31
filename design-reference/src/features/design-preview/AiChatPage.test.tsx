@@ -232,9 +232,7 @@ describe('design preview AI chat', () => {
 
   it('stops a pending response without late recommendations and can send another request', async () => {
     const user = renderChat();
-    await user.click(
-      screen.getByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'IT 공모전 찾아줘' }));
     await user.click(screen.getByRole('button', { name: '응답 중지' }));
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.getByRole('log')).toHaveTextContent('검색을 멈췄어요.');
@@ -255,9 +253,7 @@ describe('design preview AI chat', () => {
 
   it('starts a new conversation by clearing the draft and cancelling a pending response', async () => {
     const user = renderChat();
-    await user.click(
-      screen.getByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'IT 공모전 찾아줘' }));
     const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
     await user.type(input, '아직 보내지 않은 질문');
     await user.click(screen.getByRole('button', { name: '새 대화' }));
@@ -270,7 +266,7 @@ describe('design preview AI chat', () => {
     await finishReply();
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
+      screen.getByRole('button', { name: 'IT 공모전 찾아줘' }),
     ).toBeInTheDocument();
   });
 
@@ -443,7 +439,7 @@ describe('design preview AI chat', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
+      screen.queryByRole('button', { name: 'IT 공모전 찾아줘' }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: '답변 복사' }),
@@ -488,9 +484,7 @@ describe('design preview AI chat', () => {
 
   it('retains an unsent oversized draft when retrying a previously failed request', async () => {
     const user = renderChat('/design-preview/ai?scenario=error');
-    await user.click(
-      screen.getByRole('button', { name: '마감이 가까운 공모전 찾아줘' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'IT 공모전 찾아줘' }));
     await finishReply();
     const input = screen.getByRole('textbox', { name: 'AI에게 보낼 메시지' });
     const draft = '가'.repeat(1001);
@@ -500,9 +494,7 @@ describe('design preview AI chat', () => {
     expect(input).toHaveValue(draft);
     expect(screen.getByRole('alert')).toHaveTextContent('메시지는 1,000자까지');
     expect(
-      within(screen.getByRole('log')).getAllByText(
-        '마감이 가까운 공모전 찾아줘',
-      ),
+      within(screen.getByRole('log')).getAllByText('IT 공모전 찾아줘'),
     ).toHaveLength(1);
     expect(within(screen.getByRole('log')).getAllByRole('link')).toHaveLength(
       3,

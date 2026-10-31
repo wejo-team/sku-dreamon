@@ -45,7 +45,7 @@ function availableTeam(team: Team, data: SearchData) {
 }
 
 const startingQuestions = [
-  '마감이 가까운 공모전 찾아줘',
+  'IT 공모전 찾아줘',
   '개발자를 모집하는 팀 찾아줘',
   '디자인에 관심 있는 사람 찾아줘',
 ];
