@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod';
+import { hasPasswordSymbol } from './password-symbols';
 
 // [출처 4] 공개 UI 확인용 아이디
 export const demoId = 'dreamondemo';
@@ -40,7 +41,7 @@ export function getPasswordRequirements(value: string) {
   return {
     length: length >= 8,
     characters: !/[\p{Script=Hangul}\p{White_Space}\uFEFF]/u.test(normalized),
-    symbol: /[\p{P}\p{S}]/u.test(normalized),
+    symbol: hasPasswordSymbol(normalized),
   };
 }
 

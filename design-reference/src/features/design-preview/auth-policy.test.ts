@@ -97,6 +97,22 @@ describe('account input policy', () => {
     },
   );
 
+  it('uses the server Unicode 15.1 symbol set regardless of browser Unicode support', () => {
+    for (const symbol of ['\u{1FAE9}', '\u{1FAEA}']) {
+      const value = `abcdefg${symbol}`;
+      expect(getPasswordRequirements(value).symbol).toBe(false);
+      expect(signupPasswordSchema.safeParse(value).success).toBe(false);
+      expect(signupPasswordSchema.safeParse(`abcdef!${symbol}`).success).toBe(
+        true,
+      );
+    }
+    for (const symbol of ['!', '€', '😀', '\u{1FAE8}']) {
+      expect(signupPasswordSchema.safeParse(`abcdefg${symbol}`).success).toBe(
+        true,
+      );
+    }
+  });
+
   it('reports each requirement independently using the same NFC length as validation', () => {
     expect(getPasswordRequirements('')).toEqual({
       length: false,

@@ -1,5 +1,6 @@
 // 가입·로그인의 입력 정책과 실시간 조건을 함께 정의합니다.
 import { z } from 'zod';
+import { hasPasswordSymbol } from './password-symbols';
 
 // [출처 4] 공개 UI 확인용 아이디
 export const demoId = 'dreamondemo';
@@ -30,7 +31,7 @@ export function getPasswordRequirements(value: string) {
   const length = Array.from(normalized).length;
   return {
     length: length >= 8,
-    symbol: /[\p{P}\p{S}]/u.test(normalized),
+    symbol: hasPasswordSymbol(normalized),
     characters: !/[\p{Script=Hangul}\p{White_Space}\uFEFF]/u.test(normalized),
   };
 }
