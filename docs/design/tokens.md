@@ -35,7 +35,7 @@
 | 항목 | 현재 기준 |
 | --- | --- |
 | 화면 폭 | `min(100%, 480px)`, 넓은 창에서 가운데 배치 |
-| 좌우 여백·섹션 간격 | 20px |
+| 좌우 여백·기본 섹션 간격 | 20px, 팀 영역의 간격은 아래 개별 기준 적용 |
 | 모바일 카드 내부 여백 | 16px, 상황별 개별 조정은 실제 CSS 확인 |
 | 컨트롤·버튼 반경 | 8px |
 | 카드·패널 반경 | 12px |
@@ -67,7 +67,7 @@
 | 상황 | 참고 컴포넌트·원본 |
 | --- | --- |
 | 주요/보조 행동·링크 | [Button](../../frontend/src/components/ui/button.tsx), [CommonUi](../../frontend/src/components/common/CommonUi.tsx) |
-| 워크스페이스 작업 | [Button](../../frontend/src/components/ui/button.tsx)의 링크 조합과 [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx). 내 지원은 `ClipboardList`, 팀 만들기는 `Plus` 아이콘 |
+| 팀 화면 작업 | [Button](../../frontend/src/components/ui/button.tsx)의 링크 조합과 [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx). 내 지원은 `ClipboardList`, 팀 만들기는 `Plus` 아이콘 |
 | 입력·선택·설명·오류 | [Input](../../frontend/src/components/ui/input.tsx), [Textarea](../../frontend/src/components/ui/textarea.tsx), [NativeSelect](../../frontend/src/components/ui/native-select.tsx), [Alert](../../frontend/src/components/ui/alert.tsx) |
 | 학교 인증 상태 | [SchoolVerificationBadge](../../frontend/src/components/common/CommonUi.tsx). 미인증은 `--school-unverified: #b42318`, 인증은 `--school-verified: #1d4ed8`, 글자는 흰색. 내 프로필의 미인증 배지는 44px 버튼으로 감싸 안내 Drawer를 열고 다른 화면은 상태 배지로 표시. 현재 계정은 모두 미인증 |
 | 공개 여부 | [Switch](../../frontend/src/components/ui/switch.tsx) + [Drawer](../../frontend/src/components/ui/drawer.tsx), [ProfileVisibilityControl](../../frontend/src/features/account/AccountPages.tsx). 전체 프로필 상태 하나를 설명·확인 후 전환하며 취소·닫기는 기존 상태 유지 |
@@ -84,11 +84,13 @@
 
 ## 모바일 상호작용 확인
 
-하단 탐색은 탐색·AI·워크스페이스·프로필의 네 항목입니다. 상단 우측 알림과 하단 프로필의 역할을 구분합니다. 네 루트 화면의 중복 제목은 `h1.sr-only`로 남기고 시각적인 제목 영역은 두지 않습니다. 공모전·팀·지원자 상세와 프로필 수정 화면의 제목은 유지합니다. AI 화면은 대화·입력창·하단 영역을 함께 배치하며 [AppShell](../../frontend/src/components/layout/AppShell.tsx)의 `visualViewport` 대응을 확인합니다.
+하단 탐색은 탐색·AI·팀·프로필의 네 항목입니다. `팀` 메뉴의 주소는 `/workspace`를 유지합니다. 상단 우측 알림과 하단 프로필의 역할을 구분합니다. 네 루트 화면의 중복 제목은 `h1.sr-only`로 남기고 시각적인 제목 영역은 두지 않습니다. 공모전·팀·지원자 상세와 프로필 수정 화면의 제목은 유지합니다. AI 화면은 대화·입력창·하단 영역을 함께 배치하며 [AppShell](../../frontend/src/components/layout/AppShell.tsx)의 `visualViewport` 대응을 확인합니다.
 
 공모전·팀·사람 탐색 모두 AI 추천 진입 아이콘을 검색창 오른쪽 안에 배치합니다. AI 대화는 로그인 후 이용하며 비로그인 진입에는 로그인 안내를 표시합니다. 검색어 지우기와 AI 진입은 각각 독립된 44px 조작 영역으로 유지합니다. 필터와 초기화도 최소 44px 아이콘 버튼으로 표시하며 접근성 이름을 제공합니다. 선택한 필터는 개수와 접근성 설명으로 알리고, 공모전 정렬은 선택 목록을 유지합니다. 정렬만 바꾼 경우에도 초기화 아이콘으로 기본 조건으로 돌아갈 수 있습니다.
 
-워크스페이스는 내 팀·내 지원 콘텐츠 제목, 개수, 작업 아이콘을 한 줄로 배치합니다. 내 지원·팀 만들기 링크는 각각 44px 조작 영역과 행동 이름을 나타내는 `aria-label`·`title`을 제공하고, 팀 만들기는 녹색 주요 버튼으로 강조합니다. 내 지원 화면의 목록 아이콘은 `aria-current`와 녹색으로 현재 위치를 표시합니다. 팀 카드는 전체 링크를 유지하고 내 역할·확정 인원과 같은 행 우하단의 `ChevronRight`로 이동을 나타냅니다. 화살표는 장식으로 처리하며, 카드 링크의 접근성 이름에 팀 이름과 `팀 공간으로`를 포함합니다. 이 카드의 이동 문구만 생략하고 상세·선발 이후의 명시적 이동 버튼은 유지합니다.
+팀 화면은 내 팀·내 지원 콘텐츠 제목, 개수, 작업 아이콘을 한 줄로 배치하고 작업 묶음의 접근성 이름은 `팀 작업`으로 제공합니다. 내 지원·팀 만들기 링크는 각각 44px 조작 영역과 행동 이름을 나타내는 `aria-label`·`title`을 제공하고, 팀 만들기는 녹색 주요 버튼으로 강조합니다. 내 지원 화면의 목록 아이콘은 `aria-current`와 녹색으로 현재 위치를 표시합니다. 팀 카드는 전체 링크를 유지하고 내 역할·확정 인원과 같은 행 우하단의 `ChevronRight`로 이동을 나타냅니다. 화살표는 장식으로 처리하며, 카드 링크의 접근성 이름에 팀 이름과 `팀 공간으로`를 포함합니다. 이 카드의 이동 문구만 생략하고 상세·선발 이후의 명시적 이동 버튼은 유지합니다.
+
+팀 영역은 본문 상단 여백 12px, 내 팀·내 지원의 주요 영역 간격 16px을 적용합니다. 팀 공간·지원자 관리의 바깥 영역 간격은 12px이며, 팀 메뉴 링크의 높이는 44px입니다. 카드 내부 여백과 본문 가독성을 유지하면서 상단과 섹션 사이 공백을 줄입니다. 실제 적용은 [팀 화면 스타일](../../frontend/src/styles/workspace.css)을 따릅니다.
 
 내 프로필 보기에서는 첫 기본 정보 카드의 이름·아바타 옆에 `SquarePen` 수정 아이콘을 배치합니다. 44px 조작 영역과 `프로필 수정` 접근성 이름·title을 제공하며 공개/비공개 스위치·눈 모양 미리보기를 같은 조작 묶음에 배치합니다. 반복되는 공개 안내 행과 상시 학교 인증 설명은 표시하지 않습니다. 공개 스위치의 접근성 이름은 `프로필 공개`이며, 전체 프로필 공개·비공개를 바꾸기 전에 설명 Drawer와 확인·취소 버튼을 제공합니다. 확인 전 스위치는 기존 값을 유지하고 취소·Escape·바깥 닫기로 되돌릴 수 있습니다. 항목별·포트폴리오별 스위치는 두지 않습니다. 등록 시간·포트폴리오를 포함한 전체 항목 공개와 지원 팀장 예외는 [현재 공개·지원 정책](../specs/profile.md#visibility)을 참고합니다. AI의 `새 대화`는 입력창 왼쪽 도구 아이콘으로 배치하고 `type="button"`을 사용해 메시지 전송과 구분합니다.
 

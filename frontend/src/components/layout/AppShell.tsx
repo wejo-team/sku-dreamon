@@ -21,11 +21,11 @@ import {
 import { Link, Outlet, useLocation } from 'react-router';
 import { Notifications } from '@/features/notifications/NotificationInbox';
 
-// [출처 2] 하단 탐색 네 항목: 탐색·AI·워크스페이스·프로필
+// [출처 2] 하단 탐색 네 항목: 탐색·AI·팀·프로필
 const navItems = [
   { id: 'explore', title: '탐색', to: '/explore', icon: Search },
   { id: 'ai', title: 'AI', to: '/ai', icon: MessageCircle },
-  { id: 'workspace', title: '워크스페이스', to: '/workspace', icon: Layers2 },
+  { id: 'workspace', title: '팀', to: '/workspace', icon: Layers2 },
   { id: 'profile', title: '프로필', to: '/profile', icon: UserRound },
 ];
 
@@ -41,7 +41,7 @@ export function AppShell() {
   const teamView = teamId ? params.get('view') : null;
   const isWorkspaceTeam =
     teamId === 'new' || teamView === 'space' || teamView === 'applicants';
-  // [출처 1, 3] 팀 공간·지원자 관리·팀 만들기는 워크스페이스, AI에서 연 상세는 AI 탭으로 표시합니다.
+  // [출처 1, 3] 팀 공간·지원자 관리·팀 만들기는 팀, AI에서 연 상세는 AI 탭으로 표시합니다.
   const active =
     isAi || fromAi
       ? 'ai'
@@ -151,7 +151,7 @@ export function AppShell() {
         id="preview-main"
         ref={main}
         tabIndex={-1}
-        className={`preview-main${isAuth ? ' preview-main-auth' : ''}`}
+        className={`preview-main${isAuth ? ' preview-main-auth' : ''}${active === 'workspace' ? ' preview-main-teams' : ''}`}
       >
         <Outlet />
       </main>

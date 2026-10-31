@@ -149,7 +149,7 @@ function returnLabel(path: string) {
   if (path === '/ai') return 'AI 대화로';
   if (path === '/explore') return '탐색으로';
   if (path === applicationsPath) return '내 지원으로';
-  if (path.split('?')[0] === workspacePath) return '워크스페이스로';
+  if (path.split('?')[0] === workspacePath) return '팀으로';
   return '목록으로';
 }
 const statusOf = (error: unknown) =>
@@ -324,7 +324,7 @@ export function WorkspacePage() {
   if (!session.signedIn)
     return (
       <div className="workspace-page preview-stack">
-        <h1 className="sr-only">워크스페이스</h1>
+        <h1 className="sr-only">팀</h1>
         <LoginPrompt
           from={showApplications ? applicationsPath : workspacePath}
         />
@@ -334,7 +334,7 @@ export function WorkspacePage() {
   const teams = myTeams.data?.data ?? [];
   return (
     <div className="workspace-page preview-stack">
-      <h1 className="sr-only">워크스페이스</h1>
+      <h1 className="sr-only">팀</h1>
       <header className="workspace-heading">
         <div className="workspace-section-summary">
           <h2
@@ -356,7 +356,7 @@ export function WorkspacePage() {
             </span>
           )}
         </div>
-        <nav className="workspace-actions" aria-label="워크스페이스 작업">
+        <nav className="workspace-actions" aria-label="팀 작업">
           <Button asChild variant="outline" className="workspace-action">
             <Link
               to={applicationsPath}
@@ -1384,7 +1384,7 @@ export function ApplicantPage() {
   if (!session.signedIn)
     return (
       <div className="preview-detail preview-stack">
-        <BackLink to={workspacePath}>워크스페이스로</BackLink>
+        <BackLink to={workspacePath}>팀으로</BackLink>
         <LoginPrompt from={`${location.pathname}${location.search}`} />
       </div>
     );
@@ -1398,12 +1398,12 @@ export function ApplicantPage() {
   if (denied || !applicant.data || !team.data)
     return (
       <div className="preview-detail preview-stack">
-        <BackLink to={workspacePath}>워크스페이스로</BackLink>
+        <BackLink to={workspacePath}>팀으로</BackLink>
         <EmptyState
           title="지원서를 확인할 수 없어요"
           description="내가 관리하는 팀에 접수된 지원서만 확인할 수 있어요."
         >
-          <ActionLink to={workspacePath}>워크스페이스로 돌아가기</ActionLink>
+          <ActionLink to={workspacePath}>팀으로 돌아가기</ActionLink>
         </EmptyState>
       </div>
     );

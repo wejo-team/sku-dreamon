@@ -1,5 +1,17 @@
 .dreamon-preview .workspace-page {
-  gap: 28px;
+  gap: 16px;
+}
+
+.dreamon-preview .preview-main.preview-main-teams {
+  padding-top: 12px;
+}
+
+.dreamon-preview .workspace-team-space {
+  gap: 12px;
+}
+
+.dreamon-preview .workspace-team-space .workspace-team-tabs a {
+  min-height: 44px;
 }
 
 .workspace-heading {
