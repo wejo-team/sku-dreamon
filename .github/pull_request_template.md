@@ -9,8 +9,11 @@
 릴리스 PR: 같은 저장소 develop → main, Merge commit.
 릴리스 후 동기화 PR: 같은 저장소 main → develop, Merge commit.
 지연 동기화: develop 기반 chore/sync-main-<sha>에 main을 merge한 뒤 develop 대상 PR, Merge commit.
-develop/main은 삭제하거나 강제 푸시하지 않습니다. 해당하는 방향과 병합 방식을 적습니다. -->
+develop/main은 삭제하거나 강제 푸시하지 않습니다. 해당하는 방향과 병합 방식을 적습니다.
+작업 PR은 지침·명세를 확인한 develop 커밋 SHA를 적습니다. main 또는 문서 사이트의 릴리스 문서를 최신 개발 기준으로 사용하지 않습니다. -->
+
 - 방향 / 병합 방식:
+- 문서 기준 develop 커밋:
 
 ## 주요 변경
 <!-- 리뷰에 필요한 핵심 변경과 해당 방식을 선택한 이유.
