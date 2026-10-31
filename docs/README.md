@@ -15,6 +15,7 @@
 | [development-plans/](development-plans/README.md) | 기능 명세에 연결된 상세 설계·구현 순서·검증 계획 |
 | [specs/](specs/README.md) | 팀이 검토하는 기능 동작·정책·예외·완료 조건 |
 | [database/](database/README.md) | 물리 ERD·테이블 정의·DB 제약·트랜잭션 설계안 |
+| [data/](data/README.md) | 개발·시연 데이터 제작 규칙·버전·분포·재구성 방법 |
 | [api/](api/README.md) | 요청·응답 필드·권한·오류·페이지네이션의 Markdown 설계 |
 | [design/](design/README.md) | 제품 화면 소스·스타일·자산 출처와 이전 디자인 이력 |
 | [templates/](templates/README.md) | 새 문서를 작성할 때 복사하는 양식 |

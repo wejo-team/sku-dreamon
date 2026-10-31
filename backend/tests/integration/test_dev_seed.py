@@ -2,27 +2,33 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta, tzinfo
 from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 from app.core.db.base import Base
 from app.core.db.session import Database
 from app.core.demo_data import DEV_ACCOUNT_IDS
+from app.models.applications import Application
 from app.models.auth import Account
 from app.models.contests import Contest
 from app.models.profiles import Profile
-from app.models.teams import Team
+from app.models.teams import Team, TeamRecruitmentRole
 from app.repositories.contest_import import insert_contest
+from app.rules.catalogs import RoleCode
 from app.rules.contests import interpret_deadline, interpret_opening
 from app.schemas.application_create import ApplicationCreate
 from app.services.application_create import submit_application
 from scripts import seed_dev_data as seed
+from scripts import seed_e2e_data
+from scripts.dev_dataset import ContestCandidate, DatasetPlan
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 NOW = datetime(2026, 10, 28, 12, tzinfo=UTC)
@@ -79,6 +85,60 @@ async def snapshot(database: Database) -> dict[str, list[tuple[object, ...]]]:
         return result
 
 
+@pytest.mark.parametrize("incomplete", [False, True])
+async def test_e2e_fixture_follows_team_plan_and_rolls_back_incomplete_seed(
+    seed_database: Database,
+    database_url: str,
+    fast_password_hash: None,
+    monkeypatch: pytest.MonkeyPatch,
+    incomplete: bool,
+) -> None:
+    # URL 차단은 test_e2e_tools에서 검증한다. 이 테스트는 별도 *_test DB의
+    # 격리 스키마에 실제 E2E transaction·서비스 commit 경계를 실행한다.
+    monkeypatch.setattr(
+        seed_e2e_data, "validate_target", lambda _: make_url(database_url)
+    )
+    monkeypatch.setattr(seed_e2e_data, "create_database", lambda _: seed_database)
+    before = await snapshot(seed_database)
+    if incomplete:
+
+        async def seed_one_pair(
+            session: AsyncSession, plan: DatasetPlan | None = None
+        ) -> int:
+            # 서비스 commit 이후에도 불완전한 결과를 감지하면 전체를 되돌린다.
+            assert plan is not None
+            return await seed.seed_teams(
+                session, replace(plan, assignments=plan.assignments[:1])
+            )
+
+        monkeypatch.setattr(seed_e2e_data, "seed_teams", seed_one_pair)
+        with pytest.raises(seed_e2e_data.FixtureError, match="complete E2E fixture"):
+            await seed_e2e_data.run(database_url, apply=True)
+        assert await snapshot(seed_database) == before
+        return
+
+    result = await seed_e2e_data.run(database_url, apply=True)
+    assert result["status"] == "applied"
+    async with seed_database.session() as session:
+        actual = await seed.counts(session)
+        assert actual["contests"] == 13
+        assert actual["accounts"] == 300
+        # 접수 중 11개 공고 × 최대 6팀. 12+1 공고 페이지와 팀 2페이지를 유지한다.
+        assert actual["teams"] == 66
+        assert result["counts"] == actual
+        assert set(await session.scalars(select(TeamRecruitmentRole.role_code))) == {
+            code.value for code in RoleCode
+        }
+        assert set(await session.scalars(select(Application.status))) == {
+            "submitted",
+            "reviewing",
+            "rejected",
+            "canceled",
+            "selected",
+            "discarded",
+        }
+
+
 async def add_contest(
     database: Database, starts_at: datetime, ends_at: datetime
 ) -> UUID:
@@ -130,23 +190,23 @@ async def add_contest(
     [
         (None, None, False),
         (timedelta(days=-2), timedelta(microseconds=-1), False),
-        (timedelta(microseconds=1), timedelta(hours=2), False),
-        (timedelta(0), timedelta(hours=2), True),
-        (timedelta(days=-1), timedelta(hours=1, microseconds=-1), False),
-        (timedelta(days=-1), timedelta(hours=1), False),
-        (timedelta(days=-1), timedelta(hours=1, microseconds=1), True),
+        (timedelta(microseconds=1), timedelta(days=8), False),
+        (timedelta(0), timedelta(days=8), True),
+        (timedelta(days=-1), timedelta(days=7, microseconds=-1), False),
+        (timedelta(days=-1), timedelta(days=7), True),
+        (timedelta(days=-1), timedelta(days=7, microseconds=1), True),
     ],
     ids=[
         "no-contest",
         "closed",
         "scheduled",
         "opening-now",
-        "under-one-hour",
-        "exactly-one-hour",
-        "over-one-hour",
+        "under-seven-days",
+        "exactly-seven-days",
+        "over-seven-days",
     ],
 )
-async def test_contest_selection_uses_opening_and_one_hour_boundaries(
+async def test_contest_selection_uses_opening_and_seven_day_boundaries(
     seed_database: Database,
     monkeypatch: pytest.MonkeyPatch,
     starts_in: timedelta | None,
@@ -186,12 +246,15 @@ async def test_contest_selection_uses_opening_and_one_hour_boundaries(
     selected = []
 
     async def observe_selected_contest(
-        _session: AsyncSession, _index: int, contest: Contest
+        _session: AsyncSession,
+        _index: int,
+        contest: ContestCandidate,
+        _reference_at: datetime,
     ) -> Team:
         selected.append(contest.contest_id)
         raise SelectionReached
 
-    # SQL 선별 자체는 실행하고, 경계마다 팀 100개를 만드는 비용만 피한다.
+    # DB 조회·계획 선별은 실행하고 경계마다 지원·알림을 만드는 비용만 피한다.
     monkeypatch.setattr(seed, "seed_team", observe_selected_contest)
     async with seed_database.session() as session:
         if eligible:
@@ -241,7 +304,7 @@ async def test_reapplication_preserves_edited_profiles_and_all_existing_rows(
     async with seed_transaction(seed_database) as session:
         assert await seed.seed_users(session) == 300
         await session.commit()
-        assert await seed.seed_teams(session) == 100
+        assert await seed.seed_teams(session) == 6
         await seed.validate_seed(session)
         await session.commit()
 
@@ -262,7 +325,7 @@ async def test_reapplication_preserves_edited_profiles_and_all_existing_rows(
         await seed.validate_seed(session)
         await session.commit()
 
-    assert len(before["accounts"]) == 300 and len(before["teams"]) == 100
+    assert len(before["accounts"]) == 300 and len(before["teams"]) == 6
     assert await snapshot(seed_database) == before
 
 
@@ -271,17 +334,28 @@ async def populate_legacy_seed(
 ) -> None:
     from scripts.seed_content import legacy_profile_input, legacy_team_content
 
+    def legacy_story(
+        index: int, contest: ContestCandidate
+    ) -> tuple[str, str, tuple[str, ...]]:
+        name, introduction = legacy_team_content(index, contest.title)
+        roles = list(RoleCode)
+        return (
+            name,
+            introduction,
+            (roles[index % 6].value, roles[(index + 1) % 6].value),
+        )
+
     if teams:
         now = datetime.now(UTC)
         await add_contest(database, now - timedelta(days=1), now + timedelta(days=30))
     with monkeypatch.context() as scoped:
         scoped.setattr(seed, "profile_input", legacy_profile_input)
-        scoped.setattr(seed, "team_content", legacy_team_content)
+        scoped.setattr(seed, "team_story", legacy_story)
         async with seed_transaction(database) as session:
             assert await seed.seed_users(session) == 300
             await session.commit()
             if teams:
-                assert await seed.seed_teams(session) == 100
+                assert await seed.seed_teams(session) == 6
                 await seed.validate_seed(session)
                 await session.commit()
 
@@ -342,9 +416,9 @@ async def test_refresh_only_exact_legacy_content_and_preserves_other_rows(
                     "profilesUpdated": 292,
                     "profilesSkipped": 8,
                     "profilesMissing": 0,
-                    "teamsUpdated": 96,
+                    "teamsUpdated": 2,
                     "teamsSkipped": 4,
-                    "teamsMissing": 0,
+                    "teamsMissing": 94,
                 }
                 await session.commit()
             await transaction.rollback()
@@ -398,7 +472,7 @@ async def test_refresh_only_exact_legacy_content_and_preserves_other_rows(
             else:
                 assert profile.real_name.endswith(f"[테스트 P{index + 1:03d}]")
                 assert profile.version == 2
-        for index, identity in enumerate(DEV_TEAM_IDS):
+        for index, identity in enumerate(DEV_TEAM_IDS[:6]):
             row = (
                 await session.execute(
                     select(Team.__table__).where(Team.team_id == identity)
