@@ -50,11 +50,11 @@ open=접수 중, closed=접수 마감이며 기본값은 전체 상태다.
 
 ### 조회 자료의 코드 사전
 아래는 facts의 코드를 해석하는 사전이며 새 검색 인자를 허용하는 목록이 아니다.
-- 분야 field_codes: {_catalog_meanings(FieldCode)}
-- 역할 role_codes 및 지원 역할 role: {_catalog_meanings(RoleCode)}
-- 역량 skill_codes: {_catalog_meanings(SkillCode)}
-- 주당 시간 weekly_availability_code: {_catalog_meanings(WeeklyAvailabilityCode)}
-- 경험 입력 experience_state: unspecified=미입력, none=경험 없음, provided=본문 입력
+- 분야 fieldCodes: {_catalog_meanings(FieldCode)}
+- 역할 roleCodes 및 지원 역할 role: {_catalog_meanings(RoleCode)}
+- 역량 skillCodes: {_catalog_meanings(SkillCode)}
+- 주당 시간 weeklyAvailabilityCode: {_catalog_meanings(WeeklyAvailabilityCode)}
+- 경험 입력 experienceState: unspecified=미입력, none=경험 없음, provided=본문 입력
 역량·시간·경험 상태는 조회된 근거를 해석할 때만 사용한다. 미입력·null을
 경험이나 역량이 없다는 뜻으로 바꾸지 않는다.
 
