@@ -1,12 +1,13 @@
 """자체 인증 입력의 정규화와 계정 응답의 공개 필드 계약을 검증한다."""
 
+import unicodedata
 from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from app.schemas.auth import AccountResponse, Credentials, LoginId
+from app.schemas.auth import AccountResponse, Credentials, LoginId, SignupCredentials
 
 
 def test_credentials_normalize_only_ascii_login_case_and_password_nfc() -> None:
@@ -31,14 +32,14 @@ def test_login_id_rejects_invalid_characters_length_and_non_strings(
 
 
 @pytest.mark.parametrize(
-    "password", ["a" * 14, "a" * 129, "e\u0301" * 14, 123456789012345]
+    "password", ["a" * 7, "a" * 129, "e\u0301" * 7, 123456789012345]
 )
 def test_password_length_is_measured_after_normalization(password: object) -> None:
     with pytest.raises(ValidationError):
         Credentials.model_validate({"loginId": "validuser", "password": password})
 
 
-@pytest.mark.parametrize("password", ["a" * 15, "가" * 128, " " * 15, "🚀" * 15])
+@pytest.mark.parametrize("password", ["a" * 8, "가" * 128, " " * 15, "🚀" * 15])
 def test_password_accepts_code_point_boundaries_without_composition_rules(
     password: str,
 ) -> None:
@@ -48,6 +49,110 @@ def test_password_accepts_code_point_boundaries_without_composition_rules(
         ).password
         == password
     )
+
+
+@pytest.mark.parametrize(
+    "password",
+    [
+        "abcdefg!",
+        "1234567@",
+        "é" * 7 + "!",
+        "😀" * 8,
+        "a" * 127 + "!",
+    ],
+)
+def test_signup_accepts_eight_characters_with_a_symbol(password: str) -> None:
+    credentials = SignupCredentials.model_validate(
+        {"loginId": "validuser", "password": password}
+    )
+    assert credentials.password == password
+    assert password not in repr(credentials)
+    assert "password" not in credentials.model_dump()
+
+
+@pytest.mark.parametrize(
+    "password",
+    [
+        "abcdef!",
+        "abcdefgh",
+        "한글비밀번호입니다",
+        "abcdefg ",
+        "abcdefg\n",
+        "e\u0301" * 6 + "!",
+        "a" * 128 + "!",
+    ],
+)
+def test_signup_rejects_short_passwords_and_missing_symbols(password: str) -> None:
+    with pytest.raises(ValidationError):
+        SignupCredentials.model_validate({"loginId": "validuser", "password": password})
+
+
+def test_password_symbol_contract_uses_unicode_15_1() -> None:
+    assert unicodedata.unidata_version == "15.1.0", (
+        "Python Unicode 변경 시 프론트의 고정 기호 범위와 가입 정책을 함께 검토하세요."
+    )
+
+
+@pytest.mark.parametrize("symbol", ["\U0001fae9", "\U0001fa89"])
+def test_newer_unicode_symbols_do_not_satisfy_signup_rule(symbol: str) -> None:
+    password = "abcdefg" + symbol
+    with pytest.raises(ValidationError):
+        SignupCredentials(loginId="validuser", password=password)
+    assert Credentials(loginId="validuser", password=password).password == password
+    assert (
+        SignupCredentials(loginId="validuser", password=password + "!").password
+        == password + "!"
+    )
+
+
+def test_signup_normalizes_before_counting_without_changing_case() -> None:
+    credentials = SignupCredentials.model_validate(
+        {"loginId": "validuser", "password": "e\u0301" * 6 + "A!"}
+    )
+    assert credentials.password == "é" * 6 + "A!"
+
+
+@pytest.mark.parametrize(
+    "character",
+    [
+        "가",  # 완성형
+        "\u1100",  # 조합 자모
+        "ㄱ",  # 호환 자모
+        "\ua960",  # 자모 확장 A
+        "\ud7b0",  # 자모 확장 B
+        "\uffa1",  # 반각 자모
+        "\u302e",  # 한글 방점
+        "\u321d",  # 괄호 한글 오전
+        "\u327c",  # 원문자 한글 참고
+        " ",
+        "\t",
+        "\n",
+        "\r",
+        "\u0085",
+        "\u00a0",
+        "\u1680",
+        "\u2003",
+        "\u2028",
+        "\u2029",
+        "\u202f",
+        "\u205f",
+        "\u3000",
+        "\ufeff",
+    ],
+)
+def test_signup_rejects_hangul_and_whitespace_without_changing_login(
+    character: str,
+) -> None:
+    password = "Abcdefg!" + character
+    with pytest.raises(ValidationError):
+        SignupCredentials.model_validate({"loginId": "validuser", "password": password})
+    assert Credentials(loginId="validuser", password=password).password == password
+
+
+@pytest.mark.parametrize("password", [" abcdefg!", "abcdefg! ", "abcd efg!"])
+def test_signup_rejects_spaces_instead_of_removing_them(password: str) -> None:
+    with pytest.raises(ValidationError):
+        SignupCredentials.model_validate({"loginId": "validuser", "password": password})
 
 
 @pytest.mark.parametrize(
