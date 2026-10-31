@@ -11,6 +11,7 @@ from app.models.ai_runs import AiRun
 from app.models.applications import Application
 from app.models.auth import Account, AuthSession
 from app.models.contests import Contest
+from app.models.courses import Course, ProfileCourse
 from app.models.profiles import Profile
 from app.models.teams import Team, TeamMembership
 
@@ -108,7 +109,7 @@ async def lock_publication_sources(
     application_ids: Sequence[UUID],
     profile_ids: Sequence[UUID],
 ) -> None:
-    """업무 변경과 같은 계정→공고→팀→지원 순서로 SHARE 잠금을 획득한다."""
+    """계정→공고→팀→지원→프로필→선택 과목 순서로 SHARE 잠금을 획득한다."""
     for column, identifiers in (
         (Account.account_id, account_ids),
         (Contest.contest_id, contest_ids),
@@ -123,6 +124,20 @@ async def lock_publication_sources(
                 .order_by(column)
                 .with_for_update(read=True)
             )
+    if profile_ids:
+        # 프로필 잠금으로 선택 관계를 고정한 뒤 공통 과목명 재적재도 전송과 직렬화한다.
+        await session.execute(
+            select(Course.course_id)
+            .where(
+                Course.course_id.in_(
+                    select(ProfileCourse.course_id).where(
+                        ProfileCourse.account_id.in_(profile_ids)
+                    )
+                )
+            )
+            .order_by(Course.course_id)
+            .with_for_update(read=True)
+        )
 
 
 async def can_recommend_team(

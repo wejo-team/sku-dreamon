@@ -7,7 +7,7 @@
 | `GET /api/v1/health` | 200 `{"status":"ok"}` | 프로세스의 HTTP liveness. DB·AI 준비 상태를 확인하지 않음 |
 | `GET /api/v1/ready` | 200 `{"status":"ready"}` 또는 503 `{"status":"unavailable"}` | 아래 자원·설정의 현재 준비 상태. 항상 `Cache-Control: no-store` |
 
-ready는 현재 Settings의 유효성·CSRF 키·정확한 origin, 앱 수명에 실제 로드된 비어 있지 않은 차단 목록·일치하는 버전을 검사합니다. DB는 `SELECT 1`과 `alembic_version`을 읽고 단일 revision이 코드 소유 [COMPATIBLE_SCHEMA_REVISIONS](../../backend/app/core/db/revisions.py)에 있어야 합니다. 현재 브리지 앱의 호환 revision은 `20261026_09`, `20261031_10`이며 Alembic head는 `20261026_09`에 유지합니다. 환경변수로 임의 확장하지 않습니다. `SELECT 1`은 업무 테이블·sequence의 쓰기 권한 검증이 아닙니다.
+ready는 현재 Settings의 유효성·CSRF 키·정확한 origin, 앱 수명에 실제 로드된 비어 있지 않은 차단 목록·일치하는 버전을 검사합니다. DB는 `SELECT 1`과 `alembic_version`을 읽고 단일 revision이 코드 소유 [COMPATIBLE_SCHEMA_REVISIONS](../../backend/app/core/db/revisions.py)에 있어야 합니다. 현재 호환 revision은 `20261031_10`이며 환경변수로 임의 확장하지 않습니다. `SELECT 1`은 업무 테이블·sequence의 쓰기 권한 검증이 아닙니다.
 
 AI 키가 있거나 `AI_REQUIRED=true`면 초기화된 로컬 AI client가 열려 있어야 합니다. AI 제공 배포는 `AI_REQUIRED=true`를 명시하여 키 누락을 설정 오류로 처리합니다. ready는 외부 LLM 요청을 하지 않으며 키 유효성·모델 제공자 가용성·할당량을 증명하지 않습니다. 응답에는 내부 오류·DB 주소·설정값·비밀값·릴리스 식별자를 추가하지 않습니다.
 

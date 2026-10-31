@@ -10,7 +10,8 @@
  */
 
 import { z } from 'zod';
-import { apiRequest, withQuery } from '@/lib/api';
+import { CourseSummary } from '@/features/catalogs/api';
+import { ApiError, apiRequest, withQuery } from '@/lib/api';
 import {
   CatalogCode,
   HttpUrl,
@@ -82,20 +83,37 @@ export const Profile = z
     isDemo: z.boolean(),
     updatedAt: Timestamp,
     ...profileFields,
-    // 단계적 배포 중 구·신 API 응답을 모두 읽되 기존 편집 요청에는 포함하지 않습니다.
-    courses: z
-      .array(z.object({ code: CatalogCode, name: z.string().min(1) }).strict())
-      .optional(),
+    // 구버전 서버의 필드 부재는 선택 이력이 비어 있는 응답과 구분합니다.
+    courses: z.array(CourseSummary).optional(),
   })
   .strict()
   .superRefine(experienceCombination);
 export type Profile = z.infer<typeof Profile>;
 
-// [출처 6] 13개 + expectedVersion. 최초 저장은 "0". accountId·version·updatedAt·isPublic·isDemo는 받지 않음
+// [출처 6] 공통 필드·courseCodes·expectedVersion. 최초 저장은 "0"이며 과목 코드 생략은 기존 선택 유지.
 export const ProfileWrite = z
-  .object({ expectedVersion: NonnegativeBigInt, ...profileFields })
+  .object({
+    expectedVersion: NonnegativeBigInt,
+    ...profileFields,
+    courseCodes: codeList(0).optional(),
+  })
   .strict();
 export type ProfileWrite = z.infer<typeof ProfileWrite>;
+
+// 구버전 서버만 거절하는 최상위 과목 필드 오류를 일반 입력 오류와 구분합니다.
+export function isCourseFeatureUnavailable(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 422 &&
+    error.issues.some(
+      (issue) =>
+        issue.type === 'extra_forbidden' &&
+        issue.loc.length === 2 &&
+        issue.loc[0] === 'body' &&
+        issue.loc[1] === 'courseCodes',
+    )
+  );
+}
 
 // [출처 6] 확인 팝업에서 결정한 공개 상태
 export const VisibilityWrite = z

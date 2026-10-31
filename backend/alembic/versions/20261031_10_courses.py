@@ -1,8 +1,4 @@
-"""브리지 앱과 함께 검증할 후속 revision 10의 고정된 확장 DDL.
-
-원본: #245의 06bbfca356d92557434e1e2da601ac65009bc811.
-실제 Alembic head는 09에 유지하며 테스트의 격리 schema에서만 실행한다.
-"""
+"""학수번호 단위 과목 원장과 프로필 선택 과목을 추가한다."""
 
 from collections.abc import Sequence
 
@@ -66,3 +62,8 @@ def upgrade() -> None:
     op.create_index(
         "ix_profile_courses_course", "profile_courses", ["course_id", "account_id"]
     )
+
+
+def downgrade() -> None:
+    op.drop_table("profile_courses")
+    op.drop_table("courses")

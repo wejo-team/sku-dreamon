@@ -2,9 +2,10 @@
 
 from typing import Annotated
 
-from pydantic import Field, HttpUrl
+from pydantic import AfterValidator, Field, HttpUrl, StrictStr
 
-from app.core.http.schemas import PositiveBigInt, ResponseDTO
+from app.core.http.schemas import PositiveBigInt, RequestDTO, ResponseDTO
+from app.rules.text import normalize_text
 
 
 class CatalogItem(ResponseDTO):
@@ -82,3 +83,33 @@ class AcademicUnitResponse(ResponseDTO):
             "항목의 활성 상태도 확인합니다."
         )
     )
+
+
+CourseCode = Annotated[
+    StrictStr, AfterValidator(normalize_text), Field(min_length=1, max_length=64)
+]
+
+
+class CourseSummary(ResponseDTO):
+    """프로필·추천에서 사용하는 과목의 학수번호와 대표 이름."""
+
+    code: str
+    name: str
+
+
+class CourseCatalogItem(CourseSummary):
+    """과목 검색에서 대표 이름과 과거 이름·개설학과를 구분한다."""
+
+    aliases: list[str]
+    departments: list[str]
+
+
+class CoursesQuery(RequestDTO):
+    """과목 코드·이름·별칭 검색과 페이지 조건."""
+
+    q: (
+        Annotated[StrictStr, AfterValidator(normalize_text), Field(max_length=100)]
+        | None
+    ) = None
+    page: Annotated[int, Field(ge=1, le=9007199254740991)] = 1
+    page_size: Annotated[int, Field(ge=1, le=100)] = 20
