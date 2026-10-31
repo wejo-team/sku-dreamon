@@ -67,6 +67,8 @@ def test_required_ai_cannot_silently_disable_itself(key: str | None) -> None:
 def production_settings(tmp_path: Path) -> Settings:
     return Settings(
         app_env="production",
+        openai_api_key=None,
+        langsmith_api_key=None,
         database_url=PostgresDsn(
             "postgresql+asyncpg://synthetic:synthetic@postgres/app"
         ),
@@ -85,6 +87,32 @@ def test_production_accepts_generic_postgresql_with_own_ca(tmp_path: Path) -> No
     assert production_settings(tmp_path).app_env == "production"
 
 
+@pytest.mark.parametrize("key", [None, "", " \t "])
+def test_production_ai_can_start_without_langsmith_key(
+    tmp_path: Path, key: str | None
+) -> None:
+    settings = production_settings(tmp_path).model_dump()
+    settings.update(
+        openai_api_key=SecretStr("synthetic-openai-key"),
+        langsmith_api_key=SecretStr(key) if key is not None else None,
+        ai_required=True,
+    )
+    config = Settings(_env_file=None, **settings)
+    assert config.ai_enabled
+    assert config.langsmith_api_key is None
+
+
+def test_production_ai_accepts_langsmith_key_without_enable_flag(
+    tmp_path: Path,
+) -> None:
+    settings = production_settings(tmp_path).model_dump()
+    settings.update(
+        openai_api_key=SecretStr("synthetic-openai-key"),
+        langsmith_api_key=SecretStr("synthetic-tracing-key"),
+    )
+    assert Settings(_env_file=None, **settings).ai_enabled
+
+
 @pytest.mark.parametrize(
     "host", ["127.9.8.7", "0.0.0.0", "[::]", "[::1]", "LOCALHOST."]
 )
@@ -100,6 +128,8 @@ def test_production_rejects_all_loopback_and_unspecified_database_hosts(
 def test_production_database_jobs_do_not_need_http_secrets(tmp_path: Path) -> None:
     settings = Settings(
         app_env="production",
+        openai_api_key=None,
+        langsmith_api_key=None,
         database_url=PostgresDsn(
             "postgresql+asyncpg://synthetic:synthetic@postgres/app"
         ),
@@ -108,6 +138,8 @@ def test_production_database_jobs_do_not_need_http_secrets(tmp_path: Path) -> No
     )
     assert settings.csrf_signing_key is None
     assert settings.http_trusted_proxies == ()
+    assert settings.langsmith_api_key is None
+    assert not settings.ai_enabled
     with pytest.raises(ValueError, match="production HTTP"):
         settings.require_http_configuration()
 

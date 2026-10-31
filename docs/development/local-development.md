@@ -206,7 +206,7 @@ AI 백엔드는 `backend/.env`의 `OPENAI_API_KEY`를 읽습니다. 키는 Pytho
 
 일반 테스트는 가짜 모델과 격리 PostgreSQL로 검사합니다. 실제 모델 수동 검사는 아래 명령을 **명시적으로 실행할 때만** OpenAI API를 호출하며 과금될 수 있습니다. 가상 자료만 보내고 키·생성 원문은 출력하지 않습니다.
 
-LangSmith 계측은 기본으로 꺼져 있습니다. 필요할 때 [실행 추적 설정](langsmith-tracing.md)에 따라 별도 LangSmith 키·프로젝트를 지정하고 `LANGSMITH_TRACING=true`로 켭니다. LangChain 기본 tracer가 그래프·가드·모델·도구의 실행과 입력/출력·오류를 기록합니다. 원문 전송 범위와 SDK masking·선택적 숨김은 해당 가이드를 확인합니다. 일반 회귀 검사는 실제 LangSmith 서비스에 접속하지 않습니다.
+LangSmith 키가 있으면 별도 스위치 없이 항상 추적합니다. 키 없는 로컬·테스트는 외부 추적 없이 실행할 수 있습니다. [실행 추적 설정](langsmith-tracing.md)에 따라 개발용 키·프로젝트를 지정하면 LangChain 기본 tracer가 그래프·가드·모델·도구의 실행과 입력/출력·오류를 기록합니다. 운영 AI에서 키가 없으면 초기화 경고를 남기고 서비스를 시작합니다. 원문 전송 범위와 SDK masking·선택적 숨김은 해당 가이드를 확인합니다. 일반 회귀 검사는 실제 LangSmith 서비스에 접속하지 않습니다.
 
 ```bash
 cd backend
