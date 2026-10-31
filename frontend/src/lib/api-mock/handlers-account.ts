@@ -191,12 +191,16 @@ export function registerAccountRoutes(router: MockRouter) {
               ...item.fieldCodes.map(fieldName),
             ].some((text) => text.toLowerCase().includes(q)),
         )
-        .sort((left, right) =>
-          sort === 'deadline_asc'
-            ? left.endsAt.localeCompare(right.endsAt) ||
-              left.id.localeCompare(right.id)
-            : right.createdAt.localeCompare(left.createdAt) ||
-              right.id.localeCompare(left.id),
+        // 서버처럼 두 정렬 모두 접수 마감 공고를 마지막에 둡니다.
+        .sort(
+          (left, right) =>
+            Number(left.registrationStatus === 'closed') -
+              Number(right.registrationStatus === 'closed') ||
+            (sort === 'deadline_asc'
+              ? left.endsAt.localeCompare(right.endsAt) ||
+                left.id.localeCompare(right.id)
+              : right.createdAt.localeCompare(left.createdAt) ||
+                right.id.localeCompare(left.id)),
         );
       return pageResponse(paginate(items, query));
     })

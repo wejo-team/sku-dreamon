@@ -33,7 +33,10 @@ class ContestSearch(RequestDTO):
         default=None, description="접수 상태. 생략하면 전체."
     )
     sort: Literal["created_desc", "deadline_asc"] = Field(
-        default="created_desc", description="최신 등록순 또는 마감순."
+        default="created_desc",
+        description=(
+            "최신 등록순 또는 마감순. 두 정렬 모두 접수 마감 공고를 마지막에 둔다."
+        ),
     )
     page: int = Field(
         default=1,

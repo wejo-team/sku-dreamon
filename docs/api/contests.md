@@ -36,12 +36,12 @@
 | `page`, `pageSize` | 정수, 기본 1·20, 페이지 크기 최대 100 | 모든 페이지 목록. 범위·마지막 페이지 보정은 [공통 계약](conventions.md) |
 | `q` | 문자열, 생략 또는 trim 후 빈 값은 검색 없음 | 공모전 탐색. 검색 대상은 아래 표 |
 | `fieldCode` | `CatalogCode`, 생략 시 제한 없음 | 공모전 목록. 저장된 전체 분야 중 하나라도 해당 코드를 포함 |
-| `sort` | `created_desc` 또는 `deadline_asc`, 기본 `created_desc` | 공모전 목록 |
+| `sort` | `created_desc` 또는 `deadline_asc`, 기본 `created_desc` | 공모전 목록. 두 정렬 모두 조회 시점에 접수 마감된 공고를 마지막에 둠 |
 | `registrationStatus` | `RegistrationStatus` | 공모전 목록. 지정한 접수 상태만 조회 |
 
 | 목록 | 검색 대상 | 안정 정렬 |
 | --- | --- | --- |
-| 공모전 | 제목·주최자·분야 표시명 | 등록순 `createdAt DESC, id DESC`; 마감순 `endsAt ASC, id ASC` |
+| 공모전 | 제목·주최자·분야 표시명 | 접수 마감 여부(마감 공고가 뒤) 다음에 등록순 `createdAt DESC, id DESC`; 마감순 `endsAt ASC, id ASC` |
 
 `Contest.teamCount`는 연결된 **전체 팀 수**이고 페이지의 `pagination.total`은 현재 권한·필터에 맞는 결과 수입니다.
 
