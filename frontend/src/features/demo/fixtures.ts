@@ -25,6 +25,7 @@ import type {
   RegistrationStatus,
 } from '@/features/contests/api';
 import type { Profile } from '@/features/profiles/api';
+import type { Course } from '@/features/catalogs/api';
 import type {
   MembershipRole,
   TeamDetail,
@@ -447,6 +448,7 @@ const profile = (seed: ProfileSeed): Profile => ({
   fieldCodes: [],
   roleCodes: [],
   skillCodes: [],
+  courses: [],
   portfolio: null,
   ...seed,
 });
@@ -938,6 +940,7 @@ export function createDemoRecords() {
     account: fixtureAccount(),
     catalogs: fixtureCatalogs(),
     academicUnits: fixtureAcademicUnits(),
+    courses: [] as Course[],
     contests: structuredClone(contestSeeds),
     profiles: fixtureProfiles(),
     teams: fixtureTeams(),

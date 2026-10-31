@@ -104,7 +104,7 @@ AI 키의 비어 있지 않은 값에서 `ai_enabled`를 계산하며 기본 `AI
 
 운영 전환 전 검사는 **trusted Nginx 컨테이너의 고정 네트워크 peer에서 후보 Docker 서비스 이름으로** 요청합니다. 예상 API Host와 `X-Forwarded-For`의 실제 검사 client IP 하나, `X-Forwarded-Proto: https`를 사용합니다. API 컨테이너 안·호스트 localhost에서 직접 호출하면 운영 프록시 경계가 의도적으로 거부하므로 그 요청을 readiness 성공 조건으로 쓰지 않습니다. 내부 rollout·monitor probe는 직렬화합니다. 이미 진행·취소 정리 중인 검사 한 개가 있으면 다른 probe는 즉시 503이며 동시 요청의 200은 보장하지 않습니다. Nginx 기반의 실제 경로·외부 공개 차단은 [DEP-03 수동 컨테이너 검사](../development/container-deployment.md#verification)에서 검사합니다.
 
-DB 검사는 제한 시간 안의 `SELECT 1`과 단일 Alembic revision을 사용합니다. 릴리스의 [COMPATIBLE_SCHEMA_REVISIONS](../../backend/app/core/db/revisions.py)는 현재 `20261026_09`이며 소스 리뷰·테스트로만 확장합니다. 환경변수로 임의 revision을 허용하지 않습니다. 새 revision을 허용하는 **이전 앱의 호환 릴리스부터** 기존 schema에 배포한 뒤 safe expand·새 앱 전환을 진행해야 이전 슬롯을 재기동할 수 있습니다.
+DB 검사는 제한 시간 안의 `SELECT 1`과 단일 Alembic revision을 사용합니다. 릴리스의 [COMPATIBLE_SCHEMA_REVISIONS](../../backend/app/core/db/revisions.py)는 현재 `20261031_10`이며 소스 리뷰·테스트로만 확장합니다. 환경변수로 임의 revision을 허용하지 않습니다. 새 revision을 허용하는 **이전 앱의 호환 릴리스부터** 기존 schema에 배포한 뒤 safe expand·새 앱 전환을 진행해야 이전 슬롯을 재기동할 수 있습니다.
 
 `SELECT 1`은 테이블·sequence의 DML 권한을 증명하지 않습니다. 앱 역할의 필요한 읽기/쓰기 권한은 배포 전 점검과 격리된 smoke에서 검사하고 반복 readiness에 사용자 생성·로그인·지속 DB 쓰기를 넣지 않습니다.
 
