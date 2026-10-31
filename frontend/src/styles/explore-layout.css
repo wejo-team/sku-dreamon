@@ -1,0 +1,310 @@
+/* 탐색의 검색·선택 도구와 구분선 목록, 공통 하단 메뉴의 압축 배치를 정의합니다. */
+.dreamon-preview {
+  --explore-divider: #83b995;
+  --explore-search-surface: #f5f7f5;
+  --mobile-nav-height: 56px;
+}
+
+/* 상단 브랜드 바 없이 본문부터 시작하고 하단 메뉴만큼 스크롤 여백을 둡니다. */
+.dreamon-preview:not(.preview-ai-shell) .preview-main {
+  min-height: 100dvh;
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-bottom: calc(
+    var(--mobile-nav-height) + 16px + env(safe-area-inset-bottom)
+  );
+}
+
+.dreamon-preview .preview-main.preview-main-teams {
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+
+/* 대화 영역은 화면 높이에 맞추되 노치 아래에서 스크롤을 시작합니다. */
+.dreamon-preview.preview-ai-shell .preview-main {
+  padding-top: env(safe-area-inset-top);
+}
+
+.dreamon-preview.preview-auth-shell .preview-main {
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.dreamon-preview .preview-main-auth > .preview-auth-home {
+  width: fit-content;
+  margin-bottom: 12px;
+}
+
+.dreamon-preview.preview-explore-shell {
+  background: var(--surface-card);
+}
+
+.dreamon-preview.preview-explore-shell .preview-main {
+  min-height: 100dvh;
+  padding-top: max(8px, env(safe-area-inset-top));
+  padding-bottom: calc(
+    var(--mobile-nav-height) + 16px + env(safe-area-inset-bottom)
+  );
+}
+
+.dreamon-preview .preview-explore {
+  gap: 8px;
+}
+
+.dreamon-preview .preview-explore-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dreamon-preview .preview-explore-topbar .preview-search {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 4px 0 12px;
+  border: 1px solid transparent;
+  background: var(--explore-search-surface);
+}
+
+.dreamon-preview .preview-explore-topbar .preview-search input {
+  min-width: 0;
+  height: 44px;
+  font-size: 16px;
+}
+
+.dreamon-preview .preview-explore-toolbar {
+  display: grid;
+  grid-template-columns: minmax(24px, 1fr) auto auto auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dreamon-preview .preview-explore-toolbar .preview-result-count {
+  margin: 0;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.dreamon-preview .preview-explore-kind {
+  grid-column: 2;
+}
+
+.dreamon-preview .preview-explore-toolbar .preview-sort {
+  grid-column: 3;
+}
+
+.dreamon-preview .preview-explore-toolbar [data-slot='native-select-wrapper'] {
+  width: 80px;
+}
+
+.dreamon-preview
+  .preview-explore-toolbar
+  .preview-sort
+  [data-slot='native-select-wrapper'] {
+  width: 112px;
+}
+
+.dreamon-preview .preview-explore-toolbar select {
+  min-height: 44px;
+  padding: 8px 24px 8px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  box-shadow: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dreamon-preview .preview-explore-toolbar [data-slot='native-select-icon'] {
+  right: 4px;
+  color: var(--foreground);
+  opacity: 1;
+}
+
+.dreamon-preview .preview-explore-toolbar .preview-filter-trigger {
+  position: relative;
+  grid-column: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-width: 64px;
+  min-height: 44px;
+  padding: 8px 2px;
+  border: 0;
+  box-shadow: none;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dreamon-preview
+  .preview-explore-toolbar
+  .preview-filter-trigger[data-active='true'] {
+  color: var(--primary);
+  background: var(--accent);
+}
+
+.dreamon-preview .preview-explore-grid--contests {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.dreamon-preview .preview-explore .preview-contest-card {
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  padding: 14px 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-card);
+  box-shadow: none;
+  overflow: visible;
+  transform: none;
+  transition: background-color 160ms ease-out;
+}
+
+.dreamon-preview
+  .preview-explore
+  .preview-contest-card
+  + .preview-contest-card {
+  border-top: 1px solid var(--explore-divider);
+}
+
+.dreamon-preview .preview-explore .preview-contest-cover {
+  width: 96px;
+  height: 104px;
+  min-height: 0;
+  aspect-ratio: auto;
+  border-radius: 6px;
+}
+
+.dreamon-preview .preview-explore .preview-contest-copy {
+  min-height: 104px;
+  gap: 4px;
+  padding: 0;
+}
+
+.dreamon-preview .preview-explore .preview-contest-card h3 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.dreamon-preview .preview-explore .preview-contest-copy .preview-muted {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.dreamon-preview .preview-contest-meta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.dreamon-preview .preview-contest-meta .preview-deadline {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.dreamon-preview .preview-contest-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+.dreamon-preview .preview-contest-fields .preview-badge {
+  padding: 2px 5px;
+  font-size: 11px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.dreamon-preview .preview-contest-meta .preview-contest-teams {
+  align-self: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.dreamon-preview
+  .preview-explore
+  .preview-contest-card:is(:hover, :focus-visible, :active) {
+  background: var(--muted);
+  border-color: var(--explore-divider);
+  box-shadow: none;
+  transform: none;
+}
+
+.dreamon-preview .preview-mobile-nav {
+  min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+  padding: 5px 12px calc(6px + env(safe-area-inset-bottom));
+  gap: 4px;
+}
+
+.dreamon-preview .preview-mobile-nav a {
+  min-height: 44px;
+  gap: 2px;
+  padding: 0;
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.dreamon-preview .preview-mobile-nav svg {
+  width: 20px;
+  height: 20px;
+}
+
+.dreamon-preview .preview-mobile-nav a[aria-current] {
+  background: transparent;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+@container dreamon (max-width: 359px) {
+  .dreamon-preview.preview-explore-shell .preview-main {
+    padding-inline: 16px;
+  }
+  .dreamon-preview
+    .preview-explore-toolbar
+    [data-slot='native-select-wrapper'] {
+    width: 70px;
+  }
+  .dreamon-preview
+    .preview-explore-toolbar
+    .preview-sort
+    [data-slot='native-select-wrapper'] {
+    width: 106px;
+  }
+  .dreamon-preview .preview-explore .preview-contest-card {
+    grid-template-columns: 80px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .dreamon-preview .preview-explore .preview-contest-cover {
+    width: 80px;
+    height: 104px;
+  }
+  .dreamon-preview .preview-contest-meta {
+    gap: 6px;
+  }
+  .dreamon-preview .preview-contest-fields {
+    padding-left: 6px;
+  }
+}

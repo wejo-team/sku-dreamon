@@ -31,7 +31,7 @@ class ScopeError(ValueError):
 def classify_paths(paths: Iterable[str]) -> set[str]:
     selected: set[str] = set()
     for path in paths:
-        if path.startswith(("docs/", "design-reference/")) or path in DOC_FILES:
+        if path.startswith("docs/") or path in DOC_FILES:
             selected.add("docs")
         elif path.startswith("frontend/"):
             selected.add("frontend")

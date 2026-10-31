@@ -226,9 +226,7 @@ describe('workspace boundary regressions', () => {
       db: recordsWithMyProfile({ isPublic: true }),
     });
     await settled(view.client);
-    expect(
-      screen.getByRole('region', { name: '확정된 팀원' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '팀원' })).toBeInTheDocument();
     state.sessionAccountId = null;
     await act(async () => {
       await view.client.invalidateQueries({
@@ -238,7 +236,7 @@ describe('workspace boundary regressions', () => {
     await settled(view.client);
 
     expect(
-      screen.queryByRole('region', { name: '확정된 팀원' }),
+      screen.queryByRole('region', { name: '팀원' }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: '로그인하기' }),
@@ -347,9 +345,7 @@ it.each([403, 404, 503])(
       signedIn: true,
     });
     await settled(view.client);
-    expect(
-      screen.getByRole('region', { name: '확정된 팀원' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '팀원' })).toBeInTheDocument();
     const fetch = globalThis.fetch;
     vi.stubGlobal('fetch', (input: string, init?: RequestInit) =>
       String(input).includes('/space')
@@ -371,7 +367,7 @@ it.each([403, 404, 503])(
     });
     await settled(view.client);
     expect(
-      screen.queryByRole('region', { name: '확정된 팀원' }),
+      screen.queryByRole('region', { name: '팀원' }),
     ).not.toBeInTheDocument();
     expect(view.client.getQueryData(queryKeys.me)).not.toBeNull();
     if (status === 503)

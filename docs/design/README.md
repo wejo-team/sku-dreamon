@@ -15,7 +15,7 @@
 
 ## 보관한 디자인 이력
 
-`design-reference/`는 초기 화면과 모의 동작을 확인하기 위한 [독립 앱](../../design-reference/README.md)으로 보관합니다. 최신 제품 화면·정책·API 계약의 기준으로 사용하지 않습니다.
+초기 화면·모의 동작을 담았던 `design-reference/` 디렉터리는 2026-11-01 사용자 요청으로 삭제했습니다. [삭제 전 소스](https://github.com/wejo-team/sku-dreamon/tree/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference)는 Git 이력에서 확인하며 최신 제품 화면·정책·API 계약의 기준으로 사용하지 않습니다.
 
 - [이전 개발 인계](handoff.md): 레퍼런스 실행법, 모의 구현의 범위와 당시 제품 이관 기록
 - [디자인 기능·명세 대조 기록](../specs/prototype-alignment.md): 이전 정책 반영·배포 이력

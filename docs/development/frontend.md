@@ -10,7 +10,7 @@
 - 색상·간격 등 토큰은 [globals.css](../../frontend/src/styles/globals.css), 공통 UI는 `frontend/src/components/`를 사용합니다. [스타일 안내](../design/tokens.md)와 [자산 출처](../design/assets.md)는 제품 코드의 위치와 사용 근거를 설명합니다.
 - UI 변경은 제품 코드·관련 명세·필요한 검증 자료를 함께 갱신하고 `frontend/`에서 확인합니다. 실행은 [로컬 실행](local-development.md), 검사는 [테스트·CI](testing.md)를 따릅니다.
 - 비밀번호 기호 표는 [생성 스크립트](../../scripts/generate_password_symbols.py)로 제품 파일만 갱신합니다. `backend/`에서 `uv run python ../scripts/generate_password_symbols.py`로 생성하고 `--check`로 검사합니다. 서버 Python 3.13의 Unicode 15.1과 제품 표의 일치를 유지합니다.
-- `design-reference/`와 과거 GPT Sites는 디자인 이력입니다. 제품의 선행 구현·동기화 대상이 아니며, 과거 모의 동작을 현재 정책·API 계약으로 사용하지 않습니다. 제품 코드에 남은 레퍼런스 경로 주석은 최초 이관 출처입니다.
+- 삭제한 `design-reference/`의 [이전 소스](https://github.com/wejo-team/sku-dreamon/tree/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference)와 과거 GPT Sites는 디자인 이력입니다. 제품의 선행 구현·동기화 대상이 아니며, 과거 모의 동작을 현재 정책·API 계약으로 사용하지 않습니다. 제품 코드에 남은 레퍼런스 경로 주석은 최초 이관 출처입니다.
 
 ## 화면과 상태
 
