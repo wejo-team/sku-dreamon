@@ -1,7 +1,8 @@
 import { act, fireEvent, screen, within } from '@testing-library/react';
 import { setupUser } from '@/test/user';
 import { Route, Routes, useLocation } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { AppShell } from '@/components/layout/AppShell';
 import {
   ContestPage,
   ExplorePage,
@@ -155,7 +156,7 @@ const pagedTeamId = (name: string) => uuid(pagedNames.indexOf(name) + 1);
 const level3Headings = () =>
   screen.getAllByRole('heading', { level: 3 }).map((node) => node.textContent);
 
-describe('official reference public exploration', () => {
+describe('product public exploration', () => {
   it('shows twelve contests per page and preserves the filtered page through a detail visit', async () => {
     const db = createDemoRecords();
     const source = db.contests[0]!;
@@ -302,7 +303,7 @@ describe('official reference public exploration', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('discards filter drafts and clears applied filters while retaining the selected tab', async () => {
+  it('discards filter drafts and clears selected filters inside the drawer', async () => {
     const { user, step } = await renderExplore(
       '/explore?tab=teams&role=development&open=true',
     );
@@ -312,13 +313,13 @@ describe('official reference public exploration', () => {
     await user.click(screen.getByRole('button', { name: '탐색 필터' }));
     expect(screen.getByRole('radio', { name: '개발' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: '모집중만' })).toBeChecked();
-    await user.click(screen.getByRole('button', { name: '취소' }));
+    await user.click(screen.getByRole('radio', { name: '모든 역할' }));
+    await user.click(screen.getByRole('checkbox', { name: '모집중만' }));
     await step(() =>
-      user.click(screen.getByRole('button', { name: '검색 조건 초기화' })),
+      user.click(screen.getByRole('button', { name: '필터 적용' })),
     );
-    expect(screen.getByRole('link', { name: '팀' })).toHaveAttribute(
-      'aria-current',
-      'page',
+    expect(screen.getByRole('combobox', { name: '탐색 종류' })).toHaveValue(
+      'teams',
     );
     await user.click(screen.getByRole('button', { name: '탐색 필터' }));
     expect(screen.getByRole('radio', { name: '모든 역할' })).toBeChecked();
@@ -352,9 +353,7 @@ describe('official reference public exploration', () => {
       expect(input).toHaveValue(word);
       expect(currentUrl().searchParams.get('q')).toBe(word);
       await step(() =>
-        user.click(
-          screen.getAllByRole('button', { name: '검색 조건 초기화' })[0]!,
-        ),
+        user.click(screen.getByRole('button', { name: '검색어 지우기' })),
       );
       expect(input).toHaveValue('');
       expect(currentUrl().searchParams.get('q')).toBeNull();
@@ -362,29 +361,46 @@ describe('official reference public exploration', () => {
   );
 
   // 조합 종료와 클릭이 함께 처리되면 중간 URL(q=가)이 렌더링되지 않습니다.
-  it('clears the composed draft when a tab link is clicked right after composition ends', async () => {
+  it('clears the composed draft when the exploration kind changes right after composition ends', async () => {
     const { client } = await renderExplore('/explore');
     const input = screen.getByRole('textbox', { name: '탐색 검색' });
     fireEvent.compositionStart(input);
     fireEvent.change(input, { target: { value: '가' } });
     act(() => {
       fireEvent.compositionEnd(input);
-      fireEvent.click(screen.getByRole('link', { name: '팀' }));
+      fireEvent.change(screen.getByRole('combobox', { name: '탐색 종류' }), {
+        target: { value: 'teams' },
+      });
     });
     await settled(client);
     expect(currentUrl().search).toBe('?tab=teams');
     expect(input).toHaveValue('');
   });
 
-  it('clears the composed draft when conditions are reset right after composition ends', async () => {
-    const { client } = await renderExplore('/explore?sort=deadline');
+  it('clears the composed draft when the bottom explore link is clicked right after composition ends', async () => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const { client } = renderWithApi(
+      <>
+        <CurrentLocation />
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/explore" element={<ExplorePage />} />
+          </Route>
+        </Routes>
+      </>,
+      { path: '/explore?sort=deadline' },
+    );
+    await settled(client);
     const input = screen.getByRole('textbox', { name: '탐색 검색' });
     fireEvent.compositionStart(input);
     fireEvent.change(input, { target: { value: '가' } });
     act(() => {
       fireEvent.compositionEnd(input);
       fireEvent.click(
-        screen.getAllByRole('button', { name: '검색 조건 초기화' })[0]!,
+        within(screen.getByRole('navigation', { name: '주 메뉴' })).getByRole(
+          'link',
+          { name: '탐색' },
+        ),
       );
     });
     await settled(client);
@@ -392,18 +408,59 @@ describe('official reference public exploration', () => {
     expect(input).toHaveValue('');
   });
 
-  it('exposes an accessible AI shortcut and resets a sort-only condition', async () => {
+  it('uses the sort selector without a separate reset button', async () => {
     const { user, step } = await renderExplore('/explore?sort=deadline');
     expect(
-      screen.getByRole('link', { name: 'AI에게 추천 받기' }),
-    ).toHaveAttribute('href', '/ai');
+      screen.queryByRole('link', { name: 'AI에게 추천 받기' }),
+    ).not.toBeInTheDocument();
     await step(() =>
-      user.click(screen.getByRole('button', { name: '검색 조건 초기화' })),
+      user.selectOptions(
+        screen.getByRole('combobox', { name: '정렬' }),
+        'default',
+      ),
     );
     expect(screen.getByLabelText('정렬')).toHaveValue('default');
     expect(
       screen.queryByRole('button', { name: '검색 조건 초기화' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('returns to unfiltered contests from the bottom explore navigation, including empty results', async () => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const { client } = renderWithApi(
+      <>
+        <CurrentLocation />
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/explore" element={<ExplorePage />} />
+          </Route>
+        </Routes>
+      </>,
+      { path: '/explore?tab=teams&q=없는검색어&role=development&open=true' },
+    );
+    await settled(client);
+    expect(
+      screen.getByRole('heading', { name: '검색 결과가 없어요' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '검색 조건 초기화' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+    await setupUser().click(
+      within(screen.getByRole('navigation', { name: '주 메뉴' })).getByRole(
+        'link',
+        { name: '탐색' },
+      ),
+    );
+    await settled(client);
+    expect(currentUrl().search).toBe('');
+    expect(screen.getByRole('combobox', { name: '탐색 종류' })).toHaveValue(
+      'contests',
+    );
+    expect(screen.getByRole('textbox', { name: '탐색 검색' })).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: '정렬' })).toHaveValue(
+      'default',
+    );
   });
 
   it('keeps public team recruitment visible to guests without exposing team space', async () => {
@@ -482,7 +539,7 @@ describe('official reference public exploration', () => {
     expect(level3Headings()).toEqual(pagedNames.slice(6, 12));
   });
 
-  it.each(['search', 'filter', 'tab', 'reset'])(
+  it.each(['search', 'filter', 'tab'])(
     'returns to page one when the user changes %s',
     async (action) => {
       const { user, step } = await renderExplore(
@@ -503,16 +560,14 @@ describe('official reference public exploration', () => {
         expect(currentUrl().searchParams.get('role')).toBe('design');
       } else if (action === 'tab') {
         await step(() =>
-          user.click(screen.getByRole('link', { name: '사람' })),
+          user.selectOptions(
+            screen.getByRole('combobox', { name: '탐색 종류' }),
+            'people',
+          ),
         );
         expect(
           screen.getByRole('heading', { name: '함께할 사람' }),
         ).toBeInTheDocument();
-      } else {
-        await step(() =>
-          user.click(screen.getByRole('button', { name: '검색 조건 초기화' })),
-        );
-        expect(currentUrl().searchParams.get('role')).toBeNull();
       }
       expect(currentUrl().searchParams.get('page')).toBeNull();
       expect(screen.getByRole('link', { name: '1페이지' })).toHaveAttribute(
@@ -568,10 +623,10 @@ describe('official reference public exploration', () => {
         name: '로그인하고 함께할 사람을 찾아보세요',
       }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('—');
     expect(
-      screen.getByRole('link', { name: 'AI에게 추천 받기' }),
-    ).toHaveAttribute('href', '/ai');
+      screen.queryByRole('link', { name: 'AI에게 추천 받기' }),
+    ).not.toBeInTheDocument();
     for (const person of people)
       expect(
         screen.queryByRole('heading', { name: person.realName }),
@@ -582,11 +637,11 @@ describe('official reference public exploration', () => {
     );
   });
 
-  it('provides the AI shortcut in people search for both guests and members', async () => {
+  it('keeps people search free of the duplicate AI shortcut for members', async () => {
     await renderExplore('/explore?tab=people', { signedIn: true });
     expect(
-      screen.getByRole('link', { name: 'AI에게 추천 받기' }),
-    ).toHaveAttribute('href', '/ai');
+      screen.queryByRole('link', { name: 'AI에게 추천 받기' }),
+    ).not.toBeInTheDocument();
   });
 
   it('guards direct people detail links and keeps the target for login', async () => {

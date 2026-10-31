@@ -68,7 +68,7 @@ git show origin/develop:docs/agent-guide.md
 
 ## 3. 구현과 결과 리뷰
 
-- 화면·인터랙션은 [프론트엔드 기준](frontend.md#ui-source)에 따라 `frontend/`에서 구현·검증합니다. `design-reference/`는 초기 디자인 이력으로 보관하며 선행 수정·이관·동기화를 작업 단계나 완료 조건으로 요구하지 않습니다.
+- 화면·인터랙션은 [프론트엔드 기준](frontend.md#ui-source)에 따라 `frontend/`에서 구현·검증합니다. 초기 디자인 앱 `design-reference/`는 삭제했으며 [이전 소스](https://github.com/wejo-team/sku-dreamon/tree/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference)는 Git 이력에서 확인합니다. 선행 수정·이관·동기화를 작업 단계나 완료 조건으로 요구하지 않습니다.
 - 기능과 관련 테스트를 구현하고 [테스트·CI](testing.md)의 해당 검사를 실행합니다.
 - PR에는 명세 링크, 완료 조건별 결과, UI 변경 시 확인 자료, 미실행 검사와 이유를 적습니다.
 - 완료 조건은 명세의 번호로 연결합니다. 예를 들어 `AC-01`에 대응하는 테스트·실행 결과를 적고, 확인하지 못한 조건은 미확인으로 남깁니다. 명세가 없는 작은 수정은 수정 목표와 검증 근거를 직접 적습니다.

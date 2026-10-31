@@ -1,6 +1,6 @@
 # 테스트·CI 기준
 
-문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `develop`과 `main`에 병합된 뒤에는 전체를 검사합니다. `develop`은 CI만 실행하며, 운영 CD는 `main`의 같은 SHA에서 필요한 CI가 성공한 뒤 실행합니다. unit·HTTP·PostgreSQL 검사와 제품 Playwright E2E를 실행합니다. 실제 프론트·서버·DB 실행은 [통합테스트와 bug bash](bug-bash.md), 일반 앱 실행은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 제품 화면 검증은 `frontend/`에서 수행합니다. 보관한 레퍼런스 앱의 [과거 실행 안내](#design-reference)는 제품 변경의 필수 검사가 아닙니다.
+문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `develop`과 `main`에 병합된 뒤에는 전체를 검사합니다. `develop`은 CI만 실행하며, 운영 CD는 `main`의 같은 SHA에서 필요한 CI가 성공한 뒤 실행합니다. unit·HTTP·PostgreSQL 검사와 제품 Playwright E2E를 실행합니다. 실제 프론트·서버·DB 실행은 [통합테스트와 bug bash](bug-bash.md), 일반 앱 실행은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 제품 화면 검증은 `frontend/`에서 수행합니다. 삭제한 레퍼런스 앱의 [과거 실행 기록](#design-reference)은 제품 변경의 필수 검사가 아닙니다.
 
 ## 의미 있는 테스트
 
@@ -74,7 +74,6 @@ uv run pytest tests/integration/test_dev_seed.py tests/integration/test_dev_data
 | `backend/` 내부 코드·설정·의존성 | 백엔드 + 브라우저 통합 |
 | `backend/Dockerfile` | 백엔드 + 브라우저 통합 + 배포 정적 검사 |
 | `deploy/`, `.dockerignore` | 기존 공통 경로의 전체 검사 + 배포 정적 검사 |
-| `design-reference/` 내부 화면·설정·자산 | 문서 검사만 실행; 보관 앱 자체를 확인할 때만 로컬 검사 |
 | `docs/`, 루트 `README.md`·`AGENTS.md`, 문서 검사 스크립트와 해당 테스트 | 문서 전체 검사 |
 | 루트 `package.json`·`package-lock.json`·`.nvmrc` | 문서 전체 검사; 현재 이 파일들은 문서 도구 전용 |
 | CI workflow·분류기·공통 설정 등 위 규칙에 없는 경로 | 전체 검사 |
@@ -101,11 +100,11 @@ uv run pytest tests/integration/test_dev_seed.py tests/integration/test_dev_data
 
 <a id="공식-디자인-앱의-수동-확인"></a>
 
-## 보관한 레퍼런스 앱의 재현
+## 삭제한 레퍼런스 앱의 과거 기록
 
-`design-reference/`는 [초기 디자인 이력](../design/README.md)으로 보관합니다. 제품 UI 변경은 `frontend/`의 테스트·빌드·브라우저 검사로 확인하며, 레퍼런스의 수정·동기화·실행은 완료 조건이 아닙니다.
+`design-reference/`는 현재 체크아웃에서 삭제했습니다. [삭제 전 소스](https://github.com/wejo-team/sku-dreamon/tree/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference)는 초기 디자인 이력으로만 확인합니다. 제품 UI 변경은 `frontend/`의 테스트·빌드·브라우저 검사로 확인하며, 레퍼런스의 수정·동기화·실행은 완료 조건이 아닙니다.
 
-과거 화면을 재현해야 할 때만 [이전 인계 기록의 확인 명령](../design/handoff.md#verification-commands)을 사용합니다. 보관 앱의 전용 CI는 없고, 이 폴더만 변경한 PR은 기존 분류대로 문서 검사를 실행합니다. 제품 코드도 바뀌면 해당 영역의 검사를 함께 실행합니다. 모의 UI 확인을 제품 인증·API·LLM·동시성 검증의 완료 근거로 사용하지 않습니다.
+과거 화면을 재현해야 할 때만 삭제 전 커밋을 별도로 체크아웃한 뒤 [이전 인계 기록의 확인 명령](../design/handoff.md#verification-commands)을 사용합니다. 현재 체크아웃에서 해당 앱의 실행 명령을 사용할 수 없습니다. 모의 UI 확인을 제품 인증·API·LLM·동시성 검증의 완료 근거로 사용하지 않습니다.
 
 ## PR 완료 확인
 

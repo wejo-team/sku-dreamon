@@ -1,13 +1,13 @@
 /**
  * [참조 출처]
- * 1. design-reference/src/features/design-preview/ExploreFilters.tsx - 탐색 필터 Drawer 원본
+ * 1. docs/specs/contests.md#exploration-ui - 탐색 필터의 선택·적용·취소
  * 2. docs/design/screens.md - 「확인할 상태와 연결」 초안 선택·적용 시 URL 반영, 취소·Escape 시 미적용 선택 제거
  * 3. docs/design/tokens.md - Drawer + RadioGroup + Checkbox, 선택 개수 안내, 44px 아이콘 버튼
  * 4. docs/design/assets/explore-filters-390.png - 실제 필터 화면
  */
 
 import { useId, useState } from 'react';
-import { ListFilter } from 'lucide-react';
+import { SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -65,14 +65,15 @@ export function ExploreFilters({
     >
       <DrawerTrigger asChild>
         <Button
-          variant="outline"
-          className="preview-compact-action preview-filter-trigger"
+          variant="ghost"
+          className="preview-filter-trigger"
           aria-label="탐색 필터"
           aria-describedby={`${id}-summary`}
           title={`탐색 필터: ${summary}`}
           data-active={activeCount > 0}
         >
-          <ListFilter size={20} aria-hidden="true" />
+          <span>필터</span>
+          <SlidersHorizontal size={18} aria-hidden="true" />
           {activeCount > 0 && (
             <span className="preview-filter-count" aria-hidden="true">
               {activeCount}

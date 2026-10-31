@@ -207,6 +207,10 @@ test('팀 생성→지원→팀장 선발→알림 읽음→선발자 취소·�
     );
     expect(notifications.unreadCount).toBeGreaterThan(0);
     await memberPage
+      .getByRole('navigation', { name: '주 메뉴', exact: true })
+      .getByRole('link', { name: '탐색', exact: true })
+      .click();
+    await memberPage
       .getByRole('button', { name: /^알림, 읽지 않은 알림/ })
       .click();
     await expect(
@@ -248,6 +252,10 @@ test('팀 생성→지원→팀장 선발→알림 읽음→선발자 취소·�
       afterSingle.data.find((item) => item.id === selectedNotice!.id),
     ).toMatchObject({ readAt: expect.any(String) });
     expect(afterSingle.unreadCount).toBe(notifications.unreadCount - 1);
+    await memberPage
+      .getByRole('navigation', { name: '주 메뉴', exact: true })
+      .getByRole('link', { name: '탐색', exact: true })
+      .click();
     await memberPage
       .getByRole('button', { name: /^알림, 읽지 않은 알림/ })
       .click();

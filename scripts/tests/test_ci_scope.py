@@ -18,15 +18,15 @@ class ScopeRulesTests(unittest.TestCase):
             (["docs/specs/authentication.md"], {"docs"}),
             (
                 ["design-reference/src/app/App.tsx", "design-reference/package-lock.json"],
-                {"docs"},
+                ALL,
             ),
             (
                 ["design-reference/src/app/App.tsx", "frontend/src/app/App.tsx"],
-                {"docs", "frontend"},
+                ALL,
             ),
             (
                 ["design-reference/public/favicon.svg", "backend/app/core/config.py"],
-                {"docs", "backend"},
+                ALL,
             ),
             (["design-reference-extra/shared.ts"], ALL),
             (["docs/.vitepress/config.ts", "package-lock.json"], {"docs"}),
@@ -185,13 +185,20 @@ class ScopeGitIntegrationTests(unittest.TestCase):
         self.commit()
         self.assert_success(self.run_scope(), {"backend", "docs"})
 
-    def test_move_from_product_to_reference_keeps_product_check(self):
+    def test_move_from_product_to_retired_reference_runs_all_checks(self):
         self.write_file("frontend/src/Example.tsx", "unique reference text\n" * 20)
         self.base = self.commit()
         (self.repository / "design-reference").mkdir()
         self.git("mv", "frontend/src/Example.tsx", "design-reference/Example.tsx")
         self.commit()
-        self.assert_success(self.run_scope(), {"frontend", "docs"})
+        self.assert_success(self.run_scope(), ALL)
+
+    def test_retired_reference_deletion_runs_all_checks(self):
+        self.write_file("design-reference/src/app/App.tsx")
+        self.base = self.commit()
+        (self.repository / "design-reference/src/app/App.tsx").unlink()
+        self.commit()
+        self.assert_success(self.run_scope(), ALL)
 
     def test_backend_schema_deletion_selects_only_backend(self):
         self.write_file("backend/app/schemas/user.py")

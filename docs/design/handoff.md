@@ -2,15 +2,15 @@
 
 # 이전 디자인 개발 인계
 
-이 문서는 `design-reference/`를 제품으로 옮기던 시기의 **인계·실행 기록**입니다. 현재 화면·인터랙션의 기준은 `frontend/`이며, 개발할 때 레퍼런스를 먼저 수정하거나 제품과 동기화할 의무는 없습니다. 현재 작업은 [제품 UI 안내](README.md)와 [로컬 실행](../development/local-development.md)에서 시작합니다.
+이 문서는 `design-reference/`를 제품으로 옮기던 시기의 **인계·실행 기록**입니다. 해당 디렉터리는 삭제했으며 [삭제 전 소스](https://github.com/wejo-team/sku-dreamon/tree/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference)는 Git 이력에서 확인합니다. 현재 화면·인터랙션의 기준은 `frontend/`이며, 개발할 때 레퍼런스를 먼저 수정하거나 제품과 동기화할 의무는 없습니다. 현재 작업은 [제품 UI 안내](README.md)와 [로컬 실행](../development/local-development.md)에서 시작합니다.
 
-아래 실행법·파일 역할·모의 구현·이관 순서는 보관한 앱을 이해하고 과거 화면을 재현하기 위한 정보입니다. 당시의 미구현·미정 표시는 현재 제품 상태를 뜻하지 않으며 최신 상태는 [구현 현황](../development/implementation-status.md)과 담당 명세를 확인합니다. 저장소 레퍼런스와 GPT Sites 배포본 모두 현재 제품 기준으로 사용하지 않습니다.
+아래 실행법·파일 역할·모의 구현·이관 순서는 삭제 전 앱을 이해하기 위한 정보입니다. 실행 명령은 삭제 전 커밋을 별도로 체크아웃한 경우에만 사용할 수 있습니다. 당시의 미구현·미정 표시는 현재 제품 상태를 뜻하지 않으며 최신 상태는 [구현 현황](../development/implementation-status.md)과 담당 명세를 확인합니다. 이전 레퍼런스와 GPT Sites 배포본 모두 현재 제품 기준으로 사용하지 않습니다.
 
 이번 레퍼런스 변경은 [선행 문서 PR #93](https://github.com/wejo-team/sku-dreamon/pull/93)과 [#77 최신 결정](https://github.com/wejo-team/sku-dreamon/issues/77#issuecomment-6260435650)을 기준으로 합니다. 새 입력 계약·프로필 공개 조건·공고와 정원·AI 검토·알림 정책을 담당 명세에서 먼저 확인합니다. 문서 검토, 디자인 반영, 실제 제품 구현과 배포 완료는 각각 구분합니다.
 
 ## 로컬 실행
 
-저장소 루트에서 시작합니다. Node·npm 버전은 [레퍼런스 package.json](../../design-reference/package.json)과 [.nvmrc](../../design-reference/.nvmrc)에 고정돼 있습니다.
+아래는 과거 실행 명령이며 현재 체크아웃에서는 사용할 수 없습니다. 삭제 전 커밋 `7f1ac30ddbba4c169582992730fbf51be3de30d7`을 별도로 체크아웃한 저장소 루트에서만 시작합니다. 당시 Node·npm 버전은 [레퍼런스 package.json](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/package.json)과 [.nvmrc](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/.nvmrc)에 고정돼 있습니다.
 
 ```bash
 cd design-reference
@@ -37,16 +37,16 @@ npm run dev
 
 | 위치 | 책임 |
 | --- | --- |
-| [라우트](../../design-reference/src/pages/DesignPreviewPage.tsx) | 화면 경로와 공통 Provider·Shell 연결 |
-| [화면 코드 폴더](../../design-reference/src/features/design-preview/PreviewShell.tsx) | 화면 구성·폼·카드·팝업·하단 탐색·상태 표현 |
-| [디자인 토큰](../../design-reference/src/features/design-preview/preview-tokens.css) | 공식 모바일 화면의 색상·간격·반경·그림자 |
-| [UI 컴포넌트](../../design-reference/src/components/ui/button.tsx) | shadcn/ui 기반 버튼·입력·스위치·Drawer·채팅 구성 요소 |
-| [예시 데이터](../../design-reference/src/features/design-preview/data.ts) | 화면 확인용 공모전·팀·사용자·지원 데이터와 로컬 타입 |
-| [메모리 상태](../../design-reference/src/features/design-preview/PreviewProvider.tsx) | 프로필·로그인 여부·지원·선발 등 현재 탭의 로컬 상태 |
-| [인증 입력 규칙](../../design-reference/src/features/design-preview/auth-policy.ts) | 아이디 정규화·비밀번호 NFC/길이·공개 테스트 값·일부 흔한 비밀번호 예시 차단 |
-| [공고 상태](../../design-reference/src/features/design-preview/contest-state.ts) | 원문 시각·시간대 우선의 접수 상태, 원문 날짜 표시·마감 경계 계산·공식 인원 조건 |
-| [알림 발생 기록](../../design-reference/src/features/design-preview/notification-state.ts) | 로컬 업무 변경별 생성·발생 건과 수신자 중복 제거·읽음 이력 |
-| [모의 대화 응답](../../design-reference/src/features/design-preview/chat-demo.ts) | 실제 모델 호출 없이 대화·추천 카드 동작 확인 |
+| [라우트](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/src/pages/DesignPreviewPage.tsx) | 화면 경로와 공통 Provider·Shell 연결 |
+| [화면 코드 폴더](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/src/features/design-preview/PreviewShell.tsx) | 화면 구성·폼·카드·팝업·하단 탐색·상태 표현 |
+| [디자인 토큰](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/src/features/design-preview/preview-tokens.css) | 공식 모바일 화면의 색상·간격·반경·그림자 |
+| [UI 컴포넌트](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/src/components/ui/button.tsx) | shadcn/ui 기반 버튼·입력·스위치·Drawer·채팅 구성 요소 |
+| [예시 데이터](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/src/features/design-preview/data.ts) | 화면 확인용 공모전·팀·사용자·지원 데이터와 로컬 타입 |
+| [메모리 상태](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/src/features/design-preview/PreviewProvider.tsx) | 프로필·로그인 여부·지원·선발 등 현재 탭의 로컬 상태 |
+| [인증 입력 규칙](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/src/features/design-preview/auth-policy.ts) | 아이디 정규화·비밀번호 NFC/길이·공개 테스트 값·일부 흔한 비밀번호 예시 차단 |
+| [공고 상태](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/src/features/design-preview/contest-state.ts) | 원문 시각·시간대 우선의 접수 상태, 원문 날짜 표시·마감 경계 계산·공식 인원 조건 |
+| [알림 발생 기록](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/src/features/design-preview/notification-state.ts) | 로컬 업무 변경별 생성·발생 건과 수신자 중복 제거·읽음 이력 |
+| [모의 대화 응답](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/src/features/design-preview/chat-demo.ts) | 실제 모델 호출 없이 대화·추천 카드 동작 확인 |
 | [기능 명세](../specs/README.md) | 참여 조건·공개 범위·상태 전환과 제품 완료 조건 |
 | [제품 프론트 가이드](../development/frontend.md) | `frontend/`에 구현할 API·폼·상태·컴포넌트 책임 |
 
@@ -56,7 +56,7 @@ npm run dev
 
 - 데이터는 메모리에 있으므로 새로고침하면 초기 로그인·프로필·팀·지원 상태로 돌아갑니다. 다른 브라우저나 팀원의 화면과 공유되지 않습니다. 탭 이동 중 유지되는 상태도 영구 저장을 뜻하지 않습니다.
 - 로그인은 고정 문자열을 검사하며 계정 발급·비밀번호 해시·서버 세션을 제공하지 않습니다. 가입 화면은 아이디를 ASCII 영문 소문자·숫자 4~24자로 정규화하고, 비밀번호는 NFC 후 코드 포인트 8~128자로 검증합니다. 가입 시 한글·공백을 금지하고 Unicode 15.1 문장부호(P)·기호(S)를 1개 이상 요구합니다. 평상시에는 `8자 이상`·기호 조건의 충족 여부만 표시하고 상한 초과는 별도 오류로 안내합니다. 한글·공백 입력은 즉시 오류를 표시하며 자동 삭제하지 않습니다. 기존 계정 로그인을 위해 로그인에는 새 문자·기호 조건을 적용하지 않습니다. Caps Lock이 켜진 것으로 감지되면 입력 포커스 중 안내하며 입력·창의 포커스를 떠나면 숨깁니다. 보기/숨기기·붙여넣기·자동완성을 허용합니다. 중복 확인은 공개 테스트 아이디에 한정하며 흔한 비밀번호 예시 fixture만 차단합니다. 실제 유출 비밀번호 목록·갱신이나 새 계정 등록을 구현한 것이 아니며 가입한 값으로 로그인할 수 없습니다.
-- 기호 판정은 브라우저 Unicode 버전에 의존하지 않는 생성 표를 사용했습니다. 당시에는 제품과 레퍼런스의 표를 함께 생성·검사했습니다. 현재 [생성 스크립트](../../scripts/generate_password_symbols.py)와 CI 도구 검사는 제품 `frontend/`의 표만 대상으로 하며, 보관한 레퍼런스의 표는 동기화하지 않습니다. 제품의 생성·검사 명령은 [프론트엔드 기준](../development/frontend.md#ui-source)을 따릅니다.
+- 기호 판정은 브라우저 Unicode 버전에 의존하지 않는 생성 표를 사용했습니다. 당시에는 제품과 레퍼런스의 표를 함께 생성·검사했습니다. 현재 [생성 스크립트](../../scripts/generate_password_symbols.py)와 CI 도구 검사는 제품 `frontend/`의 표만 대상으로 하며, 삭제한 레퍼런스의 표는 동기화하지 않습니다. 제품의 생성·검사 명령은 [프론트엔드 기준](../development/frontend.md#ui-source)을 따릅니다.
 - 지원·취소·선발·정원·팀 공간은 로컬 상태 전환을 확인합니다. 같은 공모전의 다른 팀에 동시 지원하고, 선발 성공 시 같은 사람의 다른 대기 지원만 폐기로 전환합니다. 다른 공모전·이미 종결된 지원은 유지하며 선발 후 본인 지원 취소나 모집 재개로 폐기 이력을 복원하지 않습니다. 실제 여러 사용자 간 동시 요청, 서버 권한 검사·트랜잭션·DB 보존은 [제품 구현과 통합 검증](../development/implementation-status.md)에서 별도로 확인합니다.
 - 프로필은 기본 비공개이며 하나의 스위치가 등록된 모든 항목에 적용됩니다. 전환 Drawer 확인 후 저장하며 취소·닫기·실패는 기존 상태를 유지합니다. **신규 팀 지원은 공개 상태에서만 제출**합니다. 비공개 사용자는 같은 공개 팝업을 거쳐 저장 후 현재 지원 조건을 다시 확인하며 자동 접수하지 않습니다. 공개면 일반 로그인 사용자의 사람 검색·AI 사람 추천·상세에서 전체 항목을 볼 수 있고 비공개면 제외합니다.
 - 지원 후 비공개 전환은 기존 지원·팀 소속을 바꾸지 않습니다. 해당 지원을 받은 팀장은 전체 현재 프로필을 직접 보고 AI 검토에 최신 프로필을 반영할 수 있습니다. 일반 팀원·미지원 팀장·일반 AI 사람 추천으로 이 권한을 확대하지 않습니다. 인증 정보·미수집 연락처·외부 포트폴리오 내용 수집은 포함하지 않습니다. 레퍼런스 화면은 이 관계를 모의 처리합니다. 제품 서버의 입력 최소화와 현재 권한 검사는 [AI API](../api/ai.md)에 구현됐으며, 대화 원문의 운영 보존·삭제 정책은 후속 범위입니다.
@@ -93,9 +93,9 @@ npm run dev
 - 차트와 툴팁에 평가 설명·근거·출처·확인 질문을 표시하지 않습니다. `정보 부족`·`확인 불가`를 반복해서 표시하지 않으며 정보 상태는 접근성 이름으로 전달합니다. 상세 등록 정보는 지원서에서 확인합니다.
 - 320px부터 네 항목 이름·100점 수치·선택 조작이 잘리지 않아야 합니다. 후보 1명/3명, 긴 이름, `0`·`100`·`null`, 선택 색상 유지, 필터와 지원서 이동을 함께 확인합니다.
 
-[제품 mock 검토](../../frontend/src/features/teams/MockApplicantReview.tsx)와 [레퍼런스 개별 검토](../../design-reference/src/features/design-preview/ApplicantReview.tsx)는 **시연 점수**라고 표시한 고정 예시를 사용합니다. 등록 역량·경험이 없으면 `null`로 두고, 명시적인 `경험 없음`은 미입력과 구분합니다. 주당 합산 시간만 있는 예시에서는 팀에 배정할 시간을 채점하지 않습니다. 현재 팀장 권한, 프로필 변경 안내와 재요청, 종결된 지원의 기존 검토, 실패·재시도, 로그아웃 시 결과 제거는 유지합니다.
+[제품 mock 검토](../../frontend/src/features/teams/MockApplicantReview.tsx)와 [레퍼런스 개별 검토](https://github.com/wejo-team/sku-dreamon/blob/7f1ac30ddbba4c169582992730fbf51be3de30d7/design-reference/src/features/design-preview/ApplicantReview.tsx)는 **시연 점수**라고 표시한 고정 예시를 사용합니다. 등록 역량·경험이 없으면 `null`로 두고, 명시적인 `경험 없음`은 미입력과 구분합니다. 주당 합산 시간만 있는 예시에서는 팀에 배정할 시간을 채점하지 않습니다. 현재 팀장 권한, 프로필 변경 안내와 재요청, 종결된 지원의 기존 검토, 실패·재시도, 로그아웃 시 결과 제거는 유지합니다.
 
-두 앱은 독립 실행하며 제품의 API 계약을 레퍼런스에서 직접 import하지 않습니다. 레퍼런스에는 팀 후보 추천 영역이 없으므로 비교 흐름은 제품에서 확인합니다. 실제 지원자 평가는 완성 JSON을 사용하고 채팅의 SSE·입력 가드와 구분합니다. 서버의 근거 검증·현재 권한 재검증은 화면 단순화와 관계없이 유지합니다. 계약과 통합 검증은 [AI API](../api/ai.md)·[AI 개발 계획](../development-plans/ai-agent.md)이 원본입니다. 시연 화면 확인을 실제 모델 품질·운영 배포 완료로 해석하지 않습니다.
+삭제 전에는 두 앱이 독립 실행했고 제품의 API 계약을 레퍼런스에서 직접 import하지 않았습니다. 레퍼런스에는 팀 후보 추천 영역이 없었으며 현재 비교 흐름은 제품에서 확인합니다. 실제 지원자 평가는 완성 JSON을 사용하고 채팅의 SSE·입력 가드와 구분합니다. 서버의 근거 검증·현재 권한 재검증은 화면 단순화와 관계없이 유지합니다. 계약과 통합 검증은 [AI API](../api/ai.md)·[AI 개발 계획](../development-plans/ai-agent.md)이 원본입니다. 시연 화면 확인을 실제 모델 품질·운영 배포 완료로 해석하지 않습니다.
 
 대표 모바일 화면은 실제 제품 경로에 결정적 API fixture를 연결해 촬영했습니다. 실제 모델 채점 결과가 아니며 0·100·null의 구분을 보여 줍니다.
 
@@ -105,7 +105,7 @@ npm run dev
 
 ## 확인 명령
 
-보관한 레퍼런스 앱 자체를 확인할 때만 필요한 명령을 `design-reference/`에서 골라 실행합니다. 제품 변경의 필수 검사가 아니며 전용 CI는 두지 않습니다.
+아래 명령은 삭제 전 레퍼런스의 검증 기록입니다. 현재 체크아웃에서는 사용할 수 없으며, 과거 화면을 재현하기 위해 위의 삭제 전 커밋을 별도로 체크아웃한 경우에만 해당 `design-reference/`에서 실행합니다. 제품 변경의 필수 검사는 아닙니다.
 
 ```bash
 npm run lint
