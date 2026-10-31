@@ -20,6 +20,7 @@
 | --- | --- | --- | --- | --- |
 | `GET /catalogs` | 공개 | 없음 | 200 [Success&lt;Catalogs&gt;](#catalogs) | 공통 500·503 |
 | `GET /catalogs/academic-units` | 공개 | 없음 | 200 [Success&lt;AcademicUnit[]&gt;](#academic-unit) | 공통 500·503 |
+| `GET /catalogs/courses` | 공개 | `q`, `page`, `pageSize` | 200 [과목 검색 페이지](#courses) | 422·공통 500·503 |
 
 <a id="catalog-item"></a>
 
@@ -84,6 +85,16 @@
 프로필 화면은 `academicUnitId`에서 부모를 따라 선택한 항목까지의 소속 경로를 표시합니다. 학부·학과만 선택한 이유나 전공 배정 상태는 별도 필드로 전달하거나 추정하지 않으며, 학사 정보 전체가 미입력이면 `academicUnitId=null`입니다. 실제 초기 목록·부모 관계·기존 데이터의 ID 대응은 [학사 미정 사항](../specs/academic-structure.md#open-questions)을 검토한 뒤 등록합니다. 현재 migration은 빈 테이블만 만들며, 미검증 31행을 운영 seed로 적재하지 않습니다. 빈 원장 조회는 `200 {"data": []}`입니다.
 
 [학사 서비스](../../backend/app/services/catalogs.py)의 `validate_academic_selection`은 [학사 Repository](../../backend/app/repositories/catalogs.py)를 통해 대상·모든 조상의 행을 ID 오름차순으로 공유 잠금하고 같은 트랜잭션에서 유효성을 확인합니다. `set_academic_selectable`의 변경 잠금은 신규 선택과 경합하며 여러 항목을 바꾸는 내부 작업도 ID 오름차순을 따릅니다. 최상위 프로필/원장 작업이 commit을 소유합니다. 기준 데이터 신규 생성은 `create_academic_unit`을 사용하고 기존 `parent_id`를 수정하는 기능은 제공하지 않습니다. 소속 변경은 새 행 등록과 기존 행 비활성화로 처리합니다.
+
+<a id="courses"></a>
+
+## 교과목 검색
+
+학교 Excel 목록을 별도 적재한 DB 카탈로그를 검색합니다. `q`는 학수번호·대표 과목명·과거 과목명의 부분검색이며 생략·빈 문자열은 전체 목록입니다. `page`는 1부터, `pageSize`는 1~100(기본 20)입니다. 코드를 기준으로 오름차순 정렬하고 범위를 넘은 페이지는 기존 페이지 계약에 따라 보정합니다.
+
+응답은 `data: {code,name,aliases,departments}[]`와 `pagination: {page,pageSize,total,totalPages}`입니다. 별칭·개설학과는 문자열 배열이며 교수명·강의 설명·연도·분반은 제공하지 않습니다. 모든 필드는 필수이며 빈 목록은 `[]`입니다. 학수번호는 문자열로 유지합니다.
+
+검색 결과의 `code`를 [프로필](profiles.md#profile-fields)의 `courseCodes`에 저장합니다. 개인 소속과 다른 학과·교양 과목도 선택할 수 있고, 카탈로그 조회에는 인증을 요구하지 않지만 개인의 수강 과목 조회에는 기존 프로필 권한을 적용합니다. 전체 목록이 비어 있어도 가입·프로필 저장의 필수 조건으로 삼지 않습니다.
 
 ## DB 연결과 남은 범위
 

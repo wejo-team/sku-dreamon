@@ -551,11 +551,20 @@ class AiService:
             TargetStart.model_validate({"requestId": request_id}),
         )
         try:
+            source_references = references(run)
             async with self.runs.publishing(
-                execution, references(run), completed=True, allow_stale=True
+                execution, source_references, completed=True, allow_stale=True
             ) as current:
                 result = payload.result.model_copy(deep=True)
                 by_id = {item.reference.resource_id: item for item in current}
+                # 공통 과목명 등은 프로필 버전 증가 없이도 조회 근거를 바꿀 수 있다.
+                changed_applications = {
+                    source.resource_id
+                    for source in source_references
+                    if source.kind == "application"
+                    and by_id[source.resource_id].reference.fingerprint
+                    != source.fingerprint
+                }
                 if isinstance(result, ApplicantReviewResult):
                     actual = by_id[result.application_id]
                     result.profile_versions[0].current_version = (
@@ -564,6 +573,7 @@ class AiService:
                     result.is_stale = (
                         result.profile_versions[0].used_version
                         != result.profile_versions[0].current_version
+                        or result.application_id in changed_applications
                     )
                     result.is_selection_candidate = actual.is_selection_candidate
                 elif isinstance(result, ApplicantRecommendationResult):
@@ -575,6 +585,7 @@ class AiService:
                     result.is_stale = any(
                         item.profile_version.used_version
                         != item.profile_version.current_version
+                        or item.application_id in changed_applications
                         for item in result.candidates
                     )
                 return ResultValidation(valid=True, result=result)
