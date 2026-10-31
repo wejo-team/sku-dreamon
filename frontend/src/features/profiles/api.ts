@@ -11,7 +11,7 @@
 
 import { z } from 'zod';
 import { CourseSummary } from '@/features/catalogs/api';
-import { apiRequest, withQuery } from '@/lib/api';
+import { ApiError, apiRequest, withQuery } from '@/lib/api';
 import {
   CatalogCode,
   HttpUrl,
@@ -83,7 +83,8 @@ export const Profile = z
     isDemo: z.boolean(),
     updatedAt: Timestamp,
     ...profileFields,
-    courses: z.array(CourseSummary),
+    // 구버전 서버의 필드 부재는 선택 이력이 비어 있는 응답과 구분합니다.
+    courses: z.array(CourseSummary).optional(),
   })
   .strict()
   .superRefine(experienceCombination);
@@ -98,6 +99,21 @@ export const ProfileWrite = z
   })
   .strict();
 export type ProfileWrite = z.infer<typeof ProfileWrite>;
+
+// 구버전 서버만 거절하는 최상위 과목 필드 오류를 일반 입력 오류와 구분합니다.
+export function isCourseFeatureUnavailable(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 422 &&
+    error.issues.some(
+      (issue) =>
+        issue.type === 'extra_forbidden' &&
+        issue.loc.length === 2 &&
+        issue.loc[0] === 'body' &&
+        issue.loc[1] === 'courseCodes',
+    )
+  );
+}
 
 // [출처 6] 확인 팝업에서 결정한 공개 상태
 export const VisibilityWrite = z

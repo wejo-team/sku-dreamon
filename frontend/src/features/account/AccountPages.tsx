@@ -63,7 +63,11 @@ import {
   useSession,
   useSignup,
 } from '@/features/auth/queries';
-import type { Profile, ProfileWrite } from '@/features/profiles/api';
+import {
+  isCourseFeatureUnavailable,
+  type Profile,
+  type ProfileWrite,
+} from '@/features/profiles/api';
 import {
   myProfileQueryOptions,
   useSaveProfile,
@@ -460,6 +464,9 @@ export function ProfileVisibilityControl({
   );
 }
 
+const courseVersionChangedMessage =
+  '서비스가 업데이트되어 새로고침이 필요해요. 입력 내용은 이 화면에 남아 있어요. 필요한 내용을 복사한 뒤 새로고침해 주세요.';
+
 function ProfileEditor({
   profile,
   onDone,
@@ -472,6 +479,12 @@ function ProfileEditor({
   const { academicPath, fieldOptions, roleOptions, weeklyAvailabilityOptions } =
     useLabels();
   const saveProfile = useSaveProfile();
+  const [hadCourseSupport] = useState(profile?.courses !== undefined);
+  const [courseSaveBlocked, setCourseSaveBlocked] = useState(false);
+  const coursesUnavailable = profile !== null && profile.courses === undefined;
+  const courseVersionChanged =
+    courseSaveBlocked ||
+    (profile !== null && hadCourseSupport !== (profile.courses !== undefined));
   const {
     register,
     control,
@@ -493,11 +506,17 @@ function ProfileEditor({
       className="preview-panel preview-form"
       noValidate
       onSubmit={handleSubmit(async (values) => {
+        // 편집 도중 과목 지원 여부가 바뀌어도 선택·해제 초안이나 숨겨진 기존 과목을 버리지 않습니다.
+        if (courseVersionChanged) return;
         // [출처 3, 8] 폼 값을 PUT /me/profile 본문으로 변환(빈 선택은 null, 포트폴리오 URL은 정규화)
         try {
           await saveProfile.mutateAsync(toProfileWrite(values, profile));
           onDone();
         } catch (error) {
+          if (isCourseFeatureUnavailable(error)) {
+            setCourseSaveBlocked(true);
+            return;
+          }
           setError('root', {
             message:
               error instanceof ApiError && error.code === 'VERSION_CONFLICT'
@@ -585,7 +604,11 @@ function ProfileEditor({
         control={control}
         name="courses"
         render={({ field }) => (
-          <CoursePicker value={field.value} onChange={field.onChange} />
+          <CoursePicker
+            value={field.value}
+            onChange={field.onChange}
+            unavailable={coursesUnavailable || courseVersionChanged}
+          />
         )}
       />
       <Separator className="preview-form-separator" />
@@ -683,12 +706,28 @@ function ProfileEditor({
         </div>
       </section>
       <Separator className="preview-form-separator" />
-      <FieldError id="profile-save-error" message={errors.root?.message} />
+      <FieldError
+        id="profile-save-error"
+        message={
+          courseVersionChanged
+            ? courseVersionChangedMessage
+            : errors.root?.message
+        }
+      />
+      {courseVersionChanged && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => window.location.reload()}
+        >
+          새로고침
+        </Button>
+      )}
       <div className="preview-row">
         <Button
           type="submit"
           className="preview-button"
-          disabled={isSubmitting}
+          disabled={isSubmitting || courseVersionChanged}
         >
           {isSubmitting ? '저장 중' : '변경사항 저장'}
         </Button>
@@ -928,7 +967,11 @@ export function ProfilePage() {
               <h3 className="preview-section-title preview-info-label">
                 수강과목
               </h3>
-              {profile.courses.length ? (
+              {profile.courses === undefined ? (
+                <p className="preview-muted">
+                  지금은 수강과목을 확인할 수 없어요.
+                </p>
+              ) : profile.courses.length ? (
                 <ul className="profile-course-display">
                   {profile.courses.map((course) => (
                     <li key={course.code}>
@@ -1237,11 +1280,17 @@ export function SignupPage() {
   const [search] = useSearchParams();
   const returnTo = safeReturnTo(search.get('returnTo') ?? search.get('from'));
   const [complete, setComplete] = useState<
-    'done' | 'other-session' | 'profile-save-failed' | 'profile-exists' | null
+    | 'done'
+    | 'other-session'
+    | 'profile-save-failed'
+    | 'profile-exists'
+    | 'course-unavailable'
+    | null
   >(null);
   const [pendingProfile, setPendingProfile] = useState<{
     write: ProfileWrite;
     accountId: string;
+    courses: CourseSummary[];
   } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
@@ -1301,13 +1350,37 @@ export function SignupPage() {
           <Check size={32} aria-hidden="true" />
           <p role="status">서경드림온에 오신 것을 환영해요.</p>
           {complete === 'profile-save-failed' ||
-          complete === 'profile-exists' ? (
+          complete === 'profile-exists' ||
+          complete === 'course-unavailable' ? (
             <>
               <p className="preview-error" role="alert">
-                {complete === 'profile-exists'
-                  ? '이미 저장된 프로필이 있어요. 내 프로필에서 내용을 확인해 주세요.'
-                  : '계정은 만들어졌지만 프로필 저장 결과를 확인하지 못했어요. 선택한 과목을 포함한 프로필을 다시 저장하거나 내 프로필에서 확인해 주세요.'}
+                {complete === 'course-unavailable'
+                  ? courseVersionChangedMessage
+                  : complete === 'profile-exists'
+                    ? '이미 저장된 프로필이 있어요. 내 프로필에서 내용을 확인해 주세요.'
+                    : '계정은 만들어졌지만 프로필 저장 결과를 확인하지 못했어요. 선택한 과목을 포함한 프로필을 다시 저장하거나 내 프로필에서 확인해 주세요.'}
               </p>
+              {complete === 'course-unavailable' && (
+                <>
+                  <p className="preview-muted">
+                    선택한 수강과목은 아직 저장되지 않았어요.
+                  </p>
+                  <ul aria-label="저장하지 못한 수강과목">
+                    {pendingProfile?.courses.map((course) => (
+                      <li key={course.code}>
+                        {course.name} ({course.code})
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => window.location.reload()}
+                  >
+                    새로고침
+                  </Button>
+                </>
+              )}
               {complete === 'profile-save-failed' && (
                 <Button
                   type="button"
@@ -1328,6 +1401,10 @@ export function SignupPage() {
                       await saveProfile.mutateAsync(pendingProfile.write);
                       setComplete('done');
                     } catch (error) {
+                      if (isCourseFeatureUnavailable(error)) {
+                        setComplete('course-unavailable');
+                        return;
+                      }
                       // 응답만 유실된 저장도 버전 충돌로 돌아올 수 있으므로 기존 프로필을 보존합니다.
                       if (
                         error instanceof ApiError &&
@@ -1427,12 +1504,16 @@ export function SignupPage() {
             },
             null,
           );
-          setPendingProfile({ write, accountId });
+          setPendingProfile({ write, accountId, courses: values.courses });
           try {
             await saveProfile.mutateAsync(write);
             setComplete('done');
-          } catch {
-            setComplete('profile-save-failed');
+          } catch (error) {
+            setComplete(
+              isCourseFeatureUnavailable(error)
+                ? 'course-unavailable'
+                : 'profile-save-failed',
+            );
           }
         })}
       >

@@ -61,7 +61,7 @@ export function toFormValues(
     fieldCodes: [...profile.fieldCodes],
     roleCodes: [...profile.roleCodes],
     skillCodes: [...profile.skillCodes],
-    courses: [...profile.courses],
+    courses: [...(profile.courses ?? [])],
     portfolioUrl: profile.portfolio?.url ?? '',
     portfolioTitle: profile.portfolio?.title ?? '',
   };
@@ -72,7 +72,7 @@ const orNull = (value: string) => value.trim() || null;
 // [출처 1~6] 폼 값 → PUT /me/profile 본문. 아직 프로필이 없으면 expectedVersion "0"
 export function toProfileWrite(
   values: ProfileFormValues,
-  current: Pick<Profile, 'version'> | null,
+  current: Pick<Profile, 'version' | 'courses'> | null,
 ): ProfileWrite {
   const experienceBody = values.experienceBody.trim();
   const experienceState: ExperienceState =
@@ -100,7 +100,10 @@ export function toProfileWrite(
     fieldCodes: [...values.fieldCodes],
     roleCodes: [...values.roleCodes],
     skillCodes: [...values.skillCodes],
-    courseCodes: values.courses.map((course) => course.code),
+    // 무선택 신규·구버전 편집은 생략하고, 지원되는 기존 과목의 전체 해제는 []로 보냅니다.
+    ...(current?.courses !== undefined || values.courses.length > 0
+      ? { courseCodes: values.courses.map((course) => course.code) }
+      : {}),
     portfolio: url ? { url, title: orNull(values.portfolioTitle) } : null,
   };
 }

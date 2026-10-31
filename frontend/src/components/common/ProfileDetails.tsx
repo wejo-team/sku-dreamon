@@ -72,7 +72,9 @@ export function ProfileDetails({
       <div>
         <dt>수강과목</dt>
         <dd>
-          {profile.courses.length ? (
+          {profile.courses === undefined ? (
+            <p className="preview-muted">지금은 수강과목을 확인할 수 없어요.</p>
+          ) : profile.courses.length ? (
             <ul className="profile-course-display">
               {profile.courses.map((course) => (
                 <li key={course.code}>

@@ -9,13 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { CourseSummary } from '@/features/catalogs/api';
 import { coursesQueryOptions } from '@/features/catalogs/queries';
+import { ApiError } from '@/lib/api';
 
 export function CoursePicker({
   value,
   onChange,
+  unavailable = false,
 }: {
   value: CourseSummary[];
   onChange: (courses: CourseSummary[]) => void;
+  unavailable?: boolean;
 }) {
   const id = useId();
   const [search, setSearch] = useState('');
@@ -31,7 +34,13 @@ export function CoursePicker({
     }, 300);
     return () => window.clearTimeout(timer);
   }, [search]);
-  const courses = useQuery(coursesQueryOptions(query));
+  const courses = useQuery({
+    ...coursesQueryOptions(query),
+    enabled: !unavailable,
+  });
+  const unsupported =
+    unavailable ||
+    (courses.error instanceof ApiError && courses.error.status === 404);
   const loading = searching || courses.isPending;
   const selected = new Set(value.map((course) => course.code));
   const remove = (code: string) =>
@@ -53,6 +62,7 @@ export function CoursePicker({
       <Input
         id={`${id}-search`}
         type="search"
+        disabled={unsupported}
         autoComplete="off"
         value={search}
         onChange={(event) => setSearch(event.target.value)}
@@ -66,9 +76,11 @@ export function CoursePicker({
         placeholder="예: 데이터베이스, GE1394"
       />
       <div className="profile-course-selection">
-        <p className="preview-muted" role="status">
-          선택한 과목 {value.length}개
-        </p>
+        {(!unsupported || value.length > 0) && (
+          <p className="preview-muted" role="status">
+            선택한 과목 {value.length}개
+          </p>
+        )}
         {value.length > 0 && (
           <ul className="profile-course-chips" aria-label="선택한 수강과목">
             {value.map((course) => (
@@ -91,8 +103,16 @@ export function CoursePicker({
           </ul>
         )}
       </div>
-      <div aria-busy={loading || courses.isFetching}>
-        {loading ? (
+      <div aria-busy={!unsupported && (loading || courses.isFetching)}>
+        {unsupported ? (
+          <p className="preview-muted" role="status">
+            {value.length > 0
+              ? '지금은 수강과목 선택을 사용할 수 없어요. 선택한 과목은 이 화면에 남아 있어요.'
+              : unavailable
+                ? '지금은 수강과목 선택을 사용할 수 없어요.'
+                : '지금은 수강과목 선택을 사용할 수 없어요. 과목 선택 없이 계속할 수 있어요.'}
+          </p>
+        ) : loading ? (
           <p className="preview-muted" role="status">
             과목을 검색하고 있어요…
           </p>
