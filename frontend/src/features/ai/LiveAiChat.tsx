@@ -144,8 +144,8 @@ function LiveReplyActions({ turn }: { turn: LiveChatTurn }) {
 
 const starters = [
   {
-    text: '마감이 가까운 공모전 찾아줘',
-    label: '마감 임박 공모전',
+    text: 'IT 공모전 찾아줘',
+    label: 'IT 공모전',
     icon: CalendarDays,
   },
   { text: '개발자를 모집하는 팀 찾아줘', label: '개발자 모집 팀', icon: Users },
