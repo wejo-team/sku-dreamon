@@ -28,10 +28,10 @@ git show origin/develop:docs/agent-guide.md
 
 | 변경 | PR 방향 | 병합 방식 | 병합 후 실행 |
 | --- | --- | --- | --- |
-| 명세·기능·수정 | 작업 브랜치 → `develop` | Squash merge | 전체 CI, 운영 배포 없음 |
-| 운영 릴리스 | 같은 저장소의 `develop` → `main` | Merge commit | 전체 CI 성공 후 운영 CD |
-| 릴리스 이력 동기화 | 같은 저장소의 `main` → `develop` | Merge commit | 전체 CI, 운영 배포 없음 |
-| 동기화가 늦어진 경우 | `develop` 기반 `chore/sync-main-<sha>` → `develop` | Merge commit | 전체 CI, 운영 배포 없음 |
+| 명세·기능·수정 | 작업 브랜치 → `develop` | Squash merge | E2E 외 전체 CI, 운영 배포 없음 |
+| 운영 릴리스 | 같은 저장소의 `develop` → `main` | Merge commit | E2E 외 전체 CI 성공 후 운영 CD |
+| 릴리스 이력 동기화 | 같은 저장소의 `main` → `develop` | Merge commit | E2E 외 전체 CI, 운영 배포 없음 |
+| 동기화가 늦어진 경우 | `develop` 기반 `chore/sync-main-<sha>` → `develop` | Merge commit | E2E 외 전체 CI, 운영 배포 없음 |
 
 `main`으로 직접 보내는 작업 PR은 허용하지 않습니다. 수정도 `develop`에 먼저 반영하고 릴리스 PR로 운영에 전달합니다. 외부 fork의 작업 브랜치는 `develop`을 대상으로 할 수 있지만, `develop` → `main`과 `main` → `develop` PR은 같은 저장소의 브랜치 사이에서만 엽니다. 지연 동기화 절차는 아래 병합 방식에서 확인하며, 다른 대상 브랜치는 `PR conventions`에서 거부합니다.
 
@@ -100,7 +100,7 @@ git show origin/develop:docs/agent-guide.md
 
 `develop`과 `main`의 기본 병합 기준은 `Validate docs`, `Frontend`, `Backend`, `PR conventions` 검사 성공, 최신 대상 브랜치 반영, 작성자 외 1명 이상의 승인, 리뷰 대화 해결입니다. 새 변경이 올라오면 이전 승인은 해제합니다.
 
-PR의 실제 테스트는 [변경 영향 범위](testing.md#ci-scope)에 따라 선택합니다. 필수 검사 이름은 유지하며, 앱 검사가 불필요한 경우에도 범위 판별 성공과 명시적 생략을 확인한 뒤 통과합니다. `develop`과 `main`의 push는 전체 CI를 실행하며, 운영 CD는 `main`의 성공한 CI에만 연결합니다.
+PR의 실제 테스트는 [변경 영향 범위](testing.md#ci-scope)에 따라 선택합니다. E2E는 같은 저장소의 `develop` → `main` 릴리스 PR에서 변경 경로와 관계없이 실행하며 일반 작업·동기화 PR에서는 생략합니다. 필수 검사 이름은 유지하며, 검사가 불필요한 경우에도 범위 판별 성공과 명시적 생략을 확인한 뒤 통과합니다. `develop`과 `main`의 push는 E2E 외 전체 CI를 실행하며, 운영 CD는 `main`의 성공한 CI에만 연결합니다.
 
 프로젝트 리더 `jhpark324`는 GitHub의 PR 필수 요건 예외 사용자입니다. **승인이 없거나 `Request changes`가 남아 있어도 리더는 병합할 수 있습니다.** 일반 팀원은 승인 1명과 변경 요청 해소가 필요합니다. 예외는 해당 계정에만 적용하며, 관리자 전체에 대한 보호 규칙 적용은 유지합니다.
 

@@ -17,7 +17,10 @@ class ScopeRulesTests(unittest.TestCase):
         cases = [
             (["docs/specs/authentication.md"], {"docs"}),
             (
-                ["design-reference/src/app/App.tsx", "design-reference/package-lock.json"],
+                [
+                    "design-reference/src/app/App.tsx",
+                    "design-reference/package-lock.json",
+                ],
                 {"docs"},
             ),
             (
@@ -118,12 +121,23 @@ class ScopeGitIntegrationTests(unittest.TestCase):
         ref="refs/heads/main",
         raw_event=None,
         overrides=None,
+        base_ref="develop",
+        head_ref="feat/example",
+        head_repository=1,
     ):
         if event is None:
             event = {
                 "pull_request": {
-                    "base": {"sha": self.base},
-                    "head": {"sha": self.git("rev-parse", "HEAD")},
+                    "base": {
+                        "sha": self.base,
+                        "ref": base_ref,
+                        "repo": {"id": 1},
+                    },
+                    "head": {
+                        "sha": self.git("rev-parse", "HEAD"),
+                        "ref": head_ref,
+                        "repo": {"id": head_repository},
+                    },
                 }
             }
         self.event_file.write_text(
@@ -155,7 +169,7 @@ class ScopeGitIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(
             actual,
-            {area: str(area in expected).lower() for area in ALL},
+            {area: str(area in expected).lower() for area in ALL | {"integration"}},
         )
 
     def assert_failed(self, result):
@@ -212,6 +226,81 @@ class ScopeGitIntegrationTests(unittest.TestCase):
 
     def test_empty_diff_runs_all(self):
         self.assert_success(self.run_scope(), ALL)
+
+    def test_release_pr_requires_e2e_even_for_docs_only_or_empty_diff(self):
+        self.assert_success(
+            self.run_scope(base_ref="main", head_ref="develop"),
+            ALL | {"integration"},
+        )
+        self.write_file("docs/release.md")
+        self.commit()
+        self.assert_success(
+            self.run_scope(base_ref="main", head_ref="develop"),
+            {"docs", "integration"},
+        )
+
+    def test_only_same_repository_release_pr_selects_e2e_for_app_changes(self):
+        self.write_file("frontend/src/Button.tsx")
+        self.write_file("backend/app/main.py")
+        self.commit()
+        cases = [
+            ("develop", "feat/example", 1, False),
+            ("develop", "feat/example", 2, False),
+            ("develop", "main", 1, False),
+            ("main", "fix/example", 1, False),
+            ("main", "develop", 2, False),
+            ("main", "develop", 1, True),
+        ]
+        for base_ref, head_ref, repository, integration in cases:
+            with self.subTest(base=base_ref, head=head_ref, repository=repository):
+                expected = {"frontend", "backend"}
+                if integration:
+                    expected.add("integration")
+                self.assert_success(
+                    self.run_scope(
+                        base_ref=base_ref,
+                        head_ref=head_ref,
+                        head_repository=repository,
+                    ),
+                    expected,
+                )
+
+    def test_retargeting_pr_recalculates_e2e_requirement(self):
+        self.write_file("docs/release.md")
+        self.commit()
+        for base_ref in ("main", "develop", "main"):
+            with self.subTest(base=base_ref):
+                expected = {"docs"}
+                if base_ref == "main":
+                    expected.add("integration")
+                self.assert_success(
+                    self.run_scope(base_ref=base_ref, head_ref="develop"), expected
+                )
+
+    def test_missing_release_metadata_fails_without_outputs(self):
+        for branch in ("base", "head"):
+            for key, value in [
+                ("ref", None),
+                ("ref", ""),
+                ("repo", None),
+                ("repo", {}),
+                ("repo", {"id": "1"}),
+                ("repo", {"id": True}),
+                ("repo", {"id": 0}),
+            ]:
+                event = {
+                    "pull_request": {
+                        "base": {"sha": self.base, "ref": "main", "repo": {"id": 1}},
+                        "head": {
+                            "sha": self.base,
+                            "ref": "develop",
+                            "repo": {"id": 1},
+                        },
+                    }
+                }
+                event["pull_request"][branch][key] = value
+                with self.subTest(branch=branch, key=key, value=value):
+                    self.assert_failed(self.run_scope(event=event))
 
     def test_develop_main_push_and_manual_run_need_no_pr_payload(self):
         for event, ref in [
