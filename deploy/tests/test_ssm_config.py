@@ -59,6 +59,35 @@ class SourceTests(unittest.TestCase):
         self.assertNotIn(PRIVATE, " ".join(arguments))
         self.assertNotIn(PRIVATE, repr(snapshot))
 
+    def test_latest_pins_values_and_version_from_one_response(self):
+        value = json.loads(response())
+        del value["Parameter"]["Selector"]
+        runner = Mock(return_value=json.dumps(value).encode())
+        snapshot = self.source.fetch_latest(runner)
+        self.assertEqual(snapshot.app_env, ENVIRONMENT)
+        self.assertEqual(snapshot.metadata["parameter_version"], 7)
+        self.assertEqual(
+            snapshot.revision,
+            self.source.fetch(7, Mock(return_value=response())).revision,
+        )
+        runner.assert_called_once()
+        arguments = runner.call_args.args[0]
+        self.assertEqual(arguments[arguments.index("--name") + 1], NAME)
+        self.assertNotIn(PRIVATE, repr(snapshot))
+
+    def test_latest_rejects_invalid_versions_and_unexpected_selectors(self):
+        for version in (None, False, "7", 0, -1, MAX_VERSION + 1):
+            value = json.loads(response())
+            value["Parameter"]["Version"] = version
+            del value["Parameter"]["Selector"]
+            with (
+                self.subTest(version=version),
+                self.assertRaisesRegex(SourceError, "^ssm_response_invalid$"),
+            ):
+                self.source.fetch_latest(Mock(return_value=json.dumps(value).encode()))
+        with self.assertRaisesRegex(SourceError, "^ssm_response_invalid$"):
+            self.source.fetch_latest(Mock(return_value=response()))
+
     def test_revision_is_stable_for_key_order_and_changes_for_values_or_versions(self):
         first = self.source.fetch(7, Mock(return_value=response()))
         reordered = self.source.fetch(

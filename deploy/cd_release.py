@@ -225,13 +225,18 @@ def extract(archive: Path, destination: Path) -> None:
 def engine(config: Config, checkout: Path) -> Iterator[Any]:
     """현재 실행 동안만 해당 릴리스의 엔진·설정 모듈을 사용한다."""
     trusted(checkout, directory=True)
-    saved = {name: sys.modules.get(name) for name in ("config", "release")}
+    saved = {
+        name: sys.modules.get(name) for name in ("config", "release", "ssm_config")
+    }
     bytecode = sys.dont_write_bytecode
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(checkout / "deploy"))
     try:
-        for name in ("config", "release"):
+        for name in ("config", "release", "ssm_config"):
             path = checkout / "deploy" / f"{name}.py"
+            if name == "ssm_config" and not path.exists():
+                sys.modules.pop(name, None)
+                continue
             trusted(path)
             spec = importlib.util.spec_from_file_location(name, path)
             if spec is None or spec.loader is None:
@@ -241,7 +246,15 @@ def engine(config: Config, checkout: Path) -> Iterator[Any]:
             # dont_write_bytecode만으로는 기존 .pyc 읽기를 막지 못한다.
             exec(compile(path.read_bytes(), str(path), "exec"), module.__dict__)  # noqa: S102 -- 검증한 엔진 .py만 캐시 없이 로드한다.
         runtime = sys.modules["config"].Runtime.read(config.runtime_config, checkout)
-        yield sys.modules["release"].Release(runtime, checkout)
+        release = sys.modules["release"].Release(runtime, checkout)
+        release.configuration_app_keys = getattr(
+            sys.modules["config"], "APP_KEYS", frozenset()
+        )
+        source = sys.modules.get("ssm_config")
+        release.configuration_source = (
+            source.Source.read if source is not None else None
+        )
+        yield release
     finally:
         sys.path.pop(0)
         sys.dont_write_bytecode = bytecode
@@ -253,7 +266,15 @@ def engine(config: Config, checkout: Path) -> Iterator[Any]:
 
 
 class CDRelease:
-    def __init__(self, config: Config, *, runner=run, engine_factory=engine) -> None:
+    def __init__(
+        self,
+        config: Config,
+        *,
+        runner=run,
+        engine_factory=engine,
+        source_path=Path("/etc/sku-dreamon/ssm-config.json"),
+        source_factory=None,
+    ) -> None:
         self.config = config
         self.runner = runner
         self.engine_factory = engine_factory
@@ -261,6 +282,9 @@ class CDRelease:
         self.root = Path(runtime["runtime_dir"])
         trusted(self.root, directory=True, private=True)
         trusted(self.root / "state", directory=True, private=True)
+        from code_config import CodeConfiguration
+
+        self.configuration = CodeConfiguration(self, source_path, source_factory)
 
     @contextmanager
     def lock(self) -> Iterator[None]:
@@ -335,6 +359,11 @@ class CDRelease:
         pending = self.root / "state" / "config-pending.json"
         if pending.exists() or pending.is_symlink():
             raise CDError("configuration_recovery_required")
+        if (
+            self.configuration.pending.exists()
+            or self.configuration.pending.is_symlink()
+        ):
+            raise CDError("code_configuration_recovery_required")
         result = self.summary(release)
         if (
             result["phase"] != "stable"
@@ -373,14 +402,22 @@ class CDRelease:
         return duplicate
 
     def status(self) -> dict[str, Any]:
-        with (
-            self.lock(),
-            self.engine_factory(
-                self.config, self.checkout(self.current_sha())
-            ) as release,
-            release.lock(),
-        ):
-            return self.summary(release)
+        with self.lock():
+            pending = self.configuration.pending
+            snapshot = None
+            if pending.exists() or pending.is_symlink():
+                journal, _, _ = self.configuration.journal()
+                side = (
+                    "old" if self.current_sha() == journal["before"]["sha"] else "new"
+                )
+                snapshot = journal[f"{side}_snapshot"]
+            with self.configuration.code_engine(
+                self.checkout(self.current_sha()), snapshot
+            ) as release:
+                return {
+                    **self.summary(release),
+                    "code_config_phase": "pending" if snapshot is not None else "idle",
+                }
 
     def source(self, sha: str, source_hash: str, image_digest: str) -> Path:
         target = self.config.releases_dir / sha
@@ -589,56 +626,97 @@ class CDRelease:
                 ) != tree_hash(checkout):
                     raise CDError("cached_source_mismatch")
             self.pull(sha, image)
-            if not duplicate:
-                self.backup(expected)
-            with self.engine_factory(self.config, checkout) as release, release.lock():
-                duplicate = (
+            operation = self.configuration
+            if duplicate:
+                with (
+                    self.engine_factory(self.config, checkout) as release,
+                    release.lock(),
+                ):
                     self.guard(release, expected, sha, image)
-                    if action == "deploy"
-                    else False
-                )
-                if action == "rollback":
+                    release.reconcile()
+                    self.publish(sha, allowed={expected, sha})
+                    result = self.stable(release)
+                    return {
+                        "deployed_sha": result["active_sha"],
+                        "previous_sha": result["previous_sha"],
+                    }
+
+            # 새 설정은 대상 코드의 parser로 읽는다. rollback은 현재 코드에서
+            # 이전 슬롯의 설정을 먼저 확보해 구 parser에 새 키를 전달하지 않는다.
+            selection_checkout = (
+                checkout if action == "deploy" else self.checkout(current)
+            )
+            with (
+                self.engine_factory(self.config, selection_checkout) as release,
+                release.lock(),
+            ):
+                if action == "deploy":
+                    self.guard(release, expected, sha, image)
+                else:
+                    self.stable(release)
+                old, new, before, configured = operation.select(release, action)
+                if action == "deploy":
+                    candidate = release.runtime.__class__.parse(new, checkout)
+                    if candidate.host_identity != release.runtime.host_identity:
+                        raise CDError("host_configuration_changed")
+            after = {**configured, "sha": sha, "image": image}
+            self.backup(expected)
+            # 백업은 기존 안정 쌍을 읽으며 snapshot과 pending은 성공 후에만 만든다.
+            try:
+                with (
+                    self.engine_factory(self.config, self.checkout(current)) as release,
+                    release.lock(),
+                ):
                     status = self.stable(release)
                     if (
                         status["active_sha"] != expected
-                        or status["previous_sha"] != sha
+                        or operation.active(release) is None
+                        or any(
+                            operation.active(release).get(key) != value
+                            for key, value in before.items()
+                        )
+                        or read_json(self.config.runtime_config) != old
                         or self.current_sha() != expected
-                        or release.state["slots"][release.state["previous"]]["image"]
-                        != image
                     ):
-                        raise CDError("rollback_target_changed")
-                if duplicate:
-                    release.reconcile()
-                    self.publish(sha, allowed={expected, sha})
-                else:
-                    try:
-                        if action == "deploy":
-                            release.deploy(image, sha, migrate=True)
-                        else:
-                            release.rollback()
-                        result = self.stable(release)
-                        if (
-                            result["active_sha"] != sha
-                            or result["active_image"] != image
-                            or result["previous_sha"] != expected
+                        raise CDError("current_release_changed")
+                    journal = operation.start(action, old, new, before, after)
+                # snapshot을 engine 입력으로만 사용하고 실제 runtime은 전환 후 게시한다.
+                with operation.code_engine(
+                    checkout, journal["new_snapshot"]
+                ) as release:
+                    if release.runtime.host_identity != release.state["host_identity"]:
+                        raise CDError("host_configuration_changed")
+                    if any(
+                        operation.active(release).get(key) != value
+                        for key, value in before.items()
+                    ):
+                        raise CDError("current_release_changed")
+                    if action == "deploy":
+                        release.deploy(image, sha, migrate=True)
+                    else:
+                        previous = release.state["slots"][release.state["previous"]]
+                        if any(
+                            previous.get(key) != value for key, value in after.items()
                         ):
-                            raise CDError("unexpected_release_result")
-                        self.publish(sha, allowed={expected, sha})
-                    except Exception:  # noqa: BLE001 -- 예외 종류와 무관하게 엔진만 복구한다.
-                        self.restore_after_failure(release, expected, sha)
-                        raise CDError("release_failed_restored") from None
-                result = self.stable(release)
-                return {
-                    "deployed_sha": result["active_sha"],
-                    "previous_sha": result["previous_sha"],
-                }
+                            raise CDError("rollback_target_changed")
+                        release.rollback()
+                    operation.finish(release, old, new, after)
+            except Exception:
+                if operation.pending.exists() or operation.pending.is_symlink():
+                    try:
+                        operation.undo()
+                    except Exception:  # noqa: BLE001 -- 복구 오류 원문 대신 고정 코드만 공개한다.
+                        raise CDError("code_configuration_recovery_required") from None
+                    raise CDError("release_failed_restored") from None
+                raise
+            return {"deployed_sha": sha, "previous_sha": expected}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Guarded production CD runner")
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument(
-        "--action", choices=("status", "deploy", "rollback"), required=True
+        "--action", choices=("status", "deploy", "rollback", "recover"), required=True
     )
     parser.add_argument("--sha")
     parser.add_argument("--source-sha256")
@@ -651,6 +729,8 @@ def main() -> int:
         cd = CDRelease(Config.read(arguments.config))
         if arguments.action == "status":
             result = cd.status()
+        elif arguments.action == "recover":
+            result = cd.configuration.recover()
         else:
             if arguments.sha is None or arguments.expected_current is None:
                 raise CDError("invalid_request")
@@ -675,4 +755,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    sys.modules["cd_release"] = sys.modules[__name__]
     raise SystemExit(main())

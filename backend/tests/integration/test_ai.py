@@ -14,6 +14,7 @@ from pydantic import SecretStr
 from sqlalchemy import select, update
 
 from app.agents.tools import SourceTools
+from app.agents.tracing import AiTraceContext
 from app.agents.types import (
     PreviousContext,
     RecommendationGate,
@@ -65,6 +66,7 @@ class FakeDriver:
         previous: PreviousContext,
         *,
         gate: RecommendationGate,
+        trace_context: AiTraceContext | None = None,
     ) -> AsyncIterator[str]:
         plan = await self.plan(tools, content, history, await previous())
         await gate(plan)

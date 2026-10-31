@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.agents.factory import AgentDriver as AgentDriver
 from app.agents.tools import SourceTools, ToolBudgetExceeded
+from app.agents.tracing import AiTraceContext
 from app.agents.types import RecommendationPlan, Reference, Resource, fingerprint
 from app.core.config import Settings
 from app.core.db.session import Database
@@ -339,7 +340,16 @@ class AiService:
 
                 text = ""
                 answering = False
-                response = driver.stream(sources, content, history, previous, gate=gate)
+                response = driver.stream(
+                    sources,
+                    content,
+                    history,
+                    previous,
+                    gate=gate,
+                    trace_context=AiTraceContext(
+                        execution.request_id, execution.attempt
+                    ),
+                )
                 try:
                     while True:
                         try:

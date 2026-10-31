@@ -94,3 +94,41 @@ async def test_count_and_rows_share_snapshot(
     first = (await api.client.get("/api/v1/contests?sort=deadline_asc")).json()
     assert first["pagination"]["total"] == len(first["data"]) == 2
     assert first["data"][0]["id"] == str(CONTEST_ID)
+
+
+@pytest.mark.parametrize(
+    "sort,expected",
+    [
+        # 마감 공고(1·3)는 마감이 가장 이르고 가장 최근 등록이어도 마지막에 온다.
+        ("deadline_asc", [5, 4, 1, 3]),
+        ("created_desc", [5, 4, 3, 1]),
+    ],
+)
+async def test_closed_contests_come_last_in_both_sorts(
+    api: ContestApi, monkeypatch: pytest.MonkeyPatch, sort: str, expected: list[int]
+) -> None:
+    from datetime import UTC, datetime
+    from uuid import UUID
+
+    from app.services import contests
+    from tests.integration.test_contest_detail import make_contest
+
+    async with api.database.session() as session:
+        for number, closes_in, created in ((4, 10, 1), (5, 5, 2)):
+            contest = make_contest(UUID(int=number))
+            contest.registration_closes_at = END + timedelta(days=closes_in)
+            contest.created_at = datetime(2020, 1, created, tzinfo=UTC)
+            session.add(contest)
+        await session.commit()
+    monkeypatch.setattr(contests, "_utcnow", lambda: END + timedelta(hours=1))
+
+    response = await api.client.get(f"/api/v1/contests?sort={sort}")
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert [item["id"] for item in data] == [str(UUID(int=n)) for n in expected]
+    assert [item["registrationStatus"] for item in data] == [
+        "open",
+        "open",
+        "closed",
+        "closed",
+    ]

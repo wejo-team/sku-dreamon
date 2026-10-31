@@ -10,8 +10,9 @@ from langchain.agents.middleware.types import AgentState
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
-from langsmith import tracing_context
 from pydantic import BaseModel, ConfigDict
+
+from app.agents.tracing import INPUT_GUARD_TAG
 
 GuardReason = Literal[
     "allowed",
@@ -84,7 +85,11 @@ def _guidance(reason: GuardReason) -> str:
 
 
 class InputGuard:
-    def __init__(self, model: BaseChatModel, timeout_seconds: float = 10) -> None:
+    def __init__(
+        self,
+        model: BaseChatModel,
+        timeout_seconds: float = 10,
+    ) -> None:
         self.classifier = model.bind(
             response_format={
                 "type": "json_schema",
@@ -108,17 +113,17 @@ class InputGuard:
             ],
         }
         try:
-            with tracing_context(enabled=False):
-                async with asyncio.timeout(self.timeout_seconds):
-                    response = await self.classifier.ainvoke(
-                        [
-                            SystemMessage(content=GUARD_PROMPT),
-                            HumanMessage(
-                                content=json.dumps(payload, ensure_ascii=False)
-                            ),
-                        ],
-                        config={"callbacks": []},
-                    )
+            async with asyncio.timeout(self.timeout_seconds):
+                response = await self.classifier.ainvoke(
+                    [
+                        SystemMessage(content=GUARD_PROMPT),
+                        HumanMessage(content=json.dumps(payload, ensure_ascii=False)),
+                    ],
+                    config={
+                        "run_name": "input_guard",
+                        "tags": [INPUT_GUARD_TAG],
+                    },
+                )
             # Responses의 추론 블록은 판정에서 제외하고 텍스트 JSON만 읽는다.
             blocks = response.content
             if (

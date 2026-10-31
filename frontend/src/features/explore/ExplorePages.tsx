@@ -22,6 +22,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { Button } from '@/components/ui/button';
@@ -95,6 +96,27 @@ export function ExplorePage() {
     if (value) next.set(key, value);
     else next.delete(key);
     setParams(next, { replace: key === 'q' });
+  };
+  // 검색창은 자체 값을 두고 한글 조합이 끝난 값만 URL에 씁니다.
+  // URL 반영이 늦어 검색창을 URL에 직접 묶으면 조합 중인 글자가 되돌아갑니다.
+  const [draft, setDraft] = useState(q);
+  const [seenKey, setSeenKey] = useState(location.key);
+  const [writtenQ, setWrittenQ] = useState(q);
+  const composing = useRef(false);
+  // 뒤로 가기·초기화·탭 이동처럼 URL이 바깥에서 바뀌면 검색창도 맞춥니다.
+  // 조합 종료 직후 클릭하면 중간 URL(q=가)이 렌더링되지 않아 q만으로는
+  // 바뀐 것을 알 수 없으므로 이동마다 새로 생기는 location.key로 확인합니다.
+  if (location.key !== seenKey) {
+    setSeenKey(location.key);
+    if (q !== writtenQ) {
+      setWrittenQ(q);
+      setDraft(q);
+    }
+  }
+  const commitQuery = (value: string) => {
+    setDraft(value);
+    setWrittenQ(value);
+    update('q', value);
   };
   const from = encodeURIComponent(location.pathname + location.search);
   // [출처 7] 검색·필터·정렬·페이지는 서버가 처리합니다. 빈 값은 보내지 않습니다.
@@ -189,14 +211,24 @@ export function ExplorePage() {
                 ? '팀 이름, 키워드 검색'
                 : '이름, 역할, 관심 분야 검색'
           }
-          value={q}
-          onChange={(event) => update('q', event.target.value)}
+          value={draft}
+          onChange={(event) => {
+            if (composing.current) setDraft(event.target.value);
+            else commitQuery(event.target.value);
+          }}
+          onCompositionStart={() => {
+            composing.current = true;
+          }}
+          onCompositionEnd={(event) => {
+            composing.current = false;
+            commitQuery(event.currentTarget.value);
+          }}
         />
-        {q && (
+        {draft && (
           <Button
             variant="ghost"
             aria-label="검색어 지우기"
-            onClick={() => update('q', '')}
+            onClick={() => commitQuery('')}
           >
             <X size={18} aria-hidden="true" />
           </Button>

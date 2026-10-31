@@ -389,7 +389,7 @@ function CreateTeamForm({
               control={control}
               name="roleCodes"
               render={({ field }) => (
-                <div className="preview-choice-grid">
+                <div className="preview-row">
                   {roleOptions.map((role) => (
                     <Label className="preview-choice" key={role.code}>
                       <Checkbox

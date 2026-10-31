@@ -21,6 +21,7 @@ from sqlalchemy import select
 
 from app.agents.factory import Gate, OpenAiAgentDriver
 from app.agents.tools import SourceTools
+from app.agents.tracing import AiTraceContext, AiTracing
 from app.agents.types import PreviousContext, RecommendationPlan
 from app.models.ai_chat import AiMessage
 from app.schemas.ai import ChatStart
@@ -113,6 +114,7 @@ def driver_for(script: GuardScript) -> OpenAiAgentDriver:
     # 생성자도 실행하지 않아 테스트에 실제 API 키나 클라이언트가 필요 없다.
     driver = object.__new__(OpenAiAgentDriver)
     driver.settings = settings()
+    driver.tracing = AiTracing(driver.settings)
     object.__setattr__(driver, "model", GuardModel(script=script))
     return driver
 
@@ -231,6 +233,7 @@ class UngatedDriver:
         previous: PreviousContext,
         *,
         gate: Gate,
+        trace_context: AiTraceContext | None = None,
     ) -> AsyncIterator[str]:
         if self.duplicate:
             plan = RecommendationPlan(intent="clarify", selections=[], guidance="안내")

@@ -130,6 +130,27 @@ class ConfigurationTests(unittest.TestCase):
         )
         self.assertEqual(self.change(version=2)["operation_status"], "applied")
 
+    def test_langsmith_settings_apply_and_rollback_without_exposing_key(self):
+        self.source.app_env.update(
+            LANGSMITH_TRACING="false",
+            LANGSMITH_API_KEY="synthetic-tracing-secret",
+            LANGSMITH_PROJECT="sku-dreamon-test",
+            LANGSMITH_ENDPOINT="https://api.smith.langchain.com",
+            LANGSMITH_WORKSPACE_ID="00000000-0000-4000-8000-000000000001",
+            LANGSMITH_HIDE_INPUTS="true",
+            LANGSMITH_HIDE_OUTPUTS="false",
+        )
+        result = self.change()
+        self.assertEqual(result["operation_status"], "applied")
+        self.assertEqual(
+            json.loads(self.runtime_path.read_text())["app_env"], self.source.app_env
+        )
+        self.assertNotIn(
+            "synthetic-tracing-secret", json.dumps(self.operation.status())
+        )
+        self.change("rollback", 0)
+        self.assert_original()
+
     def test_manual_rollback_restores_original_runtime_and_container(self):
         self.change()
         self.source.failure = True

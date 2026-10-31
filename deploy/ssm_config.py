@@ -1,4 +1,4 @@
-"""고정된 SSM SecureString 버전에서 앱 설정 전체를 비공개로 읽는다."""
+"""한 SSM SecureString 응답의 설정 전체와 버전을 비공개로 고정한다."""
 
 from __future__ import annotations
 
@@ -102,6 +102,13 @@ class Source:
         """고정 버전만 읽으며 누락·권한 실패를 최신값으로 대체하지 않는다."""
         if type(version) is not int or not 1 <= version <= MAX_VERSION:
             raise SourceError("ssm_version_invalid")
+        return self._fetch(version, runner)
+
+    def fetch_latest(self, runner: Callable[..., bytes]) -> Snapshot:
+        """이름으로 한 번 조회한 응답의 값과 버전을 함께 고정한다."""
+        return self._fetch(None, runner)
+
+    def _fetch(self, version: int | None, runner: Callable[..., bytes]) -> Snapshot:
         try:
             output = runner(
                 [
@@ -109,7 +116,9 @@ class Source:
                     "ssm",
                     "get-parameter",
                     "--name",
-                    f"{self.parameter_name}:{version}",
+                    self.parameter_name
+                    if version is None
+                    else f"{self.parameter_name}:{version}",
                     "--with-decryption",
                     "--region",
                     self.region,
@@ -130,14 +139,19 @@ class Source:
                 raise ValueError("SSM response too large or not bytes")
             result = json_object(output)
             parameter = result["Parameter"]
+            selected_version = (
+                parameter.get("Version") if isinstance(parameter, dict) else None
+            )
             if (
                 not isinstance(parameter, dict)
                 or parameter.get("Name") != self.parameter_name
-                or type(parameter.get("Version")) is not int
-                or parameter["Version"] != version
+                or type(selected_version) is not int
+                or not 1 <= selected_version <= MAX_VERSION
+                or (version is not None and selected_version != version)
                 or parameter.get("Type") != "SecureString"
                 or parameter.get("DataType") != "text"
-                or parameter.get("Selector") != f":{version}"
+                or parameter.get("Selector")
+                != (f":{version}" if version is not None else None)
                 or not isinstance(parameter.get("ARN"), str)
                 or not re.fullmatch(
                     rf"arn:aws(?:-cn|-us-gov)?:ssm:{re.escape(self.region)}:"
@@ -146,6 +160,7 @@ class Source:
                 )
             ):
                 raise ValueError("SSM identity does not match")
+            version = selected_version
             contents = parameter["Value"]
             if (
                 not isinstance(contents, str)

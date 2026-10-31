@@ -12,6 +12,7 @@ from pydantic import SecretStr
 
 from app.agents.factory import OpenAiAgentDriver
 from app.agents.tools import SourceTools
+from app.agents.tracing import AiTracing
 from app.agents.types import RecommendationPlan
 from app.core.config import Settings
 from app.services.ai_sources import SourceReader
@@ -197,6 +198,7 @@ async def test_native_responses_guard_gate_and_first_final_text() -> None:
         driver.settings = Settings(
             openai_api_key=SecretStr("unit-test-key"), _env_file=None
         )
+        driver.tracing = AiTracing(driver.settings)
         driver.model = ChatOpenAI(
             model="gpt-6-luna",
             api_key="unit-test-key",

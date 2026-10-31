@@ -261,28 +261,42 @@ class BackupTests(unittest.TestCase):
         ):
             self.assertNotIn("runtime/" + relative, self.commands.archive_members)
 
-    def test_openai_key_is_redacted_only_in_archive_and_db_secrets_are_preserved(
+    def test_external_api_keys_are_redacted_only_in_archive_and_db_secrets_preserved(
         self,
     ) -> None:
         secret = "synthetic-openai-key-must-not-survive"
+        tracing_secret = "synthetic-langsmith-key-must-not-survive"
         value = json.loads(self.config.read_text())
         value["app_env"]["OPENAI_API_KEY"] = secret
+        value["app_env"]["LANGSMITH_API_KEY"] = tracing_secret
+        value["app_env"]["LANGSMITH_TRACING"] = "true"
         self.config.write_text(json.dumps(value))
         environment = self.root / "private" / ("app-" + "a" * 64 + ".env")
-        original = f"OPENAI_API_KEY={secret}\nDATABASE_URL=synthetic-database-secret\n"
+        original = (
+            f"OPENAI_API_KEY={secret}\nLANGSMITH_API_KEY={tracing_secret}\n"
+            "LANGSMITH_TRACING=true\nDATABASE_URL=synthetic-database-secret\n"
+        )
         environment.write_text(original)
         self.job.run()
         self.assertTrue(self.job.openai_key_redacted)
+        self.assertTrue(self.job.langsmith_key_redacted)
         for content in self.commands.archive_contents.values():
             self.assertNotIn(secret.encode(), content)
+            self.assertNotIn(tracing_secret.encode(), content)
         archived_env = self.commands.archive_contents[
             "runtime/private/" + environment.name
         ]
         self.assertIn(backup.OPENAI_KEY_SENTINEL.encode(), archived_env)
+        self.assertIn(backup.LANGSMITH_KEY_SENTINEL.encode(), archived_env)
+        self.assertIn(b"LANGSMITH_TRACING=true", archived_env)
         self.assertIn(b"DATABASE_URL=synthetic-database-secret", archived_env)
         self.assertEqual(environment.read_text(), original)
         self.assertEqual(
             json.loads(self.config.read_text())["app_env"]["OPENAI_API_KEY"], secret
+        )
+        self.assertEqual(
+            json.loads(self.config.read_text())["app_env"]["LANGSMITH_API_KEY"],
+            tracing_secret,
         )
         self.assertIn(
             b"synthetic-secret",

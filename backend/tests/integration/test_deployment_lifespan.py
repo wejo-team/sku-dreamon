@@ -28,9 +28,7 @@ async def test_ai_client_close_timeout_still_disposes_database(
     async def close() -> None:
         await asyncio.sleep(2)
 
-    driver = SimpleNamespace(
-        model=SimpleNamespace(root_async_client=SimpleNamespace(close=close))
-    )
+    driver = SimpleNamespace(aclose=close)
     monkeypatch.setattr("app.main.OpenAiAgentDriver", Mock(return_value=driver))
     app = create_app(settings)
     with pytest.raises(TimeoutError):

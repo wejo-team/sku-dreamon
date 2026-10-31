@@ -27,6 +27,7 @@ MUTABLE_KEYS = frozenset(
     key
     for key in APP_KEYS
     if key.startswith("AI_")
+    or key.startswith("LANGSMITH_")
     or key == "OPENAI_API_KEY"
     or key in {"READINESS_TIMEOUT_SECONDS", "SHUTDOWN_TIMEOUT_SECONDS"}
     or (key.startswith("AUTH_") and key.endswith("_LIMIT"))
@@ -176,10 +177,12 @@ class ConfigRelease:
         return current
 
     @staticmethod
-    def check_changes(old: dict[str, str], new: dict[str, str]) -> None:
+    def check_changes(
+        old: dict[str, str], new: dict[str, str], mutable_keys=MUTABLE_KEYS
+    ) -> None:
         if any(
             old.get(key) != new.get(key)
-            for key in (old.keys() | new.keys()) - MUTABLE_KEYS
+            for key in (old.keys() | new.keys()) - mutable_keys
         ):
             raise ConfigError("setting_requires_separate_procedure")
 

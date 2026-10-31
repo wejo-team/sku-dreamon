@@ -1,8 +1,8 @@
 """단일 ReAct 실행의 검증된 최종 모델 텍스트만 실시간으로 전달한다."""
 
+import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
-from contextlib import aclosing
 from datetime import UTC, datetime
 from typing import Protocol, cast
 
@@ -29,17 +29,20 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_openai import ChatOpenAI
 from langgraph.runtime import Runtime
 from langgraph.types import Command
-from langsmith import tracing_context
 
 from app.agents.guards import InputBlocked, InputGuard, InputGuardMiddleware
 from app.agents.prompts import AGENT_PROMPT, FINAL_ANSWER_PROMPT
 from app.agents.tools import SourceTools, ToolBudgetExceeded
+from app.agents.tracing import (
+    FINAL_ANSWER_TAG,
+    AiTraceContext,
+    AiTracing,
+)
 from app.agents.types import PreviousContext, RecommendationGate, RecommendationPlan
 from app.core.config import Settings
 
 Gate = RecommendationGate
 
-FINAL_ANSWER_TAG = "ai_final_answer"
 REQUEST_MESSAGE_ID = "request"
 
 
@@ -52,6 +55,7 @@ class AgentDriver(Protocol):
         previous: PreviousContext,
         *,
         gate: RecommendationGate,
+        trace_context: AiTraceContext | None = None,
     ) -> AsyncIterator[str]: ...
 
 
@@ -217,6 +221,17 @@ class OpenAiAgentDriver:
             timeout=min(settings.ai_timeout_seconds, 45),
             max_retries=0,
         )
+        self.tracing = AiTracing(settings)
+
+    async def aclose(self) -> None:
+        results = await asyncio.gather(
+            self.model.root_async_client.close(),
+            self.tracing.aclose(),
+            return_exceptions=True,
+        )
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
 
     async def stream(
         self,
@@ -226,6 +241,7 @@ class OpenAiAgentDriver:
         previous: PreviousContext,
         *,
         gate: RecommendationGate,
+        trace_context: AiTraceContext | None = None,
     ) -> AsyncGenerator[str]:
         phase = RecommendationPhase(sources, gate)
 
@@ -253,35 +269,42 @@ class OpenAiAgentDriver:
             middleware=middleware,
         )
         emitted = False
+        events = cast(
+            AsyncGenerator[StreamEvent],
+            agent.astream_events(
+                {"messages": [HumanMessage(id=REQUEST_MESSAGE_ID, content=content)]},
+                config={
+                    "recursion_limit": 32,
+                    **self.tracing.config(
+                        sources.reader.context.purpose, trace_context
+                    ),
+                },
+                version="v2",
+            ),
+        )
         try:
-            with tracing_context(enabled=False):
-                async with aclosing(
-                    cast(
-                        AsyncGenerator[StreamEvent],
-                        agent.astream_events(
-                            {
-                                "messages": [
-                                    HumanMessage(id=REQUEST_MESSAGE_ID, content=content)
-                                ]
-                            },
-                            config={"recursion_limit": 32, "callbacks": []},
-                            version="v2",
-                        ),
-                    )
-                ) as events:
-                    async for event in events:
-                        if (
-                            event["event"] != "on_chat_model_stream"
-                            or FINAL_ANSWER_TAG not in event.get("tags", [])
-                        ):
-                            continue
-                        chunk = event["data"].get("chunk")
-                        if isinstance(chunk, AIMessageChunk) and chunk.text:
-                            if phase.plan is None:
-                                raise ValueError("Answer before server validation")
-                            emitted = True
-                            # text는 추론·도구 인자가 아닌 텍스트 블록만 추출한다.
-                            yield str(chunk.text)
+            try:
+                while True:
+                    # anext마다 새 task에서 실행될 수 있으므로 yield를 가로질러
+                    # contextvars를 유지하지 않고 각 대기·정리에 추적 설정을 적용한다.
+                    with self.tracing.context():
+                        try:
+                            event = await anext(events)
+                        except StopAsyncIteration:
+                            break
+                    is_final = FINAL_ANSWER_TAG in event.get("tags", [])
+                    if event["event"] != "on_chat_model_stream" or not is_final:
+                        continue
+                    chunk = event["data"].get("chunk")
+                    if isinstance(chunk, AIMessageChunk) and chunk.text:
+                        if phase.plan is None:
+                            raise ValueError("Answer before server validation")
+                        emitted = True
+                        # text는 추론·도구 인자가 아닌 텍스트 블록만 추출한다.
+                        yield str(chunk.text)
+            finally:
+                with self.tracing.context():
+                    await events.aclose()
         except InputBlocked as error:
             await gate(
                 RecommendationPlan(

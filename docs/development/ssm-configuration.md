@@ -1,6 +1,6 @@
 # SSM 백엔드 설정 관리와 재배포
 
-백엔드 HTTP 앱의 `app_env` 전체를 SSM Parameter Store의 **단일 SecureString JSON**으로 관리합니다. 운영자는 적용할 버전을 지정하고, 서버는 현재 코드 SHA·이미지 digest를 유지한 채 앱 컨테이너를 교체합니다. 설정 조회·후보 검증·전환이 실패하면 작업 전 설정으로 복구합니다. 이 문서는 실행 계약을 설명하며 실제 AWS 권한 설치·운영 적용·복구 시험의 완료 기록을 대신하지 않습니다.
+백엔드 HTTP 앱의 `app_env` 전체를 SSM Parameter Store의 **단일 SecureString JSON**으로 관리합니다. 새 코드 배포는 조회 시점의 최신 설정 버전을 고정해 코드와 함께 적용합니다. 설정만 바꿀 때는 운영자가 정확한 버전을 지정하고 현재 코드 SHA·이미지 digest를 유지한 채 앱 컨테이너를 교체합니다. 설정 조회·후보 검증·전환이 실패하면 작업 전 조합으로 복구합니다. 이 문서는 실행 계약을 설명하며 실제 AWS 권한 설치·운영 적용·복구 시험의 완료 기록을 대신하지 않습니다.
 
 원본은 [SSM 조회기](../../deploy/ssm_config.py), [설정 교체 실행기](../../deploy/config_release.py), [GitHub 실행기](../../deploy/config_cd.py), [수동 workflow](../../.github/workflows/config-deploy.yml)와 [SSM 명령 문서](../../deploy/ssm-production-config.json)입니다. 앱의 변수 이름·기본값·값 검증은 기존 [Settings](../../backend/app/core/config.py)를 따릅니다.
 
@@ -14,26 +14,34 @@
 | `runtime_dir/private/app-<digest>.env` | 슬롯별로 생성한 불변 적용본. 컨테이너 환경변수로 전달 |
 | `runtime_dir/private/config-<digest>.json` | 설정 작업 전·후의 비공개 런타임 snapshot. 실패·중단 복구용 |
 | `runtime_dir/state/config-pending.json` | 완료되지 않은 설정 작업의 식별자와 snapshot 참조 |
+| `runtime_dir/state/code-config-pending.json` | 완료되지 않은 코드·설정 결합 배포의 식별자와 snapshot 참조 |
 
 중앙화 이후 `runtime.json`의 `app_env`나 생성된 env 파일을 직접 편집하지 않습니다. 설정은 SSM에서 버전을 만든 뒤 적용합니다. 로컬 개발 `.env`, CI의 격리 DB 설정, DDL용 `migration_env`, PostgreSQL 초기 비밀번호·TLS/차단 목록 파일과 호스트 설정은 이번 중앙화 대상과 수명이 다릅니다.
 
-SSM 값을 수정한 것만으로 실행 중인 앱이 바뀌지 않습니다. 앱 요청마다 SSM을 조회하지 않으며, 재배포가 지정한 `name:version`을 한 번 읽습니다. 한 JSON 버전이 설정 집합 전체를 나타내므로 조회 도중 서로 다른 parameter 버전이 섞이지 않습니다. 키가 없거나 권한·복호화·형식 검증이 실패하면 최신 버전이나 로컬 값으로 대체하지 않습니다. [AWS GetParameter 버전 조회](https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_GetParameter.html)
+SSM 값을 수정한 것만으로 실행 중인 앱이 바뀌지 않습니다. 앱 요청마다 SSM을 조회하지 않습니다. 새 코드 배포는 이름으로 한 번 조회한 응답의 `Version`과 `Value`를 함께 고정하며, 설정 전용 재배포는 지정한 `name:version`을 한 번 읽습니다. 한 JSON 버전이 설정 집합 전체를 나타내므로 진행 중 더 새 버전이 등록돼도 섞이지 않습니다. 키가 없거나 권한·복호화·형식 검증이 실패하면 다른 버전이나 로컬 값으로 대체하지 않습니다. 코드 CD의 동일 SHA 재실행과 rollback·복구는 SSM을 재조회하지 않습니다. [AWS GetParameter 조회](https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_GetParameter.html)
 
 ## 1차 변경 범위
 
 설정 원본에는 **현재 `app_env` 전체**를 넣습니다. 숫자·boolean·JSON 배열 형태의 환경변수도 문자열 값으로 표현합니다. 예를 들어 `AI_REQUIRED`는 `"true"`, `AUTH_ALLOWED_ORIGINS`는 `"[\"https://www.example.com\"]"`입니다. 변경할 키만 보내는 부분 patch는 지원하지 않습니다. 알 수 없는 키·중복 JSON 키·개행·NUL과 8 KiB를 넘는 값을 거부합니다.
 
-일반 설정 재배포에서 바꿀 수 있는 키는 [실행기의 `MUTABLE_KEYS`](../../deploy/config_release.py)에 한정합니다.
+설정 전용 재배포에서 바꿀 수 있는 키는 [실행기의 `MUTABLE_KEYS`](../../deploy/config_release.py)에 한정합니다. 코드 배포의 [설정 선택](../../deploy/code_config.py)은 같은 변경 허용 규칙을 대상 checkout의 `APP_KEYS`에 적용합니다. 따라서 새 코드에서 허용한 키도 검증할 수 있으며, 구 실행기에 없던 키를 이유로 거부하거나 변경 제한을 건너뛰지 않습니다.
 
 | 변경 가능 | 예 |
 | --- | --- |
 | AI 설정 | `OPENAI_API_KEY`, `AI_REQUIRED`, 현재 Settings가 허용하는 `AI_*` |
+| 실행 추적 | `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, `LANGSMITH_ENDPOINT`, `LANGSMITH_WORKSPACE_ID`, `LANGSMITH_HIDE_INPUTS`, `LANGSMITH_HIDE_OUTPUTS` |
 | 인증 요청 제한 | `AUTH_LOGIN_ACCOUNT_LIMIT`, `AUTH_LOGIN_IP_LIMIT`, `AUTH_SIGNUP_IP_LIMIT`, `AUTH_AVAILABILITY_IP_LIMIT` |
 | 준비·종료 제한 시간 | `READINESS_TIMEOUT_SECONDS`, `SHUTDOWN_TIMEOUT_SECONDS` |
 
 DB URL·DB pool/TLS 설정, CSRF 키, origin·Host·trusted proxy, 차단 목록 경로·버전, `APP_ENV`는 기존 적용값과 같아야 합니다. 이 키의 추가·삭제도 변경으로 취급합니다. DB 자격증명 회전·CSRF 키 회전·공유 CA/차단 목록 교체·호스트/네트워크 변경은 별도 절차로 처리합니다. AI 키의 실제 제공자 유효성·할당량은 `/ready`에서 호출해 검사하지 않습니다.
 
+LangSmith는 키가 있으면 항상 추적합니다. SSM bundle에 키·운영 프로젝트를 등록하고 다음 코드 릴리스에 함께 적용하거나 설정 전용 재배포로 적용합니다. 새 코드 배포의 설정 결합이 아직 설치되지 않은 운영 환경은 [최초 전환 제한](continuous-deployment.md)을 확인합니다. 운영 AI에 키가 없으면 초기화 경고를 남기며 서비스 시작은 허용합니다. 키 교체와 프로젝트·입출력 숨김 변경도 같은 절차로 적용합니다. 기존 `LANGSMITH_TRACING`은 bundle·rollback 호환용으로 허용하지만 앱은 값을 무시하므로 `false`로 추적을 끌 수 없습니다. 새 bundle에는 이 키를 추가하지 않습니다.
+
+LangSmith의 실제 접속은 readiness 조건으로 사용하지 않습니다. 자동 추적의 원문 범위·masking과 프로젝트 접근·보존 확인은 [실행 추적](langsmith-tracing.md)을 따릅니다.
+
 프론트 `VITE_*`는 빌드에 포함되는 공개 설정이므로 이번 workflow에서 변경하지 않습니다. 설정 재배포는 이미지 build/push, 프론트 게시, DB migration·DB 컨테이너 교체를 실행하지 않습니다.
+
+코드·설정 결합 배포의 진행 기록이 남아 있으면 설정 전용 `apply`·`rollback`·`recover`로 대신 처리하지 않습니다. 먼저 [코드 CD 복구](continuous-deployment.md)의 호스트 명령으로 같은 코드·설정 조합을 복원합니다. 코드 rollback은 직전 활성 조합을 사용하므로, B 코드에서 설정만 2→3으로 바꾼 뒤 C 코드·설정 4를 배포했다면 B·설정 3으로 돌아갑니다.
 
 ## 최초 연결
 
@@ -136,9 +144,9 @@ sudo python3.13 /opt/sku-dreamon/current/deploy/config_release.py \
 
 기존 blue/green 두 슬롯을 재사용하므로 설정 배포도 직전 릴리스 슬롯을 갱신합니다. 여러 단계 전의 코드 rollback 이력을 따로 보존하지 않습니다. 오래된 설정을 다시 적용할 때는 현재 코드와의 호환성을 확인하고 SSM 버전을 지정합니다.
 
-OpenAI 키를 바꿀 때 이전 키를 제공자에서 즉시 폐기하면 설정 파일을 복구해도 그 키의 유효성이 돌아오지 않습니다. 전환·복구 확인과 키 폐기 순서를 함께 관리합니다. `/ready`는 실제 모델 호출 없이 로컬 client 준비만 검사합니다.
+OpenAI·LangSmith 키를 바꿀 때 이전 키를 제공자에서 즉시 폐기하면 설정 파일을 복구해도 그 키의 유효성이 돌아오지 않습니다. 전환·복구 확인과 키 폐기 순서를 함께 관리합니다. `/ready`는 실제 모델·계측 호출 없이 로컬 client 준비만 검사합니다.
 
-snapshot에는 전체 비밀값이 있으므로 root 전용 경로에 보존합니다. `config-*.json`은 현재 백업 archive 대상이 아니고 미완료 작업은 백업을 차단합니다. 정상 적용 후의 호스트 복원·활성/이전 버전별 OpenAI 키 재주입은 [운영 백업](production-backups.md)을 따릅니다. 백업 보존 기간 동안 필요한 SSM 버전과 기존 키의 복구 가능성을 별도로 유지해야 합니다.
+snapshot에는 전체 비밀값이 있으므로 root 전용 경로에 보존합니다. `config-*.json`은 현재 백업 archive 대상이 아니고 미완료 작업은 백업을 차단합니다. 정상 적용 후의 호스트 복원·활성/이전 버전별 OpenAI·LangSmith 키 재주입은 [운영 백업](production-backups.md)을 따릅니다. 백업 보존 기간 동안 필요한 SSM 버전과 기존 키의 복구 가능성을 별도로 유지해야 합니다.
 
 ## 검증
 
@@ -148,14 +156,17 @@ snapshot에는 전체 비밀값이 있으므로 root 전용 경로에 보존합�
 python3.13 -m unittest discover -s deploy/tests -p 'test_ssm_config.py' -v
 python3.13 -m unittest discover -s deploy/tests -p 'test_config_release.py' -v
 python3.13 -m unittest discover -s deploy/tests -p 'test_config_cd.py' -v
+python3.13 -m unittest discover -s deploy/tests -p 'test_cd_release.py' -v
 ```
 
-검사 범위는 고정 버전·중복 키/누락/잘못된 값 거부, 같은 코드의 설정 교체, 실패 후 runtime 입력 복구, 중단 상태 재실행, 잠금·경쟁 차단, 운영 비밀값 없는 출력입니다. 실제 EC2에서의 SSM/KMS 읽기, 권한 거부, 정상 설정 적용과 실패 복구는 지정된 운영 환경에서 별도로 확인하고 비공개 운영 기록에 명령 ID·코드 SHA·설정 버전·결과를 남깁니다.
+검사 범위는 고정 버전·최신 응답의 값/버전 고정·중복 키/누락/잘못된 값 거부, 같은 코드의 설정 교체와 새 코드·설정 결합, 실패 후 runtime 입력 복구, 중단 상태 복구, 잠금·경쟁 차단, 운영 비밀값 없는 출력입니다. 실제 EC2에서의 SSM/KMS 읽기, 권한 거부, 정상 설정 적용과 실패 복구는 지정된 운영 환경에서 별도로 확인하고 비공개 운영 기록에 명령 ID·코드 SHA·설정 버전·결과를 남깁니다.
 
-실제 앱 이미지와 Compose의 설정 적용·rollback·잘못된 설정의 시작 실패 복구·전환 직후 중단 복구는 선택 검사로 실행합니다. 운영 호스트와 분리된 root 환경에 로컬 Docker/Compose, Python 3.13, GNU coreutils, util-linux, e2fsprogs, OpenSSL, curl을 준비합니다. 기존 [컨테이너 검사](../../deploy/tests/container_e2e.py)와 같은 합성 loopback mount 권한이 필요합니다.
+실제 앱 이미지와 Compose의 설정 적용·rollback·잘못된 설정의 시작 실패 복구·전환 직후 중단 복구는 선택 검사로 실행합니다. 코드·설정 결합 경로도 같은 하네스에서 검사합니다. 운영 호스트와 분리된 root 환경에 로컬 Docker/Compose, Python 3.13 이상, GNU coreutils, util-linux, e2fsprogs, OpenSSL, curl을 준비합니다. 기존 [컨테이너 검사](../../deploy/tests/container_e2e.py)와 같은 합성 loopback mount 권한과 로컬 검증용 `registry:3` 이미지가 필요합니다.
 
 ```bash
 python3.13 deploy/tests/config_container_e2e.py
 ```
 
-SSM 응답만 합성하며 AWS·모델 API는 호출하지 않습니다. 설정을 바꿔도 이미지·코드 SHA와 DB·Nginx 컨테이너가 유지되는지 확인합니다. 검사 결과와 실행 소스 해시는 `deploy/test-results/config-container-e2e.json`에 기록하고 합성 앱·디스크는 종료 시 정리합니다. 이 검사는 일반 CI에 자동 추가되지 않습니다.
+AWS의 SSM·S3·ECR 응답과 systemd 백업 호출은 합성하며 실제 AWS·모델 API는 호출하지 않습니다. 설정 전용 경로는 이미지·코드 SHA와 DB·Nginx 컨테이너의 유지를 확인합니다. 결합 경로는 localhost 임의 포트의 임시 registry에서 이미지 digest를 사용해 실제 코드·설정 교체, 동일 SHA 재실행, 이전 조합 rollback, 시작 실패와 중단 복구를 확인합니다. 백업 호출 경계에서는 기존 코드·설정이 안정 상태인지 검사하며 실제 dump·원격 백업 성공을 뜻하지 않습니다. 검사 결과와 실행 소스 해시는 `deploy/test-results/config-container-e2e.json`에 기록하고 합성 앱·디스크·registry는 종료 시 정리합니다. 이 검사는 일반 CI에 자동 추가되지 않습니다.
+
+2026-10-31 격리 Docker-in-Docker에서 이 하네스의 **14개 항목을 180.59초에 통과**했습니다. Docker 29.9.2·Compose 5.6.1·하네스 Python 3.14.10, 제품 앱 Python 3.13.14를 사용했습니다. 실제 이미지·migration·TLS/HTTPS·설정 전용 교체에 더해 코드와 최신 설정의 동시 적용, 동일 SHA 무조회, 코드·설정 쌍 rollback, 잘못된 앱 설정 실패 복구, 전환 후 중단과 무SSM 복구를 확인했습니다. 마지막 journal은 `stable`이며 남은 `failure_code`는 실패 주입 이력입니다. 실행 뒤 `cd_release.py`·`code_config.py`에 예외 처리의 린트 설명 주석만 추가했고, 그 두 주석을 제외하면 보고서의 실행 소스 해시와 일치함을 확인했습니다. 실제 AWS 권한·SSM/KMS 조회와 운영 배포는 이 검증에 포함하지 않았습니다.
