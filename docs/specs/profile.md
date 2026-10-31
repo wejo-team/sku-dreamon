@@ -2,7 +2,6 @@
 
 - 구현 상태: 진행 중
 - 명세 검토: [PR #14](https://github.com/wejo-team/sku-dreamon/pull/14), PDF 대조·명세 연결 보완 [PR #17](https://github.com/wejo-team/sku-dreamon/pull/17)
-- 수강 과목: [명세 PR #244](https://github.com/wejo-team/sku-dreamon/pull/244) · 가입/프로필/API/AI 컨텍스트 구현과 검증은 [교과목 개발 계획](../development-plans/course-catalog.md)에 기록. 운영 미배포
 - 구현 작업: [본인 프로필 저장·공개 전환 #102](https://github.com/wejo-team/sku-dreamon/issues/102), [사람 탐색 #103](https://github.com/wejo-team/sku-dreamon/issues/103)
 - 변경 근거: 2026-10-19 [#77 최신 사용자 결정](https://github.com/wejo-team/sku-dreamon/issues/77#issuecomment-6260435650)의 입력 계약·신규 지원 공개 필수·기존 지원 최신 프로필 AI 검토 반영. 명세 반영과 디자인·서버 구현 완료는 구분
 

@@ -70,23 +70,6 @@ export function ProfileDetails({
         </div>
       ))}
       <div>
-        <dt>수강과목</dt>
-        <dd>
-          {profile.courses.length ? (
-            <ul className="profile-course-display">
-              {profile.courses.map((course) => (
-                <li key={course.code}>
-                  {course.name}{' '}
-                  <span className="preview-muted">({course.code})</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="preview-muted">아직 입력하지 않았어요.</p>
-          )}
-        </dd>
-      </div>
-      <div>
         <dt>보유 역량</dt>
         <dd>
           {profile.skillCodes.length ? (

@@ -16,7 +16,6 @@ from app.dependencies.auth import SESSION_COOKIE_NAME
 from app.dependencies.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 from app.models.academic_units import AcademicUnit
 from app.models.contests import ContestField
-from app.models.courses import Course, ProfileCourse
 from app.models.profiles import (
     PortfolioLink,
     Profile,
@@ -45,8 +44,6 @@ async def review_data(application_data: ApplicationData) -> ApplicationData:
             ProfileDesiredRole,
             ProfileSkill,
             PortfolioLink,
-            Course,
-            ProfileCourse,
             ContestField,
         )
     ]

@@ -60,12 +60,8 @@ def test_legacy_profile_baseline_is_frozen_and_new_content_preserves_choices() -
     from scripts.seed_content import legacy_profile_input
 
     legacy = [legacy_profile_input(i, 1) for i in range(300)]
-    assert all("course_codes" not in p.model_fields_set for p in legacy)
-    # 신규 선택 필드의 기본값은 구 시드가 실제 제공했던 본문에 추가하지 않는다.
     serialized = json.dumps(
-        [p.model_dump(mode="json", exclude_unset=True) for p in legacy],
-        ensure_ascii=False,
-        sort_keys=True,
+        [p.model_dump(mode="json") for p in legacy], ensure_ascii=False, sort_keys=True
     )
     # 변경 전 생성 함수의 실제 300개 출력. 비교 기준 변경은 명시적 검토가 필요하다.
     assert hashlib.sha256(serialized.encode()).hexdigest() == (

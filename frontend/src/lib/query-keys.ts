@@ -15,7 +15,6 @@ export const queryKeys = {
   me: ['auth', 'me'] as const,
   catalogs: ['catalogs'] as const,
   academicUnits: ['catalogs', 'academic-units'] as const,
-  courses: (query: object) => ['catalogs', 'courses', query] as const,
   contests: (query: object) => ['contests', 'list', query] as const,
   contest: (id: string) => ['contests', 'detail', id] as const,
   openContestSearch: (q: string) => ['contests', 'open-search', q] as const,

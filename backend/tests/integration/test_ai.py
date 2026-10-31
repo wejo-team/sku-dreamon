@@ -16,7 +16,6 @@ from sqlalchemy import select, update
 from app.agents.tools import SourceTools
 from app.agents.tracing import AiTraceContext
 from app.agents.types import (
-    AgentContext,
     PreviousContext,
     RecommendationGate,
     RecommendationPlan,
@@ -32,15 +31,11 @@ from app.dependencies.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 from app.models.ai_runs import AiRun
 from app.models.applications import Application
 from app.models.auth import AuthSession
-from app.models.courses import Course, ProfileCourse
 from app.models.profiles import Profile
 from app.routers.ai import router
 from app.schemas.ai import ChatStart
-from app.schemas.course_import import CourseImport
 from app.security.csrf import issue_csrf_token
 from app.services.ai import AiService
-from app.services.ai_sources import SourceReader
-from app.services.courses import import_courses
 from app.services.sessions import SessionPrincipal
 from tests.integration.application_review_support import review_data  # noqa: F401 -- pytest fixture
 from tests.integration.application_support import (
@@ -461,62 +456,6 @@ async def test_publication_blocks_revocation_until_send_and_stops_next_chunk(
         assert not mutation.done(), (
             "공개 변경은 현재 전송 경계가 닫힐 때까지 기다려야 한다."
         )
-        following = await anext(stream)
-        await asyncio.wait_for(mutation, 3)
-        assert b"event: invalidated" in following
-        assert b"answer.delta" not in following
-    finally:
-        await stream.aclose()
-        if not mutation.done():
-            mutation.cancel()
-        await asyncio.gather(mutation, return_exceptions=True)
-
-
-async def test_publication_blocks_course_reimport_until_send_and_stops_next_chunk(
-    ai_data: ApplicationData,
-) -> None:
-    catalog = CourseImport.model_validate(
-        {
-            "schema_version": "0.1.0",
-            "courses": [
-                {
-                    "code": "GE1394",
-                    "name": "AI리터러시와가치설계",
-                    "aliases": [],
-                    "departments": [],
-                }
-            ],
-        }
-    )
-    async with ai_data.database.session() as session:
-        await import_courses(session, catalog)
-        course_id = await session.scalar(
-            select(Course.course_id).where(Course.code == "GE1394")
-        )
-        assert course_id is not None
-        session.add(ProfileCourse(account_id=ai_data.stranger_id, course_id=course_id))
-        await session.commit()
-
-    service = AiService(ai_data.database, settings(), FakeDriver(ai_data))
-    execution = await service.start(
-        principal(ai_data, ai_data.applicant_id),
-        "chat",
-        ChatStart.model_validate(payload()),
-    )
-    stream = service.stream(execution)
-    while b"event: answer.delta" not in await anext(stream):
-        pass
-
-    async def reimport() -> None:
-        catalog.courses[0].name = "AI리터러시"
-        async with ai_data.database.session() as session:
-            await import_courses(session, catalog)
-
-    mutation = asyncio.create_task(reimport())
-    try:
-        # 현재 프레임을 보내는 동안에는 그 근거가 된 공통 과목명도 바뀌지 않는다.
-        with pytest.raises(TimeoutError):
-            await asyncio.wait_for(asyncio.shield(mutation), 0.1)
         following = await anext(stream)
         await asyncio.wait_for(mutation, 3)
         assert b"event: invalidated" in following
@@ -998,126 +937,3 @@ async def test_empty_chat_answer_is_archived_but_applicant_review_is_not(
         rows = list(await session.scalars(select(AiMessage)))
         assert len(rows) == 2
         assert all(row.request_id == UUID(str(body["requestId"])) for row in rows)
-
-
-async def test_course_context_uses_current_catalog_and_existing_visibility(
-    ai_data: ApplicationData,
-) -> None:
-    async with ai_data.database.session() as session:
-        course = Course(code="GE1394", name="AI리터러시와가치설계")
-        session.add(course)
-        await session.flush()
-        session.add(
-            ProfileCourse(account_id=ai_data.applicant_id, course_id=course.course_id)
-        )
-        await session.execute(
-            update(Profile)
-            .where(Profile.profile_id == ai_data.applicant_id)
-            .values(is_public=False)
-        )
-        await session.commit()
-
-    reader = SourceReader(
-        ai_data.database,
-        AgentContext(
-            principal=principal(ai_data, ai_data.leader_id),
-            purpose="applicant_review",
-            application_id=ai_data.application_id,
-        ),
-    )
-    first = await reader.get("application", ai_data.application_id)
-    first_profile = first.facts["profile"]
-    assert isinstance(first_profile, dict)
-    assert first_profile["courses"] == [
-        {"code": "GE1394", "name": "AI리터러시와가치설계"}
-    ]
-    public_reader = SourceReader(
-        ai_data.database,
-        AgentContext(principal=principal(ai_data, ai_data.leader_id), purpose="chat"),
-    )
-    with pytest.raises(AppError) as denied:
-        await public_reader.get("person", ai_data.applicant_id)
-    assert denied.value.status_code == 404
-
-    async with ai_data.database.session() as session:
-        await session.execute(
-            update(Course).where(Course.code == "GE1394").values(name="AI리터러시")
-        )
-        await session.commit()
-    current = await reader.get("application", ai_data.application_id)
-    current_profile = current.facts["profile"]
-    assert isinstance(current_profile, dict)
-    assert current_profile["courses"][0]["name"] == "AI리터러시"
-    assert current.reference.fingerprint != first.reference.fingerprint
-
-
-@pytest.mark.parametrize("purpose", ["review", "recommendation"])
-async def test_completed_applicant_result_is_stale_after_course_reimport(
-    ai_data: ApplicationData, purpose: str
-) -> None:
-    catalog = CourseImport.model_validate(
-        {
-            "schema_version": "0.1.0",
-            "courses": [
-                {
-                    "code": "GE1394",
-                    "name": "AI리터러시와가치설계",
-                    "aliases": [],
-                    "departments": [],
-                }
-            ],
-        }
-    )
-    async with ai_data.database.session() as session:
-        await import_courses(session, catalog)
-        course_id = await session.scalar(
-            select(Course.course_id).where(Course.code == "GE1394")
-        )
-        assert course_id is not None
-        session.add(ProfileCourse(account_id=ai_data.applicant_id, course_id=course_id))
-        await session.commit()
-
-    request_id = uuid4()
-    endpoint = (
-        f"/api/v1/applications/{ai_data.application_id}/ai-reviews/stream"
-        if purpose == "review"
-        else f"/api/v1/teams/{ai_data.team_id}/applicant-recommendations/stream"
-    )
-    async with client_for(ai_data, FakeDriver(ai_data), ai_data.leader_id) as client:
-        response = await client.post(endpoint, json={"requestId": str(request_id)})
-        stream = events(response.text)
-        assert stream[-1]["event"] == "done", response.text
-        result = stream[-2]["result"]
-        assert isinstance(result, dict)
-        validation_path = f"/api/v1/ai/requests/{request_id}/validation"
-        validation_body = {"attempt": 1, "result": result}
-        unchanged = await client.post(validation_path, json=validation_body)
-        assert unchanged.json()["data"]["result"]["isStale"] is False
-
-        catalog.courses[0].name = "AI리터러시"
-        async with ai_data.database.session() as session:
-            assert await import_courses(session, catalog) == {
-                "created": 0,
-                "updated": 1,
-                "unchanged": 0,
-            }
-            assert (
-                await session.scalar(
-                    select(Profile.version).where(
-                        Profile.profile_id == ai_data.applicant_id
-                    )
-                )
-                == 1
-            )
-
-        validation = await client.post(validation_path, json=validation_body)
-        assert validation.status_code == 200
-        data = validation.json()["data"]
-        assert data["valid"] is True
-        assert data["result"]["isStale"] is True
-        version = (
-            data["result"]["profileVersions"][0]
-            if purpose == "review"
-            else data["result"]["candidates"][0]["profileVersion"]
-        )
-        assert version["usedVersion"] == version["currentVersion"] == "1"

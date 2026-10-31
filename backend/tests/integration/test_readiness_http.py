@@ -41,8 +41,8 @@ def ready_app(tmp_path: Path) -> FastAPI:
 @pytest.mark.parametrize(
     "revision,status",
     [
+        ("20261026_09", 200),
         ("20261031_10", 200),
-        ("20261026_09", 503),
         ("future-unapproved", 503),
         (None, 503),
     ],
@@ -194,7 +194,7 @@ async def test_ai_readiness_checks_only_local_client_state_and_makes_zero_reques
         )
     )
     session = AsyncMock(spec=AsyncSession)
-    session.scalars.return_value = Mock(all=Mock(return_value=["20261031_10"]))
+    session.scalars.return_value = Mock(all=Mock(return_value=["20261026_09"]))
 
     @asynccontextmanager
     async def sessions() -> AsyncIterator[AsyncSession]:

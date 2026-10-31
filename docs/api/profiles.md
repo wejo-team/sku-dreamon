@@ -30,7 +30,6 @@
 | --- | --- | --- |
 | `VERSION_CONFLICT` | 요청 버전이 현재 버전과 다름 | 최신 값을 확인하고 편집값을 재검토. 조용히 덮어써 재시도하지 않음 |
 | `INVALID_CATALOG_SELECTION` | 선택 코드가 해당 목록·선택 가능 조건에 맞지 않음 | 최신 카탈로그를 확인하고 해당 선택을 수정 |
-| `INVALID_COURSE_SELECTION` | 수강 과목의 학수번호가 DB 카탈로그에 없음 | 과목을 다시 검색하고 유효한 항목으로 수정 |
 | `INVALID_ACADEMIC_PATH` | 선택한 학사 항목의 부모 경로·계층이 유효하지 않음 | 학사 목록을 다시 확인하고 유효한 항목으로 수정 |
 
 저장 흐름은 다음과 같습니다.
@@ -56,9 +55,9 @@
 
 ### 프로필 저장의 편집 필드 설계
 
-기존 편집 키는 모두 포함합니다. 선택 입력도 `null` 또는 `[]`를 전송합니다. 추가된 `courseCodes`만 기존 소비자 호환을 위해 생략할 수 있으며 생략 시 저장된 수강 과목을 유지합니다. 새 화면은 항상 배열을 보냅니다. 문자열은 2026-10-24 사용자 결정에 따라 NFC·앞뒤 공백 제거 후 Unicode 코드 포인트로 셉니다. 운영 URL 상한 등 추가 제한은 도입하지 않습니다.
+이 표의 **13개 키를 모두 포함**합니다. 선택 입력도 키를 생략하지 않고 `null` 또는 `[]`를 전송합니다. 문자열은 2026-10-24 사용자 결정에 따라 NFC·앞뒤 공백 제거 후 Unicode 코드 포인트로 셉니다. 운영 URL 상한 등 추가 제한은 도입하지 않습니다.
 
-정확한 필드와 길이·개수는 [ProfileWrite](../../backend/app/schemas/profile_write.py)와 생성 OpenAPI에서 확인합니다. `courseCodes`는 카탈로그 학수번호 배열이며 중복·`null`은 422, 미등록 코드는 409입니다. `[]`는 전체 선택 해제입니다. 전체 프로필 응답의 `courses`는 항상 `{code,name}[]`로 반환하며 미등록 프로필은 빈 배열입니다. 과목 수정도 기존 버전 검사·트랜잭션·공개 범위를 따릅니다.
+정확한 13개 필드와 길이·개수는 [ProfileWrite](../../backend/app/schemas/profile_write.py)와 생성 OpenAPI에서 확인합니다. 선택 필드도 생략하지 않고 null 또는 빈 배열을 전달합니다.
 
 코드는 [Catalogs](catalogs.md#catalogs)로 표시명을 해석하며 서버의 같은 공통 enum으로 입력을 검증합니다. 새 선택은 현재 유효한 항목이어야 하며, 기존 비활성 학사 경로를 그대로 유지한 다른 항목의 수정은 허용합니다. 학사 항목과 부모 경로는 [학사 저장 정책](../specs/academic-structure.md#selection-policy)에 따라 검증하며, 상위값 변경 시 [유효하지 않은 하위 선택만 초안에서 초기화](../specs/academic-structure.md#dependent-selection)합니다.
 
@@ -89,7 +88,7 @@
 
 ### ProfileWrite — 전체 편집 요청
 
-전체 키는 [공통 편집 필드](#profile-fields)와 `expectedVersion`입니다. `expectedVersion`은 `NonnegativeBigInt`이며 최초 `"0"`, 수정 시 조회한 `version`을 넣습니다. `accountId`, `version`, `updatedAt`, `isPublic`, `isDemo`는 받지 않습니다.
+전체 키는 [공통 편집 필드 13개](#profile-fields)와 `expectedVersion`입니다. `expectedVersion`은 `NonnegativeBigInt`이며 최초 `"0"`, 수정 시 조회한 `version`을 넣습니다. `accountId`, `version`, `updatedAt`, `isPublic`, `isDemo`는 받지 않습니다.
 
 최초 저장 요청 예시입니다. `FIELD_EXAMPLE`과 `ROLE_EXAMPLE`은 문서용 코드이며 실제 카탈로그 값은 아닙니다.
 
