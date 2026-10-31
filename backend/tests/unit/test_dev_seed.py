@@ -1,5 +1,7 @@
 """개발 시드가 운영 주소를 거부하고 유효한 다양한 프로필을 만드는지 검사한다."""
 
+from pathlib import Path
+
 import pytest
 
 from scripts.seed_content import profile_input
@@ -103,19 +105,32 @@ def test_team_names_are_unique_labeled_and_use_fictional_project_content() -> No
     ],
 )
 def test_refresh_cli_is_explicit_and_dry_run_by_default(
-    monkeypatch: pytest.MonkeyPatch, arguments: list[str], refresh: bool, apply: bool
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    arguments: list[str],
+    refresh: bool,
+    apply: bool,
 ) -> None:
     from scripts import seed_dev_data as seed
 
     seen = []
 
     async def observe_run(
-        *, apply: bool, users_only: bool, refresh: bool
+        *,
+        apply: bool,
+        users_only: bool,
+        refresh: bool,
+        rebuild_teams: bool,
+        check: bool,
     ) -> dict[str, object]:
-        seen.append((apply, users_only, refresh))
-        return {}
+        seen.append((apply, users_only, refresh, rebuild_teams, check))
+        return {"validation": {"quality": {"passed": True}}}
 
     monkeypatch.setattr(seed, "run", observe_run)
-    monkeypatch.setattr("sys.argv", ["seed_dev_data", *arguments])
+    report = tmp_path / "report.json"
+    monkeypatch.setattr(
+        "sys.argv", ["seed_dev_data", *arguments, "--report", str(report)]
+    )
     seed.main()
-    assert seen == [(apply, False, refresh)]
+    assert seen == [(apply, False, refresh, False, False)]
+    assert report.is_file()
