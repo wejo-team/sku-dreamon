@@ -2,7 +2,7 @@
  * [참조 출처]
  * 1. design-reference/src/features/design-preview/auth-policy.ts - 인증 입력 규칙 원본
  * 2. docs/specs/authentication.md#login-identifier - 아이디 ASCII 소문자·숫자 4~24자 정규화
- * 3. docs/specs/authentication.md#password-policy - 비밀번호 NFC 15~128 코드 포인트, 공백 보존
+ * 3. docs/specs/authentication.md#password-policy - 비밀번호 NFC 8~128 코드 포인트, 가입 시 기호 포함, 공백 보존
  * 4. docs/design/handoff.md - 공개 UI 테스트 계정은 실제 계정·비밀값이 아님
  *
  * 고정 문자열 검사만 하며 계정 발급·해시·서버 세션을 구현하지 않습니다(출처 4).
@@ -33,14 +33,23 @@ export const loginIdSchema = z
       ),
   );
 
-// [출처 3] 비밀번호 길이 검증
+// [출처 3] 화면의 체크 표시와 제출 검증이 같은 정규화·조건을 사용합니다.
+export function getPasswordRequirements(value: string) {
+  const normalized = normalizePassword(value);
+  const length = Array.from(normalized).length;
+  return {
+    length: length >= 8 && length <= 128,
+    symbol: /[\p{P}\p{S}]/u.test(normalized),
+  };
+}
+
+// [출처 3] 로그인에는 새 가입의 기호 조건을 적용하지 않습니다.
 export const passwordSchema = z
   .string()
   .transform(normalizePassword)
   .refine(
-    (value) =>
-      Array.from(value).length >= 15 && Array.from(value).length <= 128,
-    '비밀번호는 공백을 포함해 15~128자로 입력해 주세요.',
+    (value) => getPasswordRequirements(value).length,
+    '비밀번호는 공백을 포함해 8~128자로 입력해 주세요.',
   );
 
 // Interaction fixtures only. Production must use an approved, maintained
@@ -50,9 +59,16 @@ export const commonPasswordFixtures = new Set([
   '1234567890123456',
   'passwordpassword',
   'qwertyqwertyqwerty',
+  'password!',
+  '1234567!',
 ]);
-// [출처 3] 가입: 흔한 비밀번호 예시 4개 차단
-export const signupPasswordSchema = passwordSchema.refine(
-  (value) => !commonPasswordFixtures.has(value.toLowerCase()),
-  '쉽게 추측할 수 있는 비밀번호예요. 다른 비밀번호를 선택해 주세요.',
-);
+// [출처 3] 가입: 기호 포함과 흔한 비밀번호 예시 차단
+export const signupPasswordSchema = passwordSchema
+  .refine(
+    (value) => getPasswordRequirements(value).symbol,
+    '기호를 1개 이상 포함해 주세요. (!, @, # 등)',
+  )
+  .refine(
+    (value) => !commonPasswordFixtures.has(value.toLowerCase()),
+    '쉽게 추측할 수 있는 비밀번호예요. 다른 비밀번호를 선택해 주세요.',
+  );

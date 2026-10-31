@@ -532,10 +532,7 @@ describe('design preview account flows', () => {
     const state = renderAccount('/design-preview/signup');
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('아이디 (필수)'), '  NewAccount  ');
-    await user.type(
-      screen.getByLabelText('비밀번호 (필수)'),
-      '새로운비밀번호를길게만들어요123',
-    );
+    await user.type(screen.getByLabelText('비밀번호 (필수)'), 'abcdefg!');
     await user.type(screen.getByLabelText('이름 (필수)'), '김지우');
     await user.click(
       within(screen.getByRole('group', { name: /관심 분야/ })).getByLabelText(
@@ -955,9 +952,10 @@ describe('design preview account flows', () => {
     const oversized = '한'.repeat(129);
     await user.click(password);
     await user.paste(oversized);
+    await user.tab();
     expect(
       await screen.findByText(
-        '비밀번호는 공백을 포함해 15~128자로 입력해 주세요.',
+        '비밀번호는 공백을 포함해 8~128자로 입력해 주세요.',
       ),
     ).toBeVisible();
     expect(password).toHaveValue(oversized);
@@ -968,7 +966,7 @@ describe('design preview account flows', () => {
     await user.click(screen.getByRole('button', { name: '비밀번호 숨기기' }));
     expect(password).toHaveAttribute('type', 'password');
     await user.clear(password);
-    await user.paste('passwordpassword');
+    await user.paste('password!');
     expect(
       await screen.findByText(
         '쉽게 추측할 수 있는 비밀번호예요. 다른 비밀번호를 선택해 주세요.',

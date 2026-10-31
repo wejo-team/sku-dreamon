@@ -63,7 +63,7 @@ const saved: {
 
 const REQUEST_ID = '11111111-1111-4111-8111-111111111111';
 const APPLICATION_REQUEST_ID = '22222222-2222-4222-8222-222222222222';
-const PASSWORD = '새로운비밀번호를길게만들어요123';
+const PASSWORD = 'abcdefg!';
 const DEMO_PASSWORD = 'DreamonReview2026!';
 
 type Case = {

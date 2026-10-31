@@ -10,7 +10,7 @@
 
 | 화면·경로 | 코드 원본 | 구현할 정책·완료 조건 |
 | --- | --- | --- |
-| 로그인·가입 `/login`, `/signup` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx) | [인증 완료 조건](../specs/authentication.md#acceptance-criteria): 아이디 4~24자 ASCII 소문자/숫자 정규화, 비밀번호 NFC 15~128자·공백 보존·보기/숨기기·붙여넣기. 교내 미인증·접근 권한; 실제 계정 발급은 없음 |
+| 로그인·가입 `/login`, `/signup` | [AccountPages](../../design-reference/src/features/design-preview/AccountPages.tsx) | [인증 완료 조건](../specs/authentication.md#acceptance-criteria): 아이디 4~24자 ASCII 소문자/숫자 정규화, 비밀번호 NFC 8~128자·가입 시 기호 포함·실시간 조건 표시·공백 보존·보기/숨기기·붙여넣기. 교내 미인증·접근 권한; 실제 계정 발급은 없음 |
 | 공모전 탐색 `/explore` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx), [ExploreFilters](../../design-reference/src/features/design-preview/ExploreFilters.tsx) | [공고 명세](../specs/contests.md): 왼쪽 세로 포스터·D-day, 오른쪽 제목·분야·주최자와 우하단 팀 아이콘·모든 연결 팀 수. 카드 전체로 상세 이동. 검색·필터·번호 페이지·빈 결과, 분야는 아이콘으로 여는 Drawer에서 선택·적용 |
 | 공모전 상세 `/contests/:contestId` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [공고 공개·참가·마감 정책](../specs/contests.md): 원문·참가 대상·최소/최대 인원·일정·제출물·미확인 정보, 해당 공모전의 팀을 상세 안에 바로 표시. 생성(+)/AI 아이콘, 열린 공고의 빈 팀 안내, 마감 시 생성·AI 숨김 |
 | 팀 탐색 `/explore?tab=teams` | [ExplorePages](../../design-reference/src/features/design-preview/ExplorePages.tsx) | [팀 AC-01](../specs/team-recruitment.md#acceptance-criteria): 모집 역할·정원·상태·공모전별 탐색과 번호 페이지 |
