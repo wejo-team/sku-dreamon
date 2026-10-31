@@ -1,5 +1,17 @@
 .dreamon-preview .workspace-page {
-  gap: 28px;
+  gap: 16px;
+}
+
+.dreamon-preview .preview-main.preview-main-teams {
+  padding-top: 12px;
+}
+
+.dreamon-preview .workspace-team-space {
+  gap: 12px;
+}
+
+.dreamon-preview .workspace-team-space .workspace-team-tabs a {
+  min-height: 44px;
 }
 
 .workspace-heading {
@@ -193,6 +205,31 @@
   padding: 0;
   margin: 0;
   list-style: none;
+}
+.dreamon-preview .workspace-team-space > .preview-back {
+  margin-bottom: 0;
+}
+.workspace-team-introduction .preview-section-title {
+  flex-wrap: wrap;
+}
+.dreamon-preview .workspace-team-introduction h1 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.workspace-team-introduction p {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.workspace-member-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-foreground);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .workspace-member-list > li {
   display: flex;

@@ -4,7 +4,7 @@
 
 화면·인터랙션은 제품 코드를 기준으로 수정하고 정책은 해당 기능 명세를 따릅니다. 아래 상태 점검 항목은 검토할 동작을 안내하며, 모든 조건의 검증·운영 배포 완료를 뜻하지 않습니다. 실제 구현·검증 범위는 [구현 현황](../development/implementation-status.md)과 관련 PR에서 확인합니다.
 
-탐색·AI·워크스페이스·내 프로필 보기의 루트 제목은 하단 탐색과 중복되므로 `h1.sr-only`로 유지하고 화면 공간은 사용하지 않습니다. 공모전·팀·지원자 상세 제목과 `프로필 수정` 제목은 표시합니다. 로그인 안내와 필요한 복귀 링크도 유지합니다.
+탐색·AI·팀·내 프로필 보기의 루트 제목은 하단 탐색과 중복되므로 `h1.sr-only`로 유지하고 화면 공간은 사용하지 않습니다. 공모전·팀·지원자 상세 제목과 `프로필 수정` 제목은 표시합니다. 로그인 안내와 필요한 복귀 링크도 유지합니다.
 
 탐색·AI·팀·프로필과 공통 상세 화면에는 브랜드 헤더를 표시하지 않습니다. 알림은 탐색 검색창 오른쪽에서만 열며 로그인·가입은 브랜드 바 없이 `탐색으로` 복귀 링크를 유지합니다. 탐색 검색 아래에는 결과 수·공모전/팀/사람 선택·공모전 정렬·필터를 한 줄로 배치하고 필터 아이콘은 글자 오른쪽에 둡니다. 검색창 AI 바로가기·탐색 팀 만들기·전체 조건 초기화 버튼은 제거합니다. 하단은 `탐색 · AI · 팀 · 프로필`이며 `팀`의 `/workspace` 경로와 기능 권한은 유지합니다.
 
@@ -18,10 +18,10 @@
 | 팀 탐색 `/explore?tab=teams` | [ExplorePages](../../frontend/src/features/explore/ExplorePages.tsx) | [팀 AC-01](../specs/team-recruitment.md#acceptance-criteria): 모집 역할·정원·상태·공모전별 탐색과 번호 페이지 |
 | 공개 모집글 `/teams/:teamId` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 AC-03~07·15·18·26](../specs/team-recruitment.md#acceptance-criteria): 지원·필수 프로필 보완·메시지·마감·중복·취소 후 재지원 |
 | 팀 만들기 `/teams/new` | [CreateTeamPage](../../frontend/src/features/teams/CreateTeamPage.tsx), [ContestPicker](../../frontend/src/features/teams/ContestPicker.tsx) | [팀 생성·정원 정책](../specs/team-recruitment.md#acceptance-criteria): 공모전 검색 선택, 팀명 2~40자·소개 10~1,000자·역할 1~6개, 모든 팀의 공식 인원 범위. 분야는 공모전 상속, 범위 정원 기본값 없음, 정원 1명은 역할/추가 모집 생략. 준비 모임 예외 없음 |
-| 워크스페이스 `/workspace` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access): 본인이 팀장이거나 현재 확정 팀원인 팀과 빈 상태. 내 팀·내 지원 콘텐츠 제목과 개수, 작업 아이콘을 한 줄에 배치하고 팀 카드 전체를 눌러 팀 공간 이동 |
+| 팀 `/workspace` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 공간 접근](../specs/team-recruitment.md#team-workspace-access): 본인이 팀장이거나 현재 확정 팀원인 팀과 빈 상태. 내 팀·내 지원 콘텐츠 제목과 개수, 작업 아이콘을 한 줄에 배치하고 팀 카드 전체를 눌러 팀 공간 이동 |
 | 내 지원 `/workspace?view=applications` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 AC-04·17~18](../specs/team-recruitment.md#acceptance-criteria): 현재 지원 상태·선발 후 취소·자리 반환·재지원, 다른 팀 선발에 따른 폐기 사유·이력 |
-| 팀 공간 `/teams/:teamId?view=space` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 AC-09·13·20·25](../specs/team-recruitment.md#acceptance-criteria): 팀장·현재 팀원만 접근, 확정 인원·남은 자리·공고·모집 상태, 팀장 재개 확인·성공·불가 사유 |
-| 지원자 관리 `/teams/:teamId?view=applicants` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 AC-05·14·16](../specs/team-recruitment.md#acceptance-criteria): 해당 팀장만 진행 중인 지원(지원 완료·검토 중)을 관리 목록에서 확인하고 검토·선발. 선발 성공 즉시 팀원 확정·같은 공모전의 다른 대기 지원 폐기. 폐기 지원은 이력에 남고 검토 대기 수에서 제외 |
+| 팀 공간 `/teams/:teamId?view=space` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 AC-09·13·20·25](../specs/team-recruitment.md#acceptance-criteria): 팀장·현재 팀원만 접근. 팀 메뉴 아래 팀명·소개·상태 카드, 팀원 카드의 사람 아이콘과 현재 인원/정원, 찾는 팀원의 모집 역할·마감일, 공모전 정보. 팀장 재개 확인·성공·불가 사유 |
+| 지원자 관리 `/teams/:teamId?view=applicants` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [팀 AC-05·14·16](../specs/team-recruitment.md#acceptance-criteria): 해당 팀장만 진행 중인 지원(지원 완료·검토 중)을 관리 목록에서 확인하고 검토·선발. 선발 성공 즉시 팀원 확정·같은 공모전의 다른 대기 지원 폐기. 폐기 지원은 이력에 남고 관리 목록에서 제외. 검토 대기 수 문구와 불가한 재모집 버튼·사유는 생략 |
 | 지원자 검토 `/applicants/:applicantId` | [WorkspacePages](../../frontend/src/features/workspace/WorkspacePages.tsx) | [프로필 공개 정책](../specs/profile.md#visibility), [팀 선발 정책](../specs/team-recruitment.md#membership-capacity): 지원한 팀장이 공개 상태와 관계없이 전체 현재 프로필을 확인. 일반 팀원은 이 예외를 갖지 않음 |
 | 내 프로필 `/profile` | [AccountPages](../../frontend/src/features/account/AccountPages.tsx), [ProfileFields](../../frontend/src/features/account/ProfileFields.tsx) | [프로필 완료 조건](../specs/profile.md#acceptance-criteria): 학적·학년 선택, 이름/소개/경험/제목 길이·관심/역할 개수, 기타 제거, 주당 합산 시간 4구간 단일 선택, 전체 공개 전환 확인·기존 지원자 최신 프로필 검토, 선택형 마스코트 |
 | 본인 공개 화면 확인 `/profile/public` | [AccountPages](../../frontend/src/features/account/AccountPages.tsx) | [사람 탐색과 공개 설정](../specs/profile.md#people-directory): 본인이 설정한 공개 결과 확인 |
@@ -39,8 +39,8 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 | 탐색 → 상세 → 복귀 | 검색·선택한 탭·필터·정렬·페이지를 URL에 유지. 공모전 12개·팀/사람 6개. 처음 버튼과 최대 5개 번호를 한 줄로 표시. 조건 변경 시 1페이지, 잘못된 페이지·결과 감소 보정. 페이지 이동 시 결과 제목으로 포커스/스크롤 이동. 조회·집계는 [API 페이지 계약](../api/conventions.md#pagination)을 따름. 이전 스크롤 위치 복원은 별도 |
 | 탐색 필터·정렬·기본 조건 복귀 | 필터 아이콘 → Drawer의 분야/역할 초안 선택 → 적용 시 URL 반영. 취소·Escape·바깥 닫기 시 미적용 선택 제거, 다시 열면 적용값 복원. 팀의 모집중만 조건 유지. 도구 행·빈 결과에 초기화 버튼이 없으며 하단 탐색은 `/explore`로 이동해 종류·검색·필터·정렬·페이지를 모두 기본값으로 복원 |
 | 탐색 → AI | 하단 AI 항목으로 이동. 검색창 AI 바로가기는 없음. 비로그인은 로그인 안내 후 이어가기. 하단 항목과 검색어 지우기는 44px 이상 조작 영역·접근성 이름 제공 |
-| 워크스페이스 → 내 지원·팀 만들기 | 내 팀·내 지원 콘텐츠 제목과 개수 옆에 작업 아이콘 배치. 목록 아이콘의 접근성 이름·title은 `내 지원`, 더하기 아이콘은 `팀 만들기`. 각각 44px 조작 영역을 유지하고 팀 만들기는 녹색 주요 행동으로 표시. 내 지원 화면에서는 해당 아이콘의 `aria-current`·녹색 선택 상태와 `내 팀으로` 복귀 링크 확인 |
-| 워크스페이스 → 팀 공간 | 모집 중은 녹색 배경, 모집 마감·정원 마감은 회색 배경의 상태 배지로 구분하고 상태 문구도 함께 유지. 카드 전체가 링크이며 접근성 이름은 팀 이름과 `팀 공간으로`를 포함. 카드 안 이동 문구는 생략하고 내 역할·확정 인원 요약과 같은 행의 우하단 화살표로 이동 가능성을 표시. 공개 모집글과 선발 이후의 명시적 `팀 공간으로` 버튼은 유지 |
+| 팀 → 내 지원·팀 만들기 | 내 팀·내 지원 콘텐츠 제목과 개수 옆에 작업 아이콘 배치. 목록 아이콘의 접근성 이름·title은 `내 지원`, 더하기 아이콘은 `팀 만들기`. 각각 44px 조작 영역을 유지하고 팀 만들기는 녹색 주요 행동으로 표시. 내 지원 화면에서는 해당 아이콘의 `aria-current`·녹색 선택 상태와 `내 팀으로` 복귀 링크 확인 |
+| 팀 → 팀 공간 | 모집 중은 녹색 배경, 모집 마감·정원 마감은 회색 배경의 상태 배지로 구분하고 상태 문구도 함께 유지. 카드 전체가 링크이며 접근성 이름은 팀 이름과 `팀 공간으로`를 포함. 카드 안 이동 문구는 생략하고 내 역할·확정 인원 요약과 같은 행의 우하단 화살표로 이동 가능성을 표시. 공개 모집글과 선발 이후의 명시적 `팀 공간으로` 버튼은 유지 |
 | 팀 만들기 → 공모전 선택 | Drawer 열기·검색·선택·취소·닫기, 결과가 많을 때 추가 표시, 팀장 포함 총인원 안내와 공식 인원 범위 오류 |
 | 프로필 수정 → 저장 | 첫 기본 정보 카드 상단에 수정 아이콘·공개 상태 스위치·미리보기 아이콘을 묶어 배치. 좁은 화면에서는 이 묶음을 다음 줄로 배치하며 세 조작은 나란히 유지. 수정 아이콘으로 편집 진입. 접근성 이름·title은 `프로필 수정`, 조작 영역은 44px이며 수정 화면 제목은 유지. 캐릭터 팝업 선택·취소·프로필 저장, 기본 스콘, 공개 결과·팀 공간에서 같은 이미지 표시, 학사 상위 선택 변경, 경험 미입력/경험 없음 구분, 기본 비공개, URL 수정·삭제가 전체 공개 상태를 바꾸지 않는지 확인, 취소 시 미저장 값 제거 |
 | 프로필 공개 → 미리보기 | 상단 `공개`/`비공개` 스위치의 접근성 이름은 `프로필 공개`. 양방향 전환에서 검색·전체 항목 노출과 지원 팀장 예외를 설명하는 Drawer를 열고 `공개로 전환`/`비공개로 전환` 확인 후 저장. 취소·Escape·바깥 닫기는 기존 상태 유지. 눈 아이콘의 `공개된 모습 보기`는 `/profile/public`으로 이동하며 비공개 상태도 그대로 보여줌 |
@@ -65,7 +65,17 @@ UI에서 확인할 수 있는 흐름과 명세 전체의 구현 완료는 다릅
 
 공개 팀 목록은 카드 여백과 정보 간격을 줄이고 긴 소개를 최대 두 줄로 표시합니다. 카드 전체로 공개 모집글에 이동하며 상세에서는 저장한 소개 전문을 표시합니다. 목록 줄 제한은 저장값·상세 본문에 적용하지 않습니다.
 
-키·값 정보는 공모전 상세, 팀 목록·공간, 내 프로필·공개 프로필·지원자 검토에서 같은 [정보 계층](tokens.md)을 사용합니다. 워크스페이스 팀 카드는 내 역할과 확정 인원/정원으로 요약하고, 중복되는 `팀장 포함 총 N명` 안내는 생략합니다. 요약 옆 화살표는 별도 버튼이 아니며 카드 링크의 일부입니다. 팀 만들기·모집 상세의 정원 안내와 팀장 포함 정원 계산 정책은 유지합니다.
+하단 탐색의 메뉴 이름은 `팀`이며 주소는 `/workspace`를 유지합니다. 팀 화면의 작업 묶음은 `팀 작업`, 관련 복귀 링크는 `팀으로` 또는 `팀으로 돌아가기`로 안내합니다. 팀 영역의 본문 상단 여백은 12px과 기기의 상단 안전 영역 중 큰 값이며, 내 팀·내 지원 화면의 주요 영역 간격은 16px입니다. 팀 공간·지원자 관리의 바깥 영역 간격은 12px로 줄이고 팀 메뉴의 조작 높이는 44px을 유지합니다.
+
+팀 공간과 지원자 관리에서는 팀 메뉴 아래 카드에 팀명·소개·상태를 모으고, 상단의 내 역할·확정 인원 요약을 생략합니다. `팀원` 카드에는 이름·역할과 사람 아이콘을 곁들인 `현재 인원/정원`을 표시하며 학교 인증 여부는 생략합니다. `찾는 팀원`에는 모집 역할과 마감일만 표시하고 정원 1명 팀에서는 생략합니다. 공개 모집글의 모집 조건·정원 안내는 유지합니다.
+
+2026-11-01 [PR #270](https://github.com/wejo-team/sku-dreamon/pull/270)의 목업 브라우저에서 320·390·430·1024px의 팀 공간·지원자 관리, 정원 충족 3/3, 정원 1명과 긴 소개를 확인했습니다. 아래 캡처는 당시 팀 표시 변경의 자료로 공통 브랜드 헤더 제거 이전 화면입니다. 실제 API·운영 배포 검증과 구분합니다.
+
+| 팀 공간 390px | 정원 충족 320px | 지원자 관리 320px |
+| --- | --- | --- |
+| ![팀 공간](assets/team-space-compact-390.png) | ![정원 충족](assets/team-space-full-320.png) | ![지원자 관리](assets/team-applicants-full-320.png) |
+
+키·값 정보는 공모전 상세, 팀 목록·공간, 내 프로필·공개 프로필·지원자 검토에서 같은 [정보 계층](tokens.md)을 사용합니다. 내 팀 목록의 카드는 내 역할과 확정 인원/정원으로 요약하고, 중복되는 `팀장 포함 총 N명` 안내는 생략합니다. 요약 옆 화살표는 별도 버튼이 아니며 카드 링크의 일부입니다. 팀 만들기·모집 상세의 정원 안내와 팀장 포함 정원 계산 정책은 유지합니다.
 
 <a id="remaining-decisions"></a>
 

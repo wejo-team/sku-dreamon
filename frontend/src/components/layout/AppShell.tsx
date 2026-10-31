@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { Link, Outlet, useLocation } from 'react-router';
 
-// [출처 2] 팀 메뉴는 기존 워크스페이스 경로를 유지합니다.
+// [출처 2] 하단 탐색은 탐색·AI·팀·프로필이며 팀은 기존 워크스페이스 경로를 유지합니다.
 const navItems = [
   { id: 'explore', title: '탐색', to: '/explore', icon: Search },
   { id: 'ai', title: 'AI', to: '/ai', icon: MessageCircle },
@@ -41,7 +41,7 @@ export function AppShell() {
   const teamView = teamId ? params.get('view') : null;
   const isWorkspaceTeam =
     teamId === 'new' || teamView === 'space' || teamView === 'applicants';
-  // [출처 1, 3] 팀 공간·지원자 관리·팀 만들기는 워크스페이스, AI에서 연 상세는 AI 탭으로 표시합니다.
+  // [출처 1, 3] 팀 공간·지원자 관리·팀 만들기는 팀, AI에서 연 상세는 AI 탭으로 표시합니다.
   const active =
     isAi || fromAi
       ? 'ai'
@@ -112,7 +112,7 @@ export function AppShell() {
         id="preview-main"
         ref={main}
         tabIndex={-1}
-        className={`preview-main${isAuth ? ' preview-main-auth' : ''}`}
+        className={`preview-main${isAuth ? ' preview-main-auth' : ''}${active === 'workspace' ? ' preview-main-teams' : ''}`}
       >
         {isAuth && (
           <Link className="preview-auth-home" to="/explore">

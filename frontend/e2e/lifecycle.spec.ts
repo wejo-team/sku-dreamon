@@ -474,7 +474,7 @@ test('세션 회수 후 401은 캐시된 팀 공간을 숨기고 재로그인을
     const page = await owner.newPage();
     await page.goto(`/teams/${team.id}?view=space`);
     await expect(
-      page.getByRole('region', { name: '확정된 팀원' }),
+      page.getByRole('region', { name: '팀원', exact: true }),
     ).toBeVisible();
     expect((await write(owner.request, 'POST', '/auth/logout')).status()).toBe(
       204,
@@ -496,9 +496,9 @@ test('세션 회수 후 401은 캐시된 팀 공간을 숨기고 재로그인을
       .getByRole('button', { name: '모집 종료하기', exact: true })
       .click();
     expect((await failure).status()).toBe(401);
-    await expect(page.getByRole('region', { name: '확정된 팀원' })).toHaveCount(
-      0,
-    );
+    await expect(
+      page.getByRole('region', { name: '팀원', exact: true }),
+    ).toHaveCount(0);
     await expect(
       page.getByRole('link', { name: '로그인하기', exact: true }),
     ).toBeVisible();
