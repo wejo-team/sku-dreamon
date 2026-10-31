@@ -314,15 +314,17 @@ describe('team application', () => {
       screen.getByRole('heading', { name: '모집 정보' }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: '확정된 팀원' }),
+      screen.queryByRole('heading', { name: '팀원' }),
     ).not.toBeInTheDocument();
     await step(() =>
       user.click(screen.getByRole('link', { name: '팀 공간으로' })),
     );
+    expect(screen.getByRole('heading', { name: '팀원' })).toBeInTheDocument();
+    const members = within(screen.getByRole('region', { name: '팀원' }));
+    expect(members.getByText(/^팀장/)).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: '확정된 팀원' }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('내 역할').parentElement).toHaveTextContent('팀장');
+      members.getByLabelText('팀장 포함 팀원 2명, 정원 4명'),
+    ).toHaveTextContent('2/4');
   });
   it('preserves filtered return destinations and rejects external ones', async () => {
     const from = '/explore?tab=teams&role=design&q=캠퍼스';
@@ -374,9 +376,7 @@ describe('workspace membership and access', () => {
       `/teams/${demoIds.teams.localcrew}?view=space`,
       { signedIn: true },
     );
-    expect(
-      screen.getByRole('heading', { name: '확정된 팀원' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '팀원' })).toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: '지원자 관리' }),
     ).not.toBeInTheDocument();
@@ -420,7 +420,7 @@ describe('workspace membership and access', () => {
       screen.getByText('현재 팀원만 팀 공간에 들어갈 수 있어요'),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: '확정된 팀원' }),
+      screen.queryByRole('heading', { name: '팀원' }),
     ).not.toBeInTheDocument();
   });
   it('requires confirmation to close recruitment and keeps the current team', async () => {
@@ -437,9 +437,7 @@ describe('workspace membership and access', () => {
       ),
     );
     expect(screen.getByText('모집 마감')).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: '확정된 팀원' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '팀원' })).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: '모집 종료' }),
     ).not.toBeInTheDocument();
@@ -475,11 +473,11 @@ describe('applicant review', () => {
     await step(() =>
       user.click(screen.getByRole('link', { name: '팀 공간으로' })),
     );
-    expect(screen.getByText('확정').parentElement).toHaveTextContent('3 / 4명');
     expect(
-      within(screen.getByRole('region', { name: '확정된 팀원' })).getByText(
-        '김서연',
-      ),
+      screen.getByLabelText('팀장 포함 팀원 3명, 정원 4명'),
+    ).toHaveTextContent('3/4');
+    expect(
+      within(screen.getByRole('region', { name: '팀원' })).getByText('김서연'),
     ).toBeInTheDocument();
   });
   it('shows a private applicant’s full registered profile to the applied team leader', async () => {
@@ -931,7 +929,7 @@ describe('recruitment reopening and discarded history', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows why a full team cannot reopen and gives no management action to a member', async () => {
+  it('keeps full-team reopening unavailable across tabs and gives no management action to a member', async () => {
     const db = greenwaveWith({
       recruitmentState: 'closed',
       closedReason: 'leader_closed',
@@ -947,6 +945,16 @@ describe('recruitment reopening and discarded history', () => {
     expect(
       screen.getByText('팀 정원이 모두 차서 다시 모집할 수 없어요.'),
     ).toBeInTheDocument();
+    await view.step(() =>
+      view.user.click(screen.getByRole('link', { name: '지원자 관리' })),
+    );
+    expect(
+      screen.queryByRole('button', { name: '다시 모집하기' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('팀 정원이 모두 차서 다시 모집할 수 없어요.'),
+    ).not.toBeInTheDocument();
+    expect(sentRequests.filter(failReopen)).toHaveLength(0);
     view.unmount();
     await renderPage(`/teams/${demoIds.teams.localcrew}?view=space`, {
       signedIn: true,
@@ -1016,7 +1024,12 @@ describe('recruitment reopening and discarded history', () => {
       `/teams/${demoIds.teams.greenwave}?view=applicants`,
       { signedIn: true, db: lifecycleRecords() },
     );
-    expect(screen.getByText('검토 대기 1명')).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('region', { name: '지원자 관리' })).getAllByRole(
+        'link',
+        { name: /지원서 검토/ },
+      ),
+    ).toHaveLength(1);
     expect(
       screen.queryByText('같은 공모전의 다른 팀에서 선발됨'),
     ).not.toBeInTheDocument();
@@ -1198,7 +1211,7 @@ describe('demo identity labels', () => {
       signedIn: true,
       db,
     });
-    const members = within(screen.getByRole('region', { name: '확정된 팀원' }));
+    const members = within(screen.getByRole('region', { name: '팀원' }));
     const hiddenMember = members
       .getByText(
         db.profiles.find((profile) => profile.accountId === ME)!.realName,

@@ -27,6 +27,7 @@ import {
   LoaderCircle,
   Plus,
   RotateCcw,
+  Users,
 } from 'lucide-react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { z } from 'zod';
@@ -148,7 +149,7 @@ function returnLabel(path: string) {
   if (path === '/ai') return 'AI 대화로';
   if (path === '/explore') return '탐색으로';
   if (path === applicationsPath) return '내 지원으로';
-  if (path.split('?')[0] === workspacePath) return '워크스페이스로';
+  if (path.split('?')[0] === workspacePath) return '팀으로';
   return '목록으로';
 }
 const statusOf = (error: unknown) =>
@@ -323,7 +324,7 @@ export function WorkspacePage() {
   if (!session.signedIn)
     return (
       <div className="workspace-page preview-stack">
-        <h1 className="sr-only">워크스페이스</h1>
+        <h1 className="sr-only">팀</h1>
         <LoginPrompt
           from={showApplications ? applicationsPath : workspacePath}
         />
@@ -333,7 +334,7 @@ export function WorkspacePage() {
   const teams = myTeams.data?.data ?? [];
   return (
     <div className="workspace-page preview-stack">
-      <h1 className="sr-only">워크스페이스</h1>
+      <h1 className="sr-only">팀</h1>
       <header className="workspace-heading">
         <div className="workspace-section-summary">
           <h2
@@ -355,7 +356,7 @@ export function WorkspacePage() {
             </span>
           )}
         </div>
-        <nav className="workspace-actions" aria-label="워크스페이스 작업">
+        <nav className="workspace-actions" aria-label="팀 작업">
           <Button asChild variant="outline" className="workspace-action">
             <Link
               to={applicationsPath}
@@ -613,66 +614,81 @@ function TeamTabs({
 function TeamOverview({
   team,
   currentPath,
+  inTeamSpace = false,
 }: {
   team: TeamDetail;
   currentPath: string;
+  inTeamSpace?: boolean;
 }) {
   const { fieldLabel, roleLabel } = useLabels();
   // 마감 원문·공식 원문 주소는 공고 상세에만 있습니다.
   const contest = useQuery(contestQueryOptions(team.contestId)).data;
   return (
     <div className="preview-stack">
-      <section
-        className="preview-panel preview-stack"
-        aria-labelledby="team-goal-title"
-      >
-        <h2 id="team-goal-title">팀 목표</h2>
-        <p>{team.introduction}</p>
-      </section>
-      <section
-        className="preview-panel preview-stack"
-        aria-labelledby="team-roles-title"
-      >
-        <h2 id="team-roles-title">모집 정보</h2>
-        <div className="preview-row">
-          {team.roleCodes.map((code) => (
-            <Badge key={code}>{roleLabel(code)}</Badge>
-          ))}
-        </div>
-        {Number(team.capacity) > 1 ? (
-          <p className="preview-muted">
-            안내한 역할과 달라도 지원할 수 있어요.
-          </p>
-        ) : (
-          <p className="preview-muted">
-            1명으로 참가하는 팀으로 추가 모집하지 않아요.
-          </p>
-        )}
-        <dl className="workspace-detail-facts">
-          <div>
-            <dt>총 정원</dt>
-            <dd>팀장 포함 총 {team.capacity}명</dd>
-          </div>
-          <div>
-            <dt>현재 확정</dt>
-            <dd>
-              {team.memberCount}명 · 남은 자리{' '}
-              {Math.max(0, Number(team.capacity) - team.memberCount)}명
-            </dd>
-          </div>
-          <div>
-            <dt>팀 모집 마감</dt>
-            <dd>{team.recruitmentDeadline.sourceDate.replaceAll('-', '.')}</dd>
-          </div>
-        </dl>
-        {team.fieldCodes.length > 0 && (
+      {!inTeamSpace && (
+        <section
+          className="preview-panel preview-stack"
+          aria-labelledby="team-goal-title"
+        >
+          <h2 id="team-goal-title">팀 목표</h2>
+          <p>{team.introduction}</p>
+        </section>
+      )}
+      {(!inTeamSpace || Number(team.capacity) > 1) && (
+        <section
+          className="preview-panel preview-stack"
+          aria-labelledby="team-roles-title"
+        >
+          <h2 id="team-roles-title">
+            {inTeamSpace ? '찾는 팀원' : '모집 정보'}
+          </h2>
           <div className="preview-row">
-            {team.fieldCodes.map((code) => (
-              <Badge key={code}>{fieldLabel(code)}</Badge>
+            {team.roleCodes.map((code) => (
+              <Badge key={code}>{roleLabel(code)}</Badge>
             ))}
           </div>
-        )}
-      </section>
+          {!inTeamSpace &&
+            (Number(team.capacity) > 1 ? (
+              <p className="preview-muted">
+                안내한 역할과 달라도 지원할 수 있어요.
+              </p>
+            ) : (
+              <p className="preview-muted">
+                1명으로 참가하는 팀으로 추가 모집하지 않아요.
+              </p>
+            ))}
+          <dl className="workspace-detail-facts">
+            {!inTeamSpace && (
+              <>
+                <div>
+                  <dt>총 정원</dt>
+                  <dd>팀장 포함 총 {team.capacity}명</dd>
+                </div>
+                <div>
+                  <dt>현재 확정</dt>
+                  <dd>
+                    {team.memberCount}명 · 남은 자리{' '}
+                    {Math.max(0, Number(team.capacity) - team.memberCount)}명
+                  </dd>
+                </div>
+              </>
+            )}
+            <div>
+              <dt>팀 모집 마감</dt>
+              <dd>
+                {team.recruitmentDeadline.sourceDate.replaceAll('-', '.')}
+              </dd>
+            </div>
+          </dl>
+          {!inTeamSpace && team.fieldCodes.length > 0 && (
+            <div className="preview-row">
+              {team.fieldCodes.map((code) => (
+                <Badge key={code}>{fieldLabel(code)}</Badge>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
       <section
         className="preview-panel preview-stack"
         aria-labelledby="team-contest-title"
@@ -716,7 +732,13 @@ function TeamOverview({
   );
 }
 
-function RecruitmentControl({ team }: { team: TeamDetail }) {
+function RecruitmentControl({
+  team,
+  hideUnavailable = false,
+}: {
+  team: TeamDetail;
+  hideUnavailable?: boolean;
+}) {
   const recruitment = useRecruitmentAction();
   const [feedback, setFeedback] = useState('');
   const closed = team.recruitmentState === 'closed';
@@ -736,6 +758,7 @@ function RecruitmentControl({ team }: { team: TeamDetail }) {
         },
         () => false,
       );
+  if (hideUnavailable && closed && issue) return null;
   return (
     <section className="preview-stack" aria-label="모집 관리">
       {closed ? (
@@ -792,7 +815,6 @@ function TeamSpaceView({
   team,
   members,
   isLeader,
-  pendingCount,
   from,
   currentPath,
   management,
@@ -800,7 +822,6 @@ function TeamSpaceView({
   team: TeamDetail;
   members: TeamMember[];
   isLeader: boolean;
-  pendingCount: number;
   from: string;
   currentPath: string;
   management: boolean;
@@ -826,27 +847,25 @@ function TeamSpaceView({
   return (
     <div className="preview-detail preview-stack workspace-team-space">
       <BackLink to={from}>{returnLabel(from)}</BackLink>
-      <PageIntro title={team.name} description={team.contestTitle} />
-      <div className="preview-row">
-        <DemoBadge isDemo={team.isDemo} kind="team" />
-        <TeamStatusBadge team={team} />
-        <span className="preview-inline-fact">
-          <span>내 역할</span>
-          <strong>{isLeader ? '팀장' : '팀원'}</strong>
-        </span>
-        <span className="preview-inline-fact">
-          <span>확정</span>
-          <strong>
-            {team.memberCount} / {team.capacity}명
-          </strong>
-        </span>
-      </div>
       <TeamTabs
         teamId={team.id}
         isLeader={isLeader}
         active={management ? 'applicants' : 'space'}
         from={from}
       />
+      <section
+        className="preview-panel preview-stack workspace-team-introduction"
+        aria-labelledby="team-name"
+      >
+        <div className="preview-section-title">
+          <h1 id="team-name">{team.name}</h1>
+          <div className="preview-row">
+            <DemoBadge isDemo={team.isDemo} kind="team" />
+            <TeamStatusBadge team={team} />
+          </div>
+        </div>
+        <p>{team.introduction}</p>
+      </section>
       {management ? (
         <section
           className="preview-stack"
@@ -856,7 +875,6 @@ function TeamSpaceView({
             <h2 id="team-applicants-title" ref={headingRef} tabIndex={-1}>
               지원자 관리
             </h2>
-            <span className="preview-muted">검토 대기 {pendingCount}명</span>
           </div>
           {applicants.isError ? (
             <LoadError onRetry={() => void applicants.refetch()} />
@@ -919,8 +937,17 @@ function TeamSpaceView({
             aria-labelledby="team-members-title"
           >
             <div className="preview-section-title">
-              <h2 id="team-members-title">확정된 팀원</h2>
-              <span className="preview-muted">{team.memberCount}명</span>
+              <h2 id="team-members-title">팀원</h2>
+              <span
+                className="workspace-member-count"
+                role="img"
+                aria-label={`팀장 포함 팀원 ${team.memberCount}명, 정원 ${team.capacity}명`}
+              >
+                <Users size={18} aria-hidden="true" />
+                <span aria-hidden="true">
+                  {team.memberCount}/{team.capacity}
+                </span>
+              </span>
             </div>
             <ul className="workspace-member-list">
               {/* [출처 4] 소속 표시와 프로필 열람 분리: 비공개 팀원의 사진은 보이지 않음(profile=null) */}
@@ -939,20 +966,22 @@ function TeamSpaceView({
                       <DemoBadge isDemo={member.isDemo} kind="account" />
                     </div>
                     <p className="preview-muted">
-                      {memberRole(member, roleLabel)} · 교내 미인증
+                      {memberRole(member, roleLabel)}
                     </p>
                   </div>
                 </li>
               ))}
             </ul>
           </section>
-          <TeamOverview team={team} currentPath={currentPath} />
+          <TeamOverview team={team} currentPath={currentPath} inTeamSpace />
           <ActionLink to={teamPath(team.id, workspacePath)} secondary>
             공개 모집글 보기
           </ActionLink>
         </>
       )}
-      {isLeader && <RecruitmentControl team={team} />}
+      {isLeader && (
+        <RecruitmentControl team={team} hideUnavailable={management} />
+      )}
     </div>
   );
 }
@@ -1028,7 +1057,6 @@ export function TeamPage() {
         team={space.data.team}
         members={space.data.members}
         isLeader={space.data.viewerRole === 'leader'}
-        pendingCount={space.data.pendingApplicationCount ?? 0}
         from={from}
         currentPath={currentPath}
         management={view === 'applicants'}
@@ -1356,7 +1384,7 @@ export function ApplicantPage() {
   if (!session.signedIn)
     return (
       <div className="preview-detail preview-stack">
-        <BackLink to={workspacePath}>워크스페이스로</BackLink>
+        <BackLink to={workspacePath}>팀으로</BackLink>
         <LoginPrompt from={`${location.pathname}${location.search}`} />
       </div>
     );
@@ -1370,12 +1398,12 @@ export function ApplicantPage() {
   if (denied || !applicant.data || !team.data)
     return (
       <div className="preview-detail preview-stack">
-        <BackLink to={workspacePath}>워크스페이스로</BackLink>
+        <BackLink to={workspacePath}>팀으로</BackLink>
         <EmptyState
           title="지원서를 확인할 수 없어요"
           description="내가 관리하는 팀에 접수된 지원서만 확인할 수 있어요."
         >
-          <ActionLink to={workspacePath}>워크스페이스로 돌아가기</ActionLink>
+          <ActionLink to={workspacePath}>팀으로 돌아가기</ActionLink>
         </EmptyState>
       </div>
     );
