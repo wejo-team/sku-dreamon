@@ -5,10 +5,12 @@ from collections.abc import AsyncIterator, Sequence
 from uuid import UUID
 
 import pytest
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
-from sqlalchemy import select
+from sqlalchemy import Connection, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -24,6 +26,7 @@ from app.routers.profiles import router
 from app.schemas.profile_write import ProfileWrite
 from app.services.profile_write import save_profile
 from app.services.sessions import issue_session
+from tests.schema_10_expand import upgrade as expand_schema_10
 from tests.unit.test_profile_write import payload
 
 pytest_plugins = ["tests.integration.test_people_api"]
@@ -103,6 +106,59 @@ async def test_create_edit_visibility_and_public_access(writer: AsyncClient) -> 
     )
     assert removed.json()["data"]["portfolio"] is None
     assert (await writer.get("/api/v1/me/profile")).json() == removed.json()
+
+
+async def test_schema_10_keeps_old_profile_reads_writes_and_course_selections(
+    writer: AsyncClient, people_database: Database
+) -> None:
+    created = await writer.put("/api/v1/me/profile", json=payload())
+    assert created.status_code == 200, created.text
+    schema = people_database.engine.get_execution_options()["schema_translate_map"][
+        None
+    ]
+
+    def expand(connection: Connection) -> None:
+        with Operations.context(MigrationContext.configure(connection)):
+            expand_schema_10()
+
+    async with people_database.engine.begin() as connection:
+        await connection.execute(text(f'SET LOCAL search_path TO "{schema}"'))
+        await connection.run_sync(expand)
+        await connection.execute(
+            text("INSERT INTO courses (code, name) VALUES ('BRIDGE01', '호환 검증')")
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO profile_courses (account_id, course_id) "
+                "SELECT :account_id, course_id FROM courses WHERE code = 'BRIDGE01'"
+            ),
+            {"account_id": ACCOUNT},
+        )
+
+    assert (await writer.get("/api/v1/me/profile")).json() == created.json()
+    edited = await writer.put(
+        "/api/v1/me/profile",
+        json=payload() | {"expectedVersion": "1", "introduction": "확장 후 저장"},
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["data"]["introduction"] == "확장 후 저장"
+    public = await writer.put(
+        "/api/v1/me/profile/visibility", json={"expectedVersion": "2", "isPublic": True}
+    )
+    assert public.status_code == 200, public.text
+    assert (await writer.get(f"/api/v1/people/{ACCOUNT}")).json() == public.json()
+    async with people_database.engine.begin() as connection:
+        await connection.execute(text(f'SET LOCAL search_path TO "{schema}"'))
+        assert (
+            await connection.scalar(
+                text(
+                    "SELECT c.code FROM profile_courses pc "
+                    "JOIN courses c USING (course_id) WHERE pc.account_id = :account_id"
+                ),
+                {"account_id": ACCOUNT},
+            )
+            == "BRIDGE01"
+        )
 
 
 async def test_invalid_catalog_academic_and_csrf_keep_profile(

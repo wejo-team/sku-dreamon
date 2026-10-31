@@ -34,7 +34,9 @@ def settings_and_blocklist(
     return settings, PasswordBlocklist.from_file(path, version="synthetic-v1")
 
 
-@pytest.mark.parametrize("revision", ["20261026_09", "future-unapproved", None])
+@pytest.mark.parametrize(
+    "revision", ["20261026_09", "20261031_10", "future-unapproved", None]
+)
 async def test_real_database_schema_compatibility(
     database_url: str, tmp_path: Path, revision: str | None
 ) -> None:
@@ -68,7 +70,7 @@ async def test_real_database_schema_compatibility(
                 )
                 assert await is_ready(
                     settings, bound, blocklist, None, ReadinessProbe()
-                ) is (revision == "20261026_09")
+                ) is (revision in {"20261026_09", "20261031_10"})
             finally:
                 await transaction.rollback()
     finally:
