@@ -44,7 +44,6 @@ class Settings(BaseSettings):
     http_allowed_hosts: tuple[str, ...] = ()
     http_trusted_proxies: tuple[str, ...] = ()
     openai_api_key: SecretStr | None = Field(default=None, repr=False)
-    langsmith_tracing: bool = False
     langsmith_hide_inputs: bool = False
     langsmith_hide_outputs: bool = False
     langsmith_api_key: SecretStr | None = Field(default=None, repr=False)
@@ -75,6 +74,13 @@ class Settings(BaseSettings):
     @property
     def ai_enabled(self) -> bool:
         return bool(self.openai_api_key and self.openai_api_key.get_secret_value())
+
+    @field_validator("langsmith_api_key")
+    @classmethod
+    def normalize_tracing_key(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None or not value.get_secret_value().strip():
+            return None
+        return value
 
     @field_validator("langsmith_project")
     @classmethod
@@ -131,10 +137,6 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def require_production_settings(self) -> "Settings":
-        if self.langsmith_tracing and not (
-            self.langsmith_api_key and self.langsmith_api_key.get_secret_value().strip()
-        ):
-            raise ValueError("LangSmith tracing requires an explicit API key")
         if self.ai_required and not self.ai_enabled:
             raise ValueError("AI_REQUIRED requires a configured runtime API key")
         if self.app_env != "production":

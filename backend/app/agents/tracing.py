@@ -38,9 +38,10 @@ class AiTracing:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.client: Client | None = None
-        if not settings.langsmith_tracing:
+        if settings.langsmith_api_key is None:
+            if settings.app_env == "production" and settings.ai_enabled:
+                logger.warning("AI tracing unavailable: LangSmith API key is missing")
             return
-        assert settings.langsmith_api_key is not None
         # 공식 SDK의 daemon 배치를 사용하고 압축 전송의 별도 executor는 끈다.
         os.environ["LANGSMITH_USE_DAEMON"] = "true"
         os.environ["LANGSMITH_DISABLE_RUN_COMPRESSION"] = "true"

@@ -132,7 +132,7 @@ class ConfigurationTests(unittest.TestCase):
 
     def test_langsmith_settings_apply_and_rollback_without_exposing_key(self):
         self.source.app_env.update(
-            LANGSMITH_TRACING="true",
+            LANGSMITH_TRACING="false",
             LANGSMITH_API_KEY="synthetic-tracing-secret",
             LANGSMITH_PROJECT="sku-dreamon-test",
             LANGSMITH_ENDPOINT="https://api.smith.langchain.com",

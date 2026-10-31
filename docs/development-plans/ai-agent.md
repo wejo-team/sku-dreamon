@@ -26,7 +26,7 @@ API 이벤트·DB schema 변경은 없으며 프론트 재배포를 요구하는
 
 ## 결정과 적용 범위
 
-2026-10-30 사용자 요청으로 [PR #232](https://github.com/wejo-team/sku-dreamon/pull/232)에 LangSmith 선택 설정과 원문 없는 수동 계측을 추가했습니다. 후속 사용자가 **에이전트 런타임의 기본 자동 추적**을 선택하여 수동 span·앱 전송 큐를 native LangChain tracer·SDK 배치로 교체합니다. 기본 비활성화는 유지하며 켰을 때 그래프·가드·모델·도구의 원문과 실행 정보를 기록합니다. SDK credential masking·선택적 숨김과 별도 프로젝트 접근/보존을 적용합니다. [#164](https://github.com/wejo-team/sku-dreamon/issues/164)의 실제 품질·비용 평가와 [#114](https://github.com/wejo-team/sku-dreamon/issues/114)의 대화 보존/삭제 결정, 운영 배포는 여전히 후속입니다. 설정·데이터 범위·실패 격리·운영 인계는 [LangSmith 자동 실행 추적](../development/langsmith-tracing.md)이 원본입니다.
+2026-10-30 사용자 요청으로 [PR #232](https://github.com/wejo-team/sku-dreamon/pull/232)에 LangSmith 선택 설정과 원문 없는 수동 계측을 추가했습니다. 후속 사용자가 **에이전트 런타임의 기본 자동 추적**을 선택하여 [PR #233](https://github.com/wejo-team/sku-dreamon/pull/233)에서 수동 span·앱 전송 큐를 native LangChain tracer·SDK 배치로 교체했습니다. 이어 추적 활성화를 고정해 달라는 요청에 따라 키가 있으면 항상 그래프·가드·모델·도구의 원문과 실행 정보를 기록합니다. 키가 없으면 외부 추적 없이 실행하며 운영 AI 초기화에는 경고를 남깁니다. SDK credential masking·선택적 숨김과 별도 프로젝트 접근/보존을 적용합니다. [#164](https://github.com/wejo-team/sku-dreamon/issues/164)의 실제 품질·비용 평가와 [#114](https://github.com/wejo-team/sku-dreamon/issues/114)의 대화 보존/삭제 결정, 운영 배포는 여전히 후속입니다. 설정·데이터 범위·실패 격리·운영 인계는 [LangSmith 자동 실행 추적](../development/langsmith-tracing.md)이 원본입니다.
 
 2026-10-25 추가 사용자 요청으로 이번 PR에 일반 AI 대화의 DB 저장과 구현 아키텍처 문서를 포함합니다. `ai_conversations`는 계정 소유 대화, `ai_messages`는 접수한 사용자 메시지와 성공/빈 결과의 완성된 답변을 저장합니다. 요청 접수와 사용자 메시지 저장, 실행 완료와 답변 저장은 각각 같은 트랜잭션에서 확정합니다. 실패·취소·권한 무효화 전의 부분 답변과 지원자 검토 원문은 저장하지 않습니다. 실행 메타데이터 만료와 대화 보존은 분리하며 조회·목록·복원 API, 모델 맥락의 DB 자동 복원, 프론트 변경은 추가하지 않습니다. 재시도·만료 뒤 재전송·다른 계정의 대화 ID 사용·저장 실패를 검증합니다.
 
@@ -58,7 +58,7 @@ API 이벤트·DB schema 변경은 없으며 프론트 재배포를 요구하는
 
 | ID | 이번 백엔드 구현 | 남은 작업 |
 | --- | --- | --- |
-| D-01 | 목적별 모델 입력 허용 목록, `store=False`, 기본 비활성화인 native LangSmith 추적과 SDK credential masking, 안전한 앱 오류 로그 | 운영 조직의 제공자·로그/백업·추적 프로젝트 접근/보존 설정 확인 |
+| D-01 | 목적별 모델 입력 허용 목록, `store=False`, 키가 있으면 항상 활성화되는 native LangSmith 추적·운영 AI의 누락 키 경고와 SDK credential masking, 안전한 앱 오류 로그 | 운영 조직의 제공자·로그/백업·추적 프로젝트 접근/보존 설정 확인 |
 | D-02 | 짧은 전송 잠금·현재 권한 검사, 서버 근거 참조, 결과 해시 재검증. #163에서 프론트 전체 답변 무효화·화면 재진입·복사 검증 연결 | 운영 프록시 확인 |
 | D-03 | 공유 실행 메타데이터의 24시간 접근 만료·정리 CLI, 별도 일반 대화·메시지 보존, 조회/복원 API 없음 | 대화 보존/삭제·백업 정책, 운영 메타데이터 정리 스케줄과 장애 관측 |
 | D-04 | 기본 90초·계정 동시 2개·시간당 30시도·최대 3회 시도, 제어 도구 포함 8회·자료 30개·에이전트 모델 6회(입력 분류 1회 별도)·입력 18,000토큰·출력 4,096토큰·reasoning low | 실제 데이터의 지연·비용·품질 평가 후 설정 조정 |

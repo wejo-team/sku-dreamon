@@ -1,8 +1,8 @@
 # LangSmith 자동 실행 추적
 
-LangChain·LangGraph의 **기본 자동 tracer**로 실제 에이전트 실행 트리를 기록합니다. `create_agent` 그래프 아래의 middleware·입력 가드·모델·도구 호출, 입출력·오류·소요 시간·제공된 토큰 사용량을 LangSmith 프로젝트에서 확인합니다. 기본 설정은 꺼짐이며, 운영 환경에서 키와 `LANGSMITH_TRACING=true`를 지정하면 활성화됩니다.
+LangChain·LangGraph의 **기본 자동 tracer**로 실제 에이전트 실행 트리를 기록합니다. `create_agent` 그래프 아래의 middleware·입력 가드·모델·도구 호출, 입출력·오류·소요 시간·제공된 토큰 사용량을 LangSmith 프로젝트에서 확인합니다. 추적은 별도 스위치 없이 **LangSmith 키가 있으면 항상 활성화**됩니다. 키가 없으면 외부 추적 없이 실행하며, 운영 AI 초기화에서는 키 누락 경고를 남깁니다.
 
-2026-10-30 사용자 요청에 따라 [PR #232](https://github.com/wejo-team/sku-dreamon/pull/232)의 원문 없는 수동 span·앱 전송 큐를 SDK 기본 추적으로 교체합니다. [품질·비용·보존 후속 #164](https://github.com/wejo-team/sku-dreamon/issues/164), [데이터 경계 #114](https://github.com/wejo-team/sku-dreamon/issues/114), [ReAct 구현 #206](https://github.com/wejo-team/sku-dreamon/pull/206)을 함께 검토했습니다. 실제 품질 평가와 운영 배포를 완료했다는 의미는 아닙니다.
+2026-10-30 사용자 요청에 따라 [PR #232](https://github.com/wejo-team/sku-dreamon/pull/232)의 원문 없는 수동 span·앱 전송 큐를 [PR #233](https://github.com/wejo-team/sku-dreamon/pull/233)에서 SDK 기본 추적으로 교체했습니다. 후속 요청으로 별도 활성화 스위치를 제거합니다. [품질·비용·보존 후속 #164](https://github.com/wejo-team/sku-dreamon/issues/164), [데이터 경계 #114](https://github.com/wejo-team/sku-dreamon/issues/114), [ReAct 구현 #206](https://github.com/wejo-team/sku-dreamon/pull/206)을 함께 검토했습니다. 실제 품질 평가와 운영 배포를 완료했다는 의미는 아닙니다.
 
 ## 데이터가 전달되는 흐름
 
@@ -33,33 +33,34 @@ trace의 성공·오류는 **에이전트 그래프 실행 결과**입니다. �
 
 ## 활성화
 
-원본은 [Settings](../../backend/app/core/config.py)와 [환경변수 예시](../../backend/.env.example)입니다. 로컬 `backend/.env` 또는 운영 SSM bundle에 다음 값을 지정한 뒤 앱을 재시작·설정 재배포합니다. 키는 OpenAI 키와 별개이며 프론트 `VITE_*`에 넣지 않습니다.
+원본은 [Settings](../../backend/app/core/config.py)와 [환경변수 예시](../../backend/.env.example)입니다. 운영 SSM bundle에 다음 값을 지정합니다. 로컬에서 추적하려면 `backend/.env`에 별도 개발 프로젝트와 키를 지정합니다. 키는 OpenAI 키와 별개이며 프론트 `VITE_*`에 넣지 않습니다.
 
 ```dotenv
-LANGSMITH_TRACING=true
 LANGSMITH_API_KEY=<별도 LangSmith 키>
 LANGSMITH_PROJECT=sku-dreamon-production
-LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 ```
 
 | 설정 | 기본값·조건 |
 | --- | --- |
-| `LANGSMITH_TRACING` | `false`. 켜면 비어 있지 않은 별도 키가 필요 |
-| `LANGSMITH_API_KEY` | 기본 없음. Git·로그에 실제 값을 넣지 않음 |
+| `LANGSMITH_API_KEY` | 기본 없음. 값이 있으면 항상 추적하며, 없으면 전송하지 않음. Git·로그에 실제 값을 넣지 않음 |
 | `LANGSMITH_PROJECT` | `sku-dreamon`. 비어 있지 않은 단일 행, 최대 100자 |
-| `LANGSMITH_ENDPOINT` | 위 US endpoint. 조직 리전에 맞는 HTTPS URL, 사용자정보·query·fragment 금지 |
+| `LANGSMITH_ENDPOINT` | 기본 `https://api.smith.langchain.com`. US 사용 시 생략 가능. 다른 리전은 맞는 HTTPS URL 지정, 사용자정보·query·fragment 금지 |
 | `LANGSMITH_WORKSPACE_ID` | 선택 UUID. 여러 workspace를 사용하는 조직 키라면 명시 |
 | `LANGSMITH_HIDE_INPUTS` / `LANGSMITH_HIDE_OUTPUTS` | 각각 `false`. SDK 입력/출력 필드 숨김 |
 
-일반 LangChain 앱은 환경변수만으로 자동 추적을 켤 수 있습니다. 이 앱도 위 설정으로 켜고 끄되, `.env`를 읽는 `Settings`에서 SDK Client로 값을 명시적으로 전달하고 비활성 설정이 외부 환경에 의해 바뀌지 않도록 관리합니다. 실제 키·할당량·클라우드 수신은 `/ready`에서 호출해 검사하지 않습니다.
+이 앱은 `.env`를 읽는 `Settings`에서 SDK Client로 값을 명시적으로 전달합니다. 이전 `LANGSMITH_TRACING` 값은 무시하며 `false`여도 키가 있으면 추적합니다. 기존 SSM bundle과 rollback snapshot의 호환을 위해 배포 입력에서는 이 키를 계속 받아들이지만 새 설정에는 넣지 않습니다. 키가 없으면 외부 추적 컨텍스트가 있어도 SDK를 생성하지 않습니다.
 
-기존 공개 EC2·앱 네트워크에서는 선택한 LangSmith endpoint로 **외부 HTTPS 443** 통신이 가능하면 됩니다. 새 inbound 포트나 Nginx 경로는 필요 없습니다. 외부 목적지를 제한하는 방화벽·프록시가 있다면 해당 endpoint를 허용해야 합니다. 운영 변경은 코드를 `develop → main`으로 릴리스한 뒤 [SSM 설정 재배포](ssm-configuration.md)로 정확한 bundle 버전을 적용합니다. 키는 [백업 제외·버전별 재주입](production-backups.md)을 따릅니다.
+`APP_ENV=production`에서 OpenAI 키로 AI가 활성화돼 있지만 LangSmith 키가 없으면, AI 초기화 때 고정 경고를 한 번 기록하고 외부 추적 없이 서비스를 시작합니다. 키 누락은 앱 시작·readiness를 막지 않습니다. 키가 없는 개발·테스트와 비AI DB migration·유지보수에는 이 경고를 남기지 않습니다. 실제 키의 유효성·할당량·클라우드 수신은 `/ready`에서 호출해 검사하지 않습니다.
+
+기존 공개 EC2·앱 네트워크에서는 선택한 LangSmith endpoint로 **외부 HTTPS 443** 통신이 가능하면 됩니다. 새 inbound 포트나 Nginx 경로는 필요 없습니다. 외부 목적지를 제한하는 방화벽·프록시가 있다면 해당 endpoint를 허용해야 합니다.
+
+운영 적용은 코드를 `develop → main`으로 릴리스한 뒤 SSM bundle에 키·운영 프로젝트를 등록하고 [SSM 설정 재배포](ssm-configuration.md)로 지정 버전을 적용합니다. 코드 배포는 기존 적용 설정을 사용하므로 SSM에 새 버전을 등록한 것만으로 키가 반영되지는 않습니다. 키가 적용되기 전에는 경고와 함께 외부 추적 없이 실행합니다. 키는 [백업 제외·버전별 재주입](production-backups.md)을 따릅니다.
 
 ## SDK 수명과 검증
 
 별도의 앱 전송 큐를 만들지 않고 SDK의 기본 배치 전송을 사용합니다. 앱은 지원되는 SDK 환경설정으로 daemon thread를 사용하고 압축 전송의 별도 executor는 끕니다. SDK는 자체 재시도와 429 대기를 할 수 있습니다. 앱 종료는 기존 종료 예산 안에서 최대 2초 동안 Client 정리를 기다리며, 이 값은 모든 HTTP·재시도의 전체 소요 시간 보장이 아닙니다. 종료·전송 장애에는 추적이 누락될 수 있습니다.
 
-회귀 검사는 실제 native tracer와 가짜 모델·HTTP 경계를 사용해 그래프·가드·모델·도구 부모 관계, 중복 없는 루트, 원문 기록·credential masking·선택적 숨김, 비활성화, 스트리밍·취소·종료를 검사합니다. 일반 테스트는 실제 OpenAI·LangSmith에 접속하지 않습니다.
+회귀 검사는 실제 native tracer와 가짜 모델·HTTP 경계를 사용해 그래프·가드·모델·도구 부모 관계, 중복 없는 루트, 원문 기록·credential masking·선택적 숨김, 키 없는 실행·운영 경고·이전 flag 무시, 스트리밍·취소·종료를 검사합니다. 일반 테스트는 실제 OpenAI·LangSmith에 접속하지 않도록 추적 환경을 격리합니다.
 
 ```bash
 cd backend
@@ -67,7 +68,7 @@ uv sync --locked
 uv run pytest tests/unit/test_ai_tracing.py tests/unit/test_ai_runtime.py
 ```
 
-이번 변경에서는 운영 키 등록·실제 LangSmith 수신·운영 배포를 수행하지 않았습니다. 코드 릴리스와 키 설정 후 승인된 환경의 가상 요청으로 프로젝트의 실행 트리를 확인해야 합니다. 비활성화해도 이전에 저장된 trace는 자동 삭제되지 않습니다.
+이번 변경에서는 운영 키 등록·실제 LangSmith 수신·운영 배포를 수행하지 않았습니다. 코드 릴리스와 키 적용 후 승인된 환경의 가상 요청으로 프로젝트의 실행 트리를 확인해야 합니다. 키를 제거해도 이전에 저장된 trace는 자동 삭제되지 않습니다.
 
 ## 기술 근거
 
