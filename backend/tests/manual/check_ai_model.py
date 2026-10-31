@@ -17,6 +17,8 @@ from app.agents.types import (
 from app.core.config import Settings
 from app.core.db.session import create_database
 from app.core.exceptions import AppError
+from app.rules.catalogs import FieldCode, RoleCode
+from app.rules.contests import RegistrationStatus
 from app.services.ai import validate_plan
 from app.services.ai_sources import SourceReader
 from app.services.sessions import SessionPrincipal
@@ -29,7 +31,14 @@ class SyntheticReader(SourceReader):
         pass
 
     async def search(
-        self, kind: Literal["contest", "team", "person"], query: str, page: int
+        self,
+        kind: Literal["contest", "team", "person"],
+        query: str,
+        page: int,
+        *,
+        role_code: RoleCode | None = None,
+        field_code: FieldCode | None = None,
+        registration_status: RegistrationStatus | None = None,
     ) -> tuple[list[UUID], bool]:
         return ([CONTEST_ID] if kind == "contest" else []), False
 

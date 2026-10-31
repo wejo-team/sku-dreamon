@@ -619,11 +619,7 @@ describe('design preview account flows', () => {
     await renderAccount('/signup');
     const user = setupUser();
     await fill(user, screen.getByLabelText('아이디 (필수)'), '  NewAccount  ');
-    await fill(
-      user,
-      screen.getByLabelText('비밀번호 (필수)'),
-      '새로운비밀번호를길게만들어요123',
-    );
+    await fill(user, screen.getByLabelText('비밀번호 (필수)'), 'abcdefg!');
     await fill(user, screen.getByLabelText('이름 (필수)'), '김지우');
     await user.click(
       within(screen.getByRole('group', { name: /관심 분야/ })).getByLabelText(
@@ -646,7 +642,7 @@ describe('design preview account flows', () => {
         path: '/accounts',
         body: {
           loginId: 'newaccount',
-          password: '새로운비밀번호를길게만들어요123',
+          password: 'abcdefg!',
         },
       },
     ]);
@@ -1204,15 +1200,15 @@ describe('design preview account flows', () => {
     const username = screen.getByLabelText('아이디 (필수)');
     await user.click(username);
     await user.paste('  DREAMONDEMO  ');
+    await user.tab();
     expect(await screen.findByText('이미 사용 중인 아이디예요.')).toBeVisible();
     const password = screen.getByLabelText('비밀번호 (필수)');
-    const oversized = '한'.repeat(129);
+    const oversized = 'a'.repeat(128) + '!';
     await user.click(password);
     await user.paste(oversized);
+    await user.tab();
     expect(
-      await screen.findByText(
-        '비밀번호는 공백을 포함해 15~128자로 입력해 주세요.',
-      ),
+      await screen.findByText('비밀번호는 128자 이하로 입력해 주세요.'),
     ).toBeVisible();
     expect(password).toHaveValue(oversized);
     expect(password).toHaveAttribute('autocomplete', 'new-password');
@@ -1222,12 +1218,95 @@ describe('design preview account flows', () => {
     await user.click(screen.getByRole('button', { name: '비밀번호 숨기기' }));
     expect(password).toHaveAttribute('type', 'password');
     await user.clear(password);
-    await user.paste('passwordpassword');
+    await user.paste('password!');
     expect(
       await screen.findByText(
         '쉽게 추측할 수 있는 비밀번호예요. 다른 비밀번호를 선택해 주세요.',
       ),
     ).toBeVisible();
     expect(profileSaves()).toEqual([]);
+  });
+
+  it('updates password requirements while typing without premature errors or repeated ID checks', async () => {
+    await renderAccount('/signup');
+    const user = setupUser();
+    const requirements = screen.getByRole('list', { name: '비밀번호 조건' });
+    const states = () =>
+      within(requirements)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent);
+    expect(states()).toEqual([
+      '8자 이상미충족',
+      '기호 1개 이상 (!, @, # 등)미충족',
+    ]);
+    await fill(user, screen.getByLabelText('아이디 (필수)'), 'livechecks');
+    const password = screen.getByLabelText('비밀번호 (필수)');
+    await user.click(password);
+    await user.type(password, 'abcdefgh');
+    expect(states()).toEqual([
+      '8자 이상충족',
+      '기호 1개 이상 (!, @, # 등)미충족',
+    ]);
+    expect(password).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.type(password, '!');
+    expect(states()).toEqual([
+      '8자 이상충족',
+      '기호 1개 이상 (!, @, # 등)충족',
+    ]);
+    await user.keyboard('{Backspace}');
+    expect(states()[1]).toContain('미충족');
+    await user.tab();
+    expect(
+      await screen.findByText('기호를 1개 이상 포함해 주세요. (!, @, # 등)'),
+    ).toBeVisible();
+    expect(requestsTo('GET', '/auth/login-id-availability')).toHaveLength(1);
+    expect(requestsTo('POST', '/accounts')).toEqual([]);
+  });
+
+  it('preserves forbidden password characters and immediately explains how to correct them', async () => {
+    await renderAccount('/signup');
+    const user = setupUser();
+    const password = screen.getByLabelText('비밀번호 (필수)');
+    for (const value of ['abcdef가!', ' abcdefg!', 'abcdefg! ', 'abc defg!']) {
+      await user.clear(password);
+      await fill(user, password, value);
+      expect(password).toHaveValue(value);
+      expect(password).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByText('한글과 공백은 사용할 수 없어요.')).toBeVisible();
+    }
+    await user.clear(password);
+    await fill(user, password, 'abcdefg!');
+    expect(
+      screen.queryByText('한글과 공백은 사용할 수 없어요.'),
+    ).not.toBeInTheDocument();
+    expect(password).toHaveAttribute('aria-invalid', 'false');
+    expect(requestsTo('POST', '/accounts')).toEqual([]);
+  });
+
+  it('shows Caps Lock only when detected and clears it on key release or lost focus', async () => {
+    await renderAccount('/signup');
+    const user = setupUser();
+    const password = screen.getByLabelText('비밀번호 (필수)');
+    const notice = 'Caps Lock이 켜져 있어요.';
+    expect(screen.queryByText(notice)).not.toBeInTheDocument();
+    await user.click(password);
+    fireEvent.keyDown(password, { key: 'A', modifierCapsLock: true });
+    expect(screen.getByText(notice)).toBeVisible();
+    expect(password).toHaveAccessibleDescription(
+      expect.stringContaining(notice),
+    );
+    fireEvent.keyUp(password, { key: 'CapsLock', modifierCapsLock: false });
+    expect(screen.queryByText(notice)).not.toBeInTheDocument();
+    fireEvent.keyUp(password, { key: 'CapsLock', modifierCapsLock: true });
+    expect(screen.getByText(notice)).toBeVisible();
+    await user.click(screen.getByLabelText('이름 (필수)'));
+    expect(screen.queryByText(notice)).not.toBeInTheDocument();
+    await user.click(password);
+    fireEvent.keyDown(password, { key: 'A', modifierCapsLock: true });
+    fireEvent(window, new Event('blur'));
+    expect(screen.queryByText(notice)).not.toBeInTheDocument();
+    expect(password).toHaveValue('');
+    expect(requestsTo('POST', '/accounts')).toEqual([]);
   });
 });

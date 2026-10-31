@@ -39,7 +39,13 @@ def ready_app(tmp_path: Path) -> FastAPI:
 
 
 @pytest.mark.parametrize(
-    "revision,status", [("20261026_09", 200), ("future-unapproved", 503), (None, 503)]
+    "revision,status",
+    [
+        ("20261026_09", 200),
+        ("20261031_10", 200),
+        ("future-unapproved", 503),
+        (None, 503),
+    ],
 )
 async def test_readiness_requires_release_compatible_schema(
     tmp_path: Path, revision: str | None, status: int
