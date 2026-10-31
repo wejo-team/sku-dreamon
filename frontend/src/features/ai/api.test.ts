@@ -1,7 +1,15 @@
 // 실제 POST SSE의 청크·수명주기·CSRF와 제어 요청 계약을 검증합니다.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, resetCsrfToken } from '@/lib/api';
-import { startChat, retryAi, cancelAi, validateAiResult } from './api';
+import {
+  startChat,
+  retryAi,
+  cancelAi,
+  validateAiResult,
+  startApplicantReview,
+  startApplicantRecommendations,
+  retryApplicants,
+} from './api';
 import { AiStreamError } from './stream';
 import { ChatStart, type AiEvent, type ChatResult } from './contract';
 
@@ -268,4 +276,106 @@ describe('POST AI SSE', () => {
       ChatStart.parse({ ...body, history: Array(13).fill('a'.repeat(1000)) }),
     ).toThrow();
   });
+});
+
+describe('지원자 JSON 평가', () => {
+  const review = {
+    schemaVersion: 3,
+    kind: 'applicant_review',
+    applicationId: id,
+    summary: '검토를 완료했어요.',
+    assessment: {
+      criteria: ['role', 'skills', 'experience', 'availability'].map((key) => ({
+        key,
+        score: null,
+        informationStatus: 'insufficient',
+        summary: '자료가 필요해요.',
+        evidence: [],
+      })),
+      questions: [],
+    },
+    evidence: [],
+    profileVersions: [{ accountId: id, usedVersion: '1', currentVersion: '1' }],
+    isStale: false,
+    isSelectionCandidate: true,
+    generatedAt: '2026-10-28T00:00:00Z',
+  };
+  const completion = {
+    requestId: id,
+    attempt: 1,
+    status: 'succeeded',
+    result: review,
+  };
+  it('완료 JSON을 쿠키·CSRF·AbortSignal을 유지하며 받는다', async () => {
+    const fetch = mock(Response.json({ data: completion }));
+    const signal = new AbortController().signal;
+    await expect(
+      startApplicantReview(id, { requestId: id }, signal),
+    ).resolves.toEqual(completion);
+    const [url, init] = fetch.mock.calls[1]!;
+    expect(url).toBe(`/api/v1/applications/${id}/ai-reviews`);
+    expect(init?.credentials).toBe('include');
+    expect(init?.signal).toBe(signal);
+    expect(new Headers(init?.headers).get('Accept')).toBe('application/json');
+    expect(new Headers(init?.headers).get('X-CSRF-Token')).toBe('test-csrf');
+  });
+  it('추천의 빈 완료 결과도 JSON으로 받는다', async () => {
+    const empty = {
+      ...completion,
+      status: 'empty',
+      result: {
+        schemaVersion: 3,
+        kind: 'applicant_recommendation',
+        summary: '지원자가 없어요.',
+        candidates: [],
+        isStale: false,
+        generatedAt: review.generatedAt,
+      },
+    };
+    const fetch = mock(Response.json({ data: empty }));
+    await expect(
+      startApplicantRecommendations(id, { requestId: id }),
+    ).resolves.toEqual(empty);
+    expect(fetch.mock.calls[1]![0]).toBe(
+      `/api/v1/teams/${id}/applicant-recommendations`,
+    );
+  });
+  it('지원자 재시도는 JSON 경로와 원래 요청·이전 attempt를 사용한다', async () => {
+    const fetch = mock(Response.json({ data: { ...completion, attempt: 2 } }));
+    await retryApplicants(
+      id,
+      { expectedAttempt: 1, input: { requestId: id } },
+      'applicant_review',
+    );
+    expect(fetch.mock.calls[1]![0]).toBe(`/api/v1/ai/requests/${id}/retries`);
+    expect(JSON.parse(String(fetch.mock.calls[1]![1]?.body))).toEqual({
+      expectedAttempt: 1,
+      input: { requestId: id },
+    });
+  });
+  it.each([
+    { ...completion, requestId: body.conversationId },
+    { ...completion, attempt: 2 },
+    {
+      ...completion,
+      result: { ...review, applicationId: body.conversationId },
+    },
+    { ...completion, result: { ...review, schemaVersion: 2 } },
+    { ...completion, result },
+    { ...completion, result: null },
+    { ...completion, status: 'canceled' },
+  ])('다른 요청·대상·버전 또는 불완전한 결과를 거부한다', async (invalid) => {
+    mock(Response.json({ data: invalid }));
+    await expect(startApplicantReview(id, { requestId: id })).rejects.toThrow();
+  });
+  it.each(['canceled', 'invalidated'])(
+    '%s 결과를 성공으로 바꾸지 않는다',
+    async (status) => {
+      const terminated = { ...completion, status, result: null };
+      mock(Response.json({ data: terminated }));
+      await expect(
+        startApplicantReview(id, { requestId: id }),
+      ).resolves.toEqual(terminated);
+    },
+  );
 });

@@ -1,6 +1,7 @@
-// 모델 driver만 대체한다. 브라우저·HTTPS·인증·자료 조회·SSE·DB는 실제 경로다.
+// 모델 driver만 대체한다. 브라우저·HTTPS·인증·자료 조회·채팅 SSE·평가 JSON·DB는 실제 경로다.
 import { randomUUID } from 'node:crypto';
 import type { Page, Response } from '@playwright/test';
+import type { ApplicantCompletion } from '../src/features/ai/contract';
 import {
   baseURL,
   captureLayout,
@@ -59,6 +60,19 @@ function checkStream(response: Response) {
   // done 뒤 클라이언트가 reader를 닫으면 Chromium은 response.body를 제공하지
   // 않는다. 스트림을 복제하지 않고 UI 수신 결과와 실제 상태·validation을 검사한다.
   return request.requestId ?? request.input!.requestId;
+}
+
+async function checkApplicantCompletion(response: Response) {
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toContain('application/json');
+  expect(response.headers()['cache-control']).toBe('no-store');
+  expect(response.request().headers()['x-csrf-token']).toBeTruthy();
+  const request = response.request().postDataJSON() as { requestId: string };
+  const completed = ((await response.json()) as Data<ApplicantCompletion>).data;
+  expect(completed.requestId).toBe(request.requestId);
+  expect(completed.attempt).toBe(1);
+  expect(completed.status).toBe('succeeded');
+  return completed;
 }
 
 test('일반 대화는 실제 자료로 답하고 복사 전 공개 철회를 다시 확인한다', async ({
@@ -247,18 +261,73 @@ test('팀장은 실제 지원을 AI로 검토·추천받고 지원 상태는 그
         })
       ).status(),
     ).toBe(200);
+    expect(
+      (
+        await write(
+          applicant.request,
+          'POST',
+          `/applications/${application.id}/ai-reviews`,
+          { requestId: randomUUID() },
+        )
+      ).status(),
+    ).toBe(403);
+    expect(
+      (
+        await write(
+          applicant.request,
+          'POST',
+          `/teams/${team.id}/applicant-recommendations`,
+          { requestId: randomUUID() },
+        )
+      ).status(),
+    ).toBe(403);
     const page = await leader.newPage();
     await page.goto(`/applicants/${application.id}`);
     const reviewed = responseFor(
       page,
-      `/applications/${application.id}/ai-reviews/stream`,
+      `/applications/${application.id}/ai-reviews`,
     );
     await page
       .getByRole('button', { name: 'AI 검토 요청', exact: true })
       .click();
-    const reviewId = checkStream(await reviewed);
+    const completion = await checkApplicantCompletion(await reviewed);
+    const reviewId = completion.requestId;
+    expect(completion.result).toMatchObject({
+      schemaVersion: 3,
+      kind: 'applicant_review',
+      applicationId: application.id,
+      assessment: {
+        criteria: expect.arrayContaining([
+          expect.objectContaining({
+            key: 'role',
+            score: 75,
+            informationStatus: 'sufficient',
+          }),
+          expect.objectContaining({
+            key: 'availability',
+            score: null,
+            informationStatus: 'insufficient',
+          }),
+        ]),
+      },
+    });
     const review = page.getByRole('region', { name: 'AI 지원자 검토 결과' });
-    await expect(review).toContainText(answer);
+    await expect(
+      review.getByRole('figure', { name: '항목별 평가 점수' }),
+    ).toBeVisible();
+    await expect(
+      review.getByRole('img', { name: '역할: 75점', exact: true }),
+    ).toBeVisible();
+    await expect(
+      review.getByRole('img', {
+        name: '참여 시간: 정보 부족으로 점수 없음',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(review).not.toContainText(completion.result!.summary);
+    await expect(review.getByRole('button', { name: '결과 복사' })).toHaveCount(
+      0,
+    );
     expect(
       (
         await get<Data<{ purpose: string; status: string }>>(
@@ -272,16 +341,37 @@ test('팀장은 실제 지원을 AI로 검토·추천받고 지원 상태는 그
     await page.goto(`/teams/${team.id}?view=applicants`);
     const recommended = responseFor(
       page,
-      `/teams/${team.id}/applicant-recommendations/stream`,
+      `/teams/${team.id}/applicant-recommendations`,
     );
     await page
       .getByRole('button', { name: 'AI 지원자 추천 요청', exact: true })
       .click();
-    const recommendationId = checkStream(await recommended);
+    const recommendedCompletion = await checkApplicantCompletion(
+      await recommended,
+    );
+    const recommendationId = recommendedCompletion.requestId;
+    const recommendedResult = recommendedCompletion.result;
+    if (recommendedResult?.kind !== 'applicant_recommendation')
+      throw new Error('지원자 추천 결과가 필요합니다.');
+    expect(
+      recommendedResult.candidates.map((candidate) => candidate.applicationId),
+    ).toEqual([application.id]);
+    expect(recommendedResult.candidates[0]!.title).toBe(profile.realName);
     const recommendation = page.getByRole('region', {
       name: 'AI 지원자 추천 결과',
     });
-    await expect(recommendation).toContainText(answer);
+    await expect(
+      recommendation.getByRole('figure', {
+        name: '지원자별 항목 점수 막대그래프',
+      }),
+    ).toBeVisible();
+    await expect(
+      recommendation.getByRole('img', {
+        name: `${profile.realName}, 역할: 75점`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(recommendation).not.toContainText(recommendedResult.summary);
     expect(
       (
         await get<Data<{ purpose: string; status: string }>>(
@@ -294,7 +384,9 @@ test('팀장은 실제 지원을 AI로 검토·추천받고 지원 상태는 그
       status: 'succeeded',
     });
     await expect(
-      recommendation.getByRole('link', { name: '추천 후보 1 지원서 확인' }),
+      recommendation.getByRole('link', {
+        name: `${profile.realName} 지원서 보기`,
+      }),
     ).toHaveAttribute('href', `/applicants/${application.id}`);
     expect(
       (

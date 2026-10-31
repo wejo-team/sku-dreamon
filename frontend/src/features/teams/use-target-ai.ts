@@ -4,17 +4,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   cancelAi,
   getAiRequest,
-  retryAi,
+  retryApplicants,
   startApplicantRecommendations,
   startApplicantReview,
   validateAiResult,
 } from '@/features/ai/api';
-import type {
-  AiEvent,
-  AiFailure,
-  AiResult,
-  TargetStart,
-} from '@/features/ai/contract';
+import type { AiFailure, AiResult, TargetStart } from '@/features/ai/contract';
 import type { Account } from '@/features/auth/api';
 import { ApiError } from '@/lib/api';
 import { queryKeys, sessionGeneration } from '@/lib/query-keys';
@@ -72,9 +67,8 @@ export function useTargetAi({
   const [state, setState] = useState<State>(idle);
   const [validationError, setValidationError] = useState('');
   const [validating, setValidating] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [canceling, setCanceling] = useState(false);
-  const stream = useRef<AbortController | null>(null);
+  const requestAbort = useRef<AbortController | null>(null);
   const validationAbort = useRef<AbortController | null>(null);
   const visible = useRef(true);
   const starting = useRef(false);
@@ -114,7 +108,6 @@ export function useTargetAi({
       setResult(null);
       setValidating(true);
       setValidationError('');
-      setCopied(false);
       try {
         // 해시 검증에는 표시용 갱신 DTO가 아닌 최초 수신 결과를 그대로 보냅니다.
         const checked = await execute(() =>
@@ -160,7 +153,7 @@ export function useTargetAi({
     mounted.current = false;
     operation.current++;
     validation.current++;
-    stream.current?.abort();
+    requestAbort.current?.abort();
     validationAbort.current?.abort();
   }, []);
   useEffect(() => {
@@ -184,7 +177,6 @@ export function useTargetAi({
       validationAbort.current?.abort();
       setResult(null);
       setValidating(false);
-      setCopied(false);
       setState((previous) => ({ ...previous, text: '' }));
     };
     const visibilityChanged = () =>
@@ -257,84 +249,60 @@ export function useTargetAi({
     const ticket = ++operation.current;
     validation.current++;
     validationAbort.current?.abort();
-    stream.current?.abort();
+    requestAbort.current?.abort();
     const controller = new AbortController();
-    stream.current = controller;
+    requestAbort.current = controller;
     clearSnapshot();
     setValidationError('');
-    setCopied(false);
     setState({
       phase: 'pending',
       text: '',
       message: '등록된 정보를 확인하고 있어요.',
       request,
     });
-    let finalResult: AiResult | null = null;
-    const onEvent = (event: AiEvent) => {
+    try {
+      const completed = await execute(() =>
+        retry && previous
+          ? retryApplicants(
+              input.requestId,
+              { expectedAttempt: previous.attempt, input },
+              purpose,
+              controller.signal,
+            )
+          : purpose === 'applicant_review'
+            ? startApplicantReview(targetId, input, controller.signal)
+            : startApplicantRecommendations(targetId, input, controller.signal),
+      );
       if (
         !current() ||
         ticket !== operation.current ||
         controller.signal.aborted
       )
         return;
-      if (event.event === 'answer.delta' && visible.current)
-        setState((value) => ({ ...value, text: value.text + event.text }));
-      if (event.event === 'progress')
-        setState((value) => ({
-          ...value,
-          message:
-            event.stage === 'writing'
-              ? '검토 내용을 작성하고 있어요.'
-              : '등록된 정보를 확인하고 있어요.',
-        }));
-      if (event.event === 'result') finalResult = event.result;
-      if (event.event === 'done' && finalResult) {
+      if (completed.result) {
+        if (
+          completed.result.kind === 'applicant_review' &&
+          completed.result.applicationId !== targetId
+        )
+          throw new Error('검토 대상이 현재 지원서와 다릅니다.');
         const saved = {
           requestId: input.requestId,
           attempt,
-          original: finalResult,
+          original: completed.result,
         };
         client.setQueryData(cacheKey, saved);
         setSnapshot(saved);
         setState({ phase: 'finished', text: '', message: '', request });
-      }
-      if (event.event === 'error')
-        setState({
-          phase: 'failed',
-          text: '',
-          message: event.failure.message,
-          failure: event.failure,
-          request,
-        });
-      if (event.event === 'invalidated')
+      } else if (completed.status === 'invalidated') {
         setState({ phase: 'failed', text: '', message: changed, request });
-      if (event.event === 'canceled')
+      } else {
         setState({
           phase: 'canceled',
           text: '',
           message: '요청을 취소했어요.',
           request,
         });
-    };
-    try {
-      await execute(() =>
-        retry && previous
-          ? retryAi(
-              input.requestId,
-              { expectedAttempt: previous.attempt, input },
-              purpose,
-              onEvent,
-              controller.signal,
-            )
-          : purpose === 'applicant_review'
-            ? startApplicantReview(targetId, input, onEvent, controller.signal)
-            : startApplicantRecommendations(
-                targetId,
-                input,
-                onEvent,
-                controller.signal,
-              ),
-      );
+      }
     } catch (error) {
       if (
         !current() ||
@@ -342,7 +310,11 @@ export function useTargetAi({
         controller.signal.aborted
       )
         return;
-      if (error instanceof ApiError)
+      if (
+        error instanceof ApiError &&
+        ((error.status < 500 && error.code !== 'AI_LIMIT_EXCEEDED') ||
+          error.code === 'AI_NOT_CONFIGURED')
+      )
         setState({
           phase: 'failed',
           text: '',
@@ -359,7 +331,7 @@ export function useTargetAi({
     if (!state.request || !current() || canceling) return;
     const request = state.request;
     const ticket = ++operation.current;
-    stream.current?.abort();
+    requestAbort.current?.abort();
     setCanceling(true);
     setState({
       phase: 'checking',
@@ -396,30 +368,14 @@ export function useTargetAi({
     }
   }
 
-  async function copy(format: (value: AiResult) => string) {
-    if (!snapshot || !current()) return;
-    const checked = await validate(snapshot);
-    if (!checked || !current()) return;
-    try {
-      await navigator.clipboard.writeText(format(checked));
-      if (current()) setCopied(true);
-    } catch {
-      if (current())
-        setValidationError(
-          '복사하지 못했어요. 브라우저의 클립보드 권한을 확인해 주세요.',
-        );
-    }
-  }
   return {
     state,
     canceling,
     result,
     validating,
     validationError,
-    copied,
     run,
     cancel,
-    copy,
     revalidate: () => snapshot && validate(snapshot),
     checkStatus: () => state.request && reconcile(state.request),
     canRetry:

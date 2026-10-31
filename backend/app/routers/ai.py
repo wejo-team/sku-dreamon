@@ -7,7 +7,7 @@ from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Request, Response
-from starlette.responses import StreamingResponse
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.types import Receive, Scope, Send
 
 from app.core.config import Settings
@@ -18,6 +18,7 @@ from app.core.http.schemas import Success
 from app.dependencies.auth import CurrentSession, get_current_session
 from app.dependencies.csrf import require_csrf
 from app.schemas.ai import (
+    AiCompletion,
     AiPurpose,
     AiRequestView,
     CancelRequest,
@@ -180,6 +181,97 @@ def stream_response(service: AiService, execution: Execution) -> AiStreamRespons
     )
 
 
+class AiJsonResponse(JSONResponse):
+    """평가 완료 전 연결 종료를 감지하고 현재 권한 잠금 안에서 JSON을 전송한다."""
+
+    media_type = "application/json"
+
+    def __init__(
+        self,
+        completions: AsyncGenerator[AiCompletion],
+        status_code: int = 200,
+        *,
+        on_close: Callable[[], Awaitable[None]],
+        cleanup: StreamCleanup,
+        timeout_seconds: float,
+    ) -> None:
+        self.completions, self.on_close = completions, on_close
+        self.cleanup, self.timeout_seconds = cleanup, timeout_seconds
+        super().__init__(content=None, status_code=status_code)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        async def watch_disconnect() -> None:
+            while True:
+                if (await receive())["type"] == "http.disconnect":
+                    return
+
+        async def respond() -> None:
+            try:
+                async for result in self.completions:
+                    response = Response(
+                        content=Success(data=result).model_dump_json(),
+                        status_code=self.status_code,
+                        media_type=self.media_type,
+                        headers={"Cache-Control": "no-store"},
+                    )
+                    async with asyncio.timeout(SEND_TIMEOUT_SECONDS):
+                        await response(scope, receive, send)
+            finally:
+                # publishing의 컨텍스트는 생성기를 소비한 태스크 안에서 닫는다.
+                try:
+                    await self.cleanup.run(self.completions.aclose)
+                except Exception as error:
+                    logger.warning(
+                        "AI JSON generator cleanup deferred: error_type=%s",
+                        type(error).__name__,
+                    )
+
+        sending = asyncio.create_task(respond())
+        disconnected = asyncio.create_task(watch_disconnect())
+        try:
+            async with asyncio.timeout(self.timeout_seconds):
+                await asyncio.wait(
+                    {sending, disconnected}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if sending.done():
+                    await sending
+        finally:
+            self.cleanup.start()
+            for task in (sending, disconnected):
+                if not task.done():
+                    task.cancel()
+            try:
+                await self.cleanup.run(
+                    lambda: asyncio.gather(
+                        sending, disconnected, return_exceptions=True
+                    )
+                )
+                await self.cleanup.run(self.completions.aclose)
+            except Exception as error:
+                logger.warning(
+                    "AI JSON cleanup deferred: error_type=%s", type(error).__name__
+                )
+            finally:
+                try:
+                    await self.cleanup.run(self.on_close)
+                except Exception as error:
+                    logger.warning(
+                        "AI JSON close callback deferred: error_type=%s",
+                        type(error).__name__,
+                    )
+
+
+def json_response(service: AiService, execution: Execution) -> AiJsonResponse:
+    cleanup = StreamCleanup(service.settings.ai_cleanup_timeout_seconds)
+    return AiJsonResponse(
+        service.complete_applicants(execution, cleanup=cleanup),
+        on_close=lambda: service.close_stream(execution, cleanup=cleanup),
+        cleanup=cleanup,
+        timeout_seconds=service.settings.ai_timeout_seconds
+        + TRANSPORT_ALLOWANCE_SECONDS,
+    )
+
+
 @router.post(
     "/ai/chat/stream",
     response_class=AiStreamResponse,
@@ -227,6 +319,72 @@ async def recommend(
         principal, "applicant_recommendation", payload, team_id=team_id
     )
     return stream_response(service, execution)
+
+
+@router.post(
+    "/applications/{applicationId}/ai-reviews",
+    response_class=AiJsonResponse,
+    response_model=Success[AiCompletion],
+    summary="지원자 구조화 평가를 완성 JSON으로 제공",
+)
+async def review_json(
+    application_id: Annotated[UUID, Path(alias="applicationId")],
+    payload: TargetStart,
+    principal: CurrentSession,
+    service: Service,
+) -> AiJsonResponse:
+    execution = await service.start(
+        principal, "applicant_review", payload, application_id=application_id
+    )
+    return json_response(service, execution)
+
+
+@router.post(
+    "/teams/{teamId}/applicant-recommendations",
+    response_class=AiJsonResponse,
+    response_model=Success[AiCompletion],
+    summary="유효 지원자 후보의 구조화 평가를 완성 JSON으로 제공",
+)
+async def recommend_json(
+    team_id: Annotated[UUID, Path(alias="teamId")],
+    payload: TargetStart,
+    principal: CurrentSession,
+    service: Service,
+) -> AiJsonResponse:
+    execution = await service.start(
+        principal, "applicant_recommendation", payload, team_id=team_id
+    )
+    return json_response(service, execution)
+
+
+@router.post(
+    "/ai/requests/{requestId}/retries",
+    response_class=AiJsonResponse,
+    response_model=Success[AiCompletion],
+    summary="실패한 지원자 구조화 평가를 재실행",
+)
+async def retry_json(
+    request_id: Annotated[UUID, Path(alias="requestId")],
+    payload: RetryStart,
+    principal: CurrentSession,
+    service: Service,
+) -> AiJsonResponse:
+    run = await service.runs.get(principal, request_id)
+    if run.purpose == "chat":
+        raise AppError(409, "AI_STREAM_REQUIRED", "대화는 스트리밍을 사용해 주세요.")
+    if payload.input.request_id != request_id or isinstance(payload.input, ChatStart):
+        raise AppError(
+            409, "MESSAGE_ID_CONFLICT", "원래 요청과 같은 입력을 보내 주세요."
+        )
+    execution = await service.start(
+        principal,
+        cast(AiPurpose, run.purpose),
+        payload.input,
+        team_id=run.team_id,
+        application_id=run.application_id,
+        expected_attempt=payload.expected_attempt,
+    )
+    return json_response(service, execution)
 
 
 @router.post(

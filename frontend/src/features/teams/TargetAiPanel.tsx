@@ -1,37 +1,19 @@
 // docs/api/ai.md: 결과 표시는 검증 후에만 허용하며 선발 동작은 지원서 화면에서 수행합니다.
 import { useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router';
-import { Copy, LoaderCircle, RotateCcw, Sparkles } from 'lucide-react';
+import { LoaderCircle, RotateCcw, Sparkles } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import type { AiResult, ProfileVersion } from '@/features/ai/contract';
 import { useSession } from '@/features/auth/queries';
 import { sessionGeneration } from '@/lib/query-keys';
 import { useTargetAi } from './use-target-ai';
+import { ApplicantAssessment } from './ApplicantAssessment';
+import { ApplicantCandidateResults } from './ApplicantCandidateResults';
 
 type Props = {
   purpose: 'applicant_review' | 'applicant_recommendation';
   targetId: string;
   revision: string;
 };
-function resultText(value: AiResult) {
-  if (value.kind === 'chat') return value.answer;
-  if (value.kind === 'applicant_review')
-    return [value.summary, ...value.evidence].join('\n\n');
-  return [
-    value.summary,
-    ...value.candidates.map((candidate) => candidate.reason),
-  ].join('\n\n');
-}
-function ProfileVersionNote({ version }: { version: ProfileVersion }) {
-  return (
-    <p className="preview-muted">
-      검토한 프로필 버전 {version.usedVersion} · 현재 버전{' '}
-      {version.currentVersion}
-    </p>
-  );
-}
-
 export function TargetAiPanel(props: Props) {
   const client = useQueryClient();
   const { account } = useSession();
@@ -57,26 +39,22 @@ function TargetAiSession(
   const pending = ai.state.phase === 'pending' || ai.state.phase === 'checking';
   return (
     <section
-      className="preview-panel preview-stack min-w-0"
+      className={
+        review
+          ? 'preview-panel preview-stack min-w-0'
+          : 'preview-stack min-w-0 ai-applicant-recommendations'
+      }
       aria-labelledby={titleId}
     >
       <div className="preview-row">
         <Sparkles size={20} aria-hidden="true" />
         <h2 id={titleId}>{heading}</h2>
       </div>
-      <p className="preview-muted">
-        {review
-          ? '현재 지원서와 프로필로 검토해요. 모집이 마감되거나 정원이 차도 검토할 수 있어요.'
-          : '접수된 지원서 중 현재 선발 가능한 후보를 추천해요. 추천을 받아도 지원 상태는 바뀌지 않아요.'}
-      </p>
       {pending && (
         <div className="preview-stack" aria-busy="true">
           <p role="status" className="preview-muted">
             {ai.state.message}
           </p>
-          {ai.state.text && (
-            <p className="whitespace-pre-wrap break-words">{ai.state.text}</p>
-          )}
           <div className="preview-row">
             <Button
               type="button"
@@ -131,21 +109,9 @@ function TargetAiSession(
               </AlertDescription>
             </Alert>
           )}
-          <p className="whitespace-pre-wrap break-words">{ai.result.summary}</p>
           {ai.result.kind === 'applicant_review' ? (
             <>
-              {!!ai.result.evidence.length && (
-                <ul className="preview-stack list-disc pl-5">
-                  {ai.result.evidence.map((evidence, index) => (
-                    <li key={index} className="whitespace-pre-wrap break-words">
-                      {evidence}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {ai.result.profileVersions.map((version) => (
-                <ProfileVersionNote key={version.accountId} version={version} />
-              ))}
+              <ApplicantAssessment assessment={ai.result.assessment} />
               {!ai.result.isSelectionCandidate && (
                 <p className="preview-muted">
                   현재 선발 후보가 아닌 지원서예요. 이 결과는 기존 지원 내용을
@@ -154,41 +120,17 @@ function TargetAiSession(
               )}
             </>
           ) : ai.result.candidates.length ? (
-            <ol className="preview-stack list-decimal pl-5">
-              {ai.result.candidates.map((candidate, index) => (
-                <li
-                  key={candidate.applicationId}
-                  className="preview-stack min-w-0"
-                >
-                  <Link
-                    className="preview-text-link"
-                    to={`/applicants/${candidate.applicationId}`}
-                  >
-                    추천 후보 {index + 1} 지원서 확인
-                  </Link>
-                  <p className="whitespace-pre-wrap break-words">
-                    {candidate.reason}
-                  </p>
-                  <ProfileVersionNote version={candidate.profileVersion} />
-                </li>
-              ))}
-            </ol>
+            <ApplicantCandidateResults
+              key={ai.result.generatedAt}
+              candidates={ai.result.candidates}
+            />
           ) : (
             <p className="preview-muted">
               현재 추천할 수 있는 지원자가 없어요.
             </p>
           )}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void ai.copy(resultText)}
-          >
-            <Copy size={16} aria-hidden="true" />
-            결과 복사
-          </Button>
         </div>
       )}
-      {ai.copied && <p role="status">결과를 복사했어요.</p>}
       <div className="preview-row">
         <Button
           type="button"
@@ -238,10 +180,6 @@ function TargetAiSession(
           </Button>
         )}
       </div>
-      <p className="preview-muted">
-        AI 결과는 참고용이에요. 지원 내용은 직접 확인하고, 선발 여부는 팀장이
-        결정해 주세요.
-      </p>
     </section>
   );
 }

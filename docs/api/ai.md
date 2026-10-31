@@ -1,6 +1,6 @@
 # AI API
 
-**상태: 백엔드 #157과 [제품 AI 화면 #192](https://github.com/wejo-team/sku-dreamon/pull/192)의 실제 API 연결 구현 · 운영 배포 미검증.** 일반 대화, 팀장의 지원자 검토·후보 추천을 OpenAI Luna와 `create_agent`로 실행합니다. 모든 경로는 `/api/v1` 아래에 있으며 현재 서버 세션으로 인증합니다. 제품 정책은 [추천 명세](../specs/matching.md), 실행 구조는 [아키텍처](../development/ai-architecture.md), 범위·결정은 [SDD](../development-plans/ai-agent.md)를 따릅니다.
+**상태: 기존 AI 대화 연결에 지원자 평가 v3·완성 JSON 연결 추가 · 운영 배포 미검증.** 일반 대화, 팀장의 지원자 검토·후보 추천을 OpenAI Luna와 `create_agent`로 실행합니다. 모든 경로는 `/api/v1` 아래에 있으며 현재 서버 세션으로 인증합니다. 제품 정책은 [추천 명세](../specs/matching.md), 실행 구조는 [아키텍처](../development/ai-architecture.md), 범위·결정은 [SDD](../development-plans/ai-agent.md)를 따릅니다.
 
 정확한 요청·결과·이벤트 필드는 [AI DTO](../../backend/app/schemas/ai.py), 경로·HTTP 상태·의존성은 [라우터](../../backend/app/routers/ai.py)와 실행 앱의 `/docs`·`/openapi.json`이 원본입니다. 이전 `202 + Location + polling` 초안은 대체했으며 별도 대화 생성·목록·메시지 조회·복원 API는 제공하지 않습니다. 일반 채팅 접수 시 대화와 현재 입력을 저장하고 생성 완료 시 답변을 저장합니다.
 
@@ -13,8 +13,11 @@
 | 메서드·경로 | 입력 | 성공 응답·권한 |
 | --- | --- | --- |
 | `POST /ai/chat/stream` | `ChatStart` | 200 SSE. 현재 로그인 사용자 |
-| `POST /applications/{applicationId}/ai-reviews/stream` | `TargetStart` | 200 SSE. 해당 지원을 받은 현재 팀장 |
-| `POST /teams/{teamId}/applicant-recommendations/stream` | `TargetStart` | 200 SSE. 해당 팀의 현재 팀장 |
+| `POST /applications/{applicationId}/ai-reviews` | `TargetStart` | 200 `Success<AiCompletion>`. 해당 지원을 받은 현재 팀장 |
+| `POST /teams/{teamId}/applicant-recommendations` | `TargetStart` | 200 `Success<AiCompletion>`. 해당 팀의 현재 팀장 |
+| `POST /ai/requests/{requestId}/retries` | `RetryStart` | 200 `Success<AiCompletion>`. 지원자 평가 실패 시도만 재실행 |
+| `POST /applications/{applicationId}/ai-reviews/stream` | `TargetStart` | 호환용 SSE. 현재 팀장에게 v3 최종 결과만 전달 |
+| `POST /teams/{teamId}/applicant-recommendations/stream` | `TargetStart` | 호환용 SSE. 현재 팀장에게 v3 최종 결과만 전달 |
 | `POST /ai/requests/{requestId}/retries/stream` | `RetryStart` | 200 SSE. 현재 요청 소유자·대상 관계·실패 시도 확인 |
 | `GET /ai/requests/{requestId}` | 본문 없음 | 200 `Success<AiRequestView>`. 본문 없는 실행 상태 조회 |
 | `PUT /ai/requests/{requestId}/cancellation` | `CancelRequest` | 200 `Success<AiRequestView>`. 현재 시도 중단 |
@@ -73,15 +76,23 @@ SSE 자동 재연결·이벤트 재생은 제공하지 않습니다. 연결이 �
 | `canceled` | 현재 시도 중단 |
 | `invalidated` | 권한·근거 변경. 해당 답변 전체와 카드를 제거하고 안내로 대체해야 함 |
 
-입력 가드는 매 일반 채팅 사용자 메시지에 적용하며, 허용 후에만 이전 결과 자료를 다시 조회합니다. 정책 거절은 고정 안내·빈 `cards`·`succeeded`로 정상 완료하고 완성 답변을 저장합니다. 가드 장애는 기존 `temporary_failure`로 종료하며 원래 입력 전체로 재시도합니다. 자유 입력 없는 지원자 목적 요청은 서버의 고정 요청을 사용합니다. 단일 ReAct의 필수 서버 검증 전 중간 텍스트·도구 JSON은 전송하지 않으며, 검증 후 `validating`·`writing`을 첫 최종 텍스트 직전에 보냅니다. 이벤트·상태 schema는 그대로 유지합니다.
+입력 가드는 매 일반 채팅 사용자 메시지에 적용하며, 허용 후에만 이전 결과 자료를 다시 조회합니다. 정책 거절은 고정 안내·빈 `cards`·`succeeded`로 정상 완료하고 완성 답변을 저장합니다. 가드 장애는 기존 `temporary_failure`로 종료하며 원래 입력 전체로 재시도합니다. 자유 입력 없는 지원자 목적 요청은 서버의 고정 요청을 사용합니다. 일반 대화 단일 ReAct의 필수 서버 검증 전 중간 텍스트·도구 JSON은 전송하지 않으며, 검증 후 `validating`·`writing`을 첫 최종 텍스트 직전에 보냅니다. 이벤트·상태 schema는 그대로 유지합니다.
 
 정상 순서는 `started → progress* → answer.delta* → result → done`입니다. `done`을 받기 전 부분 답변이나 연결 단절을 완료로 표시하지 않습니다. 이전 대화·요청·시도의 늦은 이벤트는 반영하지 않습니다. 스트림 시작 전 오류는 공통 JSON HTTP 오류이며, 시작 후에는 HTTP 상태를 바꾸지 않고 종료 이벤트로 실패를 전달합니다.
+
+### 지원자 평가의 완성 JSON
+
+지원자 제품 화면은 `/stream` 없는 POST를 사용합니다. 지원자 전용 `create_agent`는 기존 권한별 조회 도구와 명시적 `ProviderStrategy(ApplicantAssessmentPlan, strict=True)`로 조회·평가를 한 그래프에서 수행합니다. 자유 텍스트 생성·부분 문장 전송 없이 구조화 결과를 만든 뒤 서버가 대상·근거·현재 권한을 검사합니다. 제공자의 완료 상태가 `incomplete`이면 JSON이 파싱돼도 성공 처리하지 않습니다.
+
+`Success<AiCompletion>.data`는 `requestId`, `attempt`, `status`, `result`입니다. `succeeded`·`empty`는 결과가 있고 `canceled`·`invalidated`는 반드시 `result=null`입니다. 실패는 표준 HTTP 오류로 반환하며 원문 없는 실행 상태 조회로 재시도 가능 여부를 확인합니다. chat 목적의 JSON 재시도는 409입니다. `Cache-Control: no-store`와 전송 경계의 현재 권한 검증을 유지합니다. 기존 지원자 SSE 경로도 `answer.delta` 없이 같은 v3 `result`·`done`만 보냅니다.
+
+생성 중 화면에는 진행 상태와 요청 취소를 제공하며 가짜 진행률·부분 문장은 표시하지 않습니다. 결과 원문 저장·결과 polling·새로고침 복원은 추가하지 않습니다.
 
 <a id="termination"></a>
 
 ## 응답 종료와 지연 정리
 
-[DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)는 [AiStreamResponse](../../backend/app/routers/ai.py)와 [StreamCleanup](../../backend/app/services/ai.py)에 유한한 실행·정리 예산을 적용했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. 헤더를 보내기 전부터 응답 실행을 `AI_TIMEOUT_SECONDS + 9초`로 제한하며, 헤더·heartbeat·본문·최종 프레임의 각 전송은 3초 안에 끝나야 합니다. provider `aclose`·실패 상태 저장·generator 종료·`on_close`는 첫 정리 때 시작한 단일 `AI_CLEANUP_TIMEOUT_SECONDS` deadline을 공유하고 새 예산을 시작하지 않습니다. 기본 정리는 5초, 허용 범위는 0.1~30초이며 상태 저장은 한 번만 시도합니다.
+[DEP-02 #211](https://github.com/wejo-team/sku-dreamon/issues/211)는 [AiStreamResponse](../../backend/app/routers/ai.py)와 [StreamCleanup](../../backend/app/services/ai.py)에 유한한 실행·정리 예산을 적용했습니다. 구현·검증 근거는 [PR #217](https://github.com/wejo-team/sku-dreamon/pull/217)입니다. 지원자 `AiJsonResponse`도 같은 전체 응답·개별 전송·공유 정리 deadline과 한 번의 상태 저장 규칙을 적용합니다. 헤더를 보내기 전부터 응답 실행을 `AI_TIMEOUT_SECONDS + 9초`로 제한하며, 헤더·heartbeat·본문·최종 프레임의 각 전송은 3초 안에 끝나야 합니다. provider `aclose`·실패 상태 저장·generator 종료·`on_close`는 첫 정리 때 시작한 단일 `AI_CLEANUP_TIMEOUT_SECONDS` deadline을 공유하고 새 예산을 시작하지 않습니다. 기본 정리는 5초, 허용 범위는 0.1~30초이며 상태 저장은 한 번만 시도합니다.
 
 협조적 취소와 유한한 DB·driver I/O 아래 응답은 `AI_TIMEOUT_SECONDS + 9초 + AI_CLEANUP_TIMEOUT_SECONDS`와 스케줄링 여유 안에 끝납니다. 취소를 무시하는 임의 외부 코드를 강제로 종료한다는 보장은 아닙니다. 열려 있는 producer를 분리해 계속 실행하는 방식은 사용하지 않습니다. timeout·닫기 실패를 완료 저장·가짜 `result`/`done`으로 바꾸지 않으며 기존 성공/빈 결과의 commit 경계를 유지합니다. 전송이 이미 막혔으면 실패 이벤트도 전달되지 않을 수 있어 상태 조회로 확인합니다.
 
@@ -91,12 +102,29 @@ DB 실패·잠금 등으로 종료 상태 저장을 마치지 못하면 `pending
 
 ## 결과와 근거
 
-결과는 `ChatResult`, `ApplicantReviewResult`, `ApplicantRecommendationResult` 중 목적에 맞는 하나입니다. [DTO 원본](../../backend/app/schemas/ai.py)의 필드·개수·NULL·버전 표현을 사용합니다.
+결과는 `ChatResult`, `ApplicantReviewResult`, `ApplicantRecommendationResult` 중 목적에 맞는 하나입니다. 일반 대화 계약은 기존대로 버전 필드 없이 유지하고 지원자 결과만 필수 `schemaVersion: 3`을 제공합니다. [DTO 원본](../../backend/app/schemas/ai.py)의 필드·개수·NULL·버전 표현을 사용합니다.
 
 - 일반 대화는 종류 합계 최대 3개 카드입니다. 제목·리소스 ID·분야/역할·`isDemo`는 실제 서비스 자료로 구성합니다. 모델이 만든 URL을 이동 경로로 사용하지 않습니다.
-- 개별 검토는 지정 지원 한 건의 요약·근거·사용한 프로필 버전·현재 후보 여부를 제공합니다. 후보 여부가 실제 선발 허가를 뜻하지 않습니다.
-- 팀 후보 추천은 실제 유효 지원만 제공합니다. 일반 카드 3개 제한을 지원자 수에 확대하지 않으며 조회·입력 예산은 별도로 적용합니다.
+- 개별 검토는 지정 지원 한 건의 요약·근거·사용한 프로필 버전·현재 후보 여부와 `assessment`를 제공합니다. 후보 여부가 실제 선발 허가를 뜻하지 않습니다.
+- 팀 후보 추천은 조회된 유효 지원 중 이번 실행이 선택한 최대 3명만 평가합니다. 전체 지원자 일괄 평가·점수별 상위 순위가 아니며 정보 부족만을 제외 사유로 삼지 않습니다. 응답 배열의 기존 최대 100개 전송형은 유지하되 모델 출력과 서비스는 3명 상한을 강제합니다. 각 유효 후보에 현재 등록 이름 `title`, 등록 역량 `profile.skillCodes`, `assessment`를 포함합니다. 이 상한은 평가 생성의 출력 예산이며 일반 대화 카드 제한과 별개입니다. 조회·입력 예산도 기존대로 적용합니다.
 - 응답의 사실성은 구조화 출력만으로 증명되지 않습니다. 존재하지 않는 ID·잘못된 목적·허용 범위 밖 후보는 서버가 거부하고, 설명 품질은 별도 평가 대상입니다.
+
+### 지원자 평가 구조
+
+개별 검토와 각 후보의 `assessment`에는 정확히 네 개의 서로 다른 항목(`role`, `skills`, `experience`, `availability`)과 최대 세 개의 확인 질문이 있습니다. 항목은 필수 nullable `score`, 필수 `informationStatus`, 짧은 설명, 실제 등록 자료의 출처·내용으로 된 근거를 제공합니다.
+
+- `score`는 0~100의 5점 단위 엄격한 정수 또는 `null`입니다. boolean·실수·숫자 문자열·범위 밖·5의 배수가 아닌 값은 거부합니다.
+- `informationStatus=sufficient`일 때만 숫자 점수가 있고 `insufficient`일 때는 반드시 `score=null`입니다. 서버·클라이언트 스키마가 양방향 일치를 검사합니다. 0점은 근거가 있는 실제 불일치이며 정보 부족과 다릅니다.
+- 숫자 점수에는 해당 항목의 실제 지원자 근거가 필요합니다. 모델이 반환한 참조가 서버 자료 목록에 없거나 다른 지원자의 참조이면 거부합니다. 팀 소개만으로 지원자 역량에 점수를 줄 수 없습니다. 참여시간 숫자에는 등록 주당 시간·팀 소개의 조건·지원 메시지의 팀별 배정시간 참조가 함께 필요합니다.
+- [평가 프롬프트](../../backend/app/agents/prompts.py)는 항목마다 0·25·50·75·100 기준점을 정의하고 그 사이를 5점 단위로 평가합니다. 모든 후보에게 동일한 팀 요구와 루브릭을 적용하며 총점·순위·자동 선발은 만들지 않습니다. 학년·전공·이름 등 개인 속성으로 점수를 정하지 않습니다. 미등록을 0점으로 처리하지 않고, 팀의 시간 요구나 지원자의 팀별 배정시간이 불명확하면 참여시간 점수는 `null`입니다.
+
+지원자 요약은 최대 600자, 항목 설명은 300자, 근거는 항목당 최대 6개·각 500자, 질문은 각 200자입니다. 정확한 source enum·필드·검증은 DTO와 [평가 근거 구성](../../backend/app/agents/assessment.py)이 원본입니다. 프롬프트의 루브릭·의미 판단과 서버의 형식·참조 검증은 구분하며 실제 모델의 점수 일관성은 별도 품질 검증 대상입니다. 기본 출력 예산 안에서 일괄 결과가 과도해지지 않도록 이번 추천은 최대 3명이며 항목 설명·총평은 간결한 한 문장으로 요청합니다.
+
+지원자 UI는 네 항목을 세로축, 점수 0~100을 가로축으로 비교합니다. 후보마다 고유색을 사용하고 이름·범례·숫자 점수를 함께 표시합니다. `informationStatus=insufficient`는 0점 막대로 바꾸지 않고 점선·비어 있는 표시로 구분하며 그래프에 같은 안내 문구를 반복하지 않습니다. 평가 설명·근거·출처·확인 질문·등록 정보 패널은 표시하지 않으며 원문·프로필은 지원서 상세로 연결합니다. 화면에 숨긴 검증 필드도 최초 결과와 해시에 포함하며, 재검증 전에 삭제하거나 점수를 다시 계산하지 않습니다.
+
+### 결과 버전과 호환
+
+기존 대화 결과는 버전 필드를 추가하지 않습니다. 지원자 v3의 새 필드는 필수입니다. `schemaVersion`이 없거나 지원하지 않는 버전의 결과를 임의로 보완해 표시·재검증하지 않습니다. 브라우저 메모리에 남은 구형 결과는 새 요청으로 다시 생성합니다. 이 결과 변경은 기존 대화 메시지를 수정하는 DB 마이그레이션을 추가하지 않습니다. 재검증에 보내는 최초 결과를 그대로 보존하며, 표시용 필드를 덧붙이거나 버전 값을 고쳐 기존 실행의 결과 해시를 맞추지 않습니다.
 
 <a id="current-permissions"></a>
 
