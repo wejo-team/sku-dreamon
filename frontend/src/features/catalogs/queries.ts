@@ -8,12 +8,7 @@
  */
 
 import { queryOptions, useQuery } from '@tanstack/react-query';
-import {
-  getAcademicUnits,
-  getCatalogs,
-  listCourses,
-  type CoursesQuery,
-} from '@/features/catalogs/api';
+import { getAcademicUnits, getCatalogs } from '@/features/catalogs/api';
 import { createLabels } from '@/features/catalogs/labels';
 import { queryKeys } from '@/lib/query-keys';
 
@@ -28,13 +23,6 @@ export const academicUnitsQueryOptions = queryOptions({
   queryFn: ({ signal }) => getAcademicUnits(signal),
   staleTime: Infinity,
 });
-
-export const coursesQueryOptions = (query: CoursesQuery) =>
-  queryOptions({
-    queryKey: queryKeys.courses(query),
-    queryFn: ({ signal }) => listCourses(query, signal),
-    staleTime: 5 * 60 * 1000,
-  });
 
 /** 선택지 두 목록의 로딩 상태(앱 시작 시 CatalogGate가 기다립니다). */
 export function useCatalogQueries() {

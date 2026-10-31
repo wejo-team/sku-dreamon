@@ -1,6 +1,6 @@
 # DB 설계
 
-**상태: 비AI 구현 및 AI 실행·대화 저장 구현.** PostgreSQL 17.11을 기준으로 테이블·타입·키·인덱스·트랜잭션 경계를 설명합니다. 계정·서버 세션·인증 시도 제한, 학사·과목 카탈로그, 공고, 프로필·수강 과목, 팀·지원·소속·발생 건·알림과 AI 실행 메타데이터·대화·메시지의 23개 테이블을 ORM과 10개 Alembic revision으로 구현했습니다. [Alembic 모델 등록](../../backend/alembic/env.py), [시작 revision](../../backend/alembic/versions/20261024_03_auth.py), [현재 head](../../backend/alembic/versions/20261031_10_courses.py)에서 실제 적용 대상을 확인합니다.
+**상태: 비AI 구현 및 AI 실행·대화 저장 구현.** PostgreSQL 17.11을 기준으로 테이블·타입·키·인덱스·트랜잭션 경계를 설명합니다. 계정·서버 세션·인증 시도 제한, 학사, 공고, 프로필, 팀·지원·소속·발생 건·알림과 AI 실행 메타데이터·대화·메시지의 21개 테이블을 ORM과 9개 Alembic revision으로 구현했습니다. [Alembic 모델 등록](../../backend/alembic/env.py), [시작 revision](../../backend/alembic/versions/20261024_03_auth.py), [현재 head](../../backend/alembic/versions/20261026_09_contest_sources.py)에서 실제 적용 대상을 확인합니다.
 
 마이그레이션은 계정 → 학사 → 공고 → 프로필 → 팀·지원·알림 → 인증 시도 제한 → AI 실행 메타데이터 → AI 대화·메시지 순서로 연결되며, 적용 명령은 [로컬 실행](../development/local-development.md)을 따릅니다. 저장 구조의 존재는 모든 생성·상태 변경 API의 구현이나 운영 DB 적용을 뜻하지 않습니다. 실제 기능 범위는 [API 인덱스](../api/README.md)에서 구분합니다. 개발용 가상 사용자·학사·팀·지원·알림은 [개발 시드 명령](../development/local-development.md)으로 별도 적재하며, 운영 학사 원장과 공고는 시드 명령에 포함하지 않습니다.
 
@@ -31,7 +31,6 @@
 | --- | --- | --- | --- |
 | 회원가입·로그인·프로필·사람 탐색 | [계정·프로필](identity.md), [서버 세션](identity.md#auth-sessions) | [계정·인증 API](../api/auth.md), [프로필 API](../api/profiles.md) | [인증](../specs/authentication.md), [프로필](../specs/profile.md) |
 | 공통 선택지·학사 목록 | [선택지·학사 구조](catalogs.md) | [선택지 API](../api/catalogs.md) | [선택지](../specs/profile-options.md), [학사 구조](../specs/academic-structure.md) |
-| 교과목 검색·수강 과목 등록 | [과목 카탈로그](catalogs.md#course-catalog) | [과목 검색](../api/catalogs.md#courses), [프로필 API](../api/profiles.md) | [수강 과목](../specs/profile.md#courses) |
 | 공고 목록·상세 | [공모전](contests.md) | [공모전 API](../api/contests.md) | [공고](../specs/contests.md) |
 | 팀 생성·지원·선발·취소 | [팀·지원·소속](teams.md) | [팀 API](../api/teams.md), [지원 API](../api/applications.md) | [팀 모집](../specs/team-recruitment.md) |
 | AI 대화·지원자 검토 | [대화·실행 저장](ai.md) | [AI API](../api/ai.md) | [추천](../specs/matching.md) |

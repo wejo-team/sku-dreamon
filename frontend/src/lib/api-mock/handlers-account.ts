@@ -159,17 +159,6 @@ export function registerAccountRoutes(router: MockRouter) {
     // [출처 3]
     .on('GET', '/catalogs', () => ok(db().catalogs))
     .on('GET', '/catalogs/academic-units', () => ok(db().academicUnits))
-    .on('GET', '/catalogs/courses', ({ query }) => {
-      const q = searchText(query);
-      const courses = db()
-        .courses.filter((course) =>
-          [course.code, course.name, ...course.aliases].some((value) =>
-            value.toLowerCase().includes(q),
-          ),
-        )
-        .sort((left, right) => left.code.localeCompare(right.code));
-      return Response.json(paginate(courses, query));
-    })
     // [출처 4] 공모전 목록: 제목·주최자·분야 표시명 검색
     .on('GET', '/contests', ({ query }) => {
       const q = searchText(query);
@@ -232,18 +221,6 @@ export function registerAccountRoutes(router: MockRouter) {
       const write = validate(ProfileWrite, body);
       const existing = profileOf(accountId);
       assertVersion(existing?.version ?? '0', write.expectedVersion);
-      const courses =
-        write.courseCodes === undefined
-          ? (existing?.courses ?? [])
-          : write.courseCodes.map((code) => {
-              const course = db().courses.find((item) => item.code === code);
-              if (!course)
-                conflict(
-                  'INVALID_COURSE_SELECTION',
-                  '과목을 다시 확인해 주세요.',
-                );
-              return { code, name: course!.name };
-            });
       // [출처 5] 선택 코드는 현재 선택 가능한 카탈로그 항목이어야 함
       const codes: [Parameters<typeof catalogHas>[0], (string | null)[]][] = [
         ['fields', write.fieldCodes],
@@ -286,7 +263,6 @@ export function registerAccountRoutes(router: MockRouter) {
         fieldCodes: write.fieldCodes,
         roleCodes: write.roleCodes,
         skillCodes: write.skillCodes,
-        courses,
         // [출처 10] 포트폴리오 제목도 앞뒤 공백 제거, 빈 값은 null
         portfolio: write.portfolio && {
           url: write.portfolio.url,

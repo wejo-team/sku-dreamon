@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.models.profiles import PortfolioLink, Profile
-from app.repositories import courses as course_repository
 from app.repositories import profile_write as repository
 from app.repositories.profiles import get_selection_codes
 from app.repositories.recruitment_locks import lock_accounts
@@ -24,7 +23,6 @@ from app.rules.catalogs import (
 from app.schemas.profile_write import ProfileWrite, VisibilityWrite
 from app.schemas.profiles import ProfileResponse
 from app.services.catalogs import validate_academic_selection
-from app.services.courses import validate_course_selection
 from app.services.profiles import build_profile_response
 
 
@@ -74,11 +72,6 @@ async def save_profile(
         await validate_academic_selection(
             session, unit_id, None if profile is None else profile.academic_unit_id
         )
-        courses = (
-            await validate_course_selection(session, body.course_codes)
-            if "course_codes" in body.model_fields_set
-            else None
-        )
         if profile is None:
             profile = Profile(profile_id=account_id, is_public=False)
         for attr in (
@@ -113,10 +106,6 @@ async def save_profile(
             skills=body.skill_codes,
             portfolio=portfolio,
         )
-        if courses is not None:
-            await course_repository.replace_profile_courses(
-                session, account_id, courses
-            )
         result = await build_profile_response(session, profile)
         await session.commit()
         return result

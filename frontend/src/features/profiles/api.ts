@@ -10,7 +10,6 @@
  */
 
 import { z } from 'zod';
-import { CourseSummary } from '@/features/catalogs/api';
 import { apiRequest, withQuery } from '@/lib/api';
 import {
   CatalogCode,
@@ -83,19 +82,14 @@ export const Profile = z
     isDemo: z.boolean(),
     updatedAt: Timestamp,
     ...profileFields,
-    courses: z.array(CourseSummary),
   })
   .strict()
   .superRefine(experienceCombination);
 export type Profile = z.infer<typeof Profile>;
 
-// [출처 6] 공통 필드·courseCodes·expectedVersion. 최초 저장은 "0"이며 과목 코드 생략은 기존 선택 유지.
+// [출처 6] 13개 + expectedVersion. 최초 저장은 "0". accountId·version·updatedAt·isPublic·isDemo는 받지 않음
 export const ProfileWrite = z
-  .object({
-    expectedVersion: NonnegativeBigInt,
-    ...profileFields,
-    courseCodes: codeList(0).optional(),
-  })
+  .object({ expectedVersion: NonnegativeBigInt, ...profileFields })
   .strict();
 export type ProfileWrite = z.infer<typeof ProfileWrite>;
 

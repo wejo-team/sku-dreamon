@@ -7,12 +7,11 @@
  */
 
 import { z } from 'zod';
-import { apiRequest, withQuery } from '@/lib/api';
+import { apiRequest } from '@/lib/api';
 import {
   CatalogCode,
   HttpUrl,
   PositiveBigInt,
-  page,
   success,
 } from '@/lib/api-contract';
 
@@ -57,27 +56,6 @@ export const AcademicUnit = z
   })
   .strict();
 export type AcademicUnit = z.infer<typeof AcademicUnit>;
-
-// 수강과목은 학수번호로 식별하며 연도·분반을 구분하지 않습니다.
-export const CourseSummary = z
-  .object({ code: CatalogCode, name: z.string().min(1) })
-  .strict();
-export type CourseSummary = z.infer<typeof CourseSummary>;
-export const Course = CourseSummary.extend({
-  aliases: z.array(z.string()),
-  departments: z.array(z.string()),
-}).strict();
-export type Course = z.infer<typeof Course>;
-export type CoursesQuery = { q?: string; page?: number; pageSize?: number };
-
-export async function listCourses(
-  query: CoursesQuery = {},
-  signal?: AbortSignal,
-) {
-  return page(Course).parse(
-    await apiRequest(withQuery('/catalogs/courses', query), { signal }),
-  );
-}
 
 // [출처 1] GET /catalogs → 200 Success<Catalogs>
 export async function getCatalogs(signal?: AbortSignal) {

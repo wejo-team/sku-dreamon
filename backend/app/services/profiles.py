@@ -15,7 +15,6 @@ from app.models.profiles import (
     PortfolioLink,
     Profile,
 )
-from app.repositories import courses as course_repository
 from app.repositories import profiles as repository
 from app.rules.catalogs import (
     AcademicStatusCode,
@@ -26,7 +25,6 @@ from app.rules.catalogs import (
     SkillCode,
     WeeklyAvailabilityCode,
 )
-from app.schemas.catalogs import CourseSummary
 from app.schemas.profiles import (
     PeopleQuery,
     PersonSummary,
@@ -128,7 +126,6 @@ async def build_profile_responses(
         portfolio.portfolio_link_id: portfolio
         for portfolio in await repository.list_portfolios(session, account_ids)
     }
-    courses = await course_repository.profile_courses(session, account_ids)
     return {
         profile.profile_id: _detail(
             profile,
@@ -136,10 +133,6 @@ async def build_profile_responses(
             roles.get(profile.profile_id, []),
             skills.get(profile.profile_id, []),
             portfolios.get(profile.profile_id),
-            [
-                CourseSummary(code=course.code, name=course.name)
-                for course in courses.get(profile.profile_id, [])
-            ],
         )
         for profile in profiles
     }
@@ -151,7 +144,6 @@ def _detail(
     roles: list[RoleCode],
     skills: list[SkillCode],
     portfolio: PortfolioLink | None,
-    courses: list[CourseSummary],
 ) -> ProfileResponse:
     summary = _summary(
         profile,
@@ -184,7 +176,6 @@ def _detail(
             Literal["unspecified", "none", "provided"], profile.experience_state
         ),
         experience_body=profile.experience_body,
-        courses=courses,
         portfolio=(
             PortfolioResponse(url=AnyHttpUrl(portfolio.url), title=portfolio.title)
             if portfolio is not None
