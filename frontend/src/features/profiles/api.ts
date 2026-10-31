@@ -82,6 +82,10 @@ export const Profile = z
     isDemo: z.boolean(),
     updatedAt: Timestamp,
     ...profileFields,
+    // 단계적 배포 중 구·신 API 응답을 모두 읽되 기존 편집 요청에는 포함하지 않습니다.
+    courses: z
+      .array(z.object({ code: CatalogCode, name: z.string().min(1) }).strict())
+      .optional(),
   })
   .strict()
   .superRefine(experienceCombination);
