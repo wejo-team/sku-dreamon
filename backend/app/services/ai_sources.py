@@ -2,7 +2,8 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -60,6 +61,29 @@ _TEAM_FIELDS = {
 
 def profile_facts(profile: ProfileResponse) -> dict[str, object]:
     return profile.model_dump(mode="json", include=_PROFILE_FIELDS)
+
+
+@dataclass(frozen=True)
+class SourceSearchResult:
+    """권한 후처리 전 페이지의 위치와 실제 적용한 조건을 전달한다."""
+
+    ids: list[UUID]
+    page: int
+    total_pages: int
+    applied_filters: dict[str, object]
+
+    def metadata(self) -> dict[str, object]:
+        more = self.page < self.total_pages
+        return {
+            "page": self.page,
+            "hasMore": more and self.page < 10,
+            "pageLimitReached": more and self.page >= 10,
+            "appliedFilters": self.applied_filters,
+        }
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 class SourceReader:
@@ -235,23 +259,48 @@ class SourceReader:
     async def search(
         self,
         kind: Literal["contest", "team", "person"],
-        query: str,
         page: int,
         *,
+        title: str | None = None,
+        name: str | None = None,
         role_code: RoleCode | None = None,
         field_code: FieldCode | None = None,
         registration_status: RegistrationStatus | None = None,
-    ) -> tuple[list[UUID], bool]:
+        deadline_within_days: int | None = None,
+    ) -> SourceSearchResult:
         if self.context.purpose != "chat":
             raise AppError(403, "FORBIDDEN", "이 요청에서는 사용할 수 없는 조회입니다.")
         await self.require_session()
         async with self.database.session() as session:
             if kind == "contest":
+                current = _utcnow()
+                applied: dict[str, object] = {
+                    "fieldCode": field_code.value if field_code is not None else None,
+                    "registrationStatus": (
+                        registration_status.value
+                        if registration_status is not None
+                        else None
+                    ),
+                    "deadlineWithinDays": deadline_within_days,
+                }
+                if title is not None:
+                    applied["title"] = title
+                if deadline_within_days is not None:
+                    checked_at = current.isoformat().replace("+00:00", "Z")
+                    deadline = current + timedelta(days=deadline_within_days)
+                    applied.update(
+                        {
+                            "checkedAt": checked_at,
+                            "deadlineAfter": checked_at,
+                            "deadlineOnOrBefore": deadline.isoformat().replace(
+                                "+00:00", "Z"
+                            ),
+                        }
+                    )
                 result = await contests.list_contests(
                     session,
                     ContestSearch.model_validate(
                         {
-                            "q": query,
                             "page": page,
                             "pageSize": 8,
                             "sort": "deadline_asc",
@@ -259,43 +308,66 @@ class SourceReader:
                             "registrationStatus": registration_status,
                         }
                     ),
+                    title_contains=title,
+                    deadline_within_days=deadline_within_days,
+                    now=current,
                 )
-                return [
-                    item.id for item in result.data
-                ], page < result.pagination.total_pages
+                return SourceSearchResult(
+                    [item.id for item in result.data],
+                    result.pagination.page,
+                    result.pagination.total_pages,
+                    applied,
+                )
             if kind == "team":
+                applied = {
+                    "roleCode": role_code.value if role_code is not None else None
+                }
+                if name is not None:
+                    applied["name"] = name
                 team_result = await teams.list_teams(
                     session,
                     TeamSearch.model_validate(
                         {
-                            "q": query,
                             "page": page,
                             "pageSize": 8,
                             "recruitingOnly": True,
                             "roleCode": role_code,
                         }
                     ),
+                    name_contains=name,
                 )
-                return [
-                    item.id for item in team_result.data
-                ], page < team_result.pagination.total_pages
+                return SourceSearchResult(
+                    [item.id for item in team_result.data],
+                    team_result.pagination.page,
+                    team_result.pagination.total_pages,
+                    applied,
+                )
+            applied = {
+                "roleCode": role_code.value if role_code is not None else None,
+                "fieldCode": field_code.value if field_code is not None else None,
+            }
+            if name is not None:
+                applied["name"] = name
             people = await profiles.list_people(
                 session,
                 PeopleQuery.model_validate(
                     {
-                        "q": query,
                         "page": page,
                         "pageSize": 8,
                         "roleCode": role_code,
                         "fieldCode": field_code,
                     }
                 ),
+                name_contains=name,
             )
-            return [
-                person.account_id for person in people.data
-            ], page < people.pagination.total_pages
+            return SourceSearchResult(
+                [person.account_id for person in people.data],
+                people.pagination.page,
+                people.pagination.total_pages,
+                applied,
+            )
 
-    async def applicants(self, page: int) -> tuple[list[UUID], bool]:
+    async def applicants(self, page: int) -> SourceSearchResult:
         if (
             self.context.team_id is None
             or self.context.purpose != "applicant_recommendation"
@@ -309,6 +381,13 @@ class SourceReader:
                 self.context.principal.account_id,
                 ApplicantSearch.model_validate({"page": page, "pageSize": 10}),
             )
-        return [
-            item.application.id for item in result.data if item.is_selection_candidate
-        ], page < result.pagination.total_pages
+        return SourceSearchResult(
+            [
+                item.application.id
+                for item in result.data
+                if item.is_selection_candidate
+            ],
+            result.pagination.page,
+            result.pagination.total_pages,
+            {},
+        )

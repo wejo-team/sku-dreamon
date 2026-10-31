@@ -101,7 +101,7 @@ async def search_sources(api: TeamApi) -> SourceTools:  # noqa: F811 -- pytest f
 async def test_role_filter_finds_team_without_role_word_in_text(
     search_sources: SourceTools,
 ) -> None:
-    search = next(t for t in search_sources.build() if t.name == "search_teams")
+    search = next(t for t in search_sources.build() if t.name == "find_teams")
     result = await search.ainvoke({"role_code": "development"})
     assert [item["key"] for item in result["items"]] == [f"team:{UUID(int=100)}"]
     assert result["hasMore"] is False
@@ -119,11 +119,11 @@ async def test_role_filter_finds_team_without_role_word_in_text(
         ("Alpha", "design", []),
     ],
 )
-async def test_free_text_and_role_filter_both_apply(
+async def test_team_name_and_role_filter_both_apply(
     search_sources: SourceTools, query: str, role_code: str, expected: list[str]
 ) -> None:
-    search = next(t for t in search_sources.build() if t.name == "search_teams")
-    result = await search.ainvoke({"query": query, "role_code": role_code})
+    search = next(t for t in search_sources.build() if t.name == "search_teams_by_name")
+    result = await search.ainvoke({"name": query, "role_code": role_code})
     assert [item["key"] for item in result["items"]] == expected
 
 
@@ -133,7 +133,13 @@ async def test_role_filter_still_excludes_current_contest_member(
 ) -> None:
     # 이 계정은 같은 공모전에 이미 소속돼 있어 공개 검색의 일치 팀도 추천할 수 없다.
     sources = await authenticated_sources(api, UUID(int=1006))
-    search = next(t for t in sources.build() if t.name == "search_teams")
+    search = next(t for t in sources.build() if t.name == "find_teams")
     result = await search.ainvoke({"role_code": "development"})
-    assert result == {"items": [], "hasMore": False}
+    assert result == {
+        "items": [],
+        "hasMore": False,
+        "page": 1,
+        "pageLimitReached": False,
+        "appliedFilters": {"roleCode": "development"},
+    }
     assert sources.observed == {}

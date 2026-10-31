@@ -20,7 +20,7 @@ from app.core.exceptions import AppError
 from app.rules.catalogs import FieldCode, RoleCode
 from app.rules.contests import RegistrationStatus
 from app.services.ai import validate_plan
-from app.services.ai_sources import SourceReader
+from app.services.ai_sources import SourceReader, SourceSearchResult
 from app.services.sessions import SessionPrincipal
 
 CONTEST_ID = UUID("a8b2e7d2-3afe-4e4c-a982-88f00d2c7400")
@@ -33,14 +33,17 @@ class SyntheticReader(SourceReader):
     async def search(
         self,
         kind: Literal["contest", "team", "person"],
-        query: str,
         page: int,
         *,
+        title: str | None = None,
+        name: str | None = None,
         role_code: RoleCode | None = None,
         field_code: FieldCode | None = None,
         registration_status: RegistrationStatus | None = None,
-    ) -> tuple[list[UUID], bool]:
-        return ([CONTEST_ID] if kind == "contest" else []), False
+        deadline_within_days: int | None = None,
+    ) -> SourceSearchResult:
+        ids = [CONTEST_ID] if kind == "contest" else []
+        return SourceSearchResult(ids, 1, 1 if ids else 0, {})
 
     async def get(self, kind: str, resource_id: UUID) -> Resource:
         if kind != "contest" or resource_id != CONTEST_ID:
