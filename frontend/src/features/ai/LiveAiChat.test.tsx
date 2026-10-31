@@ -280,6 +280,78 @@ describe('actual AI chat UI and SSE API', () => {
     expect(JSON.stringify(second.input)).not.toContain(result.answer);
   });
 
+  it('opts into rich facts and hides the comparison and copied facts on public revocation', async () => {
+    const app = await setup();
+    const stream = await app.send();
+    expect(stream.input.resultFormat).toBe('rich');
+    const richResult: ChatResult = {
+      ...result,
+      cards: ['첫 공개 사용자', '둘째 공개 사용자'].map((title, index) => ({
+        ...result.cards[0]!,
+        resourceId: index
+          ? '22222222-2222-4222-8222-222222222222'
+          : demoIds.accounts.me,
+        title,
+        evidence: ['등록한 웹 서비스 개발 경험'],
+        details: {
+          kind: 'person',
+          skillCodes: ['programming'],
+          weeklyAvailabilityCode: null,
+          experienceState: 'provided',
+          experienceBody: '서버가 결합한 공개 경험',
+          introduction: null,
+        },
+      })),
+    };
+    await app.finish(stream, richResult);
+    for (const title of ['첫 공개 사용자', '둘째 공개 사용자']) {
+      await app.user.click(
+        screen.getByRole('checkbox', { name: `${title} 비교에 포함` }),
+      );
+    }
+    await app.user.click(
+      screen.getByRole('button', { name: '선택한 2명 비교' }),
+    );
+    expect(
+      screen.getByRole('table', { name: '선택한 사람의 등록 정보 비교' }),
+    ).toBeInTheDocument();
+    const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+    await app.user.click(screen.getByRole('button', { name: '답변 복사' }));
+    await waitFor(() => expect(copy).toHaveBeenCalledOnce());
+    expect(copy).toHaveBeenCalledWith(
+      expect.stringContaining('서버가 결합한 공개 경험'),
+    );
+    expect(copy).toHaveBeenCalledWith(
+      expect.stringContaining('등록한 웹 서비스 개발 경험'),
+    );
+    expect(copy).toHaveBeenCalledWith(
+      expect.stringContaining('주당 시간: 미입력'),
+    );
+    expect(
+      app.validations.every(
+        (body) => JSON.stringify(body.result) === JSON.stringify(richResult),
+      ),
+    ).toBe(true);
+    app.validation(async () =>
+      Response.json({ data: { valid: false, result: null } }),
+    );
+    fireEvent.focus(window);
+    expect(
+      await screen.findByText(/정보나 접근 권한이 바뀌어/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('서버가 결합한 공개 경험'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('등록한 웹 서비스 개발 경험'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '답변 복사' }),
+    ).not.toBeInTheDocument();
+    expect(copy).toHaveBeenCalledOnce();
+  });
+
   it('retries the exact original input and preserves the unsent draft', async () => {
     const app = await setup();
     const first = await app.send();

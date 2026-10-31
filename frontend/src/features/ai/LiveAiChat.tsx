@@ -41,7 +41,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DemoBadge } from '@/components/common/CommonUi';
 import { useLabels } from '@/features/catalogs/queries';
 import { profileTextLength } from '@/features/demo/profile-fields';
-import type { ResourceCard } from './contract';
+import type { ResourceCard, RichResourceCard } from './contract';
+import { AiResultCards } from './AiResultCards';
+import { chatClipboardText } from './clipboard';
 import {
   LiveChatContext,
   useLiveChat,
@@ -98,13 +100,19 @@ function LiveCard({ card }: { card: ResourceCard }) {
 
 function LiveReplyActions({ turn }: { turn: LiveChatTurn }) {
   const { controller } = useLiveChat();
+  const labels = useLabels();
   const [copying, setCopying] = useState(false);
   const [status, setStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const copy = async () => {
     setCopying(true);
     setStatus('idle');
     try {
-      if (await controller.copy(turn.input.requestId)) setStatus('copied');
+      if (
+        await controller.copy(turn.input.requestId, (result) =>
+          chatClipboardText(result, labels),
+        )
+      )
+        setStatus('copied');
     } catch {
       setStatus('error');
     } finally {
@@ -270,16 +278,22 @@ export function LiveAiConversation() {
                                 요청할 수 있어요.
                               </p>
                             )}
-                            {!!turn.result.cards.length && (
-                              <div className="preview-ai-results">
-                                {turn.result.cards.map((card) => (
-                                  <LiveCard
-                                    key={`${card.kind}-${card.resourceId}`}
-                                    card={card}
-                                  />
-                                ))}
-                              </div>
-                            )}
+                            {!!turn.result.cards.length &&
+                              (turn.result.cards.every(
+                                (card): card is RichResourceCard =>
+                                  'details' in card,
+                              ) ? (
+                                <AiResultCards cards={turn.result.cards} />
+                              ) : (
+                                <div className="preview-ai-results">
+                                  {turn.result.cards.map((card) => (
+                                    <LiveCard
+                                      key={`${card.kind}-${card.resourceId}`}
+                                      card={card}
+                                    />
+                                  ))}
+                                </div>
+                              ))}
                             {turn.result.referencesChanged && (
                               <p className="preview-muted">
                                 이전 근거가 바뀌어 현재 정보를 다시 확인했어요.

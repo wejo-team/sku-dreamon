@@ -87,7 +87,7 @@ test('일반 대화는 실제 자료로 답하고 복사 전 공개 철회를 �
   });
   const person = await browser.newContext({ baseURL, ignoreHTTPSErrors: true });
   try {
-    await createAccount(viewer.request, resources);
+    const viewerAccount = await createAccount(viewer.request, resources, true);
     const account = await createAccount(person.request, resources, true);
     const profile = (await get<Data<Profile>>(person.request, '/me/profile'))
       .data;
@@ -96,14 +96,33 @@ test('일반 대화는 실제 자료로 답하고 복사 전 공개 철회를 �
     const validated = page.waitForResponse((r) =>
       r.url().endsWith('/validation'),
     );
-    const stream = await send(page, `E2E 공개 프로필 ${account.accountId}`);
+    const stream = await send(
+      page,
+      `E2E 비교 ${viewerAccount.accountId} ${account.accountId}`,
+    );
     const requestId = checkStream(stream);
-    expect((await (await validated).json()).data.valid).toBe(true);
+    expect(stream.request().postDataJSON().resultFormat).toBe('rich');
+    const verified = (await (await validated).json()).data;
+    expect(verified.valid).toBe(true);
+    expect(verified.result.cards[1].details).toMatchObject({
+      kind: 'person',
+      skillCodes: profile.skillCodes,
+      weeklyAvailabilityCode: profile.weeklyAvailabilityCode,
+    });
+    expect(verified.result.cards[0].evidence.length).toBeGreaterThan(0);
     await expect(page.getByText(answer, { exact: true })).toBeVisible();
     const card = page.locator(
       `a[href="/people/${account.accountId}?from=%2Fai"]`,
     );
     await expect(card).toContainText(profile.realName);
+    const disclosure = page
+      .locator('summary')
+      .filter({ hasText: '추천 근거와 등록 정보' })
+      .last();
+    await disclosure.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.ai-evidence-list').last()).toBeVisible();
+    await expect(page.locator('.ai-result-facts').last()).toBeVisible();
     expect(
       (
         await get<Data<{ status: string }>>(
@@ -112,11 +131,22 @@ test('일반 대화는 실제 자료로 답하고 복사 전 공개 철회를 �
         )
       ).data.status,
     ).toBe('succeeded');
+    await page.locator('.ai-result-expanded').last().scrollIntoViewIfNeeded();
+    await captureLayout(page, testInfo, 'ai-chat-real-source');
     await page.getByRole('button', { name: '답변 복사' }).click();
     await expect(
       page.getByText('답변을 복사했어요.', { exact: true }),
     ).toHaveCount(1);
-    await captureLayout(page, testInfo, 'ai-chat-real-source');
+    for (const choice of await page.getByRole('checkbox').all())
+      await choice.check();
+    await page.getByRole('button', { name: '선택한 2명 비교' }).click();
+    await expect(
+      page.getByRole('table', { name: '선택한 사람의 등록 정보 비교' }),
+    ).toBeVisible();
+    await page
+      .getByRole('region', { name: '등록 정보 비교 표' })
+      .scrollIntoViewIfNeeded();
+    await captureLayout(page, testInfo, 'ai-chat-people-comparison');
 
     expect(
       (
@@ -136,6 +166,9 @@ test('일반 대화는 실제 자료로 답하고 복사 전 공개 철회를 �
     });
     await expect(page.getByText(answer, { exact: true })).toHaveCount(0);
     await expect(card).toHaveCount(0);
+    await expect(page.getByRole('table')).toHaveCount(0);
+    await expect(page.locator('.ai-evidence-list')).toHaveCount(0);
+    await expect(page.locator('.ai-result-facts')).toHaveCount(0);
     await expect(page.getByText(invalidated, { exact: true })).toBeVisible();
     await testInfo.attach('ai-run.json', {
       body: JSON.stringify({

@@ -17,6 +17,7 @@ from app.schemas.ai import (
     AssessmentQuestion,
     AssessmentScore,
     AssessmentSummary,
+    Evidence,
     ResourceKind,
 )
 from app.services.sessions import SessionPrincipal
@@ -57,8 +58,8 @@ class Selection(BaseModel):
     reason: str = Field(
         max_length=500, description="조회된 사실과 사용자 조건에 근거한 이유"
     )
-    evidence: list[str] = Field(
-        max_length=6, description="실제 조회 자료에서 확인한 근거"
+    evidence: Evidence = Field(
+        description="실제 조회 자료에서 확인한 근거, 각 500자 이내"
     )
 
 
