@@ -168,7 +168,10 @@ class RecommendationPhase(AgentMiddleware[AgentState[None], None]):
                 tool_choice=None,
                 model_settings={},
                 system_message=SystemMessage(
-                    content=f"{AGENT_PROMPT}\n{FINAL_ANSWER_PROMPT}\n{self.frozen}"
+                    content=(
+                        f"{AGENT_PROMPT}\n{FINAL_ANSWER_PROMPT}\n"
+                        f"## 확정 자료 (JSON 데이터)\n```json\n{self.frozen}\n```"
+                    )
                 ),
             )
         )
