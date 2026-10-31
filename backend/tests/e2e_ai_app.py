@@ -17,6 +17,9 @@ from sqlalchemy.engine import make_url
 from app.agents.tools import SourceTools
 from app.agents.tracing import AiTraceContext
 from app.agents.types import (
+    ApplicantAssessmentPlan,
+    ApplicantAssessmentSelection,
+    AssessmentCriterionPlan,
     PreviousContext,
     RecommendationGate,
     RecommendationPlan,
@@ -25,6 +28,7 @@ from app.agents.types import (
 )
 from app.core.config import Settings
 from app.main import create_app as create_product_app
+from app.schemas.ai import AssessmentKey
 
 
 class FixtureDriver:
@@ -94,6 +98,46 @@ class FixtureDriver:
             await asyncio.Event().wait()
         await asyncio.sleep(0.2)
         yield "테스트 모델의 연동 검증 응답입니다."
+
+    async def assess(
+        self, tools: SourceTools, *, trace_context: AiTraceContext | None = None
+    ) -> ApplicantAssessmentPlan:
+        plan = await self.plan(tools, "현재 지원 자료로 검토해 주세요.", [], [])
+        resources = [tools.observed[choice.key] for choice in plan.selections]
+        remaining_keys: tuple[AssessmentKey, ...] = (
+            "skills",
+            "experience",
+            "availability",
+        )
+        return ApplicantAssessmentPlan(
+            summary="등록된 역할을 확인하고 나머지 사항은 대화로 확인해 주세요.",
+            assessments=[
+                ApplicantAssessmentSelection(
+                    key=resource.reference.key,
+                    criteria=[
+                        AssessmentCriterionPlan(
+                            key="role",
+                            score=75,
+                            information_status="sufficient",
+                            summary="지원 역할이 등록되어 있어요.",
+                            evidence_refs=["application.role"],
+                        ),
+                        *[
+                            AssessmentCriterionPlan(
+                                key=key,
+                                score=None,
+                                information_status="insufficient",
+                                summary="직접 확인할 정보가 더 필요해요.",
+                                evidence_refs=[],
+                            )
+                            for key in remaining_keys
+                        ],
+                    ],
+                    questions=["이번 프로젝트에서 어떤 역할을 맡고 싶나요?"],
+                )
+                for resource in resources
+            ],
+        )
 
 
 def create_app() -> FastAPI:

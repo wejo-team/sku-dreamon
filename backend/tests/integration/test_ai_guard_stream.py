@@ -22,7 +22,11 @@ from sqlalchemy import select
 from app.agents.factory import Gate, OpenAiAgentDriver
 from app.agents.tools import SourceTools
 from app.agents.tracing import AiTraceContext, AiTracing
-from app.agents.types import PreviousContext, RecommendationPlan
+from app.agents.types import (
+    ApplicantAssessmentPlan,
+    PreviousContext,
+    RecommendationPlan,
+)
 from app.models.ai_chat import AiMessage
 from app.schemas.ai import ChatStart
 from app.services.ai import AiService
@@ -222,6 +226,11 @@ async def test_cancel_during_guard_saves_no_assistant_or_prior_context(
 
 
 class UngatedDriver:
+    async def assess(
+        self, sources: SourceTools, *, trace_context: AiTraceContext | None = None
+    ) -> ApplicantAssessmentPlan:
+        raise AssertionError("Chat fixture must not evaluate applicants")
+
     def __init__(self, duplicate: bool) -> None:
         self.duplicate = duplicate
 

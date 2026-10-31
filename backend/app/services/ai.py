@@ -1,4 +1,4 @@
-"""검증된 조회 근거로 AI 답변을 만들고 현재 권한을 적용해 스트리밍한다."""
+"""현재 권한과 조회 근거를 검증해 채팅 SSE 또는 지원자 평가 JSON을 제공한다."""
 
 import asyncio
 import hmac
@@ -12,18 +12,28 @@ from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.agents.assessment import build_assessments
 from app.agents.factory import AgentDriver as AgentDriver
 from app.agents.tools import SourceTools, ToolBudgetExceeded
 from app.agents.tracing import AiTraceContext
-from app.agents.types import RecommendationPlan, Reference, Resource, fingerprint
+from app.agents.types import (
+    RecommendationPlan,
+    Reference,
+    Resource,
+    Selection,
+    fingerprint,
+)
 from app.core.config import Settings
 from app.core.db.session import Database
 from app.core.exceptions import AppError
 from app.schemas.ai import (
+    AiCompletion,
     AiEvent,
     AiPurpose,
     AiResult,
     AiStatus,
+    ApplicantAssessment,
+    ApplicantProfileFacts,
     ApplicantRecommendation,
     ApplicantRecommendationResult,
     ApplicantReviewResult,
@@ -65,6 +75,8 @@ def validate_plan(plan: RecommendationPlan, sources: SourceTools) -> list[Resour
         or selected[0].reference.resource_id != sources.reader.context.application_id
     ):
         raise ValueError("Missing requested applicant")
+    if purpose == "applicant_recommendation" and len(keys) > 3:
+        raise ValueError("One assessment can recommend at most three applicants")
     if purpose == "applicant_recommendation" and any(
         not value.is_selection_candidate for value in selected
     ):
@@ -88,7 +100,11 @@ def profile_version(resource: Resource) -> ProfileVersion:
 
 
 def build_result(
-    execution: Execution, plan: RecommendationPlan, selected: list[Resource], text: str
+    execution: Execution,
+    plan: RecommendationPlan,
+    selected: list[Resource],
+    text: str,
+    assessments: dict[str, ApplicantAssessment] | None = None,
 ) -> AiResult:
     now = datetime.now(UTC)
     if execution.context.purpose == "chat":
@@ -105,9 +121,13 @@ def build_result(
             for choice, resource in zip(plan.selections, selected, strict=True)
         ]
         return ChatResult(answer=text, cards=cards, generated_at=now)
+    if assessments is None:
+        raise ValueError("지원자 결과에는 구조화 평가가 필요합니다.")
     if execution.context.purpose == "applicant_review":
         resource = selected[0]
         return ApplicantReviewResult(
+            schema_version=3,
+            assessment=assessments[resource.reference.key],
             application_id=resource.reference.resource_id,
             summary=text,
             evidence=plan.selections[0].evidence,
@@ -117,9 +137,13 @@ def build_result(
             generated_at=now,
         )
     return ApplicantRecommendationResult(
+        schema_version=3,
         summary=text,
         candidates=[
             ApplicantRecommendation(
+                title=resource.title,
+                assessment=assessments[resource.reference.key],
+                profile=applicant_profile(resource),
                 application_id=resource.reference.resource_id,
                 reason=choice.reason,
                 profile_version=profile_version(resource),
@@ -128,6 +152,15 @@ def build_result(
         ],
         is_stale=False,
         generated_at=now,
+    )
+
+
+def applicant_profile(resource: Resource) -> ApplicantProfileFacts:
+    profile = resource.facts.get("profile")
+    if not isinstance(profile, dict):
+        raise ValueError("Missing applicant profile")
+    return ApplicantProfileFacts.model_validate(
+        {"skillCodes": profile.get("skillCodes")}
     )
 
 
@@ -274,6 +307,14 @@ class AiService:
         self, execution: Execution, *, cleanup: StreamCleanup | None = None
     ) -> AsyncGenerator[bytes]:
         cleanup = cleanup or StreamCleanup(self.settings.ai_cleanup_timeout_seconds)
+        if execution.context.purpose != "chat":
+            stream = self._applicant_stream(execution, cleanup=cleanup)
+            try:
+                async for chunk in stream:
+                    yield chunk
+            finally:
+                await cleanup.run(stream.aclose)
+            return
         sequence = 0
         terminal = False
         started_at = time.monotonic()
@@ -494,6 +535,201 @@ class AiService:
             )
             if not terminal:
                 await self.close_stream(execution, cleanup=cleanup)
+
+    async def complete_applicants(
+        self, execution: Execution, *, cleanup: StreamCleanup | None = None
+    ) -> AsyncGenerator[AiCompletion]:
+        """구조화 평가를 완성하고 실제 응답 전송이 끝날 때까지 현재 권한을 지킨다."""
+        if execution.context.purpose == "chat":
+            raise AppError(
+                409, "AI_STREAM_REQUIRED", "대화는 스트리밍을 사용해 주세요."
+            )
+        cleanup = cleanup or StreamCleanup(self.settings.ai_cleanup_timeout_seconds)
+        terminal = False
+        try:
+            async with asyncio.timeout(self.settings.ai_timeout_seconds):
+                sources = SourceTools(
+                    SourceReader(self.database, execution.context),
+                    max_sources=self.settings.ai_max_sources,
+                    max_calls=self.settings.ai_max_tool_calls,
+                )
+                driver = self.require_driver()
+                assessment_plan = await self._await_active(
+                    execution,
+                    driver.assess(
+                        sources,
+                        trace_context=AiTraceContext(
+                            execution.request_id, execution.attempt
+                        ),
+                    ),
+                    cleanup,
+                )
+                plan = RecommendationPlan(
+                    intent="recommend" if assessment_plan.assessments else "empty",
+                    guidance=assessment_plan.summary,
+                    selections=[
+                        Selection(
+                            key=item.key,
+                            reason=item.criteria[0].summary,
+                            evidence=[],
+                        )
+                        for item in assessment_plan.assessments
+                    ],
+                )
+                if sources.calls == 0:
+                    raise ValueError("Assessment must read authorized sources")
+                selected = validate_plan(plan, sources)
+                refs = [
+                    resource.reference.model_copy(deep=True)
+                    for resource in sources.observed.values()
+                ]
+                assessments = build_assessments(assessment_plan, selected)
+                for selection in plan.selections:
+                    selection.evidence = list(
+                        dict.fromkeys(
+                            evidence.text
+                            for criterion in assessments[selection.key].criteria
+                            for evidence in criterion.evidence
+                        )
+                    )[:6]
+                result = build_result(
+                    execution, plan, selected, assessment_plan.summary, assessments
+                )
+                status: Literal["empty", "succeeded"] = (
+                    "empty" if not selected else "succeeded"
+                )
+                await self.runs.complete(
+                    execution,
+                    status=status,
+                    sources=refs,
+                    selected_keys=[item.key for item in plan.selections],
+                    result_hash=fingerprint(result.model_dump(mode="json")),
+                    answer=assessment_plan.summary,
+                )
+                cleanup.finish_attempted = True
+                async with self.runs.publishing(execution, refs, completed=True):
+                    yield AiCompletion(
+                        request_id=execution.request_id,
+                        attempt=execution.attempt,
+                        status=status,
+                        result=result,
+                    )
+                terminal = True
+        except RunCanceled:
+            cleanup.finish_attempted = True
+            terminal = True
+            yield AiCompletion(
+                request_id=execution.request_id,
+                attempt=execution.attempt,
+                status="canceled",
+                result=None,
+            )
+        except (ContextChanged, AppError) as error:
+            if isinstance(error, AppError) and error.status_code not in (
+                401,
+                403,
+                404,
+                409,
+            ):
+                await self.close_stream(
+                    execution,
+                    cleanup=cleanup,
+                    status="failed",
+                    failure_code="temporary_failure",
+                )
+                terminal = True
+                raise AppError(
+                    503,
+                    "AI_GENERATION_FAILED",
+                    failure("temporary_failure", execution.attempt).message,
+                ) from None
+            await self.close_stream(
+                execution,
+                cleanup=cleanup,
+                status="failed",
+                failure_code="context_changed",
+            )
+            terminal = True
+            yield AiCompletion(
+                request_id=execution.request_id,
+                attempt=execution.attempt,
+                status="invalidated",
+                result=None,
+            )
+        except Exception as error:
+            code = (
+                "limit_exceeded"
+                if isinstance(error, ToolBudgetExceeded)
+                else "invalid_output"
+                if isinstance(error, ValueError)
+                else "temporary_failure"
+            )
+            logger.warning(
+                "AI assessment failed: request_id=%s error_type=%s",
+                execution.request_id,
+                type(error).__name__,
+            )
+            await self.close_stream(
+                execution, cleanup=cleanup, status="failed", failure_code=code
+            )
+            terminal = True
+            raise AppError(
+                429 if code == "limit_exceeded" else 503,
+                {
+                    "limit_exceeded": "AI_LIMIT_EXCEEDED",
+                    "invalid_output": "AI_INVALID_OUTPUT",
+                    "temporary_failure": "AI_GENERATION_FAILED",
+                }[code],
+                failure(code, execution.attempt).message,
+            ) from None
+        finally:
+            if not terminal:
+                await self.close_stream(execution, cleanup=cleanup)
+
+    async def _applicant_stream(
+        self, execution: Execution, *, cleanup: StreamCleanup
+    ) -> AsyncGenerator[bytes]:
+        """이전 SSE 클라이언트에도 부분 문장 없이 완성 평가만 전달한다."""
+        sequence = 0
+
+        def event(name: str, **payload: object) -> bytes:
+            nonlocal sequence
+            sequence += 1
+            return AiEvent.model_validate(
+                {
+                    "event": name,
+                    "requestId": execution.request_id,
+                    "attempt": execution.attempt,
+                    "sequence": sequence,
+                    **payload,
+                }
+            ).to_sse()
+
+        completion = self.complete_applicants(execution, cleanup=cleanup)
+        try:
+            yield event("started", purpose=execution.context.purpose)
+            yield event("progress", stage="searching")
+            async for response in completion:
+                if response.result is not None:
+                    yield event(
+                        "result", result=response.result.model_dump(mode="json")
+                    )
+                    yield event("done", status=response.status)
+                elif response.status == "invalidated":
+                    yield event("invalidated", reason="context_changed")
+                else:
+                    yield event("canceled")
+        except AppError as error:
+            code = {
+                "AI_LIMIT_EXCEEDED": "limit_exceeded",
+                "AI_INVALID_OUTPUT": "invalid_output",
+            }.get(error.code, "temporary_failure")
+            yield event(
+                "error",
+                failure=failure(code, execution.attempt).model_dump(mode="json"),
+            )
+        finally:
+            await cleanup.run(completion.aclose)
 
     async def close_stream(
         self,

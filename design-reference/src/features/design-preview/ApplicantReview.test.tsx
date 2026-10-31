@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -10,6 +10,34 @@ import { usePreview } from './preview-context';
 import { initialApplicants, profileToPerson } from './data';
 
 describe('applicant AI review reference', () => {
+  it('shows the assessment graph without evidence, questions, or disclosure controls', async () => {
+    const user = userEvent.setup();
+    const applicant = initialApplicants[0]!;
+    render(
+      <MemoryRouter>
+        <ApplicantReview
+          mayReviewExistingApplication
+          applicant={applicant}
+          profile={{
+            ...profileToPerson(applicant.profile!),
+            experienceState: 'none',
+            experience: '',
+          }}
+        />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
+    expect(
+      await screen.findByRole('img', { name: /역할: 85점/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('시연 점수')).toBeVisible();
+    expect(screen.getByLabelText('항목별 평가 점수')).toHaveTextContent('경험');
+    expect(screen.queryByText('관련 경험 없음')).not.toBeInTheDocument();
+    expect(screen.queryByText(applicant.message)).not.toBeInTheDocument();
+    expect(screen.queryByText('검토 근거와 등록 정보')).not.toBeInTheDocument();
+    expect(screen.queryByText('함께 확인할 질문')).not.toBeInTheDocument();
+  });
+
   it('uses the latest private applicant profile on each explicit request', async () => {
     const user = userEvent.setup();
     const applicant = initialApplicants[0]!;
@@ -29,8 +57,11 @@ describe('applicant AI review reference', () => {
     );
     await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
     expect(
-      await screen.findByText('지원 후 새로 등록한 경험'),
+      await screen.findByRole('img', { name: /역할: 85점/ }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText('지원 후 새로 등록한 경험'),
+    ).not.toBeInTheDocument();
     view.rerender(
       <MemoryRouter>
         <ApplicantReview
@@ -48,7 +79,11 @@ describe('applicant AI review reference', () => {
       screen.getByText(/검토 이후 프로필 정보가 변경/),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '다시 검토하기' }));
-    expect(await screen.findByText('다시 수정한 경험')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/검토 이후 프로필 정보가 변경/),
+      ).not.toBeInTheDocument(),
+    );
     expect(
       screen.queryByText('지원 후 새로 등록한 경험'),
     ).not.toBeInTheDocument();
@@ -70,7 +105,7 @@ describe('applicant AI review reference', () => {
       );
       await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
       expect(await screen.findByRole('status')).toHaveTextContent(
-        applicant.message,
+        '항목별 점수',
       );
       expect(
         screen.getByText(/새 선발 후보 추천에서 제외/),
@@ -92,9 +127,7 @@ describe('applicant AI review reference', () => {
       </MemoryRouter>,
     );
     await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      applicant.message,
-    );
+    expect(await screen.findByRole('status')).toHaveTextContent('항목별 점수');
     view.rerender(
       <MemoryRouter>
         <ApplicantReview
@@ -104,7 +137,7 @@ describe('applicant AI review reference', () => {
         />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('status')).toHaveTextContent(applicant.message);
+    expect(screen.getByRole('status')).toHaveTextContent('항목별 점수');
     expect(screen.getByText(/새 선발 후보 추천에서 제외/)).toBeInTheDocument();
     view.rerender(
       <MemoryRouter>
@@ -119,9 +152,12 @@ describe('applicant AI review reference', () => {
       screen.getByText(/검토 이후 프로필 정보가 변경/),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '다시 검토하기' }));
-    expect(
-      await screen.findByText('선발 이후 수정한 경험'),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/검토 이후 프로필 정보가 변경/),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText('선발 이후 수정한 경험')).not.toBeInTheDocument();
     expect(screen.getByText(/새 선발 후보 추천에서 제외/)).toBeInTheDocument();
   });
 
@@ -142,9 +178,7 @@ describe('applicant AI review reference', () => {
       '검토 결과를 가져오지 못했어요',
     );
     await user.click(screen.getByRole('button', { name: '검토 다시 시도' }));
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      applicant.message,
-    );
+    expect(await screen.findByRole('status')).toHaveTextContent('항목별 점수');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -161,9 +195,7 @@ describe('applicant AI review reference', () => {
       </MemoryRouter>,
     );
     await user.click(screen.getByRole('button', { name: 'AI 검토 요청' }));
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      applicant.message,
-    );
+    expect(await screen.findByRole('status')).toHaveTextContent('항목별 점수');
     view.rerender(
       <MemoryRouter>
         <ApplicantReview
@@ -223,9 +255,7 @@ it('retains review results across navigation in the current session and clears t
   await user.click(screen.getByRole('button', { name: '화면 전환' }));
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: '화면 전환' }));
-  expect(screen.getByRole('status')).toHaveTextContent(
-    initialApplicants[0]!.message,
-  );
+  expect(screen.getByRole('status')).toHaveTextContent('항목별 점수');
   await user.click(screen.getByRole('button', { name: '로그아웃' }));
   await user.click(screen.getByRole('button', { name: '로그인' }));
   expect(screen.queryByRole('status')).not.toBeInTheDocument();

@@ -1,4 +1,4 @@
-// 서버 AI DTO의 요청·결과·SSE 이벤트를 camelCase 경계에서 검증합니다.
+// 서버 AI DTO의 채팅 SSE·지원자 JSON v3를 camelCase 경계에서 검증합니다.
 import { z } from 'zod';
 import {
   Id,
@@ -82,11 +82,79 @@ export const ProfileVersion = z
   .object({ accountId: Id, usedVersion: Version, currentVersion: Version })
   .strict();
 export type ProfileVersion = z.infer<typeof ProfileVersion>;
+export const AssessmentInformationStatus = z.enum([
+  'sufficient',
+  'insufficient',
+]);
+export type AssessmentInformationStatus = z.infer<
+  typeof AssessmentInformationStatus
+>;
+export const AssessmentEvidence = z
+  .object({
+    source: z.enum([
+      'application.role',
+      'application.message',
+      'profile.roleCodes',
+      'profile.skillCodes',
+      'profile.experienceState',
+      'profile.experienceBody',
+      'profile.weeklyAvailabilityCode',
+      'profile.introduction',
+      'profile.courses',
+      'team.roleCodes',
+      'team.introduction',
+    ]),
+    text: textWithin(500).refine((value) => value.trim().length > 0),
+  })
+  .strict();
+export const AssessmentCriterion = z
+  .object({
+    key: z.enum(['role', 'skills', 'experience', 'availability']),
+    score: z.number().int().min(0).max(100).multipleOf(5).nullable(),
+    informationStatus: AssessmentInformationStatus,
+    summary: textWithin(300).refine((value) => value.trim().length > 0),
+    evidence: z.array(AssessmentEvidence).max(6),
+  })
+  .strict()
+  .refine(
+    (criterion) =>
+      (criterion.informationStatus === 'sufficient') ===
+      (criterion.score !== null),
+    {
+      path: ['score'],
+      message: '자료가 충분한 항목에만 점수가 필요합니다.',
+    },
+  )
+  .refine(
+    (criterion) => criterion.score === null || criterion.evidence.length > 0,
+    {
+      path: ['evidence'],
+      message: '점수가 있는 항목에는 실제 자료가 필요합니다.',
+    },
+  );
+export type AssessmentCriterion = z.infer<typeof AssessmentCriterion>;
+export const ApplicantAssessment = z
+  .object({
+    criteria: z
+      .array(AssessmentCriterion)
+      .length(4)
+      .refine(
+        (criteria) => new Set(criteria.map((item) => item.key)).size === 4,
+        '네 가지 검토 항목이 모두 필요합니다.',
+      ),
+    questions: z
+      .array(textWithin(200).refine((value) => value.trim().length > 0))
+      .max(3),
+  })
+  .strict();
+export type ApplicantAssessment = z.infer<typeof ApplicantAssessment>;
 export const ApplicantReviewResult = z
   .object({
+    schemaVersion: z.literal(3),
     kind: z.literal('applicant_review'),
     applicationId: Id,
-    summary: textWithin(12000),
+    summary: textWithin(600).refine((value) => value.trim().length > 0),
+    assessment: ApplicantAssessment,
     evidence: z.array(textWithin(500)).max(6),
     profileVersions: z.array(ProfileVersion).length(1),
     isStale: z.boolean(),
@@ -95,21 +163,46 @@ export const ApplicantReviewResult = z
   })
   .strict();
 export type ApplicantReviewResult = z.infer<typeof ApplicantReviewResult>;
+export const ApplicantProfileFacts = z
+  .object({
+    skillCodes: z
+      .array(
+        z.enum([
+          'programming',
+          'ui_ux',
+          'data_analysis',
+          'video_editing',
+          'document_writing',
+          'service_planning',
+          'market_research',
+          'graphic_design',
+          'presentation_design',
+          'data_visualization',
+          'social_media_marketing',
+          'content_planning',
+          'public_speaking',
+        ]),
+      )
+      .max(13),
+  })
+  .strict();
+export const ApplicantRecommendation = z
+  .object({
+    applicationId: Id,
+    title: textWithin(500),
+    reason: textWithin(500),
+    profileVersion: ProfileVersion,
+    assessment: ApplicantAssessment,
+    profile: ApplicantProfileFacts,
+  })
+  .strict();
+export type ApplicantRecommendation = z.infer<typeof ApplicantRecommendation>;
 export const ApplicantRecommendationResult = z
   .object({
+    schemaVersion: z.literal(3),
     kind: z.literal('applicant_recommendation'),
-    summary: textWithin(12000),
-    candidates: z
-      .array(
-        z
-          .object({
-            applicationId: Id,
-            reason: textWithin(500),
-            profileVersion: ProfileVersion,
-          })
-          .strict(),
-      )
-      .max(100),
+    summary: textWithin(600).refine((value) => value.trim().length > 0),
+    candidates: z.array(ApplicantRecommendation).max(100),
     isStale: z.boolean(),
     generatedAt: Timestamp,
   })
@@ -123,6 +216,26 @@ export const AiResult = z.discriminatedUnion('kind', [
   ApplicantRecommendationResult,
 ]);
 export type AiResult = z.infer<typeof AiResult>;
+export const ApplicantCompletion = z
+  .object({
+    requestId: Id,
+    attempt: PositiveSafeInteger,
+    status: z.enum(['succeeded', 'empty', 'canceled', 'invalidated']),
+    result: z
+      .discriminatedUnion('kind', [
+        ApplicantReviewResult,
+        ApplicantRecommendationResult,
+      ])
+      .nullable(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      (value.status === 'succeeded' || value.status === 'empty') ===
+      (value.result !== null),
+  );
+
+export type ApplicantCompletion = z.infer<typeof ApplicantCompletion>;
 export const AiFailure = z
   .object({
     code: z.enum([

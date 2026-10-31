@@ -77,6 +77,24 @@ npm run dev
 
 기능 정책이 바뀌면 먼저 해당 명세에 반영하고 관련 화면·테스트·인계표를 같은 변경에서 맞춥니다. 중요한 TBD를 모의 데이터의 값으로 결정하지 않습니다. 남은 정책은 [화면별 미정 사항](screens.md#remaining-decisions)에서 찾습니다.
 
+<a id="applicant-assessment"></a>
+
+## 지원자 항목별 평가 시각화
+
+지원자 평가는 역할·역량·경험·참여 시간의 **0~100점**을 같은 축으로 표시합니다. 제품의 [개별 평가](../../frontend/src/features/teams/ApplicantAssessment.tsx)와 [지원자 비교](../../frontend/src/features/teams/ApplicantComparisonChart.tsx)는 항목별 차이를 막대 길이로 보여 줍니다. 비교는 shadcn/ui Chart와 Recharts를 사용하며 후보를 추가·해제해도 색상을 유지합니다. 최대 3명 선택·역량 필터·지원서 이동을 유지하고 총점·순위·자동 선발은 제공하지 않습니다.
+
+- 실제 `0`은 숫자 `0`으로 표시하고, `null`은 행을 유지한 빈 점선·해칭과 `—`로 구분합니다. 정보의 충분성은 `informationStatus`로 점수와 분리합니다.
+- 차트와 툴팁에 평가 설명·근거·출처·확인 질문을 표시하지 않습니다. `정보 부족`·`확인 불가`를 반복해서 표시하지 않으며 정보 상태는 접근성 이름으로 전달합니다. 상세 등록 정보는 지원서에서 확인합니다.
+- 320px부터 네 항목 이름·100점 수치·선택 조작이 잘리지 않아야 합니다. 후보 1명/3명, 긴 이름, `0`·`100`·`null`, 선택 색상 유지, 필터와 지원서 이동을 함께 확인합니다.
+
+[제품 mock 검토](../../frontend/src/features/teams/MockApplicantReview.tsx)와 [레퍼런스 개별 검토](../../design-reference/src/features/design-preview/ApplicantReview.tsx)는 **시연 점수**라고 표시한 고정 예시를 사용합니다. 등록 역량·경험이 없으면 `null`로 두고, 명시적인 `경험 없음`은 미입력과 구분합니다. 주당 합산 시간만 있는 예시에서는 팀에 배정할 시간을 채점하지 않습니다. 현재 팀장 권한, 프로필 변경 안내와 재요청, 종결된 지원의 기존 검토, 실패·재시도, 로그아웃 시 결과 제거는 유지합니다.
+
+두 앱은 독립 실행하며 제품의 API 계약을 레퍼런스에서 직접 import하지 않습니다. 레퍼런스에는 팀 후보 추천 영역이 없으므로 비교 흐름은 제품에서 확인합니다. 실제 지원자 평가는 완성 JSON을 사용하고 채팅의 SSE·입력 가드와 구분합니다. 서버의 근거 검증·현재 권한 재검증은 화면 단순화와 관계없이 유지합니다. 계약과 통합 검증은 [AI API](../api/ai.md)·[AI 개발 계획](../development-plans/ai-agent.md)이 원본입니다. 시연 화면 확인을 실제 모델 품질·운영 배포 완료로 해석하지 않습니다.
+
+대표 모바일 화면은 실제 제품 경로에 결정적 API fixture를 연결해 촬영했습니다. 실제 모델 채점 결과가 아니며 0·100·null의 구분을 보여 줍니다.
+
+![지원자 세 명의 항목별 점수 비교 모바일 화면](assets/applicant-score-comparison-mobile.png)
+
 <a id="verification-commands"></a>
 
 ## 확인 명령

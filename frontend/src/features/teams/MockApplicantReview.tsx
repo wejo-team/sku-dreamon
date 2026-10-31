@@ -10,6 +10,7 @@ import { LoaderCircle, RotateCcw, Sparkles } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import type { ApplicantAssessment as Assessment } from '@/features/ai/contract';
 import type { Application } from '@/features/applications/api';
 import type { Profile } from '@/features/profiles/api';
 import type { Labels } from '@/features/catalogs/labels';
@@ -18,38 +19,109 @@ import {
   ApplicantReviewContext,
   type ApplicantReviewFacts,
 } from '@/features/demo/applicant-review-state';
+import { ApplicantAssessment } from './ApplicantAssessment';
 
 type Review = ApplicantReviewFacts;
 
-// Local reference output deliberately quotes current registered information;
-// it is not a scoring model or a decision about a production LLM architecture.
+// 고정 시연 점수이며 모델의 평가 기준이 아닙니다. 없는 자료에는 점수를 만들지 않습니다.
+function demoAssessment(
+  application: Application,
+  profile: Profile,
+  { roleLabel, skillLabel }: Labels,
+): Assessment {
+  const hasExperience =
+    profile.experienceState === 'provided' && !!profile.experienceBody?.trim();
+  const noExperience = profile.experienceState === 'none';
+  return {
+    criteria: [
+      {
+        key: 'role',
+        score: application.roleCode ? 85 : null,
+        informationStatus: application.roleCode ? 'sufficient' : 'insufficient',
+        summary: '등록한 지원 역할의 시연 점수입니다.',
+        evidence: application.roleCode
+          ? [
+              {
+                source: 'application.role',
+                text: roleLabel(application.roleCode),
+              },
+            ]
+          : [],
+      },
+      {
+        key: 'skills',
+        score: profile.skillCodes.length ? 75 : null,
+        informationStatus: profile.skillCodes.length
+          ? 'sufficient'
+          : 'insufficient',
+        summary: '등록한 역량의 시연 점수입니다.',
+        evidence: profile.skillCodes.slice(0, 6).map((code) => ({
+          source: 'profile.skillCodes',
+          text: skillLabel(code),
+        })),
+      },
+      {
+        key: 'experience',
+        score: noExperience ? 20 : hasExperience ? 65 : null,
+        informationStatus:
+          noExperience || hasExperience ? 'sufficient' : 'insufficient',
+        summary: '경험 없음과 미입력을 구별하는 시연 점수입니다.',
+        evidence: noExperience
+          ? [{ source: 'profile.experienceState', text: '관련 경험 없음' }]
+          : hasExperience
+            ? [
+                {
+                  source: 'profile.experienceBody',
+                  text: profile.experienceBody!,
+                },
+              ]
+            : [],
+      },
+      {
+        key: 'availability',
+        // 전체 프로젝트 합산 시간만으로 팀 참여 시간의 적합성을 채점하지 않습니다.
+        score: null,
+        informationStatus: 'insufficient',
+        summary: '팀에 배정할 시간을 판단할 자료가 없습니다.',
+        evidence: [],
+      },
+    ],
+    questions: [],
+  };
+}
+
+// 원문은 화면에 반복하지 않고 검토 이후 등록 정보 변경 여부에만 사용합니다.
 function reviewFacts(
   application: Application,
   profile: Profile,
-  { fieldLabel, roleLabel, skillLabel, weeklyAvailabilityLabel }: Labels,
+  labels: Labels,
 ): Review {
+  const { fieldLabel, roleLabel, skillLabel, weeklyAvailabilityLabel } = labels;
   const list = (codes: string[], label: (code: string) => string) =>
     codes.map(label).join(' · ') || '미입력';
-  return [
-    { label: '지원 역할', value: roleLabel(application.roleCode) },
-    { label: '현재 희망 역할', value: list(profile.roleCodes, roleLabel) },
-    { label: '관심 분야', value: list(profile.fieldCodes, fieldLabel) },
-    { label: '등록한 역량', value: list(profile.skillCodes, skillLabel) },
-    {
-      label: '관련 경험',
-      value:
-        profile.experienceState === 'none'
-          ? '관련 경험 없음'
-          : profile.experienceBody || '미입력',
-    },
-    {
-      label: '주당 참여 가능 시간',
-      value: profile.weeklyAvailabilityCode
-        ? weeklyAvailabilityLabel(profile.weeklyAvailabilityCode)
-        : '미입력',
-    },
-    { label: '팀에 전한 말', value: application.message || '미입력' },
-  ];
+  return {
+    assessment: demoAssessment(application, profile, labels),
+    facts: [
+      { label: '지원 역할', value: roleLabel(application.roleCode) },
+      { label: '현재 희망 역할', value: list(profile.roleCodes, roleLabel) },
+      { label: '관심 분야', value: list(profile.fieldCodes, fieldLabel) },
+      { label: '등록한 역량', value: list(profile.skillCodes, skillLabel) },
+      {
+        label: '관련 경험',
+        value:
+          profile.experienceState === 'none'
+            ? '관련 경험 없음'
+            : profile.experienceBody || '미입력',
+      },
+      {
+        label: '주당 참여 가능 시간',
+        value: profile.weeklyAvailabilityCode
+          ? weeklyAvailabilityLabel(profile.weeklyAvailabilityCode)
+          : '미입력',
+      },
+      { label: '팀에 전한 말', value: application.message || '미입력' },
+    ],
+  };
 }
 
 // [출처 2, 3] 권한이 있을 때만 결과·요청 UI 표시(모의 응답)
@@ -124,8 +196,7 @@ export function MockApplicantReview({
     }, 350);
   }
 
-  // The parent rechecks the current signed-in leader and application relation.
-  // A terminal application status removes candidacy, not this review permission.
+  // 상위 화면이 현재 팀장·지원 관계를 검사합니다. 종결된 지원도 기존 검토는 허용합니다.
   if (!mayReviewExistingApplication) return null;
 
   return (
@@ -136,11 +207,10 @@ export function MockApplicantReview({
       <div className="preview-row">
         <Sparkles size={20} aria-hidden="true" />
         <h2 id="applicant-recommendation-title">AI 검토 도움</h2>
-        <span className="preview-muted">모의 응답</span>
+        <span className="preview-muted">시연 점수</span>
       </div>
       <p className="preview-muted">
-        현재 지원서와 프로필로 검토해요. 모집이 마감되거나 정원이 차도 검토할 수
-        있어요.
+        네 가지 항목의 시연 점수를 한눈에 확인해요.
       </p>
       {result && (
         <div role="status" className="preview-stack">
@@ -152,21 +222,7 @@ export function MockApplicantReview({
               </AlertDescription>
             </Alert>
           )}
-          <p>지원서와 현재 프로필에 등록된 정보예요.</p>
-          <dl className="workspace-detail-facts">
-            {result.map((fact) => (
-              <div key={fact.label}>
-                <dt>{fact.label}</dt>
-                <dd className="whitespace-pre-wrap break-words">
-                  {fact.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <p className="preview-muted">
-            주당 시간은 모든 프로젝트를 합친 참고값이에요. 실제 일정이나 참가
-            자격을 보장하지 않아요. 이 검토로 지원 상태가 바뀌지는 않아요.
-          </p>
+          <ApplicantAssessment assessment={result.assessment} />
         </div>
       )}
       {failed && (

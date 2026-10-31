@@ -3,13 +3,17 @@
  * 1. design-reference/src/features/design-preview/applicant-review-state.ts - 지원자 AI 검토 상태 원본
  * 2. docs/specs/team-recruitment.md#recruitment-review - 기존 지원자 검토 결과 확인·재요청, 마감 후에도 허용
  *
- * 화면 확인용 메모리 상태·예시 데이터입니다. 서버 계약이 아니며 API 연동 시 기능별 TanStack Query로 교체합니다(handoff.md 「제품 구현에 옮기는 순서」 3단계).
+ * 제품 mock 화면의 메모리 상태입니다. 실제 API 결과·권한 재검증은 use-target-ai.ts가 별도로 관리합니다.
  */
 
 import { createContext } from 'react';
+import type { ApplicantAssessment } from '@/features/ai/contract';
 
-// 화면 데모용 검토 항목 목록. API DTO ApplicantReviewResult(docs/api/ai.md#result-fields)와 다른 모양이라 이름을 구분합니다.
-export type ApplicantReviewFacts = { label: string; value: string }[];
+// 등록 사실은 변경 감지에만 사용하고, 화면에는 명시적인 시연 점수를 표시합니다.
+export type ApplicantReviewFacts = {
+  facts: { label: string; value: string }[];
+  assessment: ApplicantAssessment;
+};
 export const ApplicantReviewContext = createContext<{
   results: Record<string, ApplicantReviewFacts>;
   save: (id: string, result: ApplicantReviewFacts) => void;

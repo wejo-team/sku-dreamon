@@ -1,3 +1,4 @@
+/** 로컬 등록 사실을 구조화된 평가 시각화로 보여주는 독립 디자인 화면입니다. */
 import { useContext, useEffect, useRef, useState } from 'react';
 import { LoaderCircle, RotateCcw, Sparkles } from 'lucide-react';
 import { useSearchParams } from 'react-router';
@@ -9,26 +10,31 @@ import {
   type ApplicantReviewResult,
 } from './applicant-review-state';
 
+import { ApplicantAssessment } from './ApplicantAssessment';
+import { createApplicantAssessment } from './applicant-assessment';
+
 type Review = ApplicantReviewResult;
 
-// Local reference output deliberately quotes current registered information;
-// it is not a scoring model or a decision about a production LLM architecture.
+// 현재 등록 정보만 인용하는 로컬 예시이며 실제 모델의 평가를 대신하지 않습니다.
 function reviewFacts(applicant: Applicant, profile: Person): Review {
-  return [
-    { label: '지원 역할', value: applicant.role },
-    { label: '현재 희망 역할', value: profile.roles.join(' · ') || '미입력' },
-    { label: '관심 분야', value: profile.interests?.join(' · ') || '미입력' },
-    { label: '등록한 역량', value: profile.skills?.join(' · ') || '미입력' },
-    {
-      label: '관련 경험',
-      value:
-        profile.experienceState === 'none'
-          ? '관련 경험 없음'
-          : profile.experience || '미입력',
-    },
-    { label: '주당 참여 가능 시간', value: profile.availability || '미입력' },
-    { label: '팀에 전한 말', value: applicant.message || '미입력' },
-  ];
+  return {
+    assessment: createApplicantAssessment(applicant, profile),
+    facts: [
+      { label: '지원 역할', value: applicant.role },
+      { label: '현재 희망 역할', value: profile.roles.join(' · ') || '미입력' },
+      { label: '관심 분야', value: profile.interests?.join(' · ') || '미입력' },
+      { label: '등록한 역량', value: profile.skills?.join(' · ') || '미입력' },
+      {
+        label: '관련 경험',
+        value:
+          profile.experienceState === 'none'
+            ? '관련 경험 없음'
+            : profile.experience || '미입력',
+      },
+      { label: '주당 참여 가능 시간', value: profile.availability || '미입력' },
+      { label: '팀에 전한 말', value: applicant.message || '미입력' },
+    ],
+  };
 }
 
 export function ApplicantReview({
@@ -86,8 +92,7 @@ export function ApplicantReview({
     }, 350);
   }
 
-  // The parent rechecks the current signed-in leader and application relation.
-  // A terminal application status removes candidacy, not this review permission.
+  // 상위 화면이 현재 팀장·지원 관계를 검사합니다. 종결된 지원도 기존 검토는 허용합니다.
   if (!mayReviewExistingApplication) return null;
 
   return (
@@ -98,10 +103,10 @@ export function ApplicantReview({
       <div className="preview-row">
         <Sparkles size={20} aria-hidden="true" />
         <h2 id="applicant-recommendation-title">AI 검토 도움</h2>
+        <span className="preview-muted">시연 점수</span>
       </div>
       <p className="preview-muted">
-        현재 지원서와 프로필로 검토해요. 모집이 마감되거나 정원이 차도 검토할 수
-        있어요.
+        네 가지 항목의 평가 점수를 한눈에 확인해요.
       </p>
       {result && (
         <div role="status" className="preview-stack">
@@ -113,21 +118,7 @@ export function ApplicantReview({
               </AlertDescription>
             </Alert>
           )}
-          <p>지원서와 현재 프로필에 등록된 정보예요.</p>
-          <dl className="workspace-detail-facts">
-            {result.map((fact) => (
-              <div key={fact.label}>
-                <dt>{fact.label}</dt>
-                <dd className="whitespace-pre-wrap break-words">
-                  {fact.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <p className="preview-muted">
-            주당 시간은 모든 프로젝트를 합친 참고값이에요. 실제 일정이나 참가
-            자격을 보장하지 않아요. 이 검토로 지원 상태가 바뀌지는 않아요.
-          </p>
+          <ApplicantAssessment assessment={result.assessment} />
         </div>
       )}
       {failed && (

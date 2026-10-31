@@ -84,3 +84,36 @@ def test_sse_media_type_and_security_are_declared_in_openapi() -> None:
     assert "text/event-stream" in route["responses"]["200"]["content"]
     assert route["security"] == [{"SessionCookie": []}]
     assert {"401", "403", "409", "422", "429", "503"} <= route["responses"].keys()
+
+
+def test_existing_chat_contract_does_not_gain_applicant_schema_version() -> None:
+    from app.schemas.ai import ChatResult
+
+    data = {
+        "kind": "chat",
+        "answer": "안내",
+        "cards": [],
+        "generatedAt": "2026-10-31T00:00:00Z",
+        "referencesChanged": False,
+    }
+    assert ChatResult.model_validate(data).model_dump(mode="json") == data
+    with pytest.raises(ValidationError):
+        ChatResult.model_validate({**data, "schemaVersion": 1})
+
+
+def test_applicant_json_routes_declare_typed_completion_and_session_security() -> None:
+    from app.core.config import Settings
+    from app.main import create_app
+
+    schema = create_app(Settings(_env_file=None)).openapi()
+    for path in (
+        "/api/v1/applications/{applicationId}/ai-reviews",
+        "/api/v1/teams/{teamId}/applicant-recommendations",
+        "/api/v1/ai/requests/{requestId}/retries",
+    ):
+        route = schema["paths"][path]["post"]
+        success = route["responses"]["200"]["content"]
+        assert set(success) == {"application/json"}
+        assert "AiCompletion" in success["application/json"]["schema"]["$ref"]
+        assert route["security"] == [{"SessionCookie": []}]
+        assert {"401", "403", "409", "422", "429", "503"} <= route["responses"].keys()
