@@ -1,6 +1,6 @@
 # 테스트·CI 기준
 
-문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `develop`과 `main`에 병합된 뒤에는 전체를 검사합니다. `develop`은 CI만 실행하며, 운영 CD는 `main`의 같은 SHA에서 필요한 CI가 성공한 뒤 실행합니다. unit·HTTP·PostgreSQL 검사와 제품 Playwright E2E를 실행합니다. 실제 프론트·서버·DB 실행은 [통합테스트와 bug bash](bug-bash.md), 일반 앱 실행은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 제품 화면 검증은 `frontend/`에서 수행합니다. 보관한 레퍼런스 앱의 [과거 실행 안내](#design-reference)는 제품 변경의 필수 검사가 아닙니다.
+문서 검사는 `docs.yml`의 `Validate docs`, 프론트·백엔드 검사는 `ci.yml`에서 실행합니다. PR에서는 변경 영향 범위를 선택하고, `develop`과 `main`에 병합된 뒤에는 프론트·백엔드·문서·배포 정적 검사를 모두 실행합니다. 제품 Playwright E2E는 같은 저장소의 `develop` → `main` 릴리스 PR에서만 실행합니다. `develop`은 CI만 실행하며, 운영 CD는 `main`의 같은 SHA에서 필요한 CI가 성공한 뒤 실행합니다. 실제 프론트·서버·DB 실행은 [통합테스트와 bug bash](bug-bash.md), 일반 앱 실행은 [로컬 실행](local-development.md), 문서 명령은 [문서 관리](documentation.md)에서 확인합니다. 제품 화면 검증은 `frontend/`에서 수행합니다. 보관한 레퍼런스 앱의 [과거 실행 안내](#design-reference)는 제품 변경의 필수 검사가 아닙니다.
 
 ## 의미 있는 테스트
 
@@ -50,7 +50,7 @@ uv run pytest tests/integration/test_dev_seed.py tests/integration/test_dev_data
 | 비동기 DB 기반 | PostgreSQL에서 `alembic upgrade head`, `alembic check`, 연결 검사, 세션 분리·commit·rollback·종료 정리 통합 테스트 |
 | 배포 정적 계약 | `Deployment static checks`: 표준 라이브러리 `deploy/tests/test_*.py` 단위 검사와 daemon 없이 Compose 설정 해석. 별도 의존성 설치 없음 |
 | DB 모델 도입 | 위 검사에 실제 모델의 migration 적용·조회 테스트 추가 |
-| 제품 브라우저 통합 | 앱 변경 PR과 `develop`·`main` push에서 `Integration E2E`: HTTPS·실제 API·격리 DB, 데스크톱/320px Chromium. 로컬도 별도 fixture 또는 개발 DB의 `*_e2e` 복제본에서만 실행 |
+| 제품 브라우저 통합 | 같은 저장소의 `develop` → `main` 릴리스 PR에서 `Integration E2E`: HTTPS·실제 API·격리 DB, 데스크톱/320px Chromium. 로컬도 별도 fixture 또는 개발 DB의 `*_e2e` 복제본에서만 실행 |
 
 운영 컨테이너의 이미지·TLS·앱 교체·DB 보존·짧은 SSE는 [별도 수동 스크립트](container-deployment.md#verification)로 검사합니다. 배포 기반 PR은 기존 앱 CI를 유지하며 새 필수 컨테이너 job을 추가하지 않습니다. CI 변경은 별도 PR로 다룹니다.
 
@@ -66,13 +66,15 @@ uv run pytest tests/integration/test_dev_seed.py tests/integration/test_dev_data
 
 ## PR 변경 영향 범위
 
-분류 규칙의 실행 원본은 [ci_scope.py](../../scripts/ci_scope.py)입니다. PR 이벤트의 base·head 커밋 공통 조상 이후 **PR 전체 diff**를 확인하고, 파일이 속한 폴더를 기준으로 검사 영역을 선택합니다. 마지막 커밋만 보지 않으며 파일 추가·수정·삭제와 이동 전후 경로를 모두 반영합니다. 여러 영역이 바뀌면 필요한 검사의 합집합을 실행합니다.
+분류 규칙의 실행 원본은 [ci_scope.py](../../scripts/ci_scope.py)입니다. PR 이벤트의 base·head 커밋 공통 조상 이후 **PR 전체 diff**를 확인하고, 파일이 속한 폴더를 기준으로 프론트·백엔드·문서·배포 정적 검사 영역을 선택합니다. 마지막 커밋만 보지 않으며 파일 추가·수정·삭제와 이동 전후 경로를 모두 반영합니다. 여러 영역이 바뀌면 필요한 검사의 합집합을 실행합니다.
+
+`Integration E2E`는 변경 경로와 별도로 판별합니다. 같은 저장소의 `develop` → `main` 릴리스 PR에서는 문서만 변경되어도 실행하고, 일반 작업·동기화 PR과 `develop`·`main` push에서는 생략합니다.
 
 | 변경 경로 | PR 검사 범위 |
 | --- | --- |
-| `frontend/` 내부 코드·설정·의존성 | 프론트 + 브라우저 통합 |
-| `backend/` 내부 코드·설정·의존성 | 백엔드 + 브라우저 통합 |
-| `backend/Dockerfile` | 백엔드 + 브라우저 통합 + 배포 정적 검사 |
+| `frontend/` 내부 코드·설정·의존성 | 프론트 |
+| `backend/` 내부 코드·설정·의존성 | 백엔드 |
+| `backend/Dockerfile` | 백엔드 + 배포 정적 검사 |
 | `deploy/`, `.dockerignore` | 기존 공통 경로의 전체 검사 + 배포 정적 검사 |
 | `design-reference/` 내부 화면·설정·자산 | 문서 검사만 실행; 보관 앱 자체를 확인할 때만 로컬 검사 |
 | `docs/`, 루트 `README.md`·`AGENTS.md`, 문서 검사 스크립트와 해당 테스트 | 문서 전체 검사 |
@@ -81,18 +83,18 @@ uv run pytest tests/integration/test_dev_seed.py tests/integration/test_dev_data
 
 - `PR conventions`의 제목·브랜치 방향 검사와 Python CI·문서 도구 테스트, 문서 원본 링크 검사는 모든 PR에서 실행합니다. 코드 파일 삭제·이동으로도 문서 링크가 깨질 수 있기 때문입니다. [브랜치 검사](../../scripts/check_pr_branch.py)는 작업 PR의 `develop` 대상, 같은 저장소의 `develop` → `main` 릴리스와 `main` → `develop` 동기화를 허용하고 다른 방향은 거부합니다.
 - 문서 전체 검사가 선택된 경우에만 Node 의존성 설치·VitePress 빌드·생성 HTML의 링크·앵커·자산 검사를 추가합니다.
-- API·스키마 등의 이름에 따른 예외는 두지 않습니다. `backend/` 아래 파일은 백엔드, `frontend/` 아래 파일은 프론트 검사 대상으로 처리합니다. 앱 한쪽만 바뀌어도 브라우저 통합 검사를 실행해 주요 API 계약을 함께 검증합니다. 공통 코드·도구 의존성이 생겨 분류 기준을 바꾸면 규칙과 테스트도 함께 갱신합니다.
+- API·스키마 등의 이름에 따른 예외는 두지 않습니다. `backend/` 아래 파일은 백엔드, `frontend/` 아래 파일은 프론트 검사 대상으로 처리합니다. 공통 코드·도구 의존성이 생겨 분류 기준을 바꾸면 규칙과 테스트도 함께 갱신합니다.
 - 빈 diff는 보수적으로 전체 검사합니다. 이벤트·커밋·공통 조상을 확인할 수 없는 경우에는 판별을 실패시킵니다. 외부 PR의 파일명·본문을 셸 명령으로 실행하지 않습니다.
 - 배포 정적 검사는 배포·공통 설정 변경 PR과 `develop`·`main` push에서 실행합니다. 일반 프론트·백엔드 업무 코드나 문서만 바뀐 PR에서는 생략합니다. 이미지 build·loopback mount·실제 컨테이너 교체·ACME·긴 SSE의 수동 검사 범위는 [컨테이너 검증](container-deployment.md#verification), 운영 이미지 build·배포 경로는 [운영 CD](continuous-deployment.md)에서 구분합니다.
 
 ## 필수 검사와 develop·main 검증
 
-- 병합 필수 검사 이름 `Frontend`, `Backend`, `Validate docs`를 유지합니다. `Frontend tests`·`Backend tests`·`Integration E2E`가 실제 검사를 수행하고, 기존 이름의 job은 해당 영역과 브라우저 통합의 최종 결과를 확인합니다. 통합 실패·취소·예상 밖 생략은 두 필수 앱 검사 모두 실패로 처리합니다.
-- 앱 필수 검사는 항상 실행해 [check_ci_job.py](../../scripts/check_ci_job.py)로 **범위 판별 성공 + 필요한 검사 성공** 또는 **범위 판별 성공 + 영향 없음에 따른 명시적 생략**만 허용합니다. 판별 실패·취소·출력 누락·필요한 검사의 예상 밖 생략은 성공으로 취급하지 않습니다.
+- 병합 필수 검사 이름 `Frontend`, `Backend`, `Validate docs`를 유지합니다. `Frontend tests`·`Backend tests`·`Integration E2E`가 실제 검사를 수행하고, 기존 이름의 job은 해당 영역과 브라우저 통합의 최종 결과를 확인합니다. 릴리스 PR의 통합 실패·취소·예상 밖 생략은 두 필수 앱 검사 모두 실패로 처리하며, 그 외 실행은 `integration=false`에 따른 명시적 생략을 확인합니다.
+- 앱 필수 검사는 항상 실행해 [check_ci_job.py](../../scripts/check_ci_job.py)로 **범위 판별 성공 + 필요한 검사 성공** 또는 **범위 판별 성공 + 검사 대상이 아님에 따른 명시적 생략**만 허용합니다. 판별 실패·취소·출력 누락·필요한 검사의 예상 밖 생략은 성공으로 취급하지 않습니다.
 - `Backend`는 선택된 `Deployment static checks` 결과도 확인합니다. 실패·취소·예상 밖 생략·범위 출력 누락은 차단합니다. 배포 테스트 디렉터리 누락이나 테스트 0개를 성공으로 처리하지 않습니다.
 - `Validate docs`는 같은 분류기를 job 안에서 실행하므로 판별 실패도 필수 검사 실패가 됩니다. 보호 규칙을 해제하거나 이름을 변경할 필요가 없습니다.
 - `PR conventions`도 두 보호 브랜치의 필수 검사입니다. 기존 제목 형식과 함께 PR 이벤트의 base·head 이름 및 저장소 ID를 검사합니다. fork의 `develop`으로 `main`에 보내거나, 작업 브랜치를 `main`에 직접 보내는 PR은 실패합니다. 이 검사에는 AWS 권한이나 운영 비밀값이 필요하지 않습니다.
-- `develop`과 `main`의 push는 변경 경로와 관계없이 프론트·백엔드·문서·배포 정적 검사를 모두 실행합니다. 수동 문서 workflow도 전체 문서 검사를 실행합니다. Pages 게시와 운영 CD는 `main`만 허용합니다.
+- `develop`과 `main`의 push는 변경 경로와 관계없이 프론트·백엔드·문서·배포 정적 검사를 모두 실행하고 E2E는 생략합니다. 수동 문서 workflow도 전체 문서 검사를 실행합니다. Pages 게시와 운영 CD는 `main`만 허용합니다.
 - PR의 새 실행은 오래된 실행을 취소합니다. 두 장기 브랜치의 push 검사는 커밋별 concurrency 그룹을 사용해 다른 커밋의 검사와 취소·대기 슬롯을 공유하지 않습니다. PR의 대상 브랜치 변경도 다시 판별하도록 `edited` 이벤트를 처리하므로 제목·본문 수정 시에도 재검사합니다.
 - 두 브랜치의 push 검사는 병합 **후** 검증입니다. 최신 대상 브랜치 반영과 PR 필수 검사 조건은 유지하며, 병합 직전 전체 조합 검증을 보장하는 Merge Queue는 이번 범위에 포함하지 않습니다.
 - 운영 CD는 `ci.yml`의 `main` push 실행에서 `Frontend`·`Backend` 성공 뒤 재사용 workflow를 호출하며, 배포 도구가 동일 SHA의 `Validate docs` 성공도 확인합니다. AWS OIDC는 `production` environment를 사용하고 이 환경은 `main`만 허용합니다. PR·`develop` 검사에는 운영 배포 권한을 연결하지 않습니다. [운영 CD](continuous-deployment.md)의 실행·검증·복구 범위를 따릅니다.

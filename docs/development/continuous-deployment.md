@@ -1,6 +1,6 @@
 # 운영 자동 배포
 
-작업 브랜치의 PR은 `develop`에 통합하고, 배포할 때 `develop → main` 릴리스 PR을 병합합니다. `develop`과 PR에서는 CI만 실행합니다. 운영 CD는 **main push의 동일 커밋**에 대한 `Frontend`, `Backend`, `Validate docs`가 성공한 뒤 실행합니다. 브랜치·병합 방식은 [팀 작업 흐름](workflow.md)이 원본입니다.
+작업 브랜치의 PR은 `develop`에 통합하고, 배포할 때 `develop → main` 릴리스 PR을 병합합니다. `develop`과 PR에서는 CI만 실행합니다. E2E는 같은 저장소의 릴리스 PR에서만 수행하고 `develop`·`main` push에서는 생략합니다. 운영 CD는 **main push의 동일 커밋**에 대한 `Frontend`, `Backend`, `Validate docs`가 성공한 뒤 실행합니다. 브랜치·병합 방식은 [팀 작업 흐름](workflow.md)이 원본입니다.
 
 ## 실행 흐름
 
@@ -37,7 +37,7 @@ flowchart LR
 - 수동 취소·runner 중단·SSM 응답 유실은 성공으로 간주하지 않습니다. 명령 ID와 호스트 `status`를 확인한 뒤 재실행합니다.
 - **DB migration은 이전 앱과 호환되는 변경이어야 합니다.** 앱 롤백은 DB downgrade가 아닙니다. 호환되지 않는 스키마 변경은 백업·복구 및 별도 배포 계획이 필요합니다.
 
-동일 SHA 재실행은 실제 이미지와 소스를 다시 확인합니다. 이미지·자료가 다르거나 호스트 journal에 미완료 작업이 있으면 중단합니다. 모든 CI 검사를 다시 실행하려면 main의 `Application CI`를 재실행합니다. 현재 main이 바뀐 과거 실행은 자동 배포하지 않습니다.
+동일 SHA 재실행은 실제 이미지와 소스를 다시 확인합니다. 이미지·자료가 다르거나 호스트 journal에 미완료 작업이 있으면 중단합니다. main push의 앱·배포 정적 검사를 다시 실행하려면 main의 `Application CI`를 재실행합니다. 이 실행에서는 E2E를 수행하지 않습니다. 현재 main이 바뀐 과거 실행은 자동 배포하지 않습니다.
 
 동일 SHA의 코드 CD 재실행은 SSM을 다시 조회하거나 새 설정을 적용하지 않습니다. 설정만 바꾸려면 `Production configuration`에서 버전을 지정합니다. 두 workflow는 같은 `production-deploy` concurrency와 호스트 잠금을 사용합니다.
 

@@ -1,4 +1,4 @@
-"""Choose CI areas from the entire PR diff; uncertain inputs fail closed."""
+"""PR 전체 diff의 검사 영역과 릴리스 PR의 E2E 실행 여부를 판별한다."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 AREAS = ("frontend", "backend", "docs", "deployment")
+CHECKS = (*AREAS, "integration")
 DOC_FILES = {
     "README.md",
     "AGENTS.md",
@@ -54,10 +55,7 @@ def git(*arguments: str) -> bytes:
     return result.stdout
 
 
-def pr_changed_paths(event_path: str) -> list[str]:
-    if not event_path:
-        raise ScopeError("GITHUB_EVENT_PATH is required for pull_request")
-    event = json.loads(Path(event_path).read_text(encoding="utf-8"))
+def pr_changed_paths(event: dict) -> list[str]:
     try:
         base = event["pull_request"]["base"]["sha"]
         head = event["pull_request"]["head"]["sha"]
@@ -85,24 +83,55 @@ def pr_changed_paths(event_path: str) -> list[str]:
     return [os.fsdecode(path) for path in changed.split(b"\0") if path]
 
 
+def is_release_pr(event: dict) -> bool:
+    branches = []
+    for side in ("base", "head"):
+        try:
+            branch = event["pull_request"][side]
+            ref = branch["ref"]
+            repository_id = branch["repo"]["id"]
+        except (KeyError, TypeError):
+            raise ScopeError("PR branch refs and repository IDs are required") from None
+        if not isinstance(ref, str) or not ref:
+            raise ScopeError("PR branch refs must be nonempty strings")
+        if type(repository_id) is not int or repository_id <= 0:
+            raise ScopeError("PR repository IDs must be positive integers")
+        branches.append((ref, repository_id))
+    (base, base_repository), (head, head_repository) = branches
+    return base == "main" and head == "develop" and base_repository == head_repository
+
+
 def detect_scope(environment: Mapping[str, str]) -> tuple[set[str], str]:
     event = environment.get("GITHUB_EVENT_NAME", "")
     if event == "workflow_dispatch":
-        return set(AREAS), "Manual run: all areas."
+        return set(AREAS), "Manual run: all areas; E2E only runs for release PRs."
     if event == "push" and environment.get("GITHUB_REF") in {
         "refs/heads/develop",
         "refs/heads/main",
     }:
         branch = environment["GITHUB_REF"].removeprefix("refs/heads/")
-        return set(AREAS), f"Push to {branch}: all areas."
+        return (
+            set(AREAS),
+            f"Push to {branch}: all areas; E2E only runs for release PRs.",
+        )
     if event == "pull_request":
-        paths = pr_changed_paths(environment.get("GITHUB_EVENT_PATH", ""))
+        event_path = environment.get("GITHUB_EVENT_PATH", "")
+        if not event_path:
+            raise ScopeError("GITHUB_EVENT_PATH is required for pull_request")
+        payload = json.loads(Path(event_path).read_text(encoding="utf-8"))
+        paths = pr_changed_paths(payload)
+        selected = classify_paths(paths)
         reason = (
             "Entire PR diff since the merge base; shared or unknown paths select all areas."
             if paths
             else "Empty PR diff: all areas as a precaution."
         )
-        return classify_paths(paths), reason
+        if is_release_pr(payload):
+            selected.add("integration")
+            reason += " Same-repository develop -> main release PR: E2E required."
+        else:
+            reason += " Not a release PR: E2E not required."
+        return selected, reason
     raise ScopeError("unsupported event or push ref")
 
 
@@ -112,13 +141,13 @@ def main() -> int:
         output_path = os.environ.get("GITHUB_OUTPUT")
         if not output_path:
             raise ScopeError("GITHUB_OUTPUT is required")
-        output = "".join(f"{area}={str(area in selected).lower()}\n" for area in AREAS)
+        output = "".join(f"{area}={str(area in selected).lower()}\n" for area in CHECKS)
         summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
         if summary_path:
             summary = "## CI scope\n\n" + reason + "\n\n| Area | Run |\n| --- | --- |\n"
             summary += "".join(
                 f"| {area} | {'yes' if area in selected else 'no'} |\n"
-                for area in AREAS
+                for area in CHECKS
             )
             with Path(summary_path).open("a", encoding="utf-8") as stream:
                 stream.write(summary)

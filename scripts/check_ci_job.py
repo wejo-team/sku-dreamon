@@ -12,7 +12,7 @@ def validate_result(scope_result: str, required: str, check_result: str) -> None
     if required == "false" and check_result == "skipped":
         return
     raise ValueError(
-        "Selected checks must succeed; only explicitly unaffected checks may be skipped."
+        "Selected checks must succeed; only explicitly unrequired checks may be skipped."
     )
 
 
@@ -31,7 +31,7 @@ def main() -> int:
     print(
         "Selected checks passed."
         if required == "true"
-        else "No affected files; this area's tests were not required."
+        else "CI scope does not require this check; it was explicitly skipped."
     )
     return 0
 
