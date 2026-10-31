@@ -37,12 +37,17 @@ from app.schemas.ai import (
     ApplicantRecommendation,
     ApplicantRecommendationResult,
     ApplicantReviewResult,
+    CardDetails,
     ChatResult,
     ChatStart,
+    ContestCardDetails,
+    PersonCardDetails,
     ProfileVersion,
     ResourceCard,
     ResultValidation,
+    RichResourceCard,
     TargetStart,
+    TeamCardDetails,
     ValidateResult,
 )
 from app.services.ai_runs import (
@@ -99,6 +104,54 @@ def profile_version(resource: Resource) -> ProfileVersion:
     )
 
 
+def person_details(facts: dict[str, object]) -> PersonCardDetails:
+    # 도구의 전체 자료를 응답으로 복제하지 않고 표시 계약의 허용 목록만 옮긴다.
+    return PersonCardDetails.model_validate(
+        {
+            name: facts[name]
+            for name in (
+                "skillCodes",
+                "weeklyAvailabilityCode",
+                "experienceState",
+                "experienceBody",
+                "introduction",
+            )
+        }
+    )
+
+
+def card_details(resource: Resource) -> CardDetails:
+    facts = resource.facts
+    if resource.reference.kind == "person":
+        return person_details(facts)
+    if resource.reference.kind == "team":
+        return TeamCardDetails.model_validate(
+            {
+                name: facts[name]
+                for name in (
+                    "contestTitle",
+                    "capacity",
+                    "memberCount",
+                    "recruitmentEndsAt",
+                    "isRecruiting",
+                )
+            }
+        )
+    if resource.reference.kind == "contest":
+        return ContestCardDetails.model_validate(
+            {
+                name: facts[name]
+                for name in (
+                    "organizer",
+                    "registrationStatus",
+                    "startsAt",
+                    "endsAt",
+                )
+            }
+        )
+    raise ValueError("Unsupported card resource")
+
+
 def build_result(
     execution: Execution,
     plan: RecommendationPlan,
@@ -108,8 +161,13 @@ def build_result(
 ) -> AiResult:
     now = datetime.now(UTC)
     if execution.context.purpose == "chat":
-        cards = [
-            ResourceCard(
+        rich = (
+            isinstance(execution.input, ChatStart)
+            and execution.input.result_format == "rich"
+        )
+        cards: list[ResourceCard | RichResourceCard] = []
+        for choice, resource in zip(plan.selections, selected, strict=True):
+            card = ResourceCard(
                 kind=cast("LiteralCardKind", resource.reference.kind),
                 resource_id=resource.reference.resource_id,
                 title=resource.title,
@@ -118,8 +176,15 @@ def build_result(
                 role_codes=resource.role_codes,
                 is_demo=resource.is_demo,
             )
-            for choice, resource in zip(plan.selections, selected, strict=True)
-        ]
+            cards.append(
+                RichResourceCard(
+                    **card.model_dump(),
+                    evidence=choice.evidence,
+                    details=card_details(resource),
+                )
+                if rich
+                else card
+            )
         return ChatResult(answer=text, cards=cards, generated_at=now)
     if assessments is None:
         raise ValueError("지원자 결과에는 구조화 평가가 필요합니다.")

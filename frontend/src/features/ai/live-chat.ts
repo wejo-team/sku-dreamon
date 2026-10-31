@@ -312,15 +312,17 @@ export class LiveChatController {
     this.validations.set(requestId, promise);
     return promise;
   };
-  copy = async (requestId: string) => {
+  copy = async (requestId: string, format?: (result: ChatResult) => string) => {
     const epoch = this.epoch;
     const result = await this.validate(requestId);
     if (!result || !this.current(epoch)) return false;
     await navigator.clipboard.writeText(
-      [
-        result.answer,
-        ...result.cards.map((card) => `${card.title}\n${card.reason}`),
-      ].join('\n\n'),
+      format
+        ? format(result)
+        : [
+            result.answer,
+            ...result.cards.map((card) => `${card.title}\n${card.reason}`),
+          ].join('\n\n'),
     );
     return this.current(epoch);
   };
@@ -347,6 +349,7 @@ export class LiveChatController {
       conversationId: this.state.conversationId,
       clientMessageId: crypto.randomUUID(),
       content,
+      resultFormat: 'rich',
       history,
       previousResults: this.state.turns
         .filter((turn) => !!turn.original)

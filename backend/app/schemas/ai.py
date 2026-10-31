@@ -7,13 +7,15 @@ from uuid import UUID
 from pydantic import AfterValidator, Field, StrictStr, field_validator, model_validator
 
 from app.core.http.schemas import (
+    PositiveBigInt,
     PositiveInt,
     RequestDTO,
     ResponseDTO,
     Timestamp,
     Version,
 )
-from app.rules.catalogs import SkillCode
+from app.rules.catalogs import SkillCode, WeeklyAvailabilityCode
+from app.rules.contests import RegistrationStatus
 
 AiPurpose = Literal["chat", "applicant_review", "applicant_recommendation"]
 AiStatus = Literal["pending", "succeeded", "empty", "failed", "canceled"]
@@ -43,6 +45,10 @@ class ChatStart(RequestDTO):
     conversation_id: UUID = Field(description="현재 탭의 대화 ID. 새 대화에서 교체.")
     client_message_id: UUID = Field(description="동일 사용자 메시지의 중복 방지 ID.")
     content: MessageText
+    # 미지정 필드를 직렬화에서 제외해 기존 실행 입력 해시·재시도를 유지한다.
+    result_format: Literal["rich"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     history: list[MessageText] = Field(default_factory=list, max_length=20)
     previous_results: list[PreviousResult] = Field(default_factory=list, max_length=20)
 
@@ -66,6 +72,47 @@ class CancelRequest(RequestDTO):
     expected_attempt: PositiveInt
 
 
+Evidence = Annotated[list[Annotated[str, Field(max_length=500)]], Field(max_length=6)]
+
+
+class PersonCardDetails(ResponseDTO):
+    """권한이 확인된 프로필의 자기신고 정보. 역량·시간을 추정하지 않는다."""
+
+    kind: Literal["person"] = "person"
+    skill_codes: list[SkillCode] = Field(max_length=len(SkillCode))
+    weekly_availability_code: WeeklyAvailabilityCode | None
+    experience_state: Literal["unspecified", "none", "provided"]
+    experience_body: str | None = Field(max_length=500)
+    introduction: str | None = Field(max_length=300)
+
+
+class TeamCardDetails(ResponseDTO):
+    """팀의 현재 모집 정보를 그대로 표시하기 위한 구조."""
+
+    kind: Literal["team"] = "team"
+    contest_title: str = Field(max_length=500)
+    capacity: PositiveBigInt
+    member_count: PositiveInt
+    recruitment_ends_at: Timestamp
+    is_recruiting: bool
+
+
+class ContestCardDetails(ResponseDTO):
+    """공고에 등록된 주최자와 접수 기간. 참가 자격 판단은 포함하지 않는다."""
+
+    kind: Literal["contest"] = "contest"
+    organizer: str = Field(max_length=500)
+    registration_status: RegistrationStatus
+    starts_at: Timestamp
+    ends_at: Timestamp
+
+
+CardDetails = Annotated[
+    PersonCardDetails | TeamCardDetails | ContestCardDetails,
+    Field(discriminator="kind"),
+]
+
+
 class ResourceCard(ResponseDTO):
     kind: Literal["contest", "team", "person"]
     resource_id: UUID
@@ -76,10 +123,23 @@ class ResourceCard(ResponseDTO):
     is_demo: bool
 
 
+class RichResourceCard(ResourceCard):
+    """명시적 rich 요청에만 권한이 확인된 등록 사실을 포함한다."""
+
+    evidence: Evidence
+    details: CardDetails
+
+    @model_validator(mode="after")
+    def require_matching_details(self) -> Self:
+        if self.kind != self.details.kind:
+            raise ValueError("카드 종류와 표시 정보가 일치하지 않습니다.")
+        return self
+
+
 class ChatResult(ResponseDTO):
     kind: Literal["chat"] = "chat"
     answer: str = Field(max_length=12000)
-    cards: list[ResourceCard] = Field(max_length=3)
+    cards: list[RichResourceCard | ResourceCard] = Field(max_length=3)
     generated_at: Timestamp
     references_changed: bool = False
 

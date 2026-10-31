@@ -66,10 +66,15 @@ class FixtureDriver:
         context = tools.reader.context
         tools.count_call()
         if context.purpose == "chat":
-            # 테스트가 HTTP로 만든 공개 프로필을 지정한다. 임의 결과 ID를 만들지 않는다.
-            resource = await tools.load("person", UUID(content.rsplit(" ", 1)[-1]))
+            # 테스트가 HTTP로 만든 공개 프로필만 지정한다. 임의 결과 ID를 만들지 않는다.
+            ids = (
+                content.removeprefix("E2E 비교 ").split()
+                if content.startswith("E2E 비교 ")
+                else [content.rsplit(" ", 1)[-1]]
+            )
+            resources = [await tools.load("person", UUID(value)) for value in ids]
         elif context.application_id is not None:
-            resource = await tools.load("application", context.application_id)
+            resources = [await tools.load("application", context.application_id)]
         else:
             result = await tools.reader.applicants(1)
             candidates = await tools.items("application", result.ids)
@@ -77,7 +82,7 @@ class FixtureDriver:
                 return RecommendationPlan(
                     intent="empty", selections=[], guidance="현재 유효 후보가 없습니다."
                 )
-            resource = tools.observed[str(candidates[0]["key"])]
+            resources = [tools.observed[str(candidates[0]["key"])]]
         return RecommendationPlan(
             intent="recommend",
             selections=[
@@ -86,6 +91,7 @@ class FixtureDriver:
                     reason="등록된 관심 분야와 역할을 확인했습니다.",
                     evidence=["현재 서비스에 등록된 자료를 조회했습니다."],
                 )
+                for resource in resources
             ],
             guidance="실제 자료와 연결된 테스트 모델 응답입니다.",
         )

@@ -11,7 +11,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from app.agents.tools import SourceTools
 from app.agents.tracing import AiTraceContext
@@ -256,12 +256,16 @@ def events(text: str) -> list[dict[str, object]]:
     return result
 
 
+@pytest.mark.parametrize("rich", [False, True])
 async def test_chat_stream_result_integrity_and_public_revocation(
     ai_data: ApplicationData,
+    rich: bool,
 ) -> None:
     data = ai_data
     driver = FakeDriver(data)
     body = payload()
+    if rich:
+        body["resultFormat"] = "rich"
     async with client_for(data, driver, data.applicant_id) as client:
         response = await client.post("/api/v1/ai/chat/stream", json=body)
         assert response.status_code == 200
@@ -282,6 +286,21 @@ async def test_chat_stream_result_integrity_and_public_revocation(
         assert result["answer"] == "등록된 정보를 바탕으로 추천합니다."
         assert result["cards"][0]["resourceId"] == str(data.stranger_id)
         assert result["cards"][0]["isDemo"] is False
+        if rich:
+            card = result["cards"][0]
+            assert card["details"]["kind"] == "person"
+            assert card["evidence"] == ["디자인 관심 분야 등록"]
+            assert set(card["details"]) == {
+                "kind",
+                "skillCodes",
+                "weeklyAvailabilityCode",
+                "experienceState",
+                "experienceBody",
+                "introduction",
+            }
+        else:
+            assert "details" not in result["cards"][0]
+            assert "evidence" not in result["cards"][0]
         base = f"/api/v1/ai/requests/{body['requestId']}"
         status = await client.get(base)
         assert status.json()["data"]["status"] == "succeeded"
@@ -290,6 +309,14 @@ async def test_chat_stream_result_integrity_and_public_revocation(
         assert (await client.post(base + "/validation", json=valid_body)).json()[
             "data"
         ]["valid"] is True
+        if rich:
+            altered = json.loads(json.dumps(result))
+            altered["cards"][0]["details"]["introduction"] = "변조된 등록 사실"
+            assert (
+                await client.post(
+                    base + "/validation", json={"attempt": 1, "result": altered}
+                )
+            ).status_code == 409
         forged = {**result, "answer": "변조된 답변"}
         assert (
             await client.post(
@@ -373,17 +400,32 @@ async def test_private_applicant_review_staleness_and_read_only(
         assert updated["profileVersions"][0]["currentVersion"] == "2"
 
 
+@pytest.mark.parametrize("rich", [False, True])
 async def test_failed_retry_fences_attempt_and_preserves_message(
     ai_data: ApplicationData,
+    rich: bool,
 ) -> None:
     driver = FakeDriver(ai_data)
     driver.fail_once = True
     body = payload()
+    if rich:
+        body["resultFormat"] = "rich"
     async with client_for(ai_data, driver, ai_data.applicant_id) as client:
         first = await client.post("/api/v1/ai/chat/stream", json=body)
         assert events(first.text)[-1]["event"] == "error"
         assert "provider failure" not in first.text
         base = f"/api/v1/ai/requests/{body['requestId']}"
+        switched = {**body}
+        if rich:
+            switched.pop("resultFormat")
+        else:
+            switched["resultFormat"] = "rich"
+        assert (
+            await client.post(
+                base + "/retries/stream",
+                json={"expectedAttempt": 1, "input": switched},
+            )
+        ).status_code == 409
         second = await client.post(
             base + "/retries/stream", json={"expectedAttempt": 1, "input": body}
         )
@@ -494,8 +536,13 @@ async def test_publication_blocks_revocation_until_send_and_stops_next_chunk(
         if b"event: answer.delta" in frame:
             break
 
+    mutation_pid: asyncio.Future[int] = asyncio.get_running_loop().create_future()
+
     async def revoke() -> None:
         async with ai_data.database.session() as session:
+            pid = await session.scalar(select(func.pg_backend_pid()))
+            assert pid is not None
+            mutation_pid.set_result(pid)
             await session.execute(
                 update(Profile)
                 .where(Profile.profile_id == ai_data.stranger_id)
@@ -505,7 +552,15 @@ async def test_publication_blocks_revocation_until_send_and_stops_next_chunk(
 
     mutation = asyncio.create_task(revoke())
     try:
-        await asyncio.sleep(0.05)
+        # 고정 sleep은 느린 연결 준비를 잠금 대기로 오인한다. UPDATE가 실제로
+        # 전송 잠금을 기다리는 것을 확인한 뒤 다음 프레임으로 진행한다.
+        async with asyncio.timeout(3):
+            pid = await mutation_pid
+            async with ai_data.database.session() as observer:
+                while not await observer.scalar(  # noqa: ASYNC110 -- 외부 DB 잠금은 Event를 제공하지 않음
+                    select(func.cardinality(func.pg_blocking_pids(pid)))
+                ):
+                    await asyncio.sleep(0.01)
         assert not mutation.done(), (
             "공개 변경은 현재 전송 경계가 닫힐 때까지 기다려야 한다."
         )
