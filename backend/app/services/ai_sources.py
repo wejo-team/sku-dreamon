@@ -12,6 +12,8 @@ from app.agents.types import AgentContext, Reference, Resource, fingerprint
 from app.core.db.session import Database
 from app.core.exceptions import AppError
 from app.repositories import ai_runs as run_repository
+from app.rules.catalogs import FieldCode, RoleCode
+from app.rules.contests import RegistrationStatus
 from app.schemas.application_review import ApplicantSearch
 from app.schemas.contests import ContestSearch
 from app.schemas.profiles import PeopleQuery, ProfileResponse
@@ -231,7 +233,14 @@ class SourceReader:
         )
 
     async def search(
-        self, kind: Literal["contest", "team", "person"], query: str, page: int
+        self,
+        kind: Literal["contest", "team", "person"],
+        query: str,
+        page: int,
+        *,
+        role_code: RoleCode | None = None,
+        field_code: FieldCode | None = None,
+        registration_status: RegistrationStatus | None = None,
     ) -> tuple[list[UUID], bool]:
         if self.context.purpose != "chat":
             raise AppError(403, "FORBIDDEN", "이 요청에서는 사용할 수 없는 조회입니다.")
@@ -246,6 +255,8 @@ class SourceReader:
                             "page": page,
                             "pageSize": 8,
                             "sort": "deadline_asc",
+                            "fieldCode": field_code,
+                            "registrationStatus": registration_status,
                         }
                     ),
                 )
@@ -261,6 +272,7 @@ class SourceReader:
                             "page": page,
                             "pageSize": 8,
                             "recruitingOnly": True,
+                            "roleCode": role_code,
                         }
                     ),
                 )
@@ -269,7 +281,15 @@ class SourceReader:
                 ], page < team_result.pagination.total_pages
             people = await profiles.list_people(
                 session,
-                PeopleQuery.model_validate({"q": query, "page": page, "pageSize": 8}),
+                PeopleQuery.model_validate(
+                    {
+                        "q": query,
+                        "page": page,
+                        "pageSize": 8,
+                        "roleCode": role_code,
+                        "fieldCode": field_code,
+                    }
+                ),
             )
             return [
                 person.account_id for person in people.data
